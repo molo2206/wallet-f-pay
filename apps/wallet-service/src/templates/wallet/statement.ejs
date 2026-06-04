@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="<%= lang %>">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AccesPay - <%= labels.title %></title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .print-container {
+      background-color: white;
+      max-width: 1200px;
+      width: 100%;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+      border-bottom: 3px solid #0309dd;
+      padding-bottom: 20px;
+      margin-bottom: 25px;
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .logo-section {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 10px;
+    }
+
+    .logo-placeholder {
+      width: 120px;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .logo-placeholder img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .company-name {
+      font-size: 32px;
+      font-weight: bold;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    .company-address {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .contact-info {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+
+    .contact-info p {
+      margin: 2px 0;
+    }
+
+    /* Nouveau bloc titre centré */
+    .statement-title {
+      text-align: center;
+      margin: 20px 0 30px 0;
+    }
+    .statement-title h2 {
+      font-size: 24px;
+      font-weight: bold;
+      color: #0309dd;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .statement-title p {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 5px;
+    }
+
+    .info-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 25px;
+      padding: 15px;
+      background-color: #f9fafb;
+      border-radius: 8px;
+    }
+
+    .client-info {
+      flex: 1;
+    }
+
+    .client-info h3 {
+      font-size: 12px;
+      font-weight: bold;
+      color: #0309dd;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .client-details {
+      font-size: 10px;
+      color: #374151;
+      line-height: 1.6;
+    }
+
+    .client-details p {
+      margin: 3px 0;
+    }
+
+    .client-details .label {
+      font-weight: 600;
+      color: #6b7280;
+      min-width: 80px;
+      display: inline-block;
+    }
+
+    .totals-info {
+      min-width: 280px;
+      padding-left: 20px;
+    }
+
+    .totals-info h3 {
+      font-size: 12px;
+      font-weight: bold;
+      color: #0309dd;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .totals-table {
+      width: 100%;
+      font-size: 11px;
+    }
+
+    .totals-table tr td {
+      padding: 5px 0;
+    }
+
+    .totals-table tr td:first-child {
+      font-weight: 600;
+      color: #6b7280;
+    }
+
+    .totals-table tr td:last-child {
+      text-align: right;
+      font-weight: 700;
+    }
+
+    .totals-table .credit-row td:last-child {
+      color: #16a34a;
+    }
+
+    .totals-table .debit-row td:last-child {
+      color: #fcb424;
+    }
+
+    .totals-table .balance-row td:last-child {
+      color: #0309dd;
+      font-size: 13px;
+    }
+
+    .totals-table .separator td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0;
+      height: 1px;
+    }
+
+    .transactions-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    .transactions-table th {
+      padding: 10px 6px;
+      text-align: left;
+      color: white;
+      font-size: 10px;
+      font-weight: 600;
+      border: 1px solid white;
+      border-top: none;
+    }
+
+    .transactions-table th:first-child {
+      border-left: none;
+    }
+
+    .transactions-table th:last-child {
+      border-right: none;
+    }
+
+    .transactions-table th.text-right,
+    .transactions-table td.text-right {
+      text-align: right;
+    }
+
+    .transactions-table td {
+      padding: 8px 6px;
+      font-size: 9px;
+      border: 1px solid white;
+      vertical-align: top;
+    }
+
+    .description-text {
+      font-weight: 600;
+      margin-bottom: 3px;
+      font-size: 9px;
+    }
+
+    .user-name {
+      font-size: 8px;
+      color: #6b7280;
+    }
+
+    .reference-text {
+      font-family: monospace;
+      font-size: 9px;
+    }
+
+    .credit-amount {
+      color: #16a34a;
+      font-weight: 600;
+    }
+
+    .debit-amount {
+      color: #fcb424;
+      font-weight: 600;
+    }
+
+    .balance-amount {
+      font-weight: 600;
+    }
+
+    .footer {
+      border-top: 1px solid #e5e7eb;
+      padding-top: 16px;
+      margin-top: 16px;
+      text-align: center;
+      font-size: 9px;
+      color: #9ca3af;
+    }
+
+    .footer p {
+      margin: 0 0 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-container">
+    <div class="header">
+      <div class="header-content">
+        <div>
+          <div class="logo-section">
+            <div class="logo-placeholder">
+              <img src="<%= logoBase64 || '/uploads/icon.jpeg' %>" alt="AccesPay" />
+            </div>
+            <div>
+              <h1 class="company-name">F-Pay</h1>
+              <p class="company-address">123 Avenue de la paix, Goma, RDC</p>
+            </div>
+          </div>
+          <div class="contact-info">
+            <p>Tél: +243 123 456 789</p>
+            <p>Email: contact@accespay.com</p>
+            <p>Web: www.accespay.com</p>
+          </div>
+        </div>
+        <!-- Le bloc titre a été retiré de l'en-tête -->
+      </div>
+       
+    </div>
+    <div class="statement-title">
+      <h2><%= labels.title %></h2>
+      <% if (hasDateRange) { %>
+        <p><%= periodStart %> - <%= periodEnd %></p>
+      <% } %>
+    </div>
+    <div class="info-section">
+      <div class="client-info">
+        <h3><%= labels.clientInfo %></h3>
+        <div class="client-details">
+          <p><span class="label"><%= labels.fullName %> :</span> <%= client.fullName %></p>
+          <!-- <p><span class="label"><%= labels.accountNumber %> :</span> <%= client.accountNumber %></p> -->
+          <p><span class="label"><%= labels.phone %> :</span> <%= client.phone %></p>
+          <p><span class="label"><%= labels.email %> :</span> <%= client.email %></p>
+          <p><span class="label"><%= labels.address %> :</span> Non spécifiée</p>
+        </div>
+      </div>
+      <div class="totals-info">
+        <h3><%= labels.summary %></h3>
+        <table class="totals-table">
+          <tr class="credit-row">
+            <td><%= labels.totalCredits %> :</td>
+            <td><%= totals.credits %> <%= currency %></td>
+          </tr>
+          <tr class="debit-row">
+            <td><%= labels.totalDebits %> :</td>
+            <td><%= totals.debits %> <%= currency %></td>
+          </tr>
+          <tr class="separator"><td colspan="2"></td></tr>
+          <tr class="balance-row">
+            <td><%= labels.finalBalance %> :</td>
+            <td><%= totals.balance %> <%= currency %></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <table class="transactions-table">
+      <thead>
+        <tr style="background-color: #0309dd">
+          <th><%= labels.details %></th>
+          <th><%= labels.reference %></th>
+          <th><%= labels.date %></th>
+          <th class="text-right"><%= labels.credit %></th>
+          <th class="text-right"><%= labels.debit %></th>
+          <th class="text-right"><%= labels.balance %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (transactions && transactions.length) { %>
+          <% transactions.forEach(function(tx, index) { %>
+            <tr style="background-color: <%= index % 2 === 0 ? '#ffffff' : '#e7e7e7' %>">
+              <td>
+                <div class="description-text"><%= tx.description %></div>
+                <div class="user-name"><%= tx.detail %></div>
+              </td>
+              <td><span class="reference-text"><%= tx.reference %></span></td>
+              <td><%= tx.date %></td>
+              <td class="text-right credit-amount"><%= tx.credit ? tx.credit + ' ' + currency : '-' %></td>
+              <td class="text-right debit-amount"><%= tx.debit ? tx.debit + ' ' + currency : '-' %></td>
+              <td class="text-right balance-amount"><%= tx.balance %> <%= currency %></td>
+            </tr>
+          <% }); %>
+        <% } else { %>
+          <tr><td colspan="6" style="text-align: center;"><%= labels.noTransactions %></td></tr>
+        <% } %>
+      </tbody>
+      <tfoot>
+        <tr style="background-color: #f3f4f6">
+          <td colspan="3" style="padding: 8px 6px; text-align: right; font-weight: bold;"><%= labels.totals %> :</td>
+          <td class="text-right credit-amount"><%= totals.credits %> <%= currency %></td>
+          <td class="text-right debit-amount"><%= totals.debits %> <%= currency %></td>
+          <td class="text-right balance-amount"><%= totals.balance %> <%= currency %></td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="footer">
+      <p><%= labels.footerText %></p>
+      <p><%= labels.generatedOn %> <%= generatedDate %></p>
+    </div>
+  </div>
+</body>
+</html>

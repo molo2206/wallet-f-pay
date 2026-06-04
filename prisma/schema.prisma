@@ -1,0 +1,490 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model transaction {
+  id          String               @id @db.VarChar(36)
+  userId      String               @db.VarChar(36)
+  walletId    String               @db.VarChar(36)
+  amount      Float
+  type        transaction_type
+  status      transaction_status   @default(PENDING)
+  reference   String               @unique(map: "reference") @db.VarChar(255)
+  description String?              @db.Text
+  createdAt   DateTime             @default(now()) @db.DateTime(0)
+  updatedAt   DateTime             @default(now()) @db.DateTime(0)
+  movement    transaction_movement
+  user        user                 @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Transaction_userId_fkey")
+  wallet      wallet               @relation(fields: [walletId], references: [id], onDelete: Cascade, map: "Transaction_walletId_fkey")
+
+  @@index([userId], map: "userId")
+  @@index([walletId], map: "walletId")
+}
+
+model user {
+  id                     String                   @id @db.VarChar(36)
+  email                  String?                  @unique(map: "email") @db.VarChar(255)
+  phone                  String?                  @unique(map: "phone") @db.VarChar(255)
+  password               String?                  @db.VarChar(255)
+  full_name              String?                  @db.VarChar(255)
+  account_number         String?                  @db.VarChar(50)
+  merchantCode           String?                  @db.VarChar(100)
+  branch                 String?                  @db.VarChar(50)
+  role                   user_role                @default(USER)
+  status                 user_status              @default(ACTIVE)
+  deleted                Boolean?                 @default(false)
+  createdAt              DateTime                 @default(now()) @db.DateTime(0)
+  updatedAt              DateTime                 @default(now()) @db.DateTime(0)
+  pin                    String?                  @db.VarChar(255)
+  passwordStatus         user_passwordStatus      @default(DEFAULT)
+  fcmToken               String?                  @db.VarChar(255)
+  pinstatus              Boolean?                 @default(false)
+  businessName           String?                  @db.VarChar(255)
+  failed_login_attempts  Int                      @default(0)
+  locked_until           DateTime?                @db.DateTime(0)
+  failed_pin_attempts    Int                      @default(0)
+  pin_locked_until       DateTime?                @db.DateTime(0)
+  api_key                api_key[]
+  audit_log              audit_log[]
+  device_tokens          device_tokens[]
+  failed_transaction_log failed_transaction_log[]
+  login_attempt          login_attempt[]
+  otp                    otp[]
+  sessions               sessions[]
+  transaction            transaction[]
+  user_has_resources     user_has_resources[]
+  user_notifications     user_notifications[]
+  user_settings          user_settings?
+  user_transaction_limit user_transaction_limit?
+  wallets                wallet[]
+
+  @@index([email], map: "email_2")
+  @@index([fcmToken], map: "idx_users_fcmToken")
+  @@index([businessName], map: "idx_businessName")
+}
+
+model wallet {
+  id                     String                   @id @db.VarChar(36)
+  userId                 String                   @db.VarChar(36)
+  balance                Float                    @default(0)
+  currency               wallet_currency          @default(CDF)
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now()) @db.DateTime(0)
+  updatedAt              DateTime                 @default(now()) @db.DateTime(0)
+  isDefault              Boolean                  @default(false)
+  cashCode               String?                  @db.VarChar(255)
+  failed_transaction_log failed_transaction_log[]
+  transaction            transaction[]
+  user                   user                     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Wallet_userId_fkey")
+
+  @@index([userId], map: "idx_wallet_userId")
+}
+
+model account {
+  id             String           @id @db.VarChar(36)
+  full_name      String           @db.VarChar(255)
+  account_number String           @unique(map: "account_number") @db.VarChar(50)
+  phone          String           @unique(map: "phone") @db.VarChar(255)
+  branch         String?          @db.VarChar(255)
+  balance        Float            @default(0) @db.Float
+  currency       account_currency @default(CDF)
+  createdAt      DateTime         @default(now()) @db.DateTime(0)
+  updatedAt      DateTime         @default(now()) @db.DateTime(0)
+
+  @@index([account_number], map: "account_number_idx")
+  @@index([branch], map: "branch_idx")
+  @@index([phone], map: "phone_idx")
+}
+
+model otp {
+  id        Int       @id @default(autoincrement())
+  email     String    @db.VarChar(255)
+  userId    String?   @db.VarChar(36)
+  otpCode   String    @db.VarChar(255)
+  isUsed    Boolean   @default(false)
+  createdAt DateTime  @default(now()) @db.DateTime(0)
+  expiresAt DateTime? @db.DateTime(0)
+  user      user?     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Otp_userId_fkey")
+
+  @@index([email], map: "email_idx")
+  @@index([expiresAt], map: "expiresAt_idx")
+  @@index([otpCode], map: "otpCode_idx")
+  @@index([userId], map: "userId_idx")
+}
+
+model audit_log {
+  id        String   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  userId    String?  @db.VarChar(36)
+  action    String   @db.VarChar(100)
+  details   String?  @db.LongText
+  ipAddress String?  @db.VarChar(45)
+  createdAt DateTime @default(now()) @db.DateTime(0)
+  user      user?    @relation(fields: [userId], references: [id], onUpdate: Restrict, map: "fk_audit_log_user")
+
+  @@index([userId], map: "userId")
+}
+
+model device_tokens {
+  id         String    @id
+  user_id    String    @db.VarChar(36)
+  token      String    @unique(map: "unique_token") @db.VarChar(255)
+  platform   String    @db.VarChar(50)
+  created_at DateTime? @default(now()) @db.DateTime(0)
+  updated_at DateTime? @default(now()) @db.DateTime(0)
+  user       user      @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_device_tokens_user")
+
+  @@index([user_id], map: "idx_user_id")
+}
+
+model user_notifications {
+  id         String    @id
+  user_id    String    @db.VarChar(36)
+  title      String    @db.VarChar(255)
+  body       String    @db.Text
+  type       String    @db.VarChar(50)
+  data       String?   @db.LongText
+  has_seen   Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.DateTime(0)
+  user       user      @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_user_notifications_user")
+
+  @@index([user_id], map: "idx_user_id")
+}
+
+model sessions {
+  id            String    @id
+  user_id       String    @db.VarChar(36)
+  token         String    @unique(map: "unique_token") @db.VarChar(500)
+  device_info   String?   @db.VarChar(500)
+  ip_address    String?   @db.VarChar(45)
+  last_activity DateTime? @default(now()) @db.DateTime(0)
+  expires_at    DateTime  @db.DateTime(0)
+  is_valid      Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.DateTime(0)
+  deleted_at    DateTime? @db.DateTime(0)
+  deviceId      String?   @db.VarChar(255)
+  user          user      @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_sessions_user")
+
+  @@index([user_id, is_valid, expires_at], map: "idx_user_valid_expires")
+}
+
+model general_settings {
+  id                  String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  platform_name       String?   @default("MoneyXchange") @db.VarChar(255)
+  platform_logo       String?   @db.Text
+  platform_favicon    String?   @db.Text
+  contact_email       String?   @db.VarChar(255)
+  contact_phone       String?   @db.VarChar(50)
+  support_email       String?   @db.VarChar(255)
+  address             String?   @db.Text
+  timezone            String?   @default("Africa/Lubumbashi") @db.VarChar(100)
+  date_format         String?   @default("DD/MM/YYYY") @db.VarChar(50)
+  time_format         String?   @default("24h") @db.VarChar(10)
+  maintenance_mode    Boolean?  @default(false)
+  maintenance_message String?   @db.Text
+  created_at          DateTime? @default(now()) @db.Timestamp(0)
+  updated_at          DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model security_policies {
+  id                             String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  password_min_length            Int?      @default(8)
+  password_require_uppercase     Boolean?  @default(true)
+  password_require_lowercase     Boolean?  @default(true)
+  password_require_numbers       Boolean?  @default(true)
+  password_require_special       Boolean?  @default(true)
+  password_expiry_days           Int?      @default(90)
+  password_history_count         Int?      @default(5)
+  session_timeout_minutes        Int?      @default(30)
+  max_concurrent_sessions        Int?      @default(3)
+  remember_me_duration_days      Int?      @default(30)
+  max_login_attempts             Int?      @default(5)
+  lockout_duration_minutes       Int?      @default(30)
+  require_captcha_after_attempts Int?      @default(3)
+  enforce_2fa                    Boolean?  @default(true)
+  enforce_2fa_for_admins         Boolean?  @default(true)
+  allowed_2fa_methods            String?   @default("sms,email") @db.VarChar(255)
+  enable_ip_whitelist            Boolean?  @default(false)
+  enable_ip_blacklist            Boolean?  @default(true)
+  created_at                     DateTime? @default(now()) @db.Timestamp(0)
+  updated_at                     DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model user_transaction_limit {
+  id                        String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  user_id                   String?   @unique(map: "user_id") @db.VarChar(36)
+  daily_limit               Float?    @default(500) @db.Float
+  monthly_limit             Float?    @default(5000) @db.Float
+  yearly_limit              Float?    @default(50000) @db.Float
+  per_transaction_limit     Float?    @default(200) @db.Float
+  monthly_transaction_count Int?      @default(50)
+  created_at                DateTime? @default(now()) @db.Timestamp(0)
+  updated_at                DateTime? @default(now()) @db.Timestamp(0)
+  user                      user?     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_transaction_limit_user")
+
+  @@index([user_id], map: "idx_user_id")
+}
+
+model user_settings {
+  id                  String               @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  user_id             String               @unique(map: "user_id") @db.VarChar(36)
+  language            String?              @default("fr") @db.VarChar(10)
+  theme               user_settings_theme? @default(system)
+  email_notifications Boolean?             @default(true)
+  sms_notifications   Boolean?             @default(true)
+  push_notifications  Boolean?             @default(true)
+  two_factor_enabled  Boolean?             @default(false)
+  last_device         String?              @db.VarChar(255)
+  created_at          DateTime?            @default(now()) @db.Timestamp(0)
+  updated_at          DateTime?            @default(now()) @db.Timestamp(0)
+  user                user                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_settings_user")
+
+  @@index([user_id], map: "idx_user_settings_user")
+}
+
+model failed_transaction_log {
+  id                  String                          @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  transactionId       String                          @db.VarChar(36)
+  userId              String                          @db.VarChar(36)
+  walletId            String                          @db.VarChar(36)
+  amount              Float
+  type                failed_transaction_log_type
+  movement            failed_transaction_log_movement
+  reference           String                          @db.VarChar(255)
+  description         String?                         @db.Text
+  failure_reason      String                          @db.Text
+  failure_code        String?                         @db.VarChar(50)
+  failure_details     String?                         @db.LongText
+  ip_address          String?                         @db.VarChar(45)
+  user_agent          String?                         @db.Text
+  retry_count         Int                             @default(0)
+  can_retry           Boolean                         @default(true)
+  original_created_at DateTime?                       @db.DateTime(0)
+  created_at          DateTime                        @default(now()) @db.DateTime(0)
+  user                user                            @relation(fields: [userId], references: [id], onUpdate: Restrict, map: "failed_transaction_user_fkey")
+  wallet              wallet                          @relation(fields: [walletId], references: [id], onUpdate: Restrict, map: "failed_transaction_wallet_fkey")
+
+  @@index([failure_code], map: "idx_failed_code")
+  @@index([created_at], map: "idx_failed_created_at")
+  @@index([reference], map: "idx_failed_reference")
+  @@index([can_retry, retry_count], map: "idx_failed_retry")
+  @@index([transactionId], map: "idx_failed_transaction_id")
+  @@index([userId], map: "idx_failed_user_id")
+  @@index([walletId], map: "idx_failed_wallet_id")
+}
+
+model resources {
+  id                 String               @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  name               String               @unique
+  label              String
+  description        String?              @db.Text
+  createdAt          DateTime             @default(now()) @db.DateTime(0)
+  updatedAt          DateTime             @default(now()) @db.DateTime(0)
+  user_has_resources user_has_resources[]
+}
+
+model user_has_resources {
+  id         String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  userId     String    @db.VarChar(36)
+  resourceId String    @db.VarChar(36)
+  grantedAt  DateTime  @default(now()) @db.DateTime(0)
+  grantedBy  String?   @db.VarChar(36)
+  expiresAt  DateTime? @db.DateTime(0)
+  canCreate  Boolean   @default(false)
+  canRead    Boolean   @default(false)
+  canUpdate  Boolean   @default(false)
+  canDelete  Boolean   @default(false)
+  canManage  Boolean   @default(false)
+  resources  resources @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user       user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId])
+  @@index([resourceId])
+  @@index([userId])
+}
+
+model app_settings {
+  id                   String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  app_name             String?   @db.VarChar(255)
+  slogan               String?   @db.VarChar(255)
+  description          String?   @db.Text
+  email                String?   @db.VarChar(255)
+  phone                String?   @db.VarChar(50)
+  address              String?   @db.Text
+  default_language     String?   @default("fr") @db.VarChar(10)
+  default_currency     String?   @default("CDF") @db.VarChar(10)
+  timezone             String?   @default("Africa/Lubumbashi") @db.VarChar(100)
+  logo                 String?   @db.Text
+  favicon              String?   @db.Text
+  primary_color        String?   @db.VarChar(20)
+  secondary_color      String?   @db.VarChar(20)
+  maintenance_mode     Boolean?  @default(false)
+  maintenance_message  String?   @db.Text
+  allow_registration   Boolean?  @default(true)
+  transfer_fee         Float?    @default(0) @db.Float
+  withdraw_fee         Float?    @default(0) @db.Float
+  facebook             String?   @db.VarChar(255)
+  instagram            String?   @db.VarChar(255)
+  twitter              String?   @db.VarChar(255)
+  stripe_enabled       Boolean?  @default(false)
+  paypal_enabled       Boolean?  @default(false)
+  mobile_money_enabled Boolean?  @default(false)
+  createdAt            DateTime? @default(now()) @db.DateTime(0)
+  updatedAt            DateTime? @default(now()) @db.DateTime(0)
+}
+
+model login_attempt {
+  id                  String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  userId              String?   @db.VarChar(36)
+  identifier          String    @db.VarChar(255)
+  success             Boolean   @default(false)
+  ipAddress           String?   @db.VarChar(45)
+  userAgent           String?   @db.Text
+  createdAt           DateTime  @default(now()) @db.DateTime(0)
+  failed_pin_attempts Int?
+  pin_locked_until    DateTime? @db.DateTime(0)
+  user                user?     @relation(fields: [userId], references: [id], map: "login_attempt_user_fkey")
+
+  @@index([createdAt])
+  @@index([identifier])
+  @@index([userId])
+}
+
+model country_provider {
+  id               String             @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  code             String             @unique(map: "code_unique") @db.VarChar(10)
+  name             String             @db.VarChar(100)
+  flag             String?            @db.Text
+  prefix           String?            @db.VarChar(10)
+  default_currency String?            @db.VarChar(255)
+  createdAt        DateTime           @default(now()) @db.DateTime(0)
+  updatedAt        DateTime           @default(now()) @db.DateTime(0)
+  network_provider network_provider[]
+}
+
+model network_provider {
+  id                  String           @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  name                String           @db.VarChar(100)
+  currency            String           @db.Text
+  pourcentage_deposit Float?           @default(0) @db.Float
+  pourcentage_payout  Float?           @default(0) @db.Float
+  image               String?          @db.Text
+  countryId           String           @db.VarChar(36)
+  createdAt           DateTime         @default(now()) @db.DateTime(0)
+  updatedAt           DateTime         @default(now()) @db.DateTime(0)
+  country_provider    country_provider @relation(fields: [countryId], references: [id], onDelete: Cascade, map: "fk_network_country")
+
+  @@index([countryId], map: "idx_countryId")
+}
+
+model exchange_rate {
+  id            String   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  from_currency String   @db.VarChar(10)
+  to_currency   String   @db.VarChar(10)
+  rate          Float    @db.Float
+  updated_at    DateTime @default(now()) @db.DateTime(0)
+
+  @@unique([from_currency, to_currency], map: "exchange_rate_currency_unique")
+}
+
+model api_key {
+  id          String    @id @db.VarChar(36)
+  key         String    @unique(map: "uk_api_key") @db.VarChar(255)
+  name        String    @db.VarChar(100)
+  userId      String    @db.VarChar(36)
+  permissions String    @db.LongText
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @db.DateTime(0)
+  updatedAt   DateTime  @default(now()) @db.DateTime(0)
+  lastUsedAt  DateTime? @db.DateTime(0)
+  expiresAt   DateTime? @db.DateTime(0)
+  user        user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_api_key_user")
+
+  @@index([userId], map: "idx_api_key_userId")
+}
+
+enum transaction_type {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  PAYMENT
+}
+
+enum wallet_currency {
+  USD
+  EUR
+  CDF
+  XOF
+  XAF
+  KES
+  RWF
+  UGX
+  ZMW
+  SLE
+}
+
+enum transaction_status {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum user_status {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+  BLOCKED
+}
+
+enum user_passwordStatus {
+  CHANGED
+  IGNORED
+  DEFAULT
+}
+
+enum user_role {
+  USER
+  ADMIN
+  MERCHANT
+  SUPER_ADMIN
+}
+
+enum transaction_movement {
+  CREDIT
+  DEBIT
+}
+
+enum user_settings_theme {
+  system
+  light
+  dark
+}
+
+enum failed_transaction_log_type {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  PAYMENT
+}
+
+enum failed_transaction_log_movement {
+  CREDIT
+  DEBIT
+}
+
+enum account_currency {
+  USD
+  CDF
+  XOF
+  XAF
+  KES
+  RWF
+  UGX
+  ZMW
+  SLE
+}

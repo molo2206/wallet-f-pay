@@ -1,0 +1,103 @@
+/* eslint-disable prefer-const */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+// apps/wallet-service/src/utils/wallet-notification.util.ts
+import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
+import { NotificationType } from 'apps/notification-service/src/type/notification-type';
+import { SmsService } from 'apps/auth-service/src/sms/sms.service';
+import { I18nService } from '@app/common';
+
+export async function notifyTransaction(
+  smsService: SmsService,
+  notificationHelper: NotificationHelper,
+  i18nService: I18nService,
+  shouldSendSms: (userId: string) => Promise<boolean>,
+  shouldSendPush: (userId: string) => Promise<boolean>,
+  getUserLanguage: (userId: string) => Promise<string>,
+  transaction: any,
+  user: any,
+  wallet: any,
+  type: string,
+  counterparty?: { name?: string; phone?: string; accountNumber?: string },
+) {
+  const userLang = await getUserLanguage(user.id);
+
+  // --- SMS ---
+  if (user.phone && (await shouldSendSms(user.id))) {
+    const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
+
+    let smsKey: string;
+    const params: any = {
+      full_name: user.full_name,
+      amount: transaction.amount,
+      currency: wallet.currency || 'CDF',
+      balance: wallet.balance,
+    };
+    switch (type) {
+      case 'topup':
+        smsKey = 'wallet.top_up_sms';
+        break;
+      case 'cashout':
+        smsKey = 'wallet.cashout_sms';
+        break;
+      case 'send_sent':
+        smsKey = 'wallet.transfer_sender_sms';
+        params.toPhone = counterparty?.phone;
+        params.toName = counterparty?.name;
+        break;
+      case 'send_received':
+        smsKey = 'wallet.transfer_receiver_sms';
+        params.fromPhone = counterparty?.phone;
+        params.fromName = counterparty?.name;
+        break;
+      case 'pay_sent':
+        smsKey = 'wallet.payment_payer_sms';
+        params.merchantName = counterparty?.name;
+        params.merchantPhone = counterparty?.phone;
+        break;
+      case 'pay_received':
+        smsKey = 'wallet.payment_merchant_sms';
+        params.payerAccount = counterparty?.accountNumber;
+        params.payerName = counterparty?.name;
+        break;
+      default:
+        return;
+    }
+
+    const smsText = i18nService.translate(smsKey, userLang, params);
+    await smsService.sendSms(cleanPhone, smsText);
+  }
+
+  // --- Push notification ---
+  if (await shouldSendPush(user.id)) {
+    let pushType = NotificationType.TRANSACTION;
+    let pushData: any = {
+      amount: transaction.amount,
+      currency: wallet.currency || 'CDF',
+      operationType: type,
+      status: transaction.status,
+    };
+    if (type === 'send_sent' || type === 'send_received') {
+      pushType = NotificationType.TRANSFER;
+      pushData.direction = type === 'send_sent' ? 'sent' : 'received';
+      pushData.toName = counterparty?.name;
+      pushData.fromName = counterparty?.name;
+    }
+    if (type === 'pay_sent' || type === 'pay_received') {
+      pushType = NotificationType.PAYMENT;
+      pushData.direction = type === 'pay_sent' ? 'sent' : 'received';
+      pushData.merchantName = counterparty?.name;
+      pushData.customerName = counterparty?.name;
+    }
+
+    await notificationHelper.notify(
+      user.id,
+      pushType,
+      pushData,
+      'TRANSACTION',
+      transaction.id,
+      userLang,
+    );
+  }
+}
