@@ -431,7 +431,7 @@ export class PawapayService {
   async getCountryByCode(ip: string) {
     try {
       const countryCode = 'COD';
-      const country = await this.prisma.country_provider.findUnique({
+      const country = await this.prisma.country_provider.findFirst({
         where: { code: countryCode },
         include: { network_provider: true },
       });
@@ -445,7 +445,7 @@ export class PawapayService {
 
   private async getDefaultCountry() {
     const defaultCode = 'COD';
-    const country = await this.prisma.country_provider.findUnique({
+    const country = await this.prisma.country_provider.findFirst({
       where: { code: defaultCode },
       include: { network_provider: true },
     });
@@ -454,7 +454,7 @@ export class PawapayService {
   }
   // Dans pawapay.service.ts
   async getCountryByCodePublic(code: string) {
-    return this.prisma.country_provider.findUnique({
+    return this.prisma.country_provider.findFirst({
       where: { code },
       include: { network_provider: true },
     });

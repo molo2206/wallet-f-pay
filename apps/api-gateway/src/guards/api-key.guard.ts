@@ -38,7 +38,8 @@ export class ApiKeyGuard implements CanActivate {
 
         // 2️⃣ Si ce n'est pas un JWT, rechercher dans la base
         if (!isJwt) {
-            const keyRecord = await this.prisma.api_key.findUnique({
+            // ✅ CHANGÉ: findUnique → findFirst (car key n'a pas @unique)
+            const keyRecord = await this.prisma.api_key.findFirst({
                 where: { key: apiKey },
                 include: { user: true },
             });

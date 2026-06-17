@@ -71,7 +71,7 @@ export class UserServiceService {
 
     // 1. Vérifier les doublons d'email
     if (data.email) {
-      const existing = await this.prisma.user.findUnique({
+      const existing = await this.prisma.user.findFirst({
         where: { email: data.email.toLowerCase() },
       });
       if (existing)
@@ -84,7 +84,7 @@ export class UserServiceService {
 
     // 2. Vérifier les doublons de téléphone
     if (data.phone) {
-      const existing = await this.prisma.user.findUnique({
+      const existing = await this.prisma.user.findFirst({
         where: { phone: data.phone },
       });
       if (existing)
@@ -234,7 +234,7 @@ export class UserServiceService {
 
     // 1️⃣ Vérification doublon téléphone
     if (data.phone) {
-      const existing = await this.prisma.user.findUnique({
+      const existing = await this.prisma.user.findFirst({
         where: { phone: data.phone },
       });
       if (existing) {
@@ -461,7 +461,7 @@ export class UserServiceService {
     console.log(
       `[getUserByEmail] Langue utilisée : ${lang} pour l'email ${email}`,
     );
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       where: { email: email.toLowerCase() },
     });
     if (!user) {
@@ -484,7 +484,7 @@ export class UserServiceService {
     console.log(
       `[getUserByPhone] Langue utilisée : ${lang} pour le téléphone ${phone}`,
     );
-    const user = await this.prisma.user.findUnique({ where: { phone } });
+    const user = await this.prisma.user.findFirst({ where: { phone } });
     if (!user) {
       throw new RpcException({
         status: 'error',
@@ -534,7 +534,7 @@ export class UserServiceService {
       data.account_number &&
       data.account_number !== existingUser.account_number
     ) {
-      const account = await this.prisma.account.findUnique({
+      const account = await this.prisma.account.findFirst({
         where: { account_number: data.account_number },
       });
       if (!account) {
@@ -1095,7 +1095,7 @@ export class UserServiceService {
   async getUserSettings(
     userId: string,
   ): Promise<{ message: string; data: any }> {
-    let settings = await this.prisma.user_settings.findUnique({
+    let settings = await this.prisma.user_settings.findFirst({
       where: { user_id: userId },
     });
     if (!settings) {
@@ -1126,11 +1126,21 @@ export class UserServiceService {
       // Convertir en minuscule pour correspondre à l'enum Prisma
       data.theme = dto.theme.toLowerCase();
     }
-    const settings = await this.prisma.user_settings.upsert({
+    let settings = await this.prisma.user_settings.findFirst({
       where: { user_id: userId },
-      update: data,
-      create: { user_id: userId, ...data },
     });
+
+    if (settings) {
+      settings = await this.prisma.user_settings.update({
+        where: { id: settings.id },
+        data: data,
+      });
+    } else {
+      settings = await this.prisma.user_settings.create({
+        data: { user_id: userId, ...data },
+      });
+    }
+
     return {
       message: 'Settings updated successfully',
       data: settings,
@@ -1295,11 +1305,10 @@ export class UserServiceService {
         WITHDRAW: 'Retrait',
       };
       const formattedPayments = paymentsByType.map((p) => ({
-        type: typeMapping[p.type] || p.type,
+        type: (p.type && typeMapping[p.type]) ? typeMapping[p.type] : (p.type || 'unknown'),
         totalAmount: p._sum.amount || 0,
-        count: p._count.type,
+        count: p._count.type || 0,
       }));
-
       // Croissance des utilisateurs (filtrée par les dates)
       let userGrowth = await this.prisma.$queryRaw`
       SELECT DATE_FORMAT(createdAt, '%Y-%m') as month, COUNT(*) as newUsers
@@ -1542,9 +1551,10 @@ export class UserServiceService {
   }
 
   async revokeResource(userId: string, resourceId: string) {
-    const assignment = await this.prisma.user_has_resources.findUnique({
+    const assignment = await this.prisma.user_has_resources.findFirst({
       where: {
-        userId_resourceId: { userId, resourceId },
+        userId: userId,
+        resourceId: resourceId,
       },
     });
     if (!assignment) {

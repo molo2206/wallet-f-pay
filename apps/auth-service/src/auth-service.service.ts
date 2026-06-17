@@ -143,6 +143,7 @@ export class AuthServiceService {
 
         await this.prisma.otp.create({
           data: {
+            id: crypto.randomUUID(),  // AJOUTER
             email: phone,
             otpCode: newOtpCode,
             expiresAt: new Date(Date.now() + 10 * 60 * 1000),
@@ -658,7 +659,7 @@ export class AuthServiceService {
       });
     }
   }
-  
+
   async validateSession(
     userId: string,
     sessionToken: string,
@@ -788,6 +789,7 @@ export class AuthServiceService {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     await this.prisma.otp.create({
       data: {
+        id: crypto.randomUUID(),  // AJOUTER
         userId: user.id,
         email: isEmail ? user.email : user.phone,
         otpCode,

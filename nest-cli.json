@@ -1,22 +1,22 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "apps/ACCESPAY/src",
+  "sourceRoot": "apps/FPAY/src",
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": true,
-    "tsConfigPath": "apps/ACCESPAY/tsconfig.app.json"
+    "tsConfigPath": "apps/FPAY/tsconfig.app.json"
   },
   "monorepo": true,
-  "root": "apps/ACCESPAY",
+  "root": "apps/FPAY",
   "projects": {
-    "ACCESPAY": {
+    "FPAY": {
       "type": "application",
-      "root": "apps/ACCESPAY",
+      "root": "apps/FPAY",
       "entryFile": "main",
-      "sourceRoot": "apps/ACCESPAY/src",
+      "sourceRoot": "apps/FPAY/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/ACCESPAY/tsconfig.app.json"
+        "tsConfigPath": "apps/ACCFPAYESPAY/tsconfig.app.json"
       }
     },
     "accespay-service": {

@@ -514,7 +514,7 @@ export class WalletServiceController {
 
   @MessagePattern('get_country_by_code')
   async getCountryByCode(@Payload() data: { code: string }) {
-    const country = await this.pawapayService['prisma'].country_provider.findUnique({
+    const country = await this.pawapayService['prisma'].country_provider.findFirst({
       where: { code: data.code },
       include: { network_provider: true },
     });

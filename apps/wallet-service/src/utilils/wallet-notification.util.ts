@@ -21,7 +21,12 @@ export async function notifyTransaction(
   type: string,
   counterparty?: { name?: string; phone?: string; accountNumber?: string },
 ) {
-  const userLang = await getUserLanguage(user.id);
+  let userLang = 'fr';
+  try {
+    userLang = await getUserLanguage(user.id);
+  } catch (error) {
+    console.warn(`Impossible de récupérer la langue pour l'utilisateur ${user.id}, utilisation de 'fr' par défaut`);
+  }
 
   // --- SMS ---
   if (user.phone && (await shouldSendSms(user.id))) {

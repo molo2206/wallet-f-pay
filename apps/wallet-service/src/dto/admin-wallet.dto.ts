@@ -1,38 +1,32 @@
 // apps/wallet-service/src/dto/admin-wallet.dto.ts
 export class AdminTopUpDto {
-    userId: string;
-    amount: number;
-    walletId?: string;
+    walletId: string;          // REQUIS
+    amount: number;            // REQUIS
     lang?: string;
     ipAddress?: string;
 }
 
 export class AdminCashoutDto {
-    userId: string;
-    amount: number;
-    walletId?: string;
+    walletId: string;          // REQUIS
+    amount: number;            // REQUIS
     lang?: string;
     ipAddress?: string;
 }
 
 export class AdminSendDto {
-    fromUserId: string;
-    toUserId: string;
+    fromWalletId: string;      // REQUIS - wallet source
+    toWalletId: string;        // REQUIS - wallet destination
     amount: number;
     description?: string;
-    fromWalletId?: string;   // wallet source spécifique
-    toWalletId?: string;     // wallet destination spécifique
     lang?: string;
     ipAddress?: string;
 }
 
 export class AdminPayDto {
-    fromUserId: string;
-    toUserId: string;   // commerçant
+    fromWalletId: string;      // REQUIS - wallet du payeur
+    merchantCode: string;      // REQUIS - code marchand du commerçant
     amount: number;
     description?: string;
-    fromWalletId?: string;   // wallet du payeur
-    toWalletId?: string;     // wallet du commerçant
     lang?: string;
     ipAddress?: string;
 }

@@ -1,5 +1,5 @@
 {
-  "name": "ACCESPAY",
+  "name": "FPAY",
   "version": "0.0.1",
   "description": "",
   "author": "",
@@ -11,13 +11,13 @@
     "start:dev:all": "concurrently \"npm run start:dev api-gateway\" \"npm run start:dev user-service\" \"npm run start:dev auth-service\" \"npm run start:dev wallet-service\" \"npm run start:dev transaction-service\" \"npm run start:dev payment-service\" \"npm run start:dev accespay-service\"",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/apps/ACCESPAY/main",
+    "start:prod": "node dist/apps/FPAY/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./apps/ACCESPAY/test/jest-e2e.json"
+    "test:e2e": "jest --config ./apps/FPAY/test/jest-e2e.json"
   },
   "dependencies": {
     "@nestjs-modules/mailer": "^2.3.4",

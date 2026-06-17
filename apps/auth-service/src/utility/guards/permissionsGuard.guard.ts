@@ -54,8 +54,8 @@ export class PermissionsGuard implements CanActivate {
     resourceName: string,
     action: string,
   ): Promise<void> {
-    // Récupérer la ressource par son nom
-    const resource = await this.prisma.resources.findUnique({
+    // Récupérer la ressource par son nom - CHANGÉ: findUnique → findFirst
+    const resource = await this.prisma.resources.findFirst({
       where: { name: resourceName },
     });
 
@@ -63,13 +63,11 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException(`Ressource "${resourceName}" inexistante.`);
     }
 
-    // Récupérer l'association user_has_resources avec les permissions
-    const userResource = await this.prisma.user_has_resources.findUnique({
+    // Récupérer l'association user_has_resources avec les permissions - CHANGÉ: findUnique avec userId_resourceId → findFirst
+    const userResource = await this.prisma.user_has_resources.findFirst({
       where: {
-        userId_resourceId: {
-          userId,
-          resourceId: resource.id,
-        },
+        userId: userId,
+        resourceId: resource.id,
       },
     });
 

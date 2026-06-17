@@ -6,7 +6,7 @@ import { SmsService } from '../sms/sms.service';
 export class OtpService {
   private prisma = new PrismaClient();
 
-  constructor(private readonly smsService: SmsService) {}
+  constructor(private readonly smsService: SmsService) { }
 
   async sendOtp(phoneNumber: string): Promise<string> {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -26,6 +26,7 @@ export class OtpService {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
     await this.prisma.otp.create({
       data: {
+        id: crypto.randomUUID(),  // <-- AJOUTER CETTE LIGNE
         email: phoneNumber,
         otpCode,
         expiresAt,

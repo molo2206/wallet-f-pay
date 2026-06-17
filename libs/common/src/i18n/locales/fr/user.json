@@ -22,7 +22,6 @@
   "old_pin_incorrect": "Ancien PIN incorrect",
   "pin_valid": "PIN valide",
   "pin_invalid": "PIN incorrect",
-
   "welcome_email_title": "Bienvenue dans votre portefeuille",
   "welcome_email_greeting": "Bonjour {{name}} 👋",
   "welcome_email_message": "Félicitations ! Votre compte ACCESPAY est maintenant actif.",
@@ -35,7 +34,7 @@
   "welcome_email_footer": "ACCESPAY – Votre argent, en toute sécurité",
   "email_sent_to": "Cet email a été envoyé à",
   "cannot_change_own_status": "Vous ne pouvez pas modifier votre propre statut",
-  "profile_update_sms": "Bonjour {full_name}, vos informations de profil (compte {account_number}) ont été mises à jour avec succès.",
-  "password_changed_sms": "Votre mot de passe a été modifié. Si vous n'êtes pas à l'origine de cette modification, contactez immédiatement le support.",
+  "profile_update_sms": "Bonjour {full_name}, votre profil (compte {account_number}) a été mis à jour.",
+  "password_changed_sms": "Votre mot de passe a été modifié. Si vous n'êtes pas à l'origine, contactez le support.",
   "pin_changed_sms": "Votre code PIN a été modifié."
 }

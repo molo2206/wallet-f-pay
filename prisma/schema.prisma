@@ -8,28 +8,29 @@ datasource db {
 }
 
 model transaction {
-  id          String               @id @db.VarChar(36)
-  userId      String               @db.VarChar(36)
-  walletId    String               @db.VarChar(36)
-  amount      Float
-  type        transaction_type
-  status      transaction_status   @default(PENDING)
-  reference   String               @unique(map: "reference") @db.VarChar(255)
-  description String?              @db.Text
-  createdAt   DateTime             @default(now()) @db.DateTime(0)
-  updatedAt   DateTime             @default(now()) @db.DateTime(0)
-  movement    transaction_movement
-  user        user                 @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Transaction_userId_fkey")
-  wallet      wallet               @relation(fields: [walletId], references: [id], onDelete: Cascade, map: "Transaction_walletId_fkey")
+  id                 String               @id @db.VarChar(36)
+  userId             String               @db.VarChar(36)
+  walletId           String               @db.VarChar(36)
+  amount             Float
+  type               transaction_type?
+  status             transaction_status   @default(PENDING)
+  reference          String               @db.VarChar(255)
+  description        String?              @db.Text
+  createdAt          DateTime             @default(now()) @db.DateTime(0)
+  updatedAt          DateTime             @default(now()) @db.DateTime(0)
+  movement           transaction_movement
+  external_reference String?              @db.Text
+  user               user                 @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Transaction_userId_fkey")
+  wallet             wallet               @relation(fields: [walletId], references: [id], onDelete: Cascade, map: "Transaction_walletId_fkey")
 
-  @@index([userId], map: "userId")
-  @@index([walletId], map: "walletId")
+  @@index([userId], map: "Transaction_userId_fkey")
+  @@index([walletId], map: "Transaction_walletId_fkey")
 }
 
 model user {
   id                     String                   @id @db.VarChar(36)
-  email                  String?                  @unique(map: "email") @db.VarChar(255)
-  phone                  String?                  @unique(map: "phone") @db.VarChar(255)
+  email                  String?                  @db.VarChar(255)
+  phone                  String?                  @db.VarChar(255)
   password               String?                  @db.VarChar(255)
   full_name              String?                  @db.VarChar(255)
   account_number         String?                  @db.VarChar(50)
@@ -49,23 +50,20 @@ model user {
   locked_until           DateTime?                @db.DateTime(0)
   failed_pin_attempts    Int                      @default(0)
   pin_locked_until       DateTime?                @db.DateTime(0)
+  kycStatus              user_kycStatus           @default(NOT_SUBMITTED)
   api_key                api_key[]
   audit_log              audit_log[]
-  device_tokens          device_tokens[]
   failed_transaction_log failed_transaction_log[]
+  kyc_submission         kyc_submission[]
   login_attempt          login_attempt[]
-  otp                    otp[]
+  operation              operation[]
   sessions               sessions[]
   transaction            transaction[]
   user_has_resources     user_has_resources[]
   user_notifications     user_notifications[]
-  user_settings          user_settings?
-  user_transaction_limit user_transaction_limit?
+  user_settings          user_settings[]
+  user_transaction_limit user_transaction_limit[]
   wallets                wallet[]
-
-  @@index([email], map: "email_2")
-  @@index([fcmToken], map: "idx_users_fcmToken")
-  @@index([businessName], map: "idx_businessName")
 }
 
 model wallet {
@@ -82,39 +80,31 @@ model wallet {
   transaction            transaction[]
   user                   user                     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Wallet_userId_fkey")
 
-  @@index([userId], map: "idx_wallet_userId")
+  @@index([userId], map: "Wallet_userId_fkey")
 }
 
 model account {
   id             String           @id @db.VarChar(36)
   full_name      String           @db.VarChar(255)
-  account_number String           @unique(map: "account_number") @db.VarChar(50)
-  phone          String           @unique(map: "phone") @db.VarChar(255)
+  account_number String           @db.VarChar(50)
+  phone          String           @db.VarChar(255)
   branch         String?          @db.VarChar(255)
   balance        Float            @default(0) @db.Float
   currency       account_currency @default(CDF)
   createdAt      DateTime         @default(now()) @db.DateTime(0)
   updatedAt      DateTime         @default(now()) @db.DateTime(0)
-
-  @@index([account_number], map: "account_number_idx")
-  @@index([branch], map: "branch_idx")
-  @@index([phone], map: "phone_idx")
 }
 
 model otp {
-  id        Int       @id @default(autoincrement())
+  id        String    @id @db.VarChar(36)
   email     String    @db.VarChar(255)
   userId    String?   @db.VarChar(36)
   otpCode   String    @db.VarChar(255)
   isUsed    Boolean   @default(false)
   createdAt DateTime  @default(now()) @db.DateTime(0)
   expiresAt DateTime? @db.DateTime(0)
-  user      user?     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Otp_userId_fkey")
 
-  @@index([email], map: "email_idx")
-  @@index([expiresAt], map: "expiresAt_idx")
-  @@index([otpCode], map: "otpCode_idx")
-  @@index([userId], map: "userId_idx")
+  @@index([userId], map: "Otp_userId_fkey")
 }
 
 model audit_log {
@@ -126,23 +116,22 @@ model audit_log {
   createdAt DateTime @default(now()) @db.DateTime(0)
   user      user?    @relation(fields: [userId], references: [id], onUpdate: Restrict, map: "fk_audit_log_user")
 
-  @@index([userId], map: "userId")
+  @@index([userId], map: "fk_user")
 }
 
 model device_tokens {
-  id         String    @id
+  id         String    @id @db.VarChar(36)
   user_id    String    @db.VarChar(36)
   token      String    @unique(map: "unique_token") @db.VarChar(255)
   platform   String    @db.VarChar(50)
   created_at DateTime? @default(now()) @db.DateTime(0)
   updated_at DateTime? @default(now()) @db.DateTime(0)
-  user       user      @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_device_tokens_user")
 
-  @@index([user_id], map: "idx_user_id")
+  @@index([user_id], map: "fk_device_tokens_user")
 }
 
 model user_notifications {
-  id         String    @id
+  id         String    @id @db.VarChar(36)
   user_id    String    @db.VarChar(36)
   title      String    @db.VarChar(255)
   body       String    @db.Text
@@ -152,13 +141,13 @@ model user_notifications {
   created_at DateTime? @default(now()) @db.DateTime(0)
   user       user      @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_user_notifications_user")
 
-  @@index([user_id], map: "idx_user_id")
+  @@index([user_id], map: "fk_user_notifications_user")
 }
 
 model sessions {
-  id            String    @id
+  id            String    @id @db.VarChar(36)
   user_id       String    @db.VarChar(36)
-  token         String    @unique(map: "unique_token") @db.VarChar(500)
+  token         String    @db.VarChar(500)
   device_info   String?   @db.VarChar(500)
   ip_address    String?   @db.VarChar(45)
   last_activity DateTime? @default(now()) @db.DateTime(0)
@@ -169,7 +158,7 @@ model sessions {
   deviceId      String?   @db.VarChar(255)
   user          user      @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_sessions_user")
 
-  @@index([user_id, is_valid, expires_at], map: "idx_user_valid_expires")
+  @@index([user_id], map: "fk_sessions_user")
 }
 
 model general_settings {
@@ -216,7 +205,7 @@ model security_policies {
 
 model user_transaction_limit {
   id                        String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  user_id                   String?   @unique(map: "user_id") @db.VarChar(36)
+  user_id                   String?   @db.VarChar(36)
   daily_limit               Float?    @default(500) @db.Float
   monthly_limit             Float?    @default(5000) @db.Float
   yearly_limit              Float?    @default(50000) @db.Float
@@ -226,12 +215,12 @@ model user_transaction_limit {
   updated_at                DateTime? @default(now()) @db.Timestamp(0)
   user                      user?     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_transaction_limit_user")
 
-  @@index([user_id], map: "idx_user_id")
+  @@index([user_id], map: "fk_user_transaction_limit_user")
 }
 
 model user_settings {
   id                  String               @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  user_id             String               @unique(map: "user_id") @db.VarChar(36)
+  user_id             String               @db.VarChar(36)
   language            String?              @default("fr") @db.VarChar(10)
   theme               user_settings_theme? @default(system)
   email_notifications Boolean?             @default(true)
@@ -243,7 +232,7 @@ model user_settings {
   updated_at          DateTime?            @default(now()) @db.Timestamp(0)
   user                user                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_settings_user")
 
-  @@index([user_id], map: "idx_user_settings_user")
+  @@index([user_id], map: "fk_user_settings_user")
 }
 
 model failed_transaction_log {
@@ -268,18 +257,13 @@ model failed_transaction_log {
   user                user                            @relation(fields: [userId], references: [id], onUpdate: Restrict, map: "failed_transaction_user_fkey")
   wallet              wallet                          @relation(fields: [walletId], references: [id], onUpdate: Restrict, map: "failed_transaction_wallet_fkey")
 
-  @@index([failure_code], map: "idx_failed_code")
-  @@index([created_at], map: "idx_failed_created_at")
-  @@index([reference], map: "idx_failed_reference")
-  @@index([can_retry, retry_count], map: "idx_failed_retry")
-  @@index([transactionId], map: "idx_failed_transaction_id")
-  @@index([userId], map: "idx_failed_user_id")
-  @@index([walletId], map: "idx_failed_wallet_id")
+  @@index([userId], map: "failed_transaction_user_fkey")
+  @@index([walletId], map: "failed_transaction_wallet_fkey")
 }
 
 model resources {
   id                 String               @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  name               String               @unique
+  name               String
   label              String
   description        String?              @db.Text
   createdAt          DateTime             @default(now()) @db.DateTime(0)
@@ -302,9 +286,8 @@ model user_has_resources {
   resources  resources @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   user       user      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, resourceId])
-  @@index([resourceId])
-  @@index([userId])
+  @@index([resourceId], map: "user_has_resources_resourceId_fkey")
+  @@index([userId], map: "user_has_resources_userId_fkey")
 }
 
 model app_settings {
@@ -349,14 +332,12 @@ model login_attempt {
   pin_locked_until    DateTime? @db.DateTime(0)
   user                user?     @relation(fields: [userId], references: [id], map: "login_attempt_user_fkey")
 
-  @@index([createdAt])
-  @@index([identifier])
-  @@index([userId])
+  @@index([userId], map: "login_attempt_user_fkey")
 }
 
 model country_provider {
   id               String             @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  code             String             @unique(map: "code_unique") @db.VarChar(10)
+  code             String             @db.VarChar(10)
   name             String             @db.VarChar(100)
   flag             String?            @db.Text
   prefix           String?            @db.VarChar(10)
@@ -378,7 +359,7 @@ model network_provider {
   updatedAt           DateTime         @default(now()) @db.DateTime(0)
   country_provider    country_provider @relation(fields: [countryId], references: [id], onDelete: Cascade, map: "fk_network_country")
 
-  @@index([countryId], map: "idx_countryId")
+  @@index([countryId], map: "fk_network_country")
 }
 
 model exchange_rate {
@@ -387,13 +368,11 @@ model exchange_rate {
   to_currency   String   @db.VarChar(10)
   rate          Float    @db.Float
   updated_at    DateTime @default(now()) @db.DateTime(0)
-
-  @@unique([from_currency, to_currency], map: "exchange_rate_currency_unique")
 }
 
 model api_key {
   id          String    @id @db.VarChar(36)
-  key         String    @unique(map: "uk_api_key") @db.VarChar(255)
+  key         String    @db.LongText
   name        String    @db.VarChar(100)
   userId      String    @db.VarChar(36)
   permissions String    @db.LongText
@@ -404,14 +383,57 @@ model api_key {
   expiresAt   DateTime? @db.DateTime(0)
   user        user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_api_key_user")
 
-  @@index([userId], map: "idx_api_key_userId")
+  @@index([userId], map: "fk_api_key_user")
 }
 
-enum transaction_type {
-  DEPOSIT
-  WITHDRAW
-  TRANSFER
-  PAYMENT
+model kyc_submission {
+  id          String                @id @db.VarChar(36)
+  userId      String                @db.VarChar(36)
+  documentUrl String?               @db.Text
+  status      kyc_submission_status @default(PENDING)
+  adminNotes  String?               @db.Text
+  reviewedAt  DateTime?             @db.DateTime(0)
+  createdAt   DateTime              @default(now()) @db.DateTime(0)
+  updatedAt   DateTime              @default(now()) @db.DateTime(0)
+  user        user                  @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_kyc_user")
+
+  @@index([userId], map: "fk_kyc_user")
+}
+
+model operation {
+  id                 String                     @id @db.VarChar(36)
+  type               operation_type
+  status             operation_status           @default(PENDING)
+  amount             Float
+  currency           String                     @db.VarChar(255)
+  source_type        operation_source_type
+  source_id          String                     @db.VarChar(255)
+  destination_type   operation_destination_type
+  destination_id     String                     @db.VarChar(255)
+  fee                Float                      @default(0)
+  reference          String                     @db.VarChar(255)
+  description        String?                    @db.Text
+  external_reference String?                    @db.VarChar(255)
+  metadata           String?                    @db.LongText
+  created_at         DateTime                   @default(now()) @db.DateTime(0)
+  updated_at         DateTime                   @default(now()) @db.DateTime(0)
+  user_id            String                     @db.VarChar(36)
+  user               user                       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_operation_user")
+
+  @@index([user_id], map: "fk_operation_user")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model otp_backup {
+  id        String    @db.VarChar(36)
+  email     String    @db.VarChar(255)
+  userId    String?   @db.VarChar(36)
+  otpCode   String    @db.VarChar(255)
+  isUsed    Boolean   @default(false)
+  createdAt DateTime  @default(now()) @db.DateTime(0)
+  expiresAt DateTime? @db.DateTime(0)
+
+  @@ignore
 }
 
 enum wallet_currency {
@@ -487,4 +509,59 @@ enum account_currency {
   UGX
   ZMW
   SLE
+}
+
+enum operation_type {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  PAYMENT
+  PURCHASE
+  TOPUP_AIRTIME
+  BILL_PAYMENT
+  CURRENCY_EXCHANGE
+  REFUND
+}
+
+enum operation_status {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum kyc_submission_status {
+  NOT_SUBMITTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum transaction_type {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  PAYMENT
+  REFUND
+}
+
+enum operation_source_type {
+  WALLET
+  BANK_ACCOUNT
+  SERVICE_ACCOUNT
+  EXTERNAL
+}
+
+enum operation_destination_type {
+  WALLET
+  BANK_ACCOUNT
+  SERVICE_ACCOUNT
+  EXTERNAL
+}
+
+enum user_kycStatus {
+  NOT_SUBMITTED
+  PENDING
+  VERIFIED
+  REJECTED
 }
