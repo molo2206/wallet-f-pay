@@ -375,7 +375,8 @@ export class UserServiceService {
   }> {
     console.log(`[getUser] Langue utilisée : ${lang} pour l'utilisateur ${id}`);
 
-    const user = await this.prisma.user.findUnique({
+    // ✅ CHANGÉ: findUnique → findFirst
+    const user = await this.prisma.user.findFirst({
       where: { id },
       select: {
         id: true,
@@ -428,7 +429,7 @@ export class UserServiceService {
       expiresAt: ur.expiresAt,
     }));
 
-    // ✅ Récupération des wallets de l'utilisateur
+    // Récupération des wallets de l'utilisateur
     const wallets = await this.prisma.wallet.findMany({
       where: { userId: user.id, isActive: true },
       orderBy: { createdAt: 'asc' },

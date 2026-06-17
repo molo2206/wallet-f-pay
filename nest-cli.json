@@ -16,7 +16,7 @@
       "entryFile": "main",
       "sourceRoot": "apps/FPAY/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/ACCFPAYESPAY/tsconfig.app.json"
+        "tsConfigPath": "apps/FPAY/tsconfig.app.json"
       }
     },
     "accespay-service": {
