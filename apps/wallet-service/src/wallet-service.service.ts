@@ -485,6 +485,14 @@ export class WalletServiceService {
       });
     }
 
+    if (!/^\d+$/.test(pin)) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_digits_only', lang),
+        statusCode: 400,
+      });
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
       // 1️⃣ Vérifier le PIN de l'admin
       const admin = await tx.user.findFirst({
