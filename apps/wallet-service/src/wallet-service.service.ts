@@ -508,6 +508,15 @@ export class WalletServiceService {
         });
       }
 
+      // ✅ VÉRIFIER QUE L'ADMIN A UN PIN
+      if (!admin.pin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Admin n\'a pas de PIN défini. Veuillez définir un PIN avant d\'effectuer cette opération.',
+          statusCode: 400,
+        });
+      }
+
       // Vérifier si le PIN est bloqué
       if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
         const minutesLeft = Math.ceil(
@@ -633,7 +642,6 @@ export class WalletServiceService {
       },
     };
   }
-
   // adminCashout - CORRIGÉ avec adminId
   async adminCashout(
     dto: AdminCashoutDto,
