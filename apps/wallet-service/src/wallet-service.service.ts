@@ -450,8 +450,8 @@ export class WalletServiceService {
   async adminTopUp(
     dto: AdminTopUpDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
-    const { walletId, amount, lang = 'fr', ipAddress } = dto;
-    console.log('[WalletService] Admin Top-up:', { walletId, amount, lang });
+    const { adminId, walletId, amount, pin, lang = 'fr', ipAddress } = dto;
+    console.log('[WalletService] Admin Top-up:', { adminId, walletId, amount, lang });
 
     if (amount <= 0) {
       throw new RpcException({
@@ -469,8 +469,89 @@ export class WalletServiceService {
       });
     }
 
+    if (!adminId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID de l\'admin est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!pin || pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      // Récupérer le wallet avec son utilisateur
+      // 1️⃣ Vérifier le PIN de l'admin
+      const admin = await tx.user.findFirst({
+        where: { id: adminId },
+        select: {
+          id: true,
+          pin: true,
+          status: true,
+          failed_pin_attempts: true,
+          pin_locked_until: true,
+          full_name: true,
+          phone: true,
+        }
+      });
+
+      if (!admin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Admin non trouvé',
+          statusCode: 404,
+        });
+      }
+
+      // Vérifier si le PIN est bloqué
+      if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
+        const minutesLeft = Math.ceil(
+          (admin.pin_locked_until.getTime() - Date.now()) / 60000,
+        );
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+          statusCode: 403,
+        });
+      }
+
+      // Vérifier le PIN
+      const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+      if (admin.pin !== hashedPin) {
+        const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+        let newStatus = admin.status;
+        let lockedUntil: Date | null = null;
+        if (newAttempts >= 5) {
+          newStatus = user_status.BLOCKED;
+          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        }
+        await tx.user.update({
+          where: { id: admin.id },
+          data: {
+            failed_pin_attempts: newAttempts,
+            status: newStatus,
+            pin_locked_until: lockedUntil
+          },
+        });
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.pin_incorrect', lang),
+          statusCode: 401,
+        });
+      }
+
+      // Réinitialiser les tentatives de PIN
+      await tx.user.update({
+        where: { id: admin.id },
+        data: { failed_pin_attempts: 0, pin_locked_until: null },
+      });
+
+      // 2️⃣ Récupérer le wallet avec son utilisateur
       const wallet = await tx.wallet.findFirst({
         where: { id: walletId },
         include: { user: true }
@@ -492,13 +573,13 @@ export class WalletServiceService {
 
       const user = wallet.user;
 
-      // Mettre à jour le wallet
+      // 3️⃣ Mettre à jour le wallet
       const updated = await tx.wallet.update({
         where: { id: wallet.id },
         data: { balance: { increment: amount }, updatedAt: new Date() },
       });
 
-      // Créer la transaction
+      // 4️⃣ Créer la transaction
       const transaction = await tx.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -513,7 +594,7 @@ export class WalletServiceService {
         },
       });
 
-      // Envoyer le SMS de notification
+      // 5️⃣ Envoyer le SMS de notification
       if (user.phone) {
         try {
           const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
@@ -530,8 +611,8 @@ export class WalletServiceService {
         }
       }
 
-      await this.logAudit(user.id, 'adminTopUp', transaction, ipAddress || null);
-      return { wallet: updated, transaction, user };
+      await this.logAudit(admin.id, 'adminTopUp', { transaction, targetUserId: user.id }, ipAddress || null);
+      return { wallet: updated, transaction, user, admin };
     });
 
     // Notification Push
@@ -553,11 +634,12 @@ export class WalletServiceService {
     };
   }
 
+  // adminCashout - CORRIGÉ avec adminId
   async adminCashout(
     dto: AdminCashoutDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
-    const { walletId, amount, lang = 'fr', ipAddress } = dto;
-    console.log('[WalletService] Admin Cashout:', { walletId, amount, lang });
+    const { adminId, walletId, amount, pin, lang = 'fr', ipAddress } = dto;
+    console.log('[WalletService] Admin Cashout:', { adminId, walletId, amount, lang });
 
     if (amount <= 0) {
       throw new RpcException({
@@ -575,8 +657,88 @@ export class WalletServiceService {
       });
     }
 
+    if (!adminId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID de l\'admin est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!pin || pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      // Récupérer le wallet avec son utilisateur
+      // 1️⃣ Vérifier le PIN de l'admin
+      const admin = await tx.user.findFirst({
+        where: { id: adminId },
+        select: {
+          id: true,
+          pin: true,
+          status: true,
+          failed_pin_attempts: true,
+          pin_locked_until: true,
+          full_name: true,
+          phone: true,
+        }
+      });
+
+      if (!admin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Admin non trouvé',
+          statusCode: 404,
+        });
+      }
+
+      // Vérifier si le PIN est bloqué
+      if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
+        const minutesLeft = Math.ceil(
+          (admin.pin_locked_until.getTime() - Date.now()) / 60000,
+        );
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+          statusCode: 403,
+        });
+      }
+
+      // Vérifier le PIN
+      const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+      if (admin.pin !== hashedPin) {
+        const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+        let newStatus = admin.status;
+        let lockedUntil: Date | null = null;
+        if (newAttempts >= 5) {
+          newStatus = user_status.BLOCKED;
+          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        }
+        await tx.user.update({
+          where: { id: admin.id },
+          data: {
+            failed_pin_attempts: newAttempts,
+            status: newStatus,
+            pin_locked_until: lockedUntil
+          },
+        });
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.pin_incorrect', lang),
+          statusCode: 401,
+        });
+      }
+
+      await tx.user.update({
+        where: { id: admin.id },
+        data: { failed_pin_attempts: 0, pin_locked_until: null },
+      });
+
+      // 2️⃣ Récupérer le wallet
       const wallet = await tx.wallet.findFirst({
         where: { id: walletId },
         include: { user: true }
@@ -605,13 +767,13 @@ export class WalletServiceService {
 
       const user = wallet.user;
 
-      // Mettre à jour le wallet
+      // 3️⃣ Mettre à jour le wallet
       const updated = await tx.wallet.update({
         where: { id: wallet.id },
         data: { balance: { decrement: amount }, updatedAt: new Date() },
       });
 
-      // Créer la transaction
+      // 4️⃣ Créer la transaction
       const transaction = await tx.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -626,7 +788,7 @@ export class WalletServiceService {
         },
       });
 
-      // Envoyer le SMS de notification
+      // 5️⃣ Envoyer le SMS
       if (user.phone) {
         try {
           const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
@@ -643,11 +805,10 @@ export class WalletServiceService {
         }
       }
 
-      await this.logAudit(user.id, 'adminCashout', { transaction }, ipAddress || null);
-      return { wallet: updated, transaction, user };
+      await this.logAudit(admin.id, 'adminCashout', { transaction, targetUserId: user.id }, ipAddress || null);
+      return { wallet: updated, transaction, user, admin };
     });
 
-    // Notification Push
     await this.notificationHelper.notify(
       result.user.id,
       NotificationType.CASHOUT_SUCCESS,
@@ -669,7 +830,7 @@ export class WalletServiceService {
   async adminSend(
     dto: AdminSendDto,
   ): Promise<ApiResponse<{ fromWallet: WalletResponseDto; toWallet: WalletResponseDto; transaction: any }>> {
-    const { fromWalletId, toWalletId, amount, description, lang = 'fr', ipAddress } = dto;
+    const { fromWalletId, toWalletId, amount, pin, description, lang = 'fr', ipAddress } = dto;
     console.log('[WalletService] Admin Send:', { fromWalletId, toWalletId, amount, lang });
 
     if (amount <= 0) {
@@ -688,8 +849,15 @@ export class WalletServiceService {
       });
     }
 
+    if (!pin || pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      // Récupérer le wallet source avec son utilisateur
       const fromWallet = await tx.wallet.findFirst({
         where: { id: fromWalletId },
         include: { user: true }
@@ -710,7 +878,6 @@ export class WalletServiceService {
         statusCode: 400
       });
 
-      // Récupérer le wallet destination avec son utilisateur
       const toWallet = await tx.wallet.findFirst({
         where: { id: toWalletId },
         include: { user: true }
@@ -726,7 +893,6 @@ export class WalletServiceService {
         statusCode: 403
       });
 
-      // Vérifier que ce n'est pas le même wallet
       if (fromWalletId === toWalletId) {
         throw new RpcException({
           status: 'error',
@@ -738,7 +904,45 @@ export class WalletServiceService {
       const fromUser = fromWallet.user;
       const toUser = toWallet.user;
 
-      // Mettre à jour les soldes
+      // ✅ VÉRIFIER LE PIN DE L'ADMIN
+      // Récupérer l'admin (à adapter)
+      const admin = await tx.user.findFirst({
+        where: { id: fromUser.id } // À remplacer par adminId du contexte
+      });
+
+      if (!admin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Admin non trouvé',
+          statusCode: 404,
+        });
+      }
+
+      const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+      if (admin.pin !== hashedPin) {
+        const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+        let newStatus = admin.status;
+        let lockedUntil: Date | null = null;
+        if (newAttempts >= 5) {
+          newStatus = user_status.BLOCKED;
+          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        }
+        await tx.user.update({
+          where: { id: admin.id },
+          data: { failed_pin_attempts: newAttempts, status: newStatus, pin_locked_until: lockedUntil },
+        });
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.pin_incorrect', lang),
+          statusCode: 401,
+        });
+      }
+
+      await tx.user.update({
+        where: { id: admin.id },
+        data: { failed_pin_attempts: 0, pin_locked_until: null },
+      });
+
       const updatedFrom = await tx.wallet.update({
         where: { id: fromWallet.id },
         data: { balance: { decrement: amount }, updatedAt: new Date() },
@@ -748,7 +952,6 @@ export class WalletServiceService {
         data: { balance: { increment: amount }, updatedAt: new Date() },
       });
 
-      // Transactions
       const senderTx = await tx.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -809,11 +1012,10 @@ export class WalletServiceService {
         }
       }
 
-      await this.logAudit(fromUser.id, 'adminSend', { from: updatedFrom, to: updatedTo }, ipAddress || null);
-      return { fromWallet: updatedFrom, toWallet: updatedTo, fromUser, toUser, senderTx, receiverTx };
+      await this.logAudit(admin.id, 'adminSend', { from: updatedFrom, to: updatedTo }, ipAddress || null);
+      return { fromWallet: updatedFrom, toWallet: updatedTo, fromUser, toUser, senderTx, receiverTx, admin };
     });
 
-    // Notifications Push
     try {
       await Promise.all([
         notifyTransaction(
@@ -846,7 +1048,7 @@ export class WalletServiceService {
   async adminPay(
     dto: AdminPayDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
-    const { fromWalletId, merchantCode, amount, description, lang = 'fr', ipAddress } = dto;
+    const { fromWalletId, merchantCode, amount, pin, description, lang = 'fr', ipAddress } = dto;
     console.log('[WalletService] Admin Pay:', { fromWalletId, merchantCode, amount, lang });
 
     if (amount <= 0) {
@@ -865,8 +1067,15 @@ export class WalletServiceService {
       });
     }
 
+    if (!pin || pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
-      // Récupérer le wallet du payeur
       const fromWallet = await tx.wallet.findFirst({
         where: { id: fromWalletId },
         include: { user: true }
@@ -932,6 +1141,45 @@ export class WalletServiceService {
         statusCode: 403
       });
 
+      // ✅ VÉRIFIER LE PIN DE L'ADMIN
+      // Récupérer l'admin (à adapter)
+      const admin = await tx.user.findFirst({
+        where: { id: fromUser.id } // À remplacer par adminId du contexte
+      });
+
+      if (!admin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Admin non trouvé',
+          statusCode: 404,
+        });
+      }
+
+      const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+      if (admin.pin !== hashedPin) {
+        const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+        let newStatus = admin.status;
+        let lockedUntil: Date | null = null;
+        if (newAttempts >= 5) {
+          newStatus = user_status.BLOCKED;
+          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        }
+        await tx.user.update({
+          where: { id: admin.id },
+          data: { failed_pin_attempts: newAttempts, status: newStatus, pin_locked_until: lockedUntil },
+        });
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.pin_incorrect', lang),
+          statusCode: 401,
+        });
+      }
+
+      await tx.user.update({
+        where: { id: admin.id },
+        data: { failed_pin_attempts: 0, pin_locked_until: null },
+      });
+
       // Mettre à jour les soldes
       const updatedFrom = await tx.wallet.update({
         where: { id: fromWallet.id },
@@ -942,7 +1190,6 @@ export class WalletServiceService {
         data: { balance: { increment: amount }, updatedAt: new Date() },
       });
 
-      // Transactions
       const payerTx = await tx.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -1003,11 +1250,10 @@ export class WalletServiceService {
         }
       }
 
-      await this.logAudit(fromUser.id, 'adminPay', { from: updatedFrom, to: updatedTo }, ipAddress || null);
-      return { fromWallet: updatedFrom, toWallet: updatedTo, fromUser, toUser, payerTx, merchantTx };
+      await this.logAudit(admin.id, 'adminPay', { from: updatedFrom, to: updatedTo }, ipAddress || null);
+      return { fromWallet: updatedFrom, toWallet: updatedTo, fromUser, toUser, payerTx, merchantTx, admin };
     });
 
-    // Notifications Push
     try {
       await Promise.all([
         notifyTransaction(

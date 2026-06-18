@@ -289,13 +289,13 @@ export class AuthServiceService {
                 cashCode,
               },
             });
-            console.log(`✅ Wallet créé pour user ${user.id}, devise ${currency}`);
+            console.log(` Wallet créé pour user ${user.id}, devise ${currency}`);
             walletsCreated++;
           } else {
-            console.log(`ℹ️ Wallet ${currency} existe déjà pour user ${user.id}`);
+            console.log(`ℹWallet ${currency} existe déjà pour user ${user.id}`);
           }
         } catch (err) {
-          console.error(`❌ Échec création wallet (${currency}):`, err);
+          console.error(`Échec création wallet (${currency}):`, err);
         }
       }
 

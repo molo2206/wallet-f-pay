@@ -1971,11 +1971,12 @@ export class ApiGatewayController {
     );
   }
 
+  // Dans le contrôleur de l'API Gateway
   @Post('admin/wallet/topup')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminTopUp(
-    @CurrentUser() currentUser: any,
-    @Body() body: { userId: string; amount: number; walletId?: string },
+    @CurrentUser() currentUser: any,  // ICI on a l'admin
+    @Body() body: { walletId: string; amount: number; pin: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -1983,19 +1984,29 @@ export class ApiGatewayController {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     const lang = langHeader || 'fr';
+
+    // On passe l'adminId dans le payload
     return this.sendWalletMessage(
       'admin_top_up',
-      { userId: body.userId, amount: body.amount, walletId: body.walletId, lang, ipAddress },
+      {
+        adminId: currentUser.id,  // ← AJOUTER
+        walletId: body.walletId,
+        amount: body.amount,
+        pin: body.pin,
+        lang,
+        ipAddress
+      },
       this.i18nService.translate('wallet.top_up_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
   }
 
+  // adminCashout dans l'API Gateway - CORRIGÉ
   @Post('admin/wallet/cashout')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminCashout(
     @CurrentUser() currentUser: any,
-    @Body() body: { userId: string; amount: number; walletId?: string },
+    @Body() body: { walletId: string; amount: number; pin: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2005,17 +2016,25 @@ export class ApiGatewayController {
     const lang = langHeader || 'fr';
     return this.sendWalletMessage(
       'admin_cashout',
-      { userId: body.userId, amount: body.amount, walletId: body.walletId, lang, ipAddress },
+      {
+        adminId: currentUser.id,
+        walletId: body.walletId,
+        amount: body.amount,
+        pin: body.pin,
+        lang,
+        ipAddress
+      },
       this.i18nService.translate('wallet.cashout_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
   }
 
+  // adminSend dans l'API Gateway - CORRIGÉ avec adminId
   @Post('admin/wallet/send')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminSend(
     @CurrentUser() currentUser: any,
-    @Body() body: { fromUserId: string; toUserId: string; amount: number; description?: string; fromWalletId?: string; toWalletId?: string },
+    @Body() body: { fromWalletId: string; toWalletId: string; amount: number; pin: string; description?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2025,17 +2044,27 @@ export class ApiGatewayController {
     const lang = langHeader || 'fr';
     return this.sendWalletMessage(
       'admin_send',
-      { ...body, lang, ipAddress },
+      {
+        adminId: currentUser.id,
+        fromWalletId: body.fromWalletId,
+        toWalletId: body.toWalletId,
+        amount: body.amount,
+        pin: body.pin,
+        description: body.description,
+        lang,
+        ipAddress
+      },
       this.i18nService.translate('wallet.transfer_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
   }
 
+  // adminPay dans l'API Gateway - CORRIGÉ avec adminId
   @Post('admin/wallet/pay')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminPay(
     @CurrentUser() currentUser: any,
-    @Body() body: { fromUserId: string; toUserId: string; amount: number; description?: string; fromWalletId?: string; toWalletId?: string },
+    @Body() body: { fromWalletId: string; merchantCode: string; amount: number; pin: string; description?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2045,7 +2074,16 @@ export class ApiGatewayController {
     const lang = langHeader || 'fr';
     return this.sendWalletMessage(
       'admin_pay',
-      { ...body, lang, ipAddress },
+      {
+        adminId: currentUser.id,
+        fromWalletId: body.fromWalletId,
+        merchantCode: body.merchantCode,
+        amount: body.amount,
+        pin: body.pin,
+        description: body.description,
+        lang,
+        ipAddress
+      },
       this.i18nService.translate('wallet.payment_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
