@@ -3192,6 +3192,7 @@ export class WalletServiceService {
       );
     }
   }
+
   async generateStatement(
     userId: string,
     startDate?: Date,
@@ -3597,17 +3598,100 @@ export class WalletServiceService {
     try {
       const htmlContent = await ejs.renderFile(templatePath, context, { async: true });
 
+      // ===== FIND CHROME DYNAMICALLY (Windows, Linux, macOS) =====
+      const findChromePath = (): string | undefined => {
+        // 1. Variable d'environnement
+        if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
+          return process.env.CHROME_PATH;
+        }
+
+        const platform = process.platform;
+
+        if (platform === 'win32') {
+          // ===== WINDOWS =====
+          const windowsPaths = [
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+            process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
+            process.env.ProgramW6432 + '\\Google\\Chrome\\Application\\chrome.exe',
+            process.env['ProgramFiles(x86)'] + '\\Google\\Chrome\\Application\\chrome.exe',
+          ];
+          for (const path of windowsPaths) {
+            if (path && fs.existsSync(path)) {
+              console.log(`[WalletService] ✅ Browser found: ${path}`);
+              return path;
+            }
+          }
+        } else if (platform === 'linux') {
+          // ===== LINUX =====
+          const linuxPaths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/snap/bin/chromium',
+            '/usr/bin/chrome',
+            '/opt/google/chrome/chrome',
+          ];
+          for (const path of linuxPaths) {
+            if (fs.existsSync(path)) {
+              console.log(`[WalletService] ✅ Browser found: ${path}`);
+              return path;
+            }
+          }
+          // Essayer avec which
+          try {
+            const { execSync } = require('child_process');
+            const result = execSync('which google-chrome || which chromium-browser || which chromium', {
+              encoding: 'utf8',
+              shell: '/bin/bash',
+              stdio: ['pipe', 'pipe', 'pipe'],
+            });
+            const path = result.trim();
+            if (path && fs.existsSync(path)) {
+              console.log(`[WalletService] ✅ Browser found via which: ${path}`);
+              return path;
+            }
+          } catch (e) { }
+        } else if (platform === 'darwin') {
+          // ===== macOS =====
+          const macPaths = [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/Applications/Chromium.app/Contents/MacOS/Chromium',
+            '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+            process.env.HOME + '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          ];
+          for (const path of macPaths) {
+            if (fs.existsSync(path)) {
+              console.log(`[WalletService] ✅ Browser found: ${path}`);
+              return path;
+            }
+          }
+        }
+
+        console.warn('[WalletService] ⚠️ No browser found, using puppeteer default');
+        return undefined;
+      };
+
+      const chromePath = findChromePath();
+
+      // ===== LAUNCH PUPPETEER =====
       const browser = await puppeteer.launch({
         headless: true,
-        executablePath: process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        executablePath: chromePath,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
+          '--disable-gpu',
         ],
       });
+
       const page = await browser.newPage();
       await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 120000 });
+
       const pdfUint8Array = await page.pdf({
         format: 'A4',
         printBackground: true,
