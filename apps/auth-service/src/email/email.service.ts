@@ -16,7 +16,7 @@ export class MailService {
   constructor(
     private readonly mailerService: MailerService,
     private readonly i18nService: I18nService,
-  ) {}
+  ) { }
 
   /**
    * Méthode existante – gardée pour compatibilité
@@ -191,7 +191,11 @@ export class MailService {
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+    // ✅ CORRECTION : waitUntil accepte uniquement ces valeurs
+    await page.setContent(htmlContent, {
+      waitUntil: 'domcontentloaded'
+    });
 
     // ✅ CORRECTION : Conversion explicite de Uint8Array vers Buffer
     const pdfUint8Array = await page.pdf({
