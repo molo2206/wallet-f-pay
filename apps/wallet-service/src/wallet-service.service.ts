@@ -3237,7 +3237,7 @@ export class WalletServiceService {
       dateFilter.lte = endOfDay;
     }
 
-    const where: any = { userId, status: 'SUCCESS' }; // ✅ Filtrer les transactions réussies
+    const where: any = { userId, status: 'SUCCESS' };
     if (Object.keys(dateFilter).length > 0) {
       where.createdAt = dateFilter;
     }
@@ -3250,9 +3250,12 @@ export class WalletServiceService {
       `[WalletService] Found ${transactionsDb.length} transactions for period`,
     );
 
+    // ===== LOCALE PAR LANGUE =====
     let localeStr = 'fr-FR';
     if (lang === 'en') localeStr = 'en-US';
     else if (lang === 'sw') localeStr = 'sw-TZ';
+    else if (lang === 'ar') localeStr = 'ar-SA';
+    else if (lang === 'es') localeStr = 'es-ES';
 
     let periodStartFormatted: string = '';
     let periodEndFormatted: string = '';
@@ -3326,104 +3329,184 @@ export class WalletServiceService {
     const wallet = await this.prisma.wallet.findFirst({ where: { userId } });
     const currency = wallet?.currency || 'CDF';
 
+    // ===== TRADUCTIONS AVEC FALLBACKS =====
     const t = (key: string): string => {
       const translated = this.i18nService.translate(key, lang);
       if (translated === key) {
-        const fallbacks: Record<string, string> = {
-          'statement.title':
-            lang === 'fr'
-              ? 'RELEVÉ DE COMPTE'
-              : lang === 'en'
-                ? 'ACCOUNT STATEMENT'
-                : 'TAARIFA YA AKAUUNTI',
-          'statement.client_info':
-            lang === 'fr'
-              ? 'INFORMATIONS CLIENT'
-              : lang === 'en'
-                ? 'CLIENT INFORMATION'
-                : 'TAARIFA ZA MTUMIAJI',
-          'statement.summary':
-            lang === 'fr'
-              ? 'RÉCAPITULATIF'
-              : lang === 'en'
-                ? 'SUMMARY'
-                : 'MUHTASARI',
-          'statement.details':
-            lang === 'fr' ? 'Détails' : lang === 'en' ? 'Details' : 'Maelezo',
-          'statement.reference':
-            lang === 'fr' ? 'Référence' : lang === 'en' ? 'Reference' : 'Kumbukumbu',
-          'statement.date':
-            lang === 'fr' ? 'Date' : lang === 'en' ? 'Date' : 'Tarehe',
-          'statement.credit':
-            lang === 'fr'
-              ? 'Crédit (Entrée)'
-              : lang === 'en'
-                ? 'Credit (In)'
-                : 'Mkopo (Kuingia)',
-          'statement.debit':
-            lang === 'fr'
-              ? 'Débit (Sortie)'
-              : lang === 'en'
-                ? 'Debit (Out)'
-                : 'Deni (Kutoka)',
-          'statement.balance':
-            lang === 'fr' ? 'Solde' : lang === 'en' ? 'Balance' : 'Salio',
-          'statement.totals':
-            lang === 'fr' ? 'TOTAUX' : lang === 'en' ? 'TOTALS' : 'JUMLA',
-          'statement.no_transactions':
-            lang === 'fr'
-              ? 'Aucune transaction sur cette période'
-              : lang === 'en'
-                ? 'No transactions in this period'
-                : 'Hakuna miamala katika kipindi hiki',
-          'statement.footer_text':
-            lang === 'fr'
-              ? 'Ce document est un relevé de compte officiel des transactions AccesPay'
-              : lang === 'en'
-                ? 'This is an official statement of AccesPay transactions'
-                : 'Hii ni taarifa rasmi ya miamala ya AccesPay',
-          'statement.generated_on':
-            lang === 'fr' ? 'Relevé généré le' : lang === 'en' ? 'Generated on' : 'Imetolewa tarehe',
-          'statement.full_name':
-            lang === 'fr' ? 'Nom complet' : lang === 'en' ? 'Full name' : 'Jina kamili',
-          'statement.account_number':
-            lang === 'fr' ? 'N° Compte' : lang === 'en' ? 'Account number' : 'Nambari ya akaunti',
-          'statement.phone':
-            lang === 'fr' ? 'Téléphone' : lang === 'en' ? 'Phone' : 'Simu',
-          'statement.email':
-            lang === 'fr' ? 'Email' : lang === 'en' ? 'Email' : 'Barua pepe',
-          'statement.address':
-            lang === 'fr' ? 'Adresse' : lang === 'en' ? 'Address' : 'Anwani',
-          'statement.total_credits':
-            lang === 'fr'
-              ? 'Total Crédits (Entrées)'
-              : lang === 'en'
-                ? 'Total Credits (In)'
-                : 'Jumla ya Mikopo (Kuingia)',
-          'statement.total_debits':
-            lang === 'fr'
-              ? 'Total Débits (Sorties)'
-              : lang === 'en'
-                ? 'Total Debits (Out)'
-                : 'Jumla ya Madeni (Kutoka)',
-          'statement.final_balance':
-            lang === 'fr' ? 'Solde final' : lang === 'en' ? 'Final balance' : 'Salio la mwisho',
-          'statement.all_time_start':
-            lang === 'fr' ? 'Début' : lang === 'en' ? 'Beginning' : 'Mwanzo',
-          'statement.all_time_end':
-            lang === 'fr' ? "Aujourd'hui" : lang === 'en' ? 'Today' : 'Leo',
+        const fallbacks: Record<string, Record<string, string>> = {
+          'statement.title': {
+            fr: 'RELEVÉ DE COMPTE',
+            en: 'ACCOUNT STATEMENT',
+            sw: 'TAARIFA YA AKAUUNTI',
+            ar: 'كشف الحساب',
+            es: 'ESTADO DE CUENTA',
+          },
+          'statement.client_info': {
+            fr: 'INFORMATIONS CLIENT',
+            en: 'CLIENT INFORMATION',
+            sw: 'TAARIFA ZA MTUMIAJI',
+            ar: 'معلومات العميل',
+            es: 'INFORMACIÓN DEL CLIENTE',
+          },
+          'statement.summary': {
+            fr: 'RÉCAPITULATIF',
+            en: 'SUMMARY',
+            sw: 'MUHTASARI',
+            ar: 'الملخص',
+            es: 'RESUMEN',
+          },
+          'statement.details': {
+            fr: 'Détails',
+            en: 'Details',
+            sw: 'Maelezo',
+            ar: 'التفاصيل',
+            es: 'Detalles',
+          },
+          'statement.reference': {
+            fr: 'Référence',
+            en: 'Reference',
+            sw: 'Kumbukumbu',
+            ar: 'المرجع',
+            es: 'Referencia',
+          },
+          'statement.date': {
+            fr: 'Date',
+            en: 'Date',
+            sw: 'Tarehe',
+            ar: 'التاريخ',
+            es: 'Fecha',
+          },
+          'statement.credit': {
+            fr: 'Crédit (Entrée)',
+            en: 'Credit (In)',
+            sw: 'Mkopo (Kuingia)',
+            ar: 'إيداع (داخل)',
+            es: 'Crédito (Entrada)',
+          },
+          'statement.debit': {
+            fr: 'Débit (Sortie)',
+            en: 'Debit (Out)',
+            sw: 'Deni (Kutoka)',
+            ar: 'سحب (خارج)',
+            es: 'Débito (Salida)',
+          },
+          'statement.balance': {
+            fr: 'Solde',
+            en: 'Balance',
+            sw: 'Salio',
+            ar: 'الرصيد',
+            es: 'Saldo',
+          },
+          'statement.totals': {
+            fr: 'TOTAUX',
+            en: 'TOTALS',
+            sw: 'JUMLA',
+            ar: 'الإجماليات',
+            es: 'TOTALES',
+          },
+          'statement.no_transactions': {
+            fr: 'Aucune transaction sur cette période',
+            en: 'No transactions in this period',
+            sw: 'Hakuna miamala katika kipindi hiki',
+            ar: 'لا توجد معاملات في هذه الفترة',
+            es: 'No hay transacciones en este período',
+          },
+          'statement.footer_text': {
+            fr: 'Ce document est un relevé de compte officiel des transactions F-Pay',
+            en: 'This is an official statement of F-Pay transactions',
+            sw: 'Hii ni taarifa rasmi ya miamala ya F-Pay',
+            ar: 'هذا كشف حساب رسمي لمعاملات F-Pay',
+            es: 'Este es un estado de cuenta oficial de las transacciones de F-Pay',
+          },
+          'statement.generated_on': {
+            fr: 'Relevé généré le',
+            en: 'Generated on',
+            sw: 'Imetolewa tarehe',
+            ar: 'تم الإنشاء في',
+            es: 'Generado el',
+          },
+          'statement.full_name': {
+            fr: 'Nom complet',
+            en: 'Full name',
+            sw: 'Jina kamili',
+            ar: 'الاسم الكامل',
+            es: 'Nombre completo',
+          },
+          'statement.account_number': {
+            fr: 'N° Compte',
+            en: 'Account number',
+            sw: 'Nambari ya akaunti',
+            ar: 'رقم الحساب',
+            es: 'Número de cuenta',
+          },
+          'statement.phone': {
+            fr: 'Téléphone',
+            en: 'Phone',
+            sw: 'Simu',
+            ar: 'الهاتف',
+            es: 'Teléfono',
+          },
+          'statement.email': {
+            fr: 'Email',
+            en: 'Email',
+            sw: 'Barua pepe',
+            ar: 'البريد الإلكتروني',
+            es: 'Correo electrónico',
+          },
+          'statement.address': {
+            fr: 'Adresse',
+            en: 'Address',
+            sw: 'Anwani',
+            ar: 'العنوان',
+            es: 'Dirección',
+          },
+          'statement.total_credits': {
+            fr: 'Total Crédits (Entrées)',
+            en: 'Total Credits (In)',
+            sw: 'Jumla ya Mikopo (Kuingia)',
+            ar: 'إجمالي الإيداعات (داخل)',
+            es: 'Total Créditos (Entradas)',
+          },
+          'statement.total_debits': {
+            fr: 'Total Débits (Sorties)',
+            en: 'Total Debits (Out)',
+            sw: 'Jumla ya Madeni (Kutoka)',
+            ar: 'إجمالي السحوبات (خارج)',
+            es: 'Total Débitos (Salidas)',
+          },
+          'statement.final_balance': {
+            fr: 'Solde final',
+            en: 'Final balance',
+            sw: 'Salio la mwisho',
+            ar: 'الرصيد النهائي',
+            es: 'Saldo final',
+          },
+          'statement.all_time_start': {
+            fr: 'Début',
+            en: 'Beginning',
+            sw: 'Mwanzo',
+            ar: 'البداية',
+            es: 'Inicio',
+          },
+          'statement.all_time_end': {
+            fr: "Aujourd'hui",
+            en: 'Today',
+            sw: 'Leo',
+            ar: 'اليوم',
+            es: 'Hoy',
+          },
         };
-        return fallbacks[key] || key;
+        return fallbacks[key]?.[lang] || fallbacks[key]?.['fr'] || key;
       }
       return translated;
     };
 
     let logoBase64 = '';
     try {
-      const logoPath = path.join(process.cwd(), 'public', 'uploads', 'icon.jpeg');
+      const logoPath = path.join(process.cwd(), 'public', 'uploads', 'icon.png');
       if (fs.existsSync(logoPath)) {
         const logoBuffer = fs.readFileSync(logoPath);
-        logoBase64 = `data:image/jpeg;base64,${logoBuffer.toString('base64')}`;
+        logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
       } else {
         console.warn('[WalletService] Logo not found at', logoPath);
       }
@@ -3513,11 +3596,15 @@ export class WalletServiceService {
 
     try {
       const htmlContent = await ejs.renderFile(templatePath, context, { async: true });
-      // Lancement de Puppeteer compatible Windows
+
       const browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-        // Pas d'executablePath : utilisera le Chromium de puppeteer
+        executablePath: process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+        ],
       });
       const page = await browser.newPage();
       await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 120000 });

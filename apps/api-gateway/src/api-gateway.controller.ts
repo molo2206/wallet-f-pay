@@ -433,7 +433,7 @@ export class ApiGatewayController {
     @Headers('lang') langHeader?: string,
   ) {
     const deviceInfo = body.deviceInfo || userAgent || 'Appareil inconnu';
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     this.logger.log(`📝 Register request for ${body.phone} (lang: ${lang})`);
     return this.sendAuthMessage<AuthResponseDto>(
@@ -483,7 +483,7 @@ export class ApiGatewayController {
         HttpStatus.BAD_REQUEST,
       );
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     this.logger.log(
       `👤 Admin ${currentUser.id} creating user from account ${account_number} (lang: ${lang})`,
@@ -582,7 +582,7 @@ export class ApiGatewayController {
     @Headers('lang') langHeader?: string,
   ): Promise<{ message: string }> {
     this.logger.log('Verify OTP request:', body.identifier);
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     return this.sendAuthMessage<{ message: string }>(
       'verify_otp',
@@ -681,7 +681,7 @@ export class ApiGatewayController {
     if (!token) {
       throw new HttpException('Token manquant', HttpStatus.UNAUTHORIZED);
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     const messageData = {
       userId: currentUser.id,
@@ -710,7 +710,7 @@ export class ApiGatewayController {
     @Headers('lang') langHeader?: string,
   ): Promise<AccountResponse> {
     this.logger.log(`📞 Get account request: ${accountNumber}`);
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     try {
       const account = await firstValueFrom<AccountData>(
@@ -749,7 +749,7 @@ export class ApiGatewayController {
         HttpStatus.FORBIDDEN,
       );
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     const payload = { ...createUserDto, lang };
     return this.sendUserMessage<{ message: string; data: UserResponseDto }>(
@@ -882,7 +882,7 @@ export class ApiGatewayController {
     ) {
       delete updateUserDto.role;
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     const response = await this.sendUserMessage<{
       message: string;
@@ -911,7 +911,7 @@ export class ApiGatewayController {
         HttpStatus.FORBIDDEN,
       );
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     const response = await this.sendUserMessage<{
       message: string;
@@ -939,7 +939,7 @@ export class ApiGatewayController {
         HttpStatus.FORBIDDEN,
       );
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     const response = await this.sendUserMessage<any>(
       'delete_user',
@@ -1783,7 +1783,7 @@ export class ApiGatewayController {
     if (!sessionId) {
       throw new HttpException('ID de session requis', HttpStatus.BAD_REQUEST);
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     const response = await this.sendAuthMessage<{ message: string; data: any }>(
       'get_session_by_id',
@@ -1850,7 +1850,7 @@ export class ApiGatewayController {
     if (!sessionId) {
       throw new HttpException('sessionId requis', HttpStatus.BAD_REQUEST);
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     return this.sendAuthMessage<{ message: string }>(
       'revoke_session_by_id',
@@ -2382,7 +2382,7 @@ export class ApiGatewayController {
       endDate = new Date(endDateStr);
       if (isNaN(endDate.getTime())) endDate = undefined;
     }
-    const allowedLangs = ['fr', 'en', 'sw'];
+    const allowedLangs = ['fr', 'en', 'sw','ar','es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
     const result = await this.sendWalletMessage<{
       pdfBase64: string;
