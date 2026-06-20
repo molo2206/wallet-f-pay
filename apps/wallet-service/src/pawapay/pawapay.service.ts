@@ -14,7 +14,8 @@ import { PrismaClient } from '@prisma/client';
 import { UpdateNetworkDto } from './dto/update-network.dto';
 import { CreateNetworkDto } from './dto/create-network.dto';
 import { UpdateCountryDto } from './dto/update-country.dto';
-import { CreateCountryDto } from './dto/create-country.dto';
+import { CountryResponseDto, CreateCountryDto } from './dto/create-country.dto';
+import { RpcException } from '@nestjs/microservices';
 
 export type OperationType = 'DEPOSIT' | 'REFUND' | 'PAYOUT';
 type BulkPayoutResult =
@@ -321,49 +322,280 @@ export class PawapayService {
 
   // ---------- CRUD avec Prisma ----------
   async createCountry(dto: CreateCountryDto) {
+    const { currencies, ...countryData } = dto;
+
+    // 1. Vérifier que le code du pays n'existe pas
+    const existing = await this.prisma.country_provider.findFirst({
+      where: { code: dto.code },
+    });
+    if (existing) {
+      throw new RpcException({
+        status: 'error',
+        message: `Country with code ${dto.code} already exists`,
+        statusCode: 409,
+      });
+    }
+
+    // 2. Créer le pays
     const country = await this.prisma.country_provider.create({
       data: {
-        code: dto.code,
-        name: dto.name,
-        flag: dto.flag,
-        prefix: dto.prefix,
+        id: crypto.randomUUID(),
+        code: countryData.code,
+        name: countryData.name,
+        flag: countryData.flag || null,
+        prefix: countryData.prefix || null,
+        default_currency: countryData.default_currency || null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
-    return { message: 'Country created successfully', data: country };
+
+    // 3. Si des devises sont fournies, les ajouter
+    if (currencies && currencies.length > 0) {
+      for (const currency of currencies) {
+        // Vérifier si la devise existe, sinon la créer avec les infos fournies
+        let currencyRecord = await this.prisma.currency.findUnique({
+          where: { code: currency.currency_code },
+        });
+
+        if (!currencyRecord) {
+          currencyRecord = await this.prisma.currency.create({
+            data: {
+              id: crypto.randomUUID(),
+              code: currency.currency_code,
+              name: currency.currency_name || currency.currency_code,
+              symbol: currency.currency_symbol || currency.currency_code,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+          console.log(`✅ Currency ${currency.currency_code} created automatically`);
+        }
+
+        await this.prisma.country_currency.create({
+          data: {
+            id: crypto.randomUUID(),
+            country_id: country.id,
+            currency_code: currency.currency_code,
+            is_default: currency.is_default || false,
+            min_transaction_amount: currency.min_transaction_amount || 0,
+            max_transaction_amount: currency.max_transaction_amount || null,
+            daily_limit: currency.daily_limit || null,
+            monthly_limit: currency.monthly_limit || null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+      }
+    }
+
+    // 4. Retourner le pays avec ses devises
+    const result = await this.prisma.country_provider.findUnique({
+      where: { id: country.id },
+      include: {
+        country_currency: {
+          include: { currency: true },
+        },
+        network_provider: true,
+      },
+    });
+
+    // ✅ Retour avec message et data
+    return {
+      message: 'Country created successfully',
+      data: result,
+    };
   }
 
   async updateCountry(id: string, dto: UpdateCountryDto) {
-    try {
-      const country = await this.prisma.country_provider.update({
-        where: { id },
-        data: {
-          code: dto.code,
-          name: dto.name,
-          flag: dto.flag,
-          prefix: dto.prefix,
-        },
-        include: { network_provider: true },
+    const { currencies, ...countryData } = dto;
+
+    // 1. Vérifier que le pays existe
+    const existing = await this.prisma.country_provider.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Country not found',
+        statusCode: 404,
       });
-      return { message: 'Country updated successfully', data: country };
-    } catch (error) {
-      return { message: 'Country not found', data: null };
     }
+
+    // 2. Mettre à jour le pays
+    const country = await this.prisma.country_provider.update({
+      where: { id },
+      data: {
+        code: countryData.code,
+        name: countryData.name,
+        flag: countryData.flag,
+        prefix: countryData.prefix,
+        default_currency: countryData.default_currency,
+        updatedAt: new Date(),
+      },
+    });
+
+    // 3. Si des devises sont fournies, les mettre à jour
+    if (currencies && currencies.length > 0) {
+      // Vérifier/créer les devises avant de les associer
+      for (const currency of currencies) {
+        let currencyRecord = await this.prisma.currency.findUnique({
+          where: { code: currency.currency_code },
+        });
+
+        if (!currencyRecord) {
+          currencyRecord = await this.prisma.currency.create({
+            data: {
+              id: crypto.randomUUID(),
+              code: currency.currency_code,
+              name: currency.currency_name || currency.currency_code,
+              symbol: currency.currency_symbol || currency.currency_code,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          });
+          console.log(`✅ Currency ${currency.currency_code} created automatically`);
+        }
+      }
+
+      // Supprimer les anciennes devises
+      await this.prisma.country_currency.deleteMany({
+        where: { country_id: id },
+      });
+
+      // Ajouter les nouvelles devises
+      for (const currency of currencies) {
+        await this.prisma.country_currency.create({
+          data: {
+            id: crypto.randomUUID(),
+            country_id: country.id,
+            currency_code: currency.currency_code,
+            is_default: currency.is_default || false,
+            min_transaction_amount: currency.min_transaction_amount || 0,
+            max_transaction_amount: currency.max_transaction_amount || null,
+            daily_limit: currency.daily_limit || null,
+            monthly_limit: currency.monthly_limit || null,
+            created_at: new Date(),
+            updated_at: new Date(),
+          },
+        });
+      }
+    }
+
+    // 4. Retourner le pays avec ses devises
+    const result = await this.prisma.country_provider.findUnique({
+      where: { id: country.id },
+      include: {
+        country_currency: {
+          include: { currency: true },
+        },
+        network_provider: true,
+      },
+    });
+
+    // ✅ Retour avec message et data
+    return {
+      message: 'Country updated successfully',
+      data: result,
+    };
   }
 
   async getCountry(id: string) {
     const country = await this.prisma.country_provider.findUnique({
       where: { id },
-      include: { network_provider: true },
+      include: {
+        country_currency: {
+          include: {
+            currency: true,
+          },
+          orderBy: {
+            is_default: 'desc',
+          },
+        },
+        network_provider: true,
+      },
     });
-    if (!country) return { message: 'Country not found', data: null };
-    return { message: 'Country retrieved successfully', data: country };
+
+    if (!country) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Country not found',
+        statusCode: 404,
+      });
+    }
+
+    return {
+      message: 'Country retrieved successfully',
+      data: this.formatCountryResponse(country),
+    };
   }
 
   async getAllCountries() {
     const countries = await this.prisma.country_provider.findMany({
-      include: { network_provider: true },
+      include: {
+        country_currency: {
+          include: {
+            currency: true,
+          },
+          orderBy: {
+            is_default: 'desc',
+          },
+        },
+        network_provider: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
     });
-    return { message: 'Countries retrieved successfully', data: countries };
+
+    // ✅ Retour avec message et data
+    return {
+      message: 'Countries retrieved successfully',
+      data: countries.map(country => this.formatCountryResponse(country)),
+    };
+  }
+
+  private async getCountryWithRelations(id: string) {
+    const country = await this.prisma.country_provider.findUnique({
+      where: { id },
+      include: {
+        country_currency: {
+          include: {
+            currency: true,
+          },
+          orderBy: {
+            is_default: 'desc',
+          },
+        },
+        network_provider: true,
+      },
+    });
+
+    return this.formatCountryResponse(country);
+  }
+
+  private formatCountryResponse(country: any): CountryResponseDto {
+    return {
+      id: country.id,
+      code: country.code,
+      name: country.name,
+      flag: country.flag || undefined,
+      prefix: country.prefix || undefined,
+      default_currency: country.default_currency || undefined,
+      currencies: country.country_currency.map(cc => ({
+        currency_code: cc.currency_code,
+        currency_name: cc.currency.name,
+        currency_symbol: cc.currency.symbol || undefined,
+        is_default: cc.is_default || false,
+        min_transaction_amount: cc.min_transaction_amount || undefined,
+        max_transaction_amount: cc.max_transaction_amount || undefined,
+        daily_limit: cc.daily_limit || undefined,
+        monthly_limit: cc.monthly_limit || undefined,
+      })),
+      network_providers: country.network_provider,
+      created_at: country.createdAt,
+      updated_at: country.updatedAt,
+    };
   }
 
   async createNetwork(dto: CreateNetworkDto) {

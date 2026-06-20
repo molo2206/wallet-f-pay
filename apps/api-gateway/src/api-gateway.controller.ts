@@ -1445,7 +1445,7 @@ export class ApiGatewayController {
     const response = await this.sendWalletMessage(
       'send',
       {
-        fromWalletId: body.fromWalletId,  // ✅ Utiliser fromWalletId au lieu de fromAccountNumber
+        fromWalletId: body.fromWalletId,
         toPhone: body.toPhone,
         amount: body.amount,
         pin: body.pin,
@@ -1458,7 +1458,7 @@ export class ApiGatewayController {
     );
     return response;
   }
-  
+
   @Post('wallet/pay')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async pay(
