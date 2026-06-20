@@ -4,9 +4,9 @@ import axios from 'axios';
 
 @Injectable()
 export class SmsService {
-  private readonly apiId = 'API23108080245';
-  private readonly apiPassword = 'V90ae6RB3p';
-  private readonly sender = 'AccesPay';
+  private readonly apiId = 'API41116697559';
+  private readonly apiPassword = 'V2nOnixFDv';
+  private readonly sender = 'F-Pay';
   private readonly apiUrl = 'https://api2.dream-digital.info/api/SendSMS';
 
   async sendSms(phoneNumber: string, message: string): Promise<boolean> {
@@ -69,7 +69,7 @@ export class SmsService {
   }
 
   async sendOtpSms(phoneNumber: string, otpCode: string): Promise<boolean> {
-    const message = `Votre code de vérification AccesPay est : ${otpCode}. Valable 10 minutes.`;
+    const message = `Votre code de vérification F-Pay est : ${otpCode}. Valable 10 minutes.`;
     return this.sendSms(phoneNumber, message);
   }
 
@@ -78,7 +78,7 @@ export class SmsService {
     fullName: string,
     accountNumber: string,
   ): Promise<boolean> {
-    const message = `Bienvenue sur AccesPay, ${fullName} ! Votre compte ${accountNumber} a été créé avec succès.`;
+    const message = `Bienvenue sur F-Pay, ${fullName} ! Votre compte ${accountNumber} a été créé avec succès.`;
     return this.sendSms(phoneNumber, message);
   }
 }

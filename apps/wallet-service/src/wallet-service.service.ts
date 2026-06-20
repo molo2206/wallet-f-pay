@@ -2453,8 +2453,9 @@ export class WalletServiceService {
     lang: string = 'fr',
     ipAddress: string,
   ): Promise<ApiResponse<{ fromWallet: WalletResponseDto; toWallet: WalletResponseDto; transaction: any }>> {
-    const { fromAccountNumber, fromWalletId, toPhone, amount, pin, description } = dto;
-    console.log('[WalletService] Send request:', { fromAccountNumber, fromWalletId, toPhone, amount, lang });
+    const { fromWalletId, toPhone, amount, pin, description } = dto;
+    console.log('[WalletService] Send request:', { fromWalletId, toPhone, amount, lang });
+
     if (amount <= 0) {
       throw new RpcException({
         status: 'error',
@@ -2463,27 +2464,52 @@ export class WalletServiceService {
       });
     }
 
+    if (!fromWalletId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet source est requis',
+        statusCode: 400,
+      });
+    }
+
     const result = await this.prisma.$transaction(
       async (tx) => {
-        // 1. Récupérer l'expéditeur
-        let fromUser;
-        if (fromAccountNumber) {
-          fromUser = await tx.user.findFirst({
-            where: { account_number: fromAccountNumber },
-            select: {
-              id: true,
-              full_name: true,
-              phone: true,
-              account_number: true,
-              pin: true,
-              status: true,
-              failed_pin_attempts: true,
-            },
+        // 1. Récupérer le wallet source avec son utilisateur
+        const fromWallet = await tx.wallet.findFirst({
+          where: { id: fromWalletId },
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                account_number: true,
+                pin: true,
+                status: true,
+                failed_pin_attempts: true,
+              }
+            }
+          },
+        });
+
+        if (!fromWallet) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.wallet_not_found', lang),
+            statusCode: 404,
           });
-        } else if (fromWalletId) {
-          const wallet = await tx.wallet.findUnique({ where: { id: fromWalletId }, include: { user: true } });
-          if (wallet) fromUser = wallet.user;
         }
+
+        if (!fromWallet.isActive) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.wallet_inactive', lang),
+            statusCode: 403,
+          });
+        }
+
+        const fromUser = fromWallet.user;
+
         if (!fromUser) {
           throw new RpcException({
             status: 'error',
@@ -2508,6 +2534,7 @@ export class WalletServiceService {
             statusCode: 400,
           });
         }
+
         const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
         if (fromUser.pin !== hashedPin) {
           const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
@@ -2566,27 +2593,15 @@ export class WalletServiceService {
           });
         }
 
-        // 3. Récupérer les wallets
-        const fromWallet = await tx.wallet.findFirst({
-          where: { userId: fromUser.id },
-          include: { user: true },
+        // 3. Récupérer le wallet destination dans la MÊME DEVISE
+        let toWallet = await tx.wallet.findFirst({
+          where: {
+            userId: toUser.id,
+            currency: fromWallet.currency,
+            isActive: true,
+          },
         });
-        if (!fromWallet) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_not_found', lang),
-            statusCode: 404,
-          });
-        }
-        if (!fromWallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403,
-          });
-        }
 
-        let toWallet = await tx.wallet.findFirst({ where: { userId: toUser.id } });
         if (!toWallet) {
           toWallet = await tx.wallet.create({
             data: {
@@ -2597,7 +2612,9 @@ export class WalletServiceService {
               isActive: true,
             },
           });
+          console.log(`[WalletService] 💰 Nouveau wallet créé en ${fromWallet.currency} pour l'utilisateur ${toUser.id}`);
         }
+
         if (!toWallet.isActive) {
           throw new RpcException({
             status: 'error',
