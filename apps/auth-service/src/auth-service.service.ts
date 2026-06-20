@@ -51,7 +51,6 @@ export class AuthServiceService {
   private normalizePhone(phone: string): string {
     return phone.replace(/[^0-9]/g, '');
   }
-
   private async logAudit(
     userId: string | null,
     action: string,
@@ -61,6 +60,7 @@ export class AuthServiceService {
     try {
       await this.prisma.audit_log.create({
         data: {
+          id: crypto.randomUUID(), // ✅ AJOUTER CETTE LIGNE
           userId,
           action,
           details: details ? JSON.stringify(details) : null,
