@@ -18,11 +18,11 @@ export class AdminCashoutDto {
 }
 
 export class AdminSendDto {
-    adminId: string;           // REQUIS
-    fromWalletId: string;
-    toWalletId: string;
-    amount: number;
-    pin: string;
+    adminId: string;           // REQUIS - ID de l'admin
+    fromWalletId: string;      // REQUIS - wallet source
+    toPhone: string;           // REQUIS - téléphone du destinataire
+    amount: number;            // REQUIS
+    pin: string;               // REQUIS
     description?: string;
     lang?: string;
     ipAddress?: string;

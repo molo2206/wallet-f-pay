@@ -907,8 +907,8 @@ export class WalletServiceService {
   async adminSend(
     dto: AdminSendDto,
   ): Promise<ApiResponse<{ fromWallet: WalletResponseDto; toWallet: WalletResponseDto; transaction: any }>> {
-    const { adminId, fromWalletId, toWalletId, amount, pin, description, lang = 'fr', ipAddress } = dto;
-    console.log('[WalletService] Admin Send:', { adminId, fromWalletId, toWalletId, amount, lang });
+    const { adminId, fromWalletId, toPhone, amount, pin, description, lang = 'fr', ipAddress } = dto;
+    console.log('[WalletService] Admin Send:', { adminId, fromWalletId, toPhone, amount, lang });
 
     // ========== VALIDATIONS ==========
     if (amount <= 0) {
@@ -919,10 +919,10 @@ export class WalletServiceService {
       });
     }
 
-    if (!fromWalletId || !toWalletId) {
+    if (!fromWalletId || !toPhone) {
       throw new RpcException({
         status: 'error',
-        message: 'Les IDs des wallets source et destination sont requis',
+        message: this.i18nService.translate('wallet.admin_send_from_wallet_required', lang),
         statusCode: 400,
       });
     }
@@ -930,7 +930,7 @@ export class WalletServiceService {
     if (!adminId) {
       throw new RpcException({
         status: 'error',
-        message: 'L\'ID de l\'admin est requis',
+        message: this.i18nService.translate('wallet.admin_id_required', lang),
         statusCode: 400,
       });
     }
@@ -971,7 +971,7 @@ export class WalletServiceService {
         if (!admin) {
           throw new RpcException({
             status: 'error',
-            message: 'Admin non trouvé',
+            message: this.i18nService.translate('admin.not_found', lang),
             statusCode: 404,
           });
         }
@@ -979,7 +979,7 @@ export class WalletServiceService {
         if (!admin.pin) {
           throw new RpcException({
             status: 'error',
-            message: 'Admin n\'a pas de PIN défini.',
+            message: this.i18nService.translate('admin.no_pin_set', lang),
             statusCode: 400,
           });
         }
@@ -990,7 +990,7 @@ export class WalletServiceService {
           );
           throw new RpcException({
             status: 'error',
-            message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+            message: this.i18nService.translate('admin.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
             statusCode: 403,
           });
         }
@@ -1014,7 +1014,7 @@ export class WalletServiceService {
           });
           throw new RpcException({
             status: 'error',
-            message: this.i18nService.translate('wallet.pin_incorrect', lang),
+            message: this.i18nService.translate('admin.pin_incorrect', lang),
             statusCode: 401,
           });
         }
@@ -1024,7 +1024,7 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0, pin_locked_until: null },
         });
 
-        // 2️⃣ Récupérer les wallets
+        // 2️⃣ Récupérer le wallet source
         const fromWallet = await tx.wallet.findFirst({
           where: { id: fromWalletId },
           include: { user: true }
@@ -1051,17 +1051,48 @@ export class WalletServiceService {
           });
         }
 
-        const toWallet = await tx.wallet.findFirst({
-          where: { id: toWalletId },
-          include: { user: true }
+        const fromUser = fromWallet.user;
+
+        // 3️⃣ Récupérer le destinataire par téléphone
+        const toUser = await tx.user.findFirst({
+          where: { phone: toPhone },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            account_number: true,
+          },
         });
-        if (!toWallet) {
+        if (!toUser) {
           throw new RpcException({
             status: 'error',
-            message: this.i18nService.translate('wallet.wallet_not_found', lang),
-            statusCode: 404
+            message: this.i18nService.translate('wallet.receiver_not_found', lang),
+            statusCode: 404,
           });
         }
+
+        // 4️⃣ Récupérer le wallet du destinataire dans la MÊME DEVISE
+        let toWallet = await tx.wallet.findFirst({
+          where: {
+            userId: toUser.id,
+            currency: fromWallet.currency,
+            isActive: true,
+          },
+        });
+
+        if (!toWallet) {
+          toWallet = await tx.wallet.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: toUser.id,
+              currency: fromWallet.currency,
+              balance: 0,
+              isActive: true,
+            },
+          });
+          console.log(`[AdminSend] 💰 Nouveau wallet créé en ${fromWallet.currency} pour l'utilisateur ${toUser.id}`);
+        }
+
         if (!toWallet.isActive) {
           throw new RpcException({
             status: 'error',
@@ -1070,18 +1101,7 @@ export class WalletServiceService {
           });
         }
 
-        if (fromWalletId === toWalletId) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.cannot_transfer_self', lang),
-            statusCode: 400
-          });
-        }
-
-        const fromUser = fromWallet.user;
-        const toUser = toWallet.user;
-
-        // 3️⃣ Mettre à jour les soldes
+        // 5️⃣ Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
@@ -1091,7 +1111,7 @@ export class WalletServiceService {
           data: { balance: { increment: amount }, updatedAt: new Date() },
         });
 
-        // 4️⃣ Créer les transactions
+        // 6️⃣ Créer les transactions avec descriptions enrichies
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1101,10 +1121,16 @@ export class WalletServiceService {
             type: 'TRANSFER',
             status: 'SUCCESS',
             reference: `ADMIN_SEND_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
-            description: description || `Transfert admin vers ${toUser.full_name}`,
+            description: description || this.i18nService.translate('wallet.admin_send_description', lang, {
+              amount: amount,
+              currency: fromWallet.currency,
+              toName: toUser.full_name || 'Destinataire',
+              toPhone: toPhone,
+            }),
             movement: 'DEBIT',
           },
         });
+
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1114,18 +1140,23 @@ export class WalletServiceService {
             type: 'DEPOSIT',
             status: 'SUCCESS',
             reference: `ADMIN_RECV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
-            description: description || `Reçu admin de ${fromUser.full_name}`,
+            description: description || this.i18nService.translate('wallet.admin_receive_description', lang, {
+              amount: amount,
+              currency: toWallet.currency,
+              fromName: fromUser.full_name || 'Admin',
+              fromPhone: fromUser.phone || 'N/A',
+            }),
             movement: 'CREDIT',
           },
         });
 
-        // 5️⃣ Audit log
+        // 7️⃣ Audit log
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
             userId: admin.id,
             action: 'adminSend',
-            details: JSON.stringify({ from: updatedFrom, to: updatedTo }),
+            details: JSON.stringify({ from: updatedFrom, to: updatedTo, toPhone }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
           },
@@ -1220,7 +1251,7 @@ export class WalletServiceService {
     if (!fromWalletId || !merchantCode) {
       throw new RpcException({
         status: 'error',
-        message: 'Le wallet source et le code marchand sont requis',
+        message: this.i18nService.translate('wallet.admin_pay_from_wallet_required', lang),
         statusCode: 400,
       });
     }
@@ -1228,7 +1259,7 @@ export class WalletServiceService {
     if (!adminId) {
       throw new RpcException({
         status: 'error',
-        message: 'L\'ID de l\'admin est requis',
+        message: this.i18nService.translate('wallet.admin_id_required', lang),
         statusCode: 400,
       });
     }
@@ -1269,7 +1300,7 @@ export class WalletServiceService {
         if (!admin) {
           throw new RpcException({
             status: 'error',
-            message: 'Admin non trouvé',
+            message: this.i18nService.translate('admin.not_found', lang),
             statusCode: 404,
           });
         }
@@ -1277,7 +1308,7 @@ export class WalletServiceService {
         if (!admin.pin) {
           throw new RpcException({
             status: 'error',
-            message: 'Admin n\'a pas de PIN défini.',
+            message: this.i18nService.translate('admin.no_pin_set', lang),
             statusCode: 400,
           });
         }
@@ -1288,7 +1319,7 @@ export class WalletServiceService {
           );
           throw new RpcException({
             status: 'error',
-            message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+            message: this.i18nService.translate('admin.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
             statusCode: 403,
           });
         }
@@ -1312,7 +1343,7 @@ export class WalletServiceService {
           });
           throw new RpcException({
             status: 'error',
-            message: this.i18nService.translate('wallet.pin_incorrect', lang),
+            message: this.i18nService.translate('admin.pin_incorrect', lang),
             statusCode: 401,
           });
         }
@@ -1351,7 +1382,7 @@ export class WalletServiceService {
 
         const fromUser = fromWallet.user;
 
-        // 3️⃣ Récupérer le commerçant
+        // 3️⃣ Récupérer le commerçant par son merchantCode
         const toUser = await tx.user.findFirst({
           where: {
             merchantCode: merchantCode,
@@ -1387,6 +1418,7 @@ export class WalletServiceService {
               isActive: true,
             },
           });
+          console.log(`[AdminPay] 💰 Nouveau wallet créé en ${fromWallet.currency} pour le commerçant ${toUser.id}`);
         }
         if (!toWallet.isActive) {
           throw new RpcException({
@@ -1406,7 +1438,7 @@ export class WalletServiceService {
           data: { balance: { increment: amount }, updatedAt: new Date() },
         });
 
-        // 6️⃣ Créer les transactions
+        // 6️⃣ Créer les transactions avec descriptions enrichies
         const payerTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1416,10 +1448,16 @@ export class WalletServiceService {
             type: 'PAYMENT',
             status: 'SUCCESS',
             reference: `ADMIN_PAY_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
-            description: description || `Paiement admin à ${toUser.full_name}`,
+            description: description || this.i18nService.translate('wallet.admin_pay_payer_description', lang, {
+              amount: amount,
+              currency: fromWallet.currency,
+              merchantName: toUser.full_name || 'Commerçant',
+              merchantCode: merchantCode,
+            }),
             movement: 'DEBIT',
           },
         });
+
         const merchantTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1429,7 +1467,12 @@ export class WalletServiceService {
             type: 'PAYMENT',
             status: 'SUCCESS',
             reference: `ADMIN_PAY_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
-            description: description || `Reçu admin de ${fromUser.full_name}`,
+            description: description || this.i18nService.translate('wallet.admin_pay_merchant_description', lang, {
+              amount: amount,
+              currency: toWallet.currency,
+              payerName: fromUser.full_name || 'Client',
+              payerPhone: fromUser.phone || 'N/A',
+            }),
             movement: 'CREDIT',
           },
         });
@@ -1440,7 +1483,7 @@ export class WalletServiceService {
             id: crypto.randomUUID(),
             userId: admin.id,
             action: 'adminPay',
-            details: JSON.stringify({ from: updatedFrom, to: updatedTo }),
+            details: JSON.stringify({ from: updatedFrom, to: updatedTo, merchantCode }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
           },
@@ -2770,8 +2813,10 @@ export class WalletServiceService {
     lang: string = 'fr',
     ipAddress: string,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
-    const { fromAccountNumber, fromWalletId, toPhone, merchantCode, amount, pin, description, skipPinCheck } = dto;
-    console.log('[WalletService] Pay request:', { fromAccountNumber, fromWalletId, toPhone, merchantCode, amount, lang });
+    const { fromWalletId, toPhone, merchantCode, amount, pin, description, skipPinCheck } = dto;
+    console.log('[WalletService] Pay request:', { fromWalletId, toPhone, merchantCode, amount, lang });
+
+    // ========== VALIDATIONS RAPIDES ==========
     if (amount <= 0) {
       throw new RpcException({
         status: 'error',
@@ -2780,235 +2825,238 @@ export class WalletServiceService {
       });
     }
 
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        // 1. Récupérer le payeur
-        let fromUser;
-        if (fromAccountNumber) {
-          fromUser = await tx.user.findFirst({
-            where: { account_number: fromAccountNumber },
-            select: {
-              id: true,
-              full_name: true,
-              phone: true,
-              account_number: true,
-              pin: true,
-              status: true,
-              failed_pin_attempts: true,
-            },
-          });
-        } else if (fromWalletId) {
-          const wallet = await tx.wallet.findUnique({ where: { id: fromWalletId }, include: { user: true } });
-          if (wallet) fromUser = wallet.user;
-        }
-        if (!fromUser) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.sender_not_found', lang),
-            statusCode: 404,
-          });
-        }
+    if (!fromWalletId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet source est requis',
+        statusCode: 400,
+      });
+    }
 
-        if (fromUser.status === user_status.BLOCKED) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('account_blocked_admin', lang),
-            statusCode: 403,
-          });
-        }
+    if (!toPhone && !merchantCode) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.missing_phone_or_code', lang),
+        statusCode: 400,
+      });
+    }
 
-        // 🔐 Vérification du PIN (sauf si skipPinCheck est true)
-        if (!skipPinCheck) {
-          if (!fromUser.pin) {
-            throw new RpcException({
-              status: 'error',
-              message: this.i18nService.translate('wallet.no_pin_set', lang),
-              statusCode: 400,
-            });
-          }
-          const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
-          if (fromUser.pin !== hashedPin) {
-            const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
-            let newStatus: user_status = fromUser.status;
-            let lockedUntil: Date | null = null;
-            if (newAttempts >= 5) {
-              newStatus = user_status.BLOCKED;
-              lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-            }
-            await tx.user.update({
-              where: { id: fromUser.id },
-              data: { failed_pin_attempts: newAttempts, status: newStatus },
-            });
-            await logFailedLoginAttempt(
-              this.prisma,
-              fromUser.id,
-              fromUser.account_number ?? fromUser.phone ?? fromUser.id,
-              ipAddress,
-              undefined,
-              newAttempts,
-              lockedUntil,
-            );
-            throw new RpcException({
-              status: 'error',
-              message: this.i18nService.translate('wallet.pin_incorrect', lang),
-              statusCode: 401,
-            });
-          }
-        }
+    // ========== RÉCUPÉRATIONS PARALLÈLES ==========
+    const [fromWallet, toUser] = await Promise.all([
+      this.prisma.wallet.findFirst({
+        where: { id: fromWalletId, isActive: true },
+        include: { user: true },
+      }),
+      toPhone
+        ? this.prisma.user.findFirst({
+          where: { phone: toPhone, role: 'MERCHANT' },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            account_number: true,
+            role: true,
+            merchantCode: true,
+          },
+        })
+        : this.prisma.user.findFirst({
+          where: { merchantCode, role: 'MERCHANT' },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            account_number: true,
+            role: true,
+            merchantCode: true,
+          },
+        }),
+    ]);
 
-        // Réinitialiser les tentatives échouées (que le PIN ait été vérifié ou non)
-        await tx.user.update({
+    // ========== VALIDATIONS ==========
+    if (!fromWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    const fromUser = fromWallet.user;
+    if (!fromUser) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.sender_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    if (fromUser.status === user_status.BLOCKED) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('account_blocked_admin', lang),
+        statusCode: 403,
+      });
+    }
+
+    if (!toUser) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.receiver_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    if (toUser.role !== 'MERCHANT') {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.not_merchant', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (fromUser.id === toUser.id) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.cannot_transfer_self', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ========== VÉRIFICATION DU PIN (RAPIDE) ==========
+    if (!skipPinCheck) {
+      if (!fromUser.pin) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.no_pin_set', lang),
+          statusCode: 400,
+        });
+      }
+      const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+      if (fromUser.pin !== hashedPin) {
+        // Incrémenter les tentatives
+        const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
+        let newStatus: user_status = fromUser.status;
+        let lockedUntil: Date | null = null;
+        if (newAttempts >= 5) {
+          newStatus = user_status.BLOCKED;
+          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        }
+        await this.prisma.user.update({
           where: { id: fromUser.id },
-          data: { failed_pin_attempts: 0 },
+          data: { failed_pin_attempts: newAttempts, status: newStatus },
         });
+        await logFailedLoginAttempt(
+          this.prisma,
+          fromUser.id,
+          fromUser.account_number ?? fromUser.phone ?? fromUser.id,
+          ipAddress,
+          undefined,
+          newAttempts,
+          lockedUntil,
+        );
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.pin_incorrect', lang),
+          statusCode: 401,
+        });
+      }
+      // Réinitialiser les tentatives
+      await this.prisma.user.update({
+        where: { id: fromUser.id },
+        data: { failed_pin_attempts: 0 },
+      });
+    }
 
-        // 2. Récupérer le commerçant (destinataire)
-        let toUser;
-        if (toPhone) {
-          toUser = await tx.user.findFirst({
-            where: { phone: toPhone },
-            select: {
-              id: true,
-              full_name: true,
-              phone: true,
-              account_number: true,
-              role: true,
-            },
-          });
-        } else if (merchantCode) {
-          toUser = await tx.user.findFirst({
-            where: { merchantCode, role: 'MERCHANT' },
-            select: {
-              id: true,
-              full_name: true,
-              phone: true,
-              account_number: true,
-              role: true,
-            },
-          });
-        } else {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.missing_phone_or_code', lang),
-            statusCode: 400,
-          });
-        }
-        if (!toUser) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.receiver_not_found', lang),
-            statusCode: 404,
-          });
-        }
-        if (toUser.role !== 'MERCHANT') {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.not_merchant', lang),
-            statusCode: 400,
-          });
-        }
-        if (fromUser.id === toUser.id) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.cannot_transfer_self', lang),
-            statusCode: 400,
-          });
-        }
+    // ========== RÉCUPÉRER OU CRÉER LE WALLET DU COMMERÇANT ==========
+    let merchantWallet = await this.prisma.wallet.findFirst({
+      where: { userId: toUser.id, currency: fromWallet.currency, isActive: true },
+    });
 
-        // 3. Récupérer les wallets
-        let userWallet;
-        if (fromWalletId) {
-          userWallet = await tx.wallet.findUnique({ where: { id: fromWalletId, userId: fromUser.id } });
-        } else {
-          userWallet = await tx.wallet.findFirst({ where: { userId: fromUser.id } });
-        }
-        if (!userWallet || !userWallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403,
-          });
-        }
+    if (!merchantWallet) {
+      merchantWallet = await this.prisma.wallet.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: toUser.id,
+          currency: fromWallet.currency,
+          balance: 0,
+          isActive: true,
+        },
+      });
+    }
 
-        let merchantWallet = await tx.wallet.findFirst({ where: { userId: toUser.id } });
-        if (!merchantWallet) {
-          merchantWallet = await tx.wallet.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId: toUser.id,
-              currency: userWallet.currency,
-              balance: 0,
-              isActive: true,
-            },
-          });
-        }
-        if (!merchantWallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403,
-          });
-        }
+    if (!merchantWallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        statusCode: 403,
+      });
+    }
 
-        // 4. Appliquer les frais internationaux si le numéro du commerçant n'est pas national
-        const targetPhone = toUser.phone;
-        const { fee, debitAmount, creditAmount } = await this.applyInternationalFeeIfNeeded(targetPhone, amount);
-        if (userWallet.balance < debitAmount) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
-            statusCode: 400,
-          });
-        }
+    // ========== APPLIQUER LES FRAIS ==========
+    const targetPhone = toUser.phone;
+    const { fee, debitAmount, creditAmount } = await this.applyInternationalFeeIfNeeded(targetPhone || '', amount);
 
-        // 5. Mettre à jour les soldes
-        const updatedUser = await tx.wallet.update({
-          where: { id: userWallet.id },
+    if (fromWallet.balance < debitAmount) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ========== EXÉCUTER LA TRANSACTION (UNE SEULE) ==========
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Mettre à jour les soldes
+      const [updatedUser, updatedMerchant] = await Promise.all([
+        tx.wallet.update({
+          where: { id: fromWallet.id },
           data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
-        });
-        const updatedMerchant = await tx.wallet.update({
+        }),
+        tx.wallet.update({
           where: { id: merchantWallet.id },
           data: { balance: { increment: creditAmount }, updatedAt: new Date() },
-        });
+        }),
+      ]);
 
-        // 6. Construire les descriptions
-        let payerDescription = description;
-        let merchantDescription = description;
+      // Construire les descriptions
+      let payerDescription = description;
+      let merchantDescription = description;
 
-        if (!payerDescription) {
-          const template = this.i18nService.translate('wallet.transaction_description_payment_sent', lang);
-          payerDescription = template
-            .replace('{merchantName}', toUser.full_name || '')
-            .replace('{merchantPhone}', toUser.phone || '');
-        } else {
-          const merchantInfo = toUser.full_name
-            ? `${toUser.full_name} (${toUser.phone || merchantCode})`
-            : toUser.phone || merchantCode;
-          const toText = this.i18nService.translate('wallet.to', lang);
-          payerDescription = `${payerDescription} (${toText}: ${merchantInfo})`;
-        }
-        if (fee > 0) {
-          payerDescription += ` (frais internationaux 1%: ${fee} ${userWallet.currency})`;
-        }
+      if (!payerDescription) {
+        const template = this.i18nService.translate('wallet.transaction_description_payment_sent', lang);
+        payerDescription = template
+          .replace('{merchantName}', toUser.full_name || '')
+          .replace('{merchantPhone}', toUser.phone || '');
+      } else {
+        const merchantInfo = toUser.full_name
+          ? `${toUser.full_name} (${toUser.phone || merchantCode})`
+          : toUser.phone || merchantCode;
+        const toText = this.i18nService.translate('wallet.to', lang);
+        payerDescription = `${payerDescription} (${toText}: ${merchantInfo})`;
+      }
+      if (fee > 0) {
+        payerDescription += ` (frais internationaux 1%: ${fee} ${fromWallet.currency})`;
+      }
 
-        if (!merchantDescription) {
-          const template = this.i18nService.translate('wallet.transaction_description_payment_received', lang);
-          merchantDescription = template
-            .replace('{phone}', fromUser.phone || '');  // ← Changé de {accountNumber} à {phone}
-        } else {
-          const payerInfo = fromUser.full_name
-            ? `${fromUser.full_name} (${fromUser.phone || fromAccountNumber})`
-            : fromUser.phone || fromAccountNumber;
-          const fromText = this.i18nService.translate('wallet.from', lang);
-          merchantDescription = `${merchantDescription} (${fromText}: ${payerInfo})`;
-        }
+      if (!merchantDescription) {
+        const template = this.i18nService.translate('wallet.transaction_description_payment_received', lang);
+        merchantDescription = template
+          .replace('{phone}', fromUser.phone || '');
+      } else {
+        const payerInfo = fromUser.full_name
+          ? `${fromUser.full_name} (${fromUser.phone})`
+          : fromUser.phone;
+        const fromText = this.i18nService.translate('wallet.from', lang);
+        merchantDescription = `${merchantDescription} (${fromText}: ${payerInfo})`;
+      }
 
-        // 7. Créer les transactions
-        const payerTx = await tx.transaction.create({
+      // Créer les transactions en parallèle
+      const [payerTx, merchantTx] = await Promise.all([
+        tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
             userId: fromUser.id,
-            walletId: userWallet.id,
+            walletId: fromWallet.id,
             amount: debitAmount,
             type: 'PAYMENT',
             status: 'SUCCESS',
@@ -3016,8 +3064,8 @@ export class WalletServiceService {
             description: payerDescription,
             movement: 'DEBIT',
           },
-        });
-        const merchantTx = await tx.transaction.create({
+        }),
+        tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
             userId: toUser.id,
@@ -3029,24 +3077,69 @@ export class WalletServiceService {
             description: merchantDescription,
             movement: 'CREDIT',
           },
+        }),
+      ]);
+
+      // Audit log
+      await tx.audit_log.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: fromUser.id,
+          action: 'PAYMENT',
+          details: JSON.stringify({
+            amount: debitAmount,
+            merchant: toUser.full_name,
+            merchantCode: toUser.merchantCode,
+          }),
+          ipAddress: ipAddress || null,
+          createdAt: new Date(),
+        },
+      });
+
+      return {
+        fromUser,
+        toUser,
+        fromWallet: updatedUser,
+        merchantWallet: updatedMerchant,
+        payerTx,
+        merchantTx,
+      };
+    }, { timeout: 30000 });
+
+    // ========== SMS EN DEHORS DE LA TRANSACTION ==========
+    if (result.fromUser.phone) {
+      try {
+        const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
+        const smsText = this.i18nService.translate('wallet.payment_payer_sms', lang, {
+          full_name: result.fromUser.full_name || '',
+          amount: amount,
+          currency: result.fromWallet.currency || 'CDF',
+          merchantName: result.toUser.full_name || '',
+          balance: result.fromWallet.balance || 0,
         });
+        await this.smsService.sendSms(cleanPhone, smsText);
+      } catch (err) {
+        console.error('[Pay] Erreur envoi SMS au payeur:', err);
+      }
+    }
 
-        await this.logAudit(fromUser.id, 'payment', updatedUser, ipAddress ?? null);
-        return {
-          fromUser,
-          toUser,
-          userWallet,
-          merchantWallet,
-          updatedUser,
-          updatedMerchant,
-          payerTx,
-          merchantTx,
-        };
-      },
-      { timeout: 60000, maxWait: 60000 },
-    );
+    if (result.toUser.phone) {
+      try {
+        const cleanPhone = result.toUser.phone.replace(/[^0-9+]/g, '');
+        const smsText = this.i18nService.translate('wallet.payment_merchant_sms', lang, {
+          full_name: result.toUser.full_name || '',
+          amount: amount,
+          currency: result.merchantWallet.currency || 'CDF',
+          payerName: result.fromUser.full_name || '',
+          balance: result.merchantWallet.balance || 0,
+        });
+        await this.smsService.sendSms(cleanPhone, smsText);
+      } catch (err) {
+        console.error('[Pay] Erreur envoi SMS au commerçant:', err);
+      }
+    }
 
-    // Notifications
+    // ========== NOTIFICATIONS PUSH ==========
     try {
       await Promise.all([
         notifyTransaction(
@@ -3058,7 +3151,7 @@ export class WalletServiceService {
           this.getUserLanguage.bind(this),
           result.payerTx,
           result.fromUser,
-          result.userWallet,
+          result.fromWallet,
           'pay_sent',
           {
             name: result.toUser.full_name ?? undefined,
@@ -3078,7 +3171,7 @@ export class WalletServiceService {
           'pay_received',
           {
             name: result.fromUser.full_name ?? undefined,
-            accountNumber: fromAccountNumber,
+            phone: result.fromUser.phone ?? undefined,
           },
         ),
       ]);
@@ -3089,7 +3182,7 @@ export class WalletServiceService {
     return {
       message: this.i18nService.translate('wallet.payment_success', lang),
       data: {
-        wallet: this.toResponse(result.updatedUser),
+        wallet: this.toResponse(result.fromWallet),
         transaction: result.payerTx,
       },
     };

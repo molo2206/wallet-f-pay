@@ -111,5 +111,20 @@
   "wallet.missing_wallet_ids": "Source and destination wallet IDs are required",
   "wallet.exchange_rate_failed": "Failed to save exchange rate",
   "wallet.exchange_rates_failed": "Failed to retrieve exchange rates",
-  "wallet.wallet_retrieved": "Wallet retrieved successfully"
+  "wallet.wallet_retrieved": "Wallet retrieved successfully",
+  "admin.pin_required": "Admin PIN is required",
+  "admin.pin_incorrect": "Admin PIN is incorrect",
+  "admin.pin_locked": "Admin PIN locked for {minutes} minute(s)",
+  "admin.not_found": "Admin not found",
+  "admin.no_pin_set": "Admin has no PIN set",
+  "admin.unauthorized": "Admin access unauthorized",
+  "wallet.admin_id_required": "Admin ID is required",
+  "wallet.pin_required": "PIN is required",
+  "wallet.invalid_pin_format": "Invalid PIN format (4 digits required)",
+  "wallet.admin_send_description": "Admin transfer of {{amount}} {{currency}} to {{toName}} ({{toPhone}})",
+  "wallet.admin_receive_description": "Admin receipt of {{amount}} {{currency}} from {{fromName}} ({{fromPhone}})",
+  "wallet.admin_pay_from_wallet_required": "Source wallet is required",
+  "wallet.admin_pay_merchant_code_required": "Merchant code is required",
+  "wallet.admin_pay_payer_description": "Admin payment of {{amount}} {{currency}} to merchant {{merchantName}} (code: {{merchantCode}})",
+  "wallet.admin_pay_merchant_description": "Admin receipt of {{amount}} {{currency}} from customer {{payerName}} ({{payerPhone}})"
 }

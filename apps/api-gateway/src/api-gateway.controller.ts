@@ -1427,7 +1427,6 @@ export class ApiGatewayController {
   ) {
     const lang = langHeader || 'fr';
 
-    // ✅ Vérifier que fromWalletId est fourni
     if (!body.fromWalletId) {
       throw new HttpException('Le wallet source est requis', HttpStatus.BAD_REQUEST);
     }
@@ -1463,11 +1462,17 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async pay(
     @CurrentUser() currentUser: any,
-    @Body() body: { toPhone?: string; merchantCode?: string; amount: number; pin: string; description?: string },
+    @Body() body: { fromWalletId: string; toPhone?: string; merchantCode?: string; amount: number; pin: string; description?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
+
+    // ✅ Vérifier que fromWalletId est fourni
+    if (!body.fromWalletId) {
+      throw new HttpException('Le wallet source est requis', HttpStatus.BAD_REQUEST);
+    }
+
     if (!body.toPhone && !body.merchantCode) {
       throw new HttpException(this.i18nService.translate('wallet.missing_phone_or_code', lang), HttpStatus.BAD_REQUEST);
     }
@@ -1477,10 +1482,11 @@ export class ApiGatewayController {
     if (!body.pin || body.pin.length < 4 || !/^\d+$/.test(body.pin)) {
       throw new HttpException(this.i18nService.translate('wallet.pin_invalid', lang), HttpStatus.BAD_REQUEST);
     }
+
     const response = await this.sendWalletMessage(
       'pay',
       {
-        fromAccountNumber: currentUser.account_number,
+        fromWalletId: body.fromWalletId,  // ✅ Utiliser fromWalletId
         toPhone: body.toPhone,
         merchantCode: body.merchantCode,
         amount: body.amount,
@@ -1494,7 +1500,7 @@ export class ApiGatewayController {
     );
     return response;
   }
-
+  
   @Get('wallet/:walletId')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getWalletById(
@@ -2033,12 +2039,11 @@ export class ApiGatewayController {
     );
   }
 
-  // adminSend dans l'API Gateway - CORRIGÉ avec adminId
   @Post('admin/wallet/send')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminSend(
     @CurrentUser() currentUser: any,
-    @Body() body: { fromWalletId: string; toWalletId: string; amount: number; pin: string; description?: string },
+    @Body() body: { fromWalletId: string; toPhone: string; amount: number; pin: string; description?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2046,12 +2051,39 @@ export class ApiGatewayController {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.fromWalletId) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.admin_send_from_wallet_required', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    if (!body.toPhone) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.admin_send_to_phone_required', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.amount_positive', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    if (!body.pin || body.pin.length < 4) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_min_length', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
     return this.sendWalletMessage(
       'admin_send',
       {
         adminId: currentUser.id,
         fromWalletId: body.fromWalletId,
-        toWalletId: body.toWalletId,
+        toPhone: body.toPhone,
         amount: body.amount,
         pin: body.pin,
         description: body.description,
@@ -2076,6 +2108,33 @@ export class ApiGatewayController {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.fromWalletId) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.admin_pay_from_wallet_required', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    if (!body.merchantCode) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.admin_pay_merchant_code_required', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.amount_positive', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    if (!body.pin || body.pin.length < 4) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_min_length', lang),
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
     return this.sendWalletMessage(
       'admin_pay',
       {

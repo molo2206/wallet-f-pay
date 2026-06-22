@@ -111,5 +111,20 @@
     "wallet.missing_wallet_ids": "معرفات المحفظة المصدر والوجهة مطلوبة",
     "wallet.exchange_rate_failed": "فشل حفظ سعر الصرف",
     "wallet.exchange_rates_failed": "فشل استرجاع أسعار الصرف",
-    "wallet.wallet_retrieved": "تم استرجاع المحفظة بنجاح"
+    "wallet.wallet_retrieved": "تم استرجاع المحفظة بنجاح",
+    "admin.pin_required": "PIN المشرف مطلوب",
+    "admin.pin_incorrect": "PIN المشرف غير صحيح",
+    "admin.pin_locked": "تم قفل PIN المشرف لمدة {minutes} دقيقة",
+    "admin.not_found": "المشرف غير موجود",
+    "admin.no_pin_set": "المشرف ليس لديه PIN محدد",
+    "admin.unauthorized": "الوصول غير مصرح به للمشرف",
+    "wallet.admin_id_required": "معرف المشرف مطلوب",
+    "wallet.pin_required": "الرقم السري مطلوب",
+    "wallet.invalid_pin_format": "تنسيق الرقم السري غير صالح (مطلوب 4 أرقام)",
+    "wallet.admin_send_description": "تحويل إداري بمبلغ {{amount}} {{currency}} إلى {{toName}} ({{toPhone}})",
+    "wallet.admin_receive_description": "استلام إداري بمبلغ {{amount}} {{currency}} من {{fromName}} ({{fromPhone}})",
+    "wallet.admin_pay_from_wallet_required": "المحفظة المصدر مطلوبة",
+    "wallet.admin_pay_merchant_code_required": "رمز التاجر مطلوب",
+    "wallet.admin_pay_payer_description": "دفع إداري بمبلغ {{amount}} {{currency}} للتاجر {{merchantName}} (الرمز: {{merchantCode}})",
+    "wallet.admin_pay_merchant_description": "استلام إداري بمبلغ {{amount}} {{currency}} من العميل {{payerName}} ({{payerPhone}})"
 }

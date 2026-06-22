@@ -98,13 +98,9 @@ export class SendDto {
 }
 
 export class PayDto {
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  fromAccountNumber?: string;
-
-  @IsOptional()
-  @IsString()
-  fromWalletId?: string;
+  fromWalletId!: string;  // ✅ REQUIS - wallet source
 
   @IsOptional()
   @IsString()

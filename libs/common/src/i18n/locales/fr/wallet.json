@@ -111,5 +111,20 @@
   "wallet.missing_wallet_ids": "Les identifiants des portefeuilles source et destination sont requis",
   "wallet.exchange_rate_failed": "Échec de l'enregistrement du taux de change",
   "wallet.exchange_rates_failed": "Échec de la récupération des taux de change",
-  "wallet.wallet_retrieved": "Portefeuille récupéré avec succès"
+  "wallet.wallet_retrieved": "Portefeuille récupéré avec succès",
+  "admin.pin_required": "Le PIN de l'administrateur est requis",
+  "admin.pin_incorrect": "PIN de l'administrateur incorrect",
+  "admin.pin_locked": "PIN de l'administrateur bloqué pour {minutes} minute(s)",
+  "admin.not_found": "Administrateur non trouvé",
+  "admin.no_pin_set": "L'administrateur n'a pas de PIN défini",
+  "admin.unauthorized": "Accès administrateur non autorisé",
+  "wallet.admin_id_required": "L'ID de l'administrateur est requis",
+  "wallet.pin_required": "Le PIN est requis",
+  "wallet.invalid_pin_format": "Format de PIN invalide (4 chiffres requis)",
+  "wallet.admin_send_description": "Transfert admin de {{amount}} {{currency}} vers {{toName}} ({{toPhone}})",
+  "wallet.admin_receive_description": "Réception admin de {{amount}} {{currency}} de {{fromName}} ({{fromPhone}})",
+  "wallet.admin_pay_from_wallet_required": "Le wallet source est requis",
+  "wallet.admin_pay_merchant_code_required": "Le code marchand est requis",
+  "wallet.admin_pay_payer_description": "Paiement admin de {{amount}} {{currency}} au commerçant {{merchantName}} (code: {{merchantCode}})",
+  "wallet.admin_pay_merchant_description": "Réception admin de {{amount}} {{currency}} du client {{payerName}} ({{payerPhone}})"
 }

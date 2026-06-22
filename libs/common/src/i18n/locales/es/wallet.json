@@ -111,5 +111,11 @@
     "wallet.missing_wallet_ids": "Los IDs de billetera origen y destino son requeridos",
     "wallet.exchange_rate_failed": "Error al guardar la tasa de cambio",
     "wallet.exchange_rates_failed": "Error al recuperar las tasas de cambio",
-    "wallet.wallet_retrieved": "Billetera recuperada exitosamente"
+    "wallet.wallet_retrieved": "Billetera recuperada exitosamente",
+    "wallet.admin_send_description": "Transferencia admin de {{amount}} {{currency}} a {{toName}} ({{toPhone}})",
+    "wallet.admin_receive_description": "Recepción admin de {{amount}} {{currency}} de {{fromName}} ({{fromPhone}})",
+    "wallet.admin_pay_from_wallet_required": "Se requiere la billetera fuente",
+    "wallet.admin_pay_merchant_code_required": "Se requiere el código de comerciante",
+    "wallet.admin_pay_payer_description": "Pago admin de {{amount}} {{currency}} al comerciante {{merchantName}} (código: {{merchantCode}})",
+    "wallet.admin_pay_merchant_description": "Recepción admin de {{amount}} {{currency}} del cliente {{payerName}} ({{payerPhone}})"
 }

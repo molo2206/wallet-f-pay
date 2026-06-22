@@ -111,5 +111,20 @@
   "wallet.missing_wallet_ids": "Vitambulisho vya pochi chanzo na lengwa vinahitajika",
   "wallet.exchange_rate_failed": "Imeshindikana kuhifadhi kiwango cha ubadilishaji",
   "wallet.exchange_rates_failed": "Imeshindikana kupata viwango vya ubadilishaji",
-  "wallet.wallet_retrieved": "Pochi imepatikana kwa mafanikio"
+  "wallet.wallet_retrieved": "Pochi imepatikana kwa mafanikio",
+  "admin.pin_required": "PIN ya msimamizi inahitajika",
+  "admin.pin_incorrect": "PIN ya msimamizi si sahihi",
+  "admin.pin_locked": "PIN ya msimamizi imefungwa kwa dakika {minutes}",
+  "admin.not_found": "Msimamizi hapatikani",
+  "admin.no_pin_set": "Msimamizi hana PIN iliyowekwa",
+  "admin.unauthorized": "Ufikiaji wa msimamizi haujaruhusiwa",
+  "wallet.admin_id_required": "Kitambulisho cha msimamizi kinahitajika",
+  "wallet.pin_required": "PIN inahitajika",
+  "wallet.invalid_pin_format": "Muundo wa PIN si sahihi (tarakimu 4 zinahitajika)",
+  "wallet.admin_send_description": "Uhamisho wa msimamizi wa {{amount}} {{currency}} kwa {{toName}} ({{toPhone}})",
+  "wallet.admin_receive_description": "Mapokezi ya msimamizi wa {{amount}} {{currency}} kutoka {{fromName}} ({{fromPhone}})",
+  "wallet.admin_pay_from_wallet_required": "Pochi chanzo inahitajika",
+  "wallet.admin_pay_merchant_code_required": "Msimbo wa mfanyabiashara unahitajika",
+  "wallet.admin_pay_payer_description": "Malipo ya msimamizi wa {{amount}} {{currency}} kwa mfanyabiashara {{merchantName}} (msimbo: {{merchantCode}})",
+  "wallet.admin_pay_merchant_description": "Mapokezi ya msimamizi wa {{amount}} {{currency}} kutoka mteja {{payerName}} ({{payerPhone}})"
 }
