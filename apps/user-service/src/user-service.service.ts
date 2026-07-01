@@ -1631,21 +1631,20 @@ export class UserServiceService {
   async getAppSettings() {
     const FIXED_ID = 'app_settings_unique';
 
-    const settings = await this.prisma.app_settings.findUnique({
-      where: { id: FIXED_ID },
-    });
+    try {
+      const settings = await this.prisma.app_settings.findUnique({
+        where: { id: FIXED_ID },
+      });
 
-    if (!settings) {
-      return {
-        message: 'Application settings not found',
-        data: null,
-      };
+      if (!settings) {
+        throw new Error('Application settings not found');
+      }
+
+      return settings;
+    } catch (error) {
+      console.error(`[getAppSettings] Error:`, error.message);
+      throw error;
     }
-
-    return {
-      message: 'Application settings retrieved successfully',
-      data: settings,
-    };
   }
 
   async createApiKey(data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
