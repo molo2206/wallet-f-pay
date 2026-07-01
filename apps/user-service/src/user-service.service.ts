@@ -1629,12 +1629,9 @@ export class UserServiceService {
   }
 
   async getAppSettings() {
-    const FIXED_ID = 'app_settings_unique';
-
     try {
-      const settings = await this.prisma.app_settings.findUnique({
-        where: { id: FIXED_ID },
-      });
+      // Récupérer le premier enregistrement au lieu d'un ID fixe
+      const settings = await this.prisma.app_settings.findFirst();
 
       if (!settings) {
         return {
@@ -1651,29 +1648,12 @@ export class UserServiceService {
         data: settings,
       };
     } catch (error) {
-      // Gérer les différents types d'erreurs
-      let errorMessage = 'Failed to retrieve application settings';
-      let errorCode = 'UNKNOWN_ERROR';
-
-      if (error.code === 'P2024' || error.message?.includes('timeout')) {
-        errorMessage = 'Database timeout while retrieving settings';
-        errorCode = 'DB_TIMEOUT';
-      } else if (error.code === 'P1001') {
-        errorMessage = 'Cannot connect to database';
-        errorCode = 'DB_CONNECTION_ERROR';
-      } else if (error.code === 'P2002') {
-        errorMessage = 'Database constraint violation';
-        errorCode = 'DB_CONSTRAINT_ERROR';
-      }
-
-      console.error(`[getAppSettings] ${errorCode}:`, error.message);
-
+      console.error(`[getAppSettings] Error:`, error.message);
       return {
         success: false,
-        message: errorMessage,
+        message: 'Failed to retrieve application settings',
         data: null,
-        error: errorCode,
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        error: 'UNKNOWN_ERROR',
       };
     }
   }
