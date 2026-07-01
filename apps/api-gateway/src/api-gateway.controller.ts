@@ -2652,29 +2652,43 @@ export class ApiGatewayController {
   @Get('admin/settings/app')
   async getAppSettings() {
     try {
+      // Utiliser settingsClient au lieu de userClient
       const result = await firstValueFrom(
-        this.userClient.send('get_app_settings', {}).pipe(
-          timeout(30000) // Augmenter à 30 secondes
+        this.settingsClient.send('get_app_settings', {}).pipe(
+          timeout(30000)
         ),
       );
       return result;
     } catch (err) {
       this.logger.error(`RPC error: ${err.message}`);
 
-      if (err.message?.includes('Timeout')) {
+      // Gérer les différents types d'erreurs
+      if (err.name === 'TimeoutError') {
         throw new HttpException(
-          'Service temporarily unavailable, please try again',
-          HttpStatus.SERVICE_UNAVAILABLE,
+          'Le service de paramètres ne répond pas, veuillez réessayer',
+          HttpStatus.GATEWAY_TIMEOUT,
         );
       }
 
+      // Si l'erreur vient du microservice
+      if (err.response) {
+        const errorResponse = err.response;
+        if (typeof errorResponse === 'object') {
+          throw new HttpException(
+            errorResponse.message || 'Service error',
+            errorResponse.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        }
+        throw new HttpException(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+
       throw new HttpException(
-        'Service error: ' + err.message,
+        'Service error: ' + (err.message || 'Unknown error'),
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
-
+  
   @Get('auth/login-attempts')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getMyLoginAttempts(
