@@ -8,6 +8,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -1203,27 +1204,40 @@ export class AuthServiceService {
       );
     }
 
-    const user = await this.prisma.user.findFirst({
-      where: {
-        phone: normalizedPhone,
-        deleted: false,
-      },
-      select: { id: true },
-    });
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          phone: normalizedPhone,
+          deleted: false,
+        },
+        select: { id: true },
+      });
 
-    if (user) {
-      return {
-        status: 'success',
-        exists: true,
-        message: this.i18nService.translate('wallet.phone_exists', lang),
-      };
+      if (user) {
+        return {
+          status: 'success',
+          exists: true,
+          message: this.i18nService.translate('wallet.phone_exists', lang),
+        };
+      }
+
+      // Retourner 404 si le téléphone n'existe pas
+      throw new NotFoundException(
+        this.i18nService.translate('wallet.phone_not_found', lang),
+      );
+
+    } catch (error) {
+      // Si c'est déjà une exception NotFoundException ou BadRequestException, la relancer
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // Gérer les autres erreurs (base de données, etc.)
+      console.error(`[AuthService] Error checking phone: ${error.message}`);
+      throw new InternalServerErrorException(
+        this.i18nService.translate('wallet.error_checking_phone', lang) || 'Error checking phone number'
+      );
     }
-
-    return {
-      status: 'success',
-      exists: false,
-      message: this.i18nService.translate('wallet.phone_not_found', lang),
-    };
   }
 
   private generateJwt(
