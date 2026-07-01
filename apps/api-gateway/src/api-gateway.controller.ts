@@ -2653,11 +2653,21 @@ export class ApiGatewayController {
   async getAppSettings() {
     try {
       const result = await firstValueFrom(
-        this.userClient.send('get_app_settings', {}).pipe(timeout(10000)),
+        this.userClient.send('get_app_settings', {}).pipe(
+          timeout(30000) // Augmenter à 30 secondes
+        ),
       );
       return result;
     } catch (err) {
       this.logger.error(`RPC error: ${err.message}`);
+
+      if (err.message?.includes('Timeout')) {
+        throw new HttpException(
+          'Service temporarily unavailable, please try again',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+
       throw new HttpException(
         'Service error: ' + err.message,
         HttpStatus.INTERNAL_SERVER_ERROR,
