@@ -513,7 +513,9 @@ export class AuthServiceService {
         let newStatus: user_status = user.status;
 
         if (newAttempts >= 5) {
-          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+          // lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+          // newStatus = user_status.BLOCKED;
+          lockedUntil = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
           newStatus = user_status.BLOCKED;
         }
 
