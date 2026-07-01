@@ -2652,9 +2652,9 @@ export class ApiGatewayController {
   @Get('admin/settings/app')
   async getAppSettings() {
     try {
-      // Utiliser settingsClient au lieu de userClient
+      // ✅ Utiliser userClient au lieu de settingsClient
       const result = await firstValueFrom(
-        this.settingsClient.send('get_app_settings', {}).pipe(
+        this.userClient.send('get_app_settings', {}).pipe(
           timeout(30000)
         ),
       );
@@ -2662,15 +2662,15 @@ export class ApiGatewayController {
     } catch (err) {
       this.logger.error(`RPC error: ${err.message}`);
 
-      // Gérer les différents types d'erreurs
-      if (err.name === 'TimeoutError') {
+      // Timeout
+      if (err.name === 'TimeoutError' || err.message?.includes('Timeout')) {
         throw new HttpException(
-          'Le service de paramètres ne répond pas, veuillez réessayer',
-          HttpStatus.GATEWAY_TIMEOUT,
+          'Service temporarily unavailable, please try again',
+          HttpStatus.SERVICE_UNAVAILABLE,
         );
       }
 
-      // Si l'erreur vient du microservice
+      // Erreur du microservice
       if (err.response) {
         const errorResponse = err.response;
         if (typeof errorResponse === 'object') {
@@ -2679,7 +2679,10 @@ export class ApiGatewayController {
             errorResponse.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
           );
         }
-        throw new HttpException(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new HttpException(
+          typeof errorResponse === 'string' ? errorResponse : 'Service error',
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
       }
 
       throw new HttpException(
@@ -2688,7 +2691,7 @@ export class ApiGatewayController {
       );
     }
   }
-  
+
   @Get('auth/login-attempts')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getMyLoginAttempts(
