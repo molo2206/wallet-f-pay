@@ -2,6 +2,7 @@
 export class UpdateCountryDto {
   name?: string;
   code?: string;
+  countryCode?: string;
   flag?: string;
   prefix?: string;
   default_currency?: string;

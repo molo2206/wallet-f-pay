@@ -21,6 +21,7 @@ export class CreateCountryDto {
 export class UpdateCountryDto {
   name?: string;
   code?: string;
+  countryCode?: string;
   flag?: string;
   prefix?: string;
   default_currency?: string;
@@ -40,7 +41,7 @@ export class UpdateCountryDto {
 export class CountryResponseDto {
   id: string;
   code: string;
-  countryCode?: string;
+  countryCode: string;
   name: string;
   flag?: string;
   prefix?: string;
