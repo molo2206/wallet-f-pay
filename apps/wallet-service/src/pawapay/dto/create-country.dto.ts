@@ -40,6 +40,7 @@ export class UpdateCountryDto {
 export class CountryResponseDto {
   id: string;
   code: string;
+  countryCode?: string;
   name: string;
   flag?: string;
   prefix?: string;

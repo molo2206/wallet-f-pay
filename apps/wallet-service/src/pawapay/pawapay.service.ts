@@ -578,6 +578,7 @@ export class PawapayService {
     return {
       id: country.id,
       code: country.code,
+      countryCode: country.countryCode || undefined, // Ajouté pour inclure le code du pays
       name: country.name,
       flag: country.flag || undefined,
       prefix: country.prefix || undefined,
