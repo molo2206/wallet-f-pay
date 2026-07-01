@@ -19,7 +19,7 @@ import { RmqAuthGuard } from './utility/guards/rmq-auth.guard';
 
 @Controller()
 export class AuthServiceController {
-  constructor(private readonly authService: AuthServiceService) {}
+  constructor(private readonly authService: AuthServiceService) { }
 
   @MessagePattern('login_user')
   async login(@Payload() data: LoginUserDto & { ipAddress?: string }) {
@@ -279,6 +279,20 @@ export class AuthServiceController {
   @MessagePattern('get_session_by_id')
   async getSessionById(@Payload() data: { sessionId: string; lang?: string }) {
     return this.authService.getSessionById(data.sessionId, data.lang || 'fr');
+  }
+
+  @MessagePattern('check_phone_exists')
+  async checkPhoneExists(@Payload() data: { phone: string; lang?: string }) {
+    const lang = data.lang || 'fr';
+    try {
+      return await this.authService.checkPhoneExists(data.phone, lang);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error.message || 'Failed to check phone',
+        statusCode: 400,
+      });
+    }
   }
 
   @MessagePattern('get_login_attempts')

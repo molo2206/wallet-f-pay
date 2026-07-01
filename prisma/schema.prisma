@@ -338,6 +338,7 @@ model login_attempt {
 model country_provider {
   id               String             @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
   code             String             @db.VarChar(10)
+  countryCode      String?            @db.VarChar(100)
   name             String             @db.VarChar(100)
   flag             String?            @db.Text
   prefix           String?            @db.VarChar(10)

@@ -95,6 +95,8 @@ export class AuthServiceService {
     await this.logAudit(userId, action, details, ipAddress);
   }
 
+  // apps/auth-service/src/auth-service.service.ts
+
   async register(data: RegisterUserDto, ipAddress?: string) {
     const phone = this.normalizePhone(data.phone);
     const lang = data.lang || 'fr';
@@ -103,7 +105,15 @@ export class AuthServiceService {
       phone,
       hasOtpCode: !!data.otpCode,
       email: data.email,
+      hasPassword: !!data.password,
     });
+
+    // ✅ Vérifier que le mot de passe est fourni
+    if (!data.password || data.password.trim().length < 8) {
+      throw new BadRequestException(
+        this.i18nService.translate('password_too_short', lang),
+      );
+    }
 
     const key = `${data.account_number}-${phone}`;
     if (registerLocks.get(key)) {
@@ -143,7 +153,7 @@ export class AuthServiceService {
 
         await this.prisma.otp.create({
           data: {
-            id: crypto.randomUUID(),  // AJOUTER
+            id: crypto.randomUUID(),
             email: phone,
             otpCode: newOtpCode,
             expiresAt: new Date(Date.now() + 10 * 60 * 1000),
@@ -216,18 +226,15 @@ export class AuthServiceService {
         );
       }
 
-      // Préparer le mot de passe
-      let plainPassword = 'F-Pay!26';
-      if (data.password && data.password.trim().length >= 8) {
-        plainPassword = data.password;
-      }
+      // ✅ Utiliser le mot de passe fourni (obligatoire)
+      const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
       // Créer l'utilisateur
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
-          account_number: data.account_number,
+          account_number: data.account_number || null,
           full_name: data.full_name,
           phone: data.phone,
           password: hashedPassword,
@@ -257,15 +264,15 @@ export class AuthServiceService {
           }
           currenciesToCreate = Array.from(currenciesSet);
           if (currenciesToCreate.length === 0) {
-            console.warn(`⚠️ Aucune devise trouvée pour ${data.countryCode}, utilisation de CDF`);
+            console.warn(` Aucune devise trouvée pour ${data.countryCode}, utilisation de CDF`);
             currenciesToCreate.push('CDF');
           }
         } catch (err) {
-          console.error('❌ Erreur lecture network_provider:', err);
+          console.error(' Erreur lecture network_provider:', err);
           currenciesToCreate.push('CDF');
         }
       } else {
-        console.log('ℹ️ Aucun countryCode fourni, création d’un wallet par défaut en CDF');
+        console.log(' Aucun countryCode fourni, création d’un wallet par défaut en CDF');
         currenciesToCreate.push('CDF');
       }
 
@@ -289,13 +296,13 @@ export class AuthServiceService {
                 cashCode,
               },
             });
-            console.log(` Wallet créé pour user ${user.id}, devise ${currency}`);
+            console.log(`✅ Wallet créé pour user ${user.id}, devise ${currency}`);
             walletsCreated++;
           } else {
-            console.log(`ℹWallet ${currency} existe déjà pour user ${user.id}`);
+            console.log(`ℹ️ Wallet ${currency} existe déjà pour user ${user.id}`);
           }
         } catch (err) {
-          console.error(`Échec création wallet (${currency}):`, err);
+          console.error(`❌ Échec création wallet (${currency}):`, err);
         }
       }
 
@@ -1175,6 +1182,43 @@ export class AuthServiceService {
         page,
         limit,
       },
+    };
+  }
+
+  async checkPhoneExists(
+    phone: string,
+    lang: string = 'fr',
+  ): Promise<{ status: string; exists: boolean; message: string }> {
+    const normalizedPhone = this.normalizePhone(phone);
+
+    console.log(`[AuthService] Checking if phone exists: ${normalizedPhone}`);
+
+    if (!normalizedPhone || normalizedPhone.length === 0) {
+      throw new BadRequestException(
+        this.i18nService.translate('wallet.phone_required', lang),
+      );
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        phone: normalizedPhone,
+        deleted: false,
+      },
+      select: { id: true },
+    });
+
+    if (user) {
+      return {
+        status: 'success',
+        exists: true,
+        message: this.i18nService.translate('wallet.phone_exists', lang),
+      };
+    }
+
+    return {
+      status: 'success',
+      exists: false,
+      message: this.i18nService.translate('wallet.phone_not_found', lang),
     };
   }
 

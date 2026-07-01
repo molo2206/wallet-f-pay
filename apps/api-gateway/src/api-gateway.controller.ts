@@ -293,6 +293,8 @@ export class ApiGatewayController {
     }
   }
 
+
+
   private async sendUserMessage<T>(
     pattern: string,
     data: any,
@@ -435,6 +437,15 @@ export class ApiGatewayController {
     const deviceInfo = body.deviceInfo || userAgent || 'Appareil inconnu';
     const allowedLangs = ['fr', 'en', 'sw', 'ar', 'es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
+
+    // ✅ Vérifier que le mot de passe est fourni
+    if (!body.password || body.password.length < 8) {
+      throw new HttpException(
+        'Le mot de passe est requis et doit contenir au moins 8 caractères',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     this.logger.log(`📝 Register request for ${body.phone} (lang: ${lang})`);
     return this.sendAuthMessage<AuthResponseDto>(
       'register_user',
@@ -450,6 +461,7 @@ export class ApiGatewayController {
         otpCode: body.otpCode,
         email: body.email,
         countryCode: body.countryCode,
+        password: body.password, // ✅ Passer le mot de passe
         lang,
       },
       'Registration failed',
@@ -732,6 +744,20 @@ export class ApiGatewayController {
       this.logger.error('Get account error:', error);
       throw error;
     }
+  }
+
+  @Get('auth/check-phone/:phone')
+  async checkPhoneExists(
+    @Param('phone') phone: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    return this.sendAuthMessage(
+      'check_phone_exists',
+      { phone, lang },
+      'Erreur lors de la vérification',
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
   // ==================== USER ENDPOINTS ====================
@@ -1500,7 +1526,7 @@ export class ApiGatewayController {
     );
     return response;
   }
-  
+
   @Get('wallet/:walletId')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getWalletById(

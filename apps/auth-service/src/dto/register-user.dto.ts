@@ -1,14 +1,8 @@
-// dto/register-user.dto.ts
-import {
-  IsString,
-  IsOptional,
-  IsNotEmpty,
-  IsNumberString,
-  Length,
-} from 'class-validator';
+// dto/register-request.dto.ts
+import { IsString, IsOptional, IsNotEmpty, MinLength } from 'class-validator';
 
 export class RegisterUserDto {
-  @IsOptional()          // ✅ Rend account_number optionnel
+  @IsOptional()
   @IsString()
   account_number?: string;
 
@@ -25,16 +19,15 @@ export class RegisterUserDto {
   branch?: string;
 
   @IsOptional()
-  @IsNumberString()
-  @Length(6, 6)
+  @IsString()
   otpCode?: string;
 
-  @IsOptional()
+  // ✅ Mot de passe OBLIGATOIRE
+  @IsNotEmpty({ message: 'Le mot de passe est requis' })
   @IsString()
-  @Length(6, 100)
-  password?: string;
+  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })
+  password: string;
 
-  // Champs supplémentaires
   @IsOptional()
   fcmToken?: string;
 
@@ -45,15 +38,11 @@ export class RegisterUserDto {
   deviceInfo?: string;
 
   @IsOptional()
-  merchantCode?: string;
-
-  @IsOptional()
   email?: string;
 
   @IsOptional()
-  lang?: string;
+  countryCode?: string;
 
   @IsOptional()
-  @IsString()
-  countryCode?: string;
+  lang?: string;
 }

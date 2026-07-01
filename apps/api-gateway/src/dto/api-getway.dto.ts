@@ -11,6 +11,7 @@ export class RegisterRequestDto {
   email?: string;
   lang?: string;
   countryCode?: string;
+  password: string;
 }
 
 // api-gateway/src/dto/api-getway.dto.ts
