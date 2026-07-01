@@ -253,7 +253,11 @@ export class AuthServiceService {
       if (data.countryCode) {
         try {
           const networks = await this.prisma.network_provider.findMany({
-            where: { country_provider: { code: data.countryCode } },
+            where: {
+              country_provider: {
+                countryCode: data.countryCode  // ✅ Utiliser 'countryCode' car c'est le nom du champ dans votre schéma
+              }
+            }
           });
           const currenciesSet = new Set<string>();
           for (const network of networks) {

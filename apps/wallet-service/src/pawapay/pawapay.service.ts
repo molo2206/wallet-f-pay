@@ -663,9 +663,11 @@ export class PawapayService {
   // ---------- Géolocalisation ----------
   async getCountryByCode(ip: string) {
     try {
-      const countryCode = 'COD';
+      const countryCode = 'CD';
       const country = await this.prisma.country_provider.findFirst({
-        where: { code: countryCode },
+        where: {
+          countryCode: countryCode  // ✅ Utiliser 'countryCode' au lieu de 'code'
+        },
         include: { network_provider: true },
       });
       if (!country) return await this.getDefaultCountry();
@@ -677,9 +679,11 @@ export class PawapayService {
   }
 
   private async getDefaultCountry() {
-    const defaultCode = 'COD';
+    const defaultCode = 'CD';
     const country = await this.prisma.country_provider.findFirst({
-      where: { code: defaultCode },
+      where: {
+        countryCode: defaultCode  // ✅ Utiliser 'countryCode' au lieu de 'code'
+      },
       include: { network_provider: true },
     });
     if (!country) return { message: 'Pays par défaut introuvable dans la base', data: null };
@@ -688,7 +692,9 @@ export class PawapayService {
   // Dans pawapay.service.ts
   async getCountryByCodePublic(code: string) {
     return this.prisma.country_provider.findFirst({
-      where: { code },
+      where: {
+        countryCode: code  // ✅ Utiliser 'countryCode' au lieu de 'code'
+      },
       include: { network_provider: true },
     });
   }
