@@ -2874,6 +2874,24 @@ export class ApiGatewayController {
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
+
+  @Get('pawapay/networks/by-country')
+  async getNetworksByCountry(
+    @Headers('countryCode') countryCode?: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    // Si countryCode n'est pas fourni, utiliser 'CD' par défaut
+    const finalCountryCode = countryCode || 'CD';
+
+    return this.sendWalletMessage(
+      'get_networks_by_country',
+      { countryCode: finalCountryCode, lang },
+      this.i18nService.translate('wallet.networks_retrieve_failed', lang),
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
   //============================== Endpoint admin pour générer des clés API ================================================
   @Post('admin/api-keys')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)

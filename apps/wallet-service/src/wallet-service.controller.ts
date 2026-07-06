@@ -549,6 +549,22 @@ export class WalletServiceController {
     return this.pawapayService.getAllNetworks();
   }
 
+  @MessagePattern('get_networks_by_country')
+  async getNetworksByCountry(@Payload() data: { countryCode: string; lang?: string }) {
+    console.log('[WalletService] get_networks_by_country received:', data);
+    try {
+      return await this.pawapayService.getNetworksByCountry(data.countryCode);
+    } catch (error) {
+      console.error('[WalletService] get_networks_by_country error:', error);
+      const lang = data?.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('get_country_by_code')
   async getCountryByCode(@Payload() data: { code: string }) {
     const country = await this.pawapayService['prisma'].country_provider.findFirst({

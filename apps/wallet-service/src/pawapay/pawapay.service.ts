@@ -660,6 +660,58 @@ export class PawapayService {
     return { message: 'Network providers retrieved successfully', data: networks };
   }
 
+  async getNetworksByCountry(countryCode: string) {
+    const country = await this.prisma.country_provider.findFirst({
+      where: {
+        OR: [
+          { code: countryCode.toUpperCase() },
+          { countryCode: countryCode.toUpperCase() },
+        ],
+      },
+      include: {
+        network_provider: {
+          orderBy: {
+            name: 'asc',
+          },
+        },
+        country_currency: {
+          include: {
+            currency: true,
+          },
+        },
+      },
+    });
+
+    if (!country) {
+      throw new RpcException({
+        status: 'error',
+        message: `Country with code ${countryCode} not found`,
+        statusCode: 404,
+      });
+    }
+
+    return {
+      message: 'Network providers retrieved successfully',
+      data: {
+        country: {
+          id: country.id,
+          code: country.code,
+          countryCode: country.countryCode,
+          name: country.name,
+          flag: country.flag,
+          prefix: country.prefix,
+          default_currency: country.default_currency,
+          currencies: country.country_currency.map(cc => ({
+            code: cc.currency_code,
+            name: cc.currency?.name,
+            symbol: cc.currency?.symbol,
+            is_default: cc.is_default,
+          })),
+        },
+        networks: country.network_provider,
+      },
+    };
+  }
   // ---------- Géolocalisation ----------
   async getCountryByCode(ip: string) {
     try {
