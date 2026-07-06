@@ -12,6 +12,7 @@ model transaction {
   userId             String               @db.VarChar(36)
   walletId           String               @db.VarChar(36)
   amount             Float
+  currency           String?              @db.VarChar(11)
   type               transaction_type?
   status             transaction_status   @default(PENDING)
   reference          String               @db.VarChar(255)
@@ -51,6 +52,7 @@ model user {
   failed_pin_attempts    Int                      @default(0)
   pin_locked_until       DateTime?                @db.DateTime(0)
   kycStatus              user_kycStatus           @default(NOT_SUBMITTED)
+  countryCode            String?                  @db.VarChar(11)
   api_key                api_key[]
   audit_log              audit_log[]
   failed_transaction_log failed_transaction_log[]

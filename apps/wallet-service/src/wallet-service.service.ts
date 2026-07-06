@@ -36,6 +36,7 @@ import { PawapayService } from './pawapay/pawapay.service';
 import { CreateWalletDto, WalletResponseDto } from './dto/create-wallet.dto';
 import { AdminCashoutDto, AdminPayDto, AdminSendDto, AdminTopUpDto } from './dto/admin-wallet.dto';
 import { ConvertCurrencyDto, ExchangeRateDto } from './dto/currency-convert.dto';
+import { Prisma } from '@prisma/client';
 
 type FormattedTransaction = {
   description: string;
@@ -58,6 +59,88 @@ export class WalletServiceService {
     private readonly pawapayService: PawapayService,
   ) { }
 
+  private async generateTransactionReference(
+    prefix?: string,
+    tx?: Prisma.TransactionClient,
+    retries: number = 10
+  ): Promise<string> {
+    // Générer une référence aléatoire de 8 chiffres
+    const generateRandom = (): string => {
+      return Math.floor(10000000 + Math.random() * 90000000).toString();
+    };
+
+    // Générer avec timestamp + aléatoire (plus unique)
+    const generateWithTimestamp = (): string => {
+      const date = new Date();
+      const year = date.getFullYear().toString().slice(-2);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const random = Math.floor(1000 + Math.random() * 9000);
+      return `${year}${month}${day}${random}`; // Ex: 2407124589
+    };
+
+    // Générer avec préfixe + 8 chiffres
+    const generateWithPrefix = (prefix: string): string => {
+      const random = Math.floor(10000000 + Math.random() * 90000000);
+      const full = `${prefix}${random}`;
+      // Garder exactement 8 caractères (préfixe inclus)
+      return full.slice(0, 8);
+    };
+
+    // ✅ Initialiser reference avec une valeur par défaut
+    let reference: string = generateRandom();
+    let isUnique = false;
+    let attempts = 0;
+
+    while (!isUnique && attempts < retries) {
+      // Générer la référence selon le préfixe
+      if (prefix) {
+        reference = generateWithPrefix(prefix);
+      } else {
+        // Alterner entre random et timestamp pour plus de variété
+        reference = attempts % 2 === 0 ? generateRandom() : generateWithTimestamp();
+      }
+
+      // Vérifier l'unicité si une transaction est fournie
+      if (tx) {
+        const existing = await tx.transaction.findFirst({
+          where: { reference }
+        });
+        if (!existing) {
+          isUnique = true;
+        }
+      } else {
+        // Vérifier avec le prisma direct
+        const existing = await this.prisma.transaction.findFirst({
+          where: { reference }
+        });
+        if (!existing) {
+          isUnique = true;
+        }
+      }
+      attempts++;
+    }
+
+    // Fallback si toutes les tentatives échouent
+    if (!isUnique) {
+      const timestamp = Date.now().toString().slice(-4);
+      const random = Math.floor(1000 + Math.random() * 9000);
+      reference = `${timestamp}${random}`;
+
+      // Vérification finale
+      if (tx) {
+        const existing = await tx.transaction.findFirst({
+          where: { reference }
+        });
+        if (existing) {
+          // En cas d'extrême rareté, ajouter un caractère aléatoire supplémentaire
+          reference = `${timestamp}${random}${Math.floor(Math.random() * 10)}`.slice(0, 8);
+        }
+      }
+    }
+
+    return reference;
+  }
   private async logAudit(
     userId: string | null,
     action: string,
@@ -600,6 +683,7 @@ export class WalletServiceService {
         });
 
         // 4️⃣ Créer la transaction
+        const reference = await this.generateTransactionReference('ADM', tx);
         const transaction = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -608,9 +692,10 @@ export class WalletServiceService {
             amount,
             type: 'DEPOSIT',
             status: 'SUCCESS',
-            reference: `ADMIN_TOPUP_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
             description: `Alimentation admin (cash)`,
             movement: 'CREDIT',
+            currency: wallet.currency,
           },
         });
 
@@ -834,6 +919,7 @@ export class WalletServiceService {
         });
 
         // 4️⃣ Créer la transaction
+        const reference = await this.generateTransactionReference('ADM', tx);
         const transaction = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -842,9 +928,10 @@ export class WalletServiceService {
             amount,
             type: 'WITHDRAW',
             status: 'SUCCESS',
-            reference: `ADMIN_CASHOUT_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
             description: `Retrait admin (cash)`,
             movement: 'DEBIT',
+            currency: wallet.currency,
           },
         });
 
@@ -1112,6 +1199,7 @@ export class WalletServiceService {
         });
 
         // 6️⃣ Créer les transactions avec descriptions enrichies
+        const reference = await this.generateTransactionReference('ADM', tx);
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1120,7 +1208,8 @@ export class WalletServiceService {
             amount,
             type: 'TRANSFER',
             status: 'SUCCESS',
-            reference: `ADMIN_SEND_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
+            currency: fromWallet.currency,
             description: description || this.i18nService.translate('wallet.admin_send_description', lang, {
               amount: amount,
               currency: fromWallet.currency,
@@ -1139,7 +1228,8 @@ export class WalletServiceService {
             amount,
             type: 'DEPOSIT',
             status: 'SUCCESS',
-            reference: `ADMIN_RECV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
+            currency: toWallet.currency,
             description: description || this.i18nService.translate('wallet.admin_receive_description', lang, {
               amount: amount,
               currency: toWallet.currency,
@@ -1439,6 +1529,7 @@ export class WalletServiceService {
         });
 
         // 6️⃣ Créer les transactions avec descriptions enrichies
+        const reference = await this.generateTransactionReference('ADM', tx);
         const payerTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1447,7 +1538,8 @@ export class WalletServiceService {
             amount,
             type: 'PAYMENT',
             status: 'SUCCESS',
-            reference: `ADMIN_PAY_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
+            currency: fromWallet.currency,
             description: description || this.i18nService.translate('wallet.admin_pay_payer_description', lang, {
               amount: amount,
               currency: fromWallet.currency,
@@ -1466,7 +1558,8 @@ export class WalletServiceService {
             amount,
             type: 'PAYMENT',
             status: 'SUCCESS',
-            reference: `ADMIN_PAY_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
+            currency: toWallet.currency,
             description: description || this.i18nService.translate('wallet.admin_pay_merchant_description', lang, {
               amount: amount,
               currency: toWallet.currency,
@@ -1876,7 +1969,6 @@ export class WalletServiceService {
     }
     return code;
   }
-
   /**
    * Recharge un wallet via virement bancaire ou mobile money (PawaPay)
    */
@@ -2105,11 +2197,12 @@ export class WalletServiceService {
             amount: netAmount,
             type: 'DEPOSIT',
             status: 'FAILED',
-            reference: `TOPUP_FAILED_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: await this.generateTransactionReference('USER', tx),
             description: this.i18nService.translate('wallet.failed_description', lang, {
               reason: failureMessage,
             }),
             movement: 'CREDIT',
+            currency: wallet.currency,
           },
         });
       });
@@ -2143,9 +2236,10 @@ export class WalletServiceService {
             amount: netAmount,
             type: 'DEPOSIT',
             status: 'SUCCESS',
-            reference: `TOPUP_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: await this.generateTransactionReference('USER', tx),
             description,
             movement: 'CREDIT',
+            currency: wallet.currency,
           },
         });
         return { wallet: upd, transaction: txRecord };
@@ -2388,11 +2482,12 @@ export class WalletServiceService {
               amount,
               type: 'WITHDRAW',
               status: 'FAILED',
-              reference: `CASHOUT_FAILED_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+              reference: await this.generateTransactionReference('ADM', tx),
               description: this.i18nService.translate('wallet.failed_description', lang, {
                 reason: failureMessage,
               }),
               movement: 'DEBIT',
+              currency: wallet.currency,
             },
           });
         });
@@ -2421,6 +2516,7 @@ export class WalletServiceService {
           where: { id: wallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
         });
+        const reference = await this.generateTransactionReference('USER', tx);
         const txRecord = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2429,9 +2525,10 @@ export class WalletServiceService {
             amount,
             type: 'WITHDRAW',
             status: 'SUCCESS',
-            reference: `CASHOUT_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
             description,
             movement: 'DEBIT',
+            currency: wallet.currency,
           },
         });
         return { wallet: upd, transaction: txRecord };
@@ -2718,6 +2815,7 @@ export class WalletServiceService {
         }
 
         // 7. Créer les transactions
+        const reference = await this.generateTransactionReference('USER', tx);
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2726,9 +2824,10 @@ export class WalletServiceService {
             amount: debitAmount,
             type: 'TRANSFER',
             status: 'SUCCESS',
-            reference: `SEND_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
+            currency: fromWallet.currency,
           },
         });
         const receiverTx = await tx.transaction.create({
@@ -2739,9 +2838,10 @@ export class WalletServiceService {
             amount: creditAmount,
             type: 'DEPOSIT',
             status: 'SUCCESS',
-            reference: `RECV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
+            currency: toWallet.currency,
           },
         });
 
@@ -3051,6 +3151,7 @@ export class WalletServiceService {
       }
 
       // Créer les transactions en parallèle
+      const reference = await this.generateTransactionReference('USER', tx);
       const [payerTx, merchantTx] = await Promise.all([
         tx.transaction.create({
           data: {
@@ -3060,9 +3161,10 @@ export class WalletServiceService {
             amount: debitAmount,
             type: 'PAYMENT',
             status: 'SUCCESS',
-            reference: `PAY_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
             description: payerDescription,
             movement: 'DEBIT',
+            currency: fromWallet.currency,
           },
         }),
         tx.transaction.create({
@@ -3073,9 +3175,10 @@ export class WalletServiceService {
             amount: creditAmount,
             type: 'PAYMENT',
             status: 'SUCCESS',
-            reference: `PAY_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+            reference: reference,
             description: merchantDescription,
             movement: 'CREDIT',
+            currency: merchantWallet.currency,
           },
         }),
       ]);
@@ -3187,7 +3290,6 @@ export class WalletServiceService {
       },
     };
   }
-
   // ==================== ADMIN OPERATIONS (sans PIN) ====================
   async getMerchantByCode(
     merchantCode: string,
@@ -4016,14 +4118,10 @@ export class WalletServiceService {
     return { message: 'Exchange rates retrieved successfully', data: rates };
   }
 
-
-
   // eslint-disable-next-line @typescript-eslint/require-await
   async healthCheck() {
     return { status: 'ok', service: 'wallet-service' };
   }
-
-
 
   private toResponse(wallet: any): WalletResponseDto {
     return {
