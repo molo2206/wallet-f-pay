@@ -661,6 +661,9 @@ export class PawapayService {
   }
 
   async getNetworksByCountry(countryCode: string) {
+    console.log('[PawaPay] getNetworksByCountry called with:', countryCode);
+
+    // 🔍 Recherche du pays avec ses network providers
     const country = await this.prisma.country_provider.findFirst({
       where: {
         OR: [
@@ -682,6 +685,8 @@ export class PawapayService {
       },
     });
 
+    console.log('[PawaPay] Country found:', country ? country.name : 'NOT FOUND');
+
     if (!country) {
       throw new RpcException({
         status: 'error',
@@ -690,8 +695,41 @@ export class PawapayService {
       });
     }
 
+    // 🔍 Récupérer les networks (peut être vide)
+    const networks = country.network_provider || [];
+
+    console.log('[PawaPay] Networks found:', networks.length);
+
+    // 🗺️ Formater les devises du pays
+    const currencies = country.country_currency?.map(cc => ({
+      code: cc.currency_code,
+      name: cc.currency?.name || cc.currency_code,
+      symbol: cc.currency?.symbol || cc.currency_code,
+      is_default: cc.is_default || false,
+      min_transaction_amount: cc.min_transaction_amount,
+      max_transaction_amount: cc.max_transaction_amount,
+      daily_limit: cc.daily_limit,
+      monthly_limit: cc.monthly_limit,
+    })) || [];
+
+    // 🗺️ Formater les networks
+    const formattedNetworks = networks.map(network => ({
+      id: network.id,
+      name: network.name,
+      currency: network.currency, // "CDF,USD" ou "CDF"
+      currencies: network.currency ? network.currency.split(',') : [],
+      pourcentage_deposit: network.pourcentage_deposit || 0,
+      pourcentage_payout: network.pourcentage_payout || 0,
+      image: network.image,
+      countryId: network.countryId,
+      createdAt: network.createdAt,
+      updatedAt: network.updatedAt,
+    }));
+
     return {
-      message: 'Network providers retrieved successfully',
+      message: networks.length > 0
+        ? 'Network providers retrieved successfully'
+        : 'No network providers found for this country',
       data: {
         country: {
           id: country.id,
@@ -701,14 +739,9 @@ export class PawapayService {
           flag: country.flag,
           prefix: country.prefix,
           default_currency: country.default_currency,
-          currencies: country.country_currency.map(cc => ({
-            code: cc.currency_code,
-            name: cc.currency?.name,
-            symbol: cc.currency?.symbol,
-            is_default: cc.is_default,
-          })),
+          currencies: currencies,
         },
-        networks: country.network_provider,
+        networks: formattedNetworks,
       },
     };
   }
