@@ -38,6 +38,7 @@ export class CreateUserDto {
   merchantCode?: string;
   lang?: string;
   businessName?: string;
+  countryCode?: string;
 }
 
 // dto/create-transaction.dto.ts

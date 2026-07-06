@@ -20,7 +20,9 @@ export interface UserInfoDto {
   pinstatus: boolean | null;
   merchantCode?: string | null;
   businessName?: string | null;
+  countryCode?: string | null;
 }
+
 
 export interface SessionDto {
   id: string;

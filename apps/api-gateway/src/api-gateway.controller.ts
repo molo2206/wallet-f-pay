@@ -91,6 +91,7 @@ interface AccountData {
   opening_date: Date;
   createdAt: Date;
   updatedAt: Date;
+  countryCode: string | null;
 }
 
 interface AccountResponse {
@@ -2876,14 +2877,52 @@ export class ApiGatewayController {
   }
 
   @Get('pawapay/networks/filter/by-country')
-  async getNetworksByCountry(
-    @Headers('countryCode') countryCode?: string,
+  async getMyNetworksByWallet(
+    @CurrentUser() currentUser: any,
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-    const finalCountryCode = countryCode || 'CD';
 
-    console.log('[API Gateway] getNetworksByCountry called with:', finalCountryCode);
+    // 🔍 Récupérer le pays depuis le wallet de l'utilisateur
+    let finalCountryCode = 'CD'; // Default
+
+    try {
+      // 1. Récupérer le wallet de l'utilisateur
+      const wallet = await this.prisma.wallet.findFirst({
+        where: {
+          userId: currentUser.id,
+          isActive: true,
+          isDefault: true, // Ou le premier wallet
+        },
+        select: { currency: true },
+      });
+
+      if (wallet) {
+        // 2. Trouver le pays correspondant à la devise
+        const country = await this.prisma.country_provider.findFirst({
+          where: {
+            OR: [
+              { default_currency: wallet.currency },
+              {
+                country_currency: {
+                  some: { currency_code: wallet.currency }
+                }
+              }
+            ]
+          },
+          select: { countryCode: true, code: true },
+        });
+
+        if (country) {
+          finalCountryCode = country.countryCode || country.code || 'CD';
+          console.log('[API Gateway] Country from wallet currency:', finalCountryCode);
+        }
+      }
+    } catch (error) {
+      console.error('[API Gateway] Error fetching country from wallet:', error);
+    }
+
+    console.log('[API Gateway] getMyNetworksByWallet - finalCountryCode:', finalCountryCode);
 
     return this.sendWalletMessage(
       'get_networks_by_country',
@@ -2892,6 +2931,7 @@ export class ApiGatewayController {
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
+
   //============================== Endpoint admin pour générer des clés API ================================================
   @Post('admin/api-keys')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)

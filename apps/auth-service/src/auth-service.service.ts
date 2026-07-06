@@ -96,8 +96,6 @@ export class AuthServiceService {
     await this.logAudit(userId, action, details, ipAddress);
   }
 
-  // apps/auth-service/src/auth-service.service.ts
-
   async register(data: RegisterUserDto, ipAddress?: string) {
     const phone = this.normalizePhone(data.phone);
     const lang = data.lang || 'fr';
@@ -244,6 +242,7 @@ export class AuthServiceService {
           passwordStatus: user_passwordStatus.DEFAULT,
           fcmToken: data.fcmToken ?? null,
           email: data.email ?? null,
+          countryCode: data.countryCode ?? null,
         },
       });
 
