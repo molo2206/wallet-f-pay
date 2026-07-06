@@ -82,15 +82,6 @@ export class PawapayController {
     return this.pawapayService.getCountry(id);
   }
 
-  @Get('countries/code/by-ip')
-  async getCountryByIp(@Req() req: any) {
-    const clientIp =
-      req.headers['x-forwarded-for']?.toString().split(',')[0] ||
-      req.connection.remoteAddress ||
-      '';
-    return this.pawapayService.getCountryByCode(clientIp);
-  }
-
   @Get('countries')
   async getAllCountries() {
     return this.pawapayService.getAllCountries();

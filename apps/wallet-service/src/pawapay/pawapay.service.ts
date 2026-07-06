@@ -660,19 +660,28 @@ export class PawapayService {
     return { message: 'Network providers retrieved successfully', data: networks };
   }
 
-  // Dans pawapay.service.ts
+  // Dans pawapay.service.ts - Gardez UNIQUEMENT cette version
   async getNetworksByCountry(countryCode: string) {
     console.log('[PawaPay] getNetworksByCountry called with:', countryCode);
     console.log('[PawaPay] countryCode type:', typeof countryCode);
-    console.log('[PawaPay] countryCode length:', countryCode?.length);
+    console.log('[PawaPay] countryCode value:', JSON.stringify(countryCode));
 
-    // 🔍 Recherche du pays avec ses network providers
-    const country = await this.prisma.country_provider.findFirst({
+    // Vérifier si countryCode est valide
+    if (!countryCode || countryCode.trim() === '') {
+      throw new RpcException({
+        status: 'error',
+        message: 'Country code is required',
+        statusCode: 400,
+      });
+    }
+
+    const codeUpper = countryCode.toUpperCase().trim();
+    console.log('[PawaPay] Searching for country with code:', codeUpper);
+
+    // 🔍 Recherche du pays - essayer d'abord avec countryCode, puis avec code
+    let country = await this.prisma.country_provider.findFirst({
       where: {
-        OR: [
-          { code: { equals: countryCode.toUpperCase() } },
-          { countryCode: { equals: countryCode.toUpperCase() } },
-        ],
+        countryCode: codeUpper,
       },
       include: {
         network_provider: {
@@ -688,19 +697,74 @@ export class PawapayService {
       },
     });
 
+    // Si pas trouvé avec countryCode, essayer avec code
+    if (!country) {
+      console.log('[PawaPay] Not found with countryCode, trying with code:', codeUpper);
+      country = await this.prisma.country_provider.findFirst({
+        where: {
+          code: codeUpper,
+        },
+        include: {
+          network_provider: {
+            orderBy: {
+              name: 'asc',
+            },
+          },
+          country_currency: {
+            include: {
+              currency: true,
+            },
+          },
+        },
+      });
+    }
+
+    // Si toujours pas trouvé, essayer avec le champ countryCode qui contient des valeurs comme "CD"
+    if (!country && codeUpper.length === 2) {
+      console.log('[PawaPay] Trying with countryCode field for 2-letter code:', codeUpper);
+      country = await this.prisma.country_provider.findFirst({
+        where: {
+          countryCode: codeUpper,
+        },
+        include: {
+          network_provider: {
+            orderBy: {
+              name: 'asc',
+            },
+          },
+          country_currency: {
+            include: {
+              currency: true,
+            },
+          },
+        },
+      });
+    }
+
     console.log('[PawaPay] Country found:', country ? country.name : 'NOT FOUND');
-    console.log('[PawaPay] Country data:', country);
 
     if (!country) {
       console.error('[PawaPay] Country not found for code:', countryCode);
+
+      // 🔍 Debug - Lister tous les pays disponibles
+      const allCountries = await this.prisma.country_provider.findMany({
+        select: {
+          id: true,
+          code: true,
+          countryCode: true,
+          name: true,
+        },
+      });
+      console.log('[PawaPay] Available countries in DB:', JSON.stringify(allCountries, null, 2));
+
       throw new RpcException({
         status: 'error',
-        message: `Country with code ${countryCode} not found`,
+        message: `Country with code ${countryCode} not found. Available: ${allCountries.map(c => c.countryCode || c.code).join(', ')}`,
         statusCode: 404,
       });
     }
 
-    // 🔍 Récupérer les networks (peut être vide)
+    // 🔍 Récupérer les networks
     const networks = country.network_provider || [];
 
     console.log('[PawaPay] Networks found:', networks.length);
@@ -731,6 +795,7 @@ export class PawapayService {
       updatedAt: network.updatedAt,
     }));
 
+    // 📦 Retourner la réponse
     return {
       message: networks.length > 0
         ? 'Network providers retrieved successfully'
@@ -749,23 +814,6 @@ export class PawapayService {
         networks: formattedNetworks,
       },
     };
-  }
-  // ---------- Géolocalisation ----------
-  async getCountryByCode(ip: string) {
-    try {
-      const countryCode = 'CD';
-      const country = await this.prisma.country_provider.findFirst({
-        where: {
-          countryCode: countryCode  // ✅ Utiliser 'countryCode' au lieu de 'code'
-        },
-        include: { network_provider: true },
-      });
-      if (!country) return await this.getDefaultCountry();
-      return { message: `Pays "${countryCode}" défini par défaut`, data: country };
-    } catch (err: any) {
-      console.error('Erreur récupération pays :', err.message);
-      return await this.getDefaultCountry();
-    }
   }
 
   private async getDefaultCountry() {
