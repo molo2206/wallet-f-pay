@@ -660,15 +660,18 @@ export class PawapayService {
     return { message: 'Network providers retrieved successfully', data: networks };
   }
 
+  // Dans pawapay.service.ts
   async getNetworksByCountry(countryCode: string) {
     console.log('[PawaPay] getNetworksByCountry called with:', countryCode);
+    console.log('[PawaPay] countryCode type:', typeof countryCode);
+    console.log('[PawaPay] countryCode length:', countryCode?.length);
 
     // 🔍 Recherche du pays avec ses network providers
     const country = await this.prisma.country_provider.findFirst({
       where: {
         OR: [
-          { code: countryCode.toUpperCase() },
-          { countryCode: countryCode.toUpperCase() },
+          { code: { equals: countryCode.toUpperCase() } },
+          { countryCode: { equals: countryCode.toUpperCase() } },
         ],
       },
       include: {
@@ -686,8 +689,10 @@ export class PawapayService {
     });
 
     console.log('[PawaPay] Country found:', country ? country.name : 'NOT FOUND');
+    console.log('[PawaPay] Country data:', country);
 
     if (!country) {
+      console.error('[PawaPay] Country not found for code:', countryCode);
       throw new RpcException({
         status: 'error',
         message: `Country with code ${countryCode} not found`,
@@ -716,7 +721,7 @@ export class PawapayService {
     const formattedNetworks = networks.map(network => ({
       id: network.id,
       name: network.name,
-      currency: network.currency, // "CDF,USD" ou "CDF"
+      currency: network.currency,
       currencies: network.currency ? network.currency.split(',') : [],
       pourcentage_deposit: network.pourcentage_deposit || 0,
       pourcentage_payout: network.pourcentage_payout || 0,

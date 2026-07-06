@@ -552,8 +552,12 @@ export class WalletServiceController {
   @MessagePattern('get_networks_by_country')
   async getNetworksByCountry(@Payload() data: { countryCode: string; lang?: string }) {
     console.log('[WalletService] get_networks_by_country received:', data);
+    console.log('[WalletService] countryCode from payload:', data.countryCode);
+
     try {
-      return await this.pawapayService.getNetworksByCountry(data.countryCode);
+      const result = await this.pawapayService.getNetworksByCountry(data.countryCode);
+      console.log('[WalletService] Result:', JSON.stringify(result, null, 2));
+      return result;
     } catch (error) {
       console.error('[WalletService] get_networks_by_country error:', error);
       const lang = data?.lang || 'fr';

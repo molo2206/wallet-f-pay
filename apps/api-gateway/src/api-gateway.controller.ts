@@ -2881,9 +2881,10 @@ export class ApiGatewayController {
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-
-    // Si countryCode n'est pas fourni, utiliser 'CD' par défaut
     const finalCountryCode = countryCode || 'CD';
+
+    console.log('[API Gateway] getNetworksByCountry called with countryCode:', finalCountryCode);
+    console.log('[API Gateway] Headers:', { countryCode, langHeader });
 
     return this.sendWalletMessage(
       'get_networks_by_country',
