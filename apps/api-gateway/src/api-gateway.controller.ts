@@ -2875,7 +2875,7 @@ export class ApiGatewayController {
     );
   }
 
-  @Get('pawapay/networks/by-country')
+  @Get('pawapay/networks/filter/by-country')
   async getNetworksByCountry(
     @Headers('countryCode') countryCode?: string,
     @Headers('lang') langHeader?: string,
@@ -2883,8 +2883,7 @@ export class ApiGatewayController {
     const lang = langHeader || 'fr';
     const finalCountryCode = countryCode || 'CD';
 
-    console.log('[API Gateway] getNetworksByCountry called with countryCode:', finalCountryCode);
-    console.log('[API Gateway] Headers:', { countryCode, langHeader });
+    console.log('[API Gateway] getNetworksByCountry called with:', finalCountryCode);
 
     return this.sendWalletMessage(
       'get_networks_by_country',
