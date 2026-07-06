@@ -153,6 +153,7 @@ export class PawapayService {
     return { deposit, finalStatus };
   }
 
+  // Dans pawapay.service.ts
   async createPayoutSimple(data: { amount: string; currency: string; provider: string; phone: string }, signal?: AbortSignal) {
     const payoutId = uuidv4();
     const clientReferenceId = `PAYOUT-${Date.now()}`;
@@ -165,13 +166,31 @@ export class PawapayService {
       customerMessage: 'Payment',
       metadata,
     };
-    const payout = await lastValueFrom(
-      this.httpService.post(`${this.baseUrl}/v2/payouts`, body, { headers: this.headers, signal }),
-    ).then((r) => r.data);
-    console.log('[PawaPay] Payout créé :', payout.payoutId);
-    const finalStatus = await this.pollPayoutStatus(payout.payoutId, signal);
-    console.log('[PawaPay] Statut final payout :', finalStatus);
-    return { payout, finalStatus };
+
+    try {
+      const payout = await lastValueFrom(
+        this.httpService.post(`${this.baseUrl}/v2/payouts`, body, { headers: this.headers, signal }),
+      ).then((r) => r.data);
+
+      console.log('[PawaPay] Payout créé :', payout.payoutId);
+      const finalStatus = await this.pollPayoutStatus(payout.payoutId, signal);
+      console.log('[PawaPay] Statut final payout :', finalStatus);
+
+      return { payout, finalStatus };
+    } catch (error: any) {
+      console.error('[PawaPay] Erreur createPayoutSimple:', error);
+
+      // Extraire le message d'erreur de PawaPay
+      const errorMessage = error?.response?.data?.message || error?.message || 'Unknown error';
+      const errorDetails = error?.response?.data || {};
+
+      throw new RpcException({
+        status: 'error',
+        message: `PawaPay error: ${errorMessage}`,
+        statusCode: error?.response?.status || 500,
+        details: errorDetails,
+      });
+    }
   }
 
   async checkDepositStatus(depositId: string, signal?: AbortSignal) {

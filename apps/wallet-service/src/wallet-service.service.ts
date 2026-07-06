@@ -2304,6 +2304,8 @@ export class WalletServiceService {
       provider,
       phone,
     });
+
+    // ========== VALIDATIONS ==========
     if (amount <= 0) {
       throw new RpcException({
         status: 'error',
@@ -2312,7 +2314,6 @@ export class WalletServiceService {
       });
     }
 
-    // PawaPay est obligatoire
     if (!provider || !phone) {
       throw new RpcException({
         status: 'error',
@@ -2321,8 +2322,24 @@ export class WalletServiceService {
       });
     }
 
+    if (!pin || pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!/^\d+$/.test(pin)) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_digits_only', lang),
+        statusCode: 400,
+      });
+    }
+
     // ---------- 1. Validation préalable (hors transaction) ----------
-    const user = await this.prisma.user.findFirst({  // ← findUnique → findFirst
+    const user = await this.prisma.user.findFirst({
       where: { id: userId },
       select: {
         id: true,
@@ -2334,12 +2351,15 @@ export class WalletServiceService {
         failed_pin_attempts: true,
       },
     });
-    if (!user)
+
+    if (!user) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.user_not_found', lang),
         statusCode: 404,
       });
+    }
+
     if (user.status === user_status.BLOCKED) {
       throw new RpcException({
         status: 'error',
@@ -2360,7 +2380,11 @@ export class WalletServiceService {
       }
       await this.prisma.user.update({
         where: { id: userId },
-        data: { failed_pin_attempts: newAttempts, status: newStatus },
+        data: {
+          failed_pin_attempts: newAttempts,
+          status: newStatus,
+          pin_locked_until: lockedUntil,
+        },
       });
       await logFailedLoginAttempt(
         this.prisma,
@@ -2377,100 +2401,152 @@ export class WalletServiceService {
         statusCode: 401,
       });
     }
+
     await this.prisma.user.update({
       where: { id: userId },
-      data: { failed_pin_attempts: 0 },
+      data: { failed_pin_attempts: 0, pin_locked_until: null },
     });
 
     // Récupérer le wallet
     let wallet;
     if (walletId) {
-      wallet = await this.prisma.wallet.findFirst({ where: { id: walletId, userId } });
-      if (!wallet)
+      wallet = await this.prisma.wallet.findFirst({
+        where: { id: walletId, userId },
+        include: { user: true },
+      });
+      if (!wallet) {
         throw new RpcException({
           status: 'error',
           message: this.i18nService.translate('wallet.wallet_not_found_or_unauthorized', lang),
           statusCode: 404,
         });
+      }
     } else {
-      wallet = await this.prisma.wallet.findFirst({ where: { userId } });
-      if (!wallet)
+      wallet = await this.prisma.wallet.findFirst({
+        where: { userId },
+        include: { user: true },
+      });
+      if (!wallet) {
         throw new RpcException({
           status: 'error',
           message: this.i18nService.translate('wallet.wallet_not_found', lang),
           statusCode: 404,
         });
+      }
     }
-    if (!wallet.isActive)
+
+    if (!wallet.isActive) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.wallet_inactive', lang),
         statusCode: 403,
       });
-    if (wallet.balance < amount)
+    }
+
+    // Récupérer les frais
+    const fees = await this.getNetworkProviderFees(provider);
+    const feeAmount = (amount * fees.payoutFee) / 100;
+    const totalAmount = amount + feeAmount; // Montant total à débiter (montant + frais)
+    const netAmount = amount; // Montant net envoyé à PawaPay
+
+    console.log('[WalletService] Cashout fees:', {
+      amount,
+      feeAmount,
+      totalAmount,
+      netAmount,
+      payoutFee: fees.payoutFee,
+    });
+
+    // Vérifier le solde (montant + frais)
+    if (wallet.balance < totalAmount) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
         statusCode: 400,
       });
+    }
 
     // ---------- 2. Appel PawaPay payout ----------
     let paymentSucceeded = false;
-    let failureReasonKey: string | null = null;
-    let failureReasonParams: any = {};
+    let pawaPayErrorMessage: string | null = null;
+    let pawaPayErrorCode: string | null = null;
+    let pawaPayErrorDetails: any = null;
     let externalReference: string | undefined;
 
-    const fees = await this.getNetworkProviderFees(provider);
-    const feeAmount = (amount * fees.payoutFee) / 100;
-    const netAmount = amount - feeAmount;
-
     const amountStr = netAmount.toString();
-    const pawapayData = { amount: amountStr, currency: wallet.currency, provider, phone };
-    console.log('[WalletService] Appel PawaPay payout:', pawapayData);
+    const pawapayData = {
+      amount: amountStr,
+      currency: wallet.currency,
+      provider,
+      phone,
+    };
+
+    console.log('[WalletService] Appel PawaPay payout:', JSON.stringify(pawapayData, null, 2));
+
     try {
       const pawapayResponse = await this.pawapayService.createPayoutSimple(pawapayData);
-      console.log('[WalletService] Réponse PawaPay payout:', pawapayResponse);
+      console.log('[WalletService] Réponse PawaPay payout:', JSON.stringify(pawapayResponse, null, 2));
+
       const payoutStatus = pawapayResponse.finalStatus?.data?.status;
+
       if (payoutStatus === 'COMPLETED') {
         paymentSucceeded = true;
         externalReference = pawapayResponse.payout?.payoutId;
       } else {
+        // Récupérer les détails d'erreur de PawaPay
         const failureObj = pawapayResponse.finalStatus?.data?.failureReason;
         const failureCode = failureObj?.failureCode;
         const failureMsg = failureObj?.failureMessage;
-        switch (failureCode) {
-          case 'WALLET_LIMIT_REACHED':
-            failureReasonKey = 'wallet.payout_limit_reached';
-            failureReasonParams = { phone };
-            break;
-          case 'INSUFFICIENT_FUNDS':
-            failureReasonKey = 'wallet.payout_insufficient_funds';
-            failureReasonParams = { phone };
-            break;
-          case 'INVALID_PHONE_NUMBER':
-            failureReasonKey = 'wallet.payout_invalid_phone';
-            failureReasonParams = { phone };
-            break;
-          case 'PROVIDER_UNAVAILABLE':
-            failureReasonKey = 'wallet.payout_provider_unavailable';
-            failureReasonParams = { provider };
-            break;
-          default:
-            failureReasonKey = 'wallet.payout_failed';
-            failureReasonParams = { reason: failureMsg || payoutStatus };
-        }
+
+        pawaPayErrorCode = failureCode;
+        pawaPayErrorMessage = failureMsg || payoutStatus;
+        pawaPayErrorDetails = failureObj;
+
+        console.log('[WalletService] PawaPay failure:', {
+          code: failureCode,
+          message: failureMsg,
+          details: failureObj,
+        });
       }
     } catch (err: any) {
-      console.error('[WalletService] Erreur PawaPay payout:', err);
-      failureReasonKey = 'wallet.payout_technical_error';
-      failureReasonParams = { error: err.message };
+      console.error('[WalletService] Erreur PawaPay payout - DETAIL:', err);
+
+      // Extraire le message d'erreur de PawaPay
+      if (err?.response?.data) {
+        pawaPayErrorMessage = err.response.data.message || err.response.data.error || err.message;
+        pawaPayErrorCode = err.response.data.code || err.response.data.status || 'UNKNOWN_ERROR';
+        pawaPayErrorDetails = err.response.data;
+      } else if (err?.message) {
+        pawaPayErrorMessage = err.message;
+        pawaPayErrorCode = err?.code || 'TECHNICAL_ERROR';
+      } else {
+        pawaPayErrorMessage = 'Unknown PawaPay error';
+        pawaPayErrorCode = 'UNKNOWN_ERROR';
+      }
+
+      console.error('[WalletService] PawaPay error details:', {
+        message: pawaPayErrorMessage,
+        code: pawaPayErrorCode,
+        details: pawaPayErrorDetails,
+      });
     }
 
     // ---------- 3. Gestion de l'échec ----------
     if (!paymentSucceeded) {
-      const failureMessage = failureReasonKey
-        ? this.i18nService.translate(failureReasonKey, lang, failureReasonParams)
-        : this.i18nService.translate('wallet.payment_failed', lang);
+      // Construire le message d'erreur avec les détails PawaPay
+      let failureMessage = this.i18nService.translate('wallet.payout_failed', lang, {
+        reason: pawaPayErrorMessage || 'Unknown error',
+        code: pawaPayErrorCode || 'UNKNOWN',
+      });
+
+      // Ajouter les détails supplémentaires
+      if (pawaPayErrorDetails) {
+        failureMessage = `${failureMessage} - Details: ${JSON.stringify(pawaPayErrorDetails)}`;
+      }
+
+      console.log('[WalletService] Cashout failure message:', failureMessage);
+
+      // Créer la transaction failed
       let failedTransaction;
       try {
         failedTransaction = await this.prisma.$transaction(async (tx) => {
@@ -2479,10 +2555,10 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount,
+              amount: totalAmount,
               type: 'WITHDRAW',
               status: 'FAILED',
-              reference: await this.generateTransactionReference('ADM', tx),
+              reference: await this.generateTransactionReference('CASH', tx),
               description: this.i18nService.translate('wallet.failed_description', lang, {
                 reason: failureMessage,
               }),
@@ -2491,51 +2567,83 @@ export class WalletServiceService {
             },
           });
         });
-        await this.logAudit(user.id, 'cashout_failed', { transaction: failedTransaction, error: failureMessage }, ipAddress || null);
+        await this.logAudit(
+          user.id,
+          'cashout_failed',
+          {
+            transaction: failedTransaction,
+            error: failureMessage,
+            pawaPay: {
+              code: pawaPayErrorCode,
+              message: pawaPayErrorMessage,
+              details: pawaPayErrorDetails,
+            },
+          },
+          ipAddress || null,
+        );
       } catch (err) {
         console.error('Erreur lors de la création de la transaction failed:', err);
       }
+
       throw new RpcException({
         status: 'error',
         message: failureMessage,
         statusCode: 400,
+        pawaPay: {
+          code: pawaPayErrorCode,
+          message: pawaPayErrorMessage,
+          details: pawaPayErrorDetails,
+        },
       });
     }
 
     // ---------- 4. Succès : débiter le wallet et créer la transaction ----------
     let updatedWallet: any;
     let transaction: any;
-    try {
-      const result = await this.prisma.$transaction(async (tx) => {
-        const description = this.i18nService.translate('wallet.transaction_description_withdraw', lang)
-          .replace('{phone}', phone || '')
-          + ` (frais ${fees.payoutFee}% : ${feeAmount} ${wallet.currency}) - Net envoyé: ${netAmount} ${wallet.currency}`
-          + ' ' + this.i18nService.translate('wallet.via_pawapay', lang, { provider });
 
-        const upd = await tx.wallet.update({
-          where: { id: wallet.id },
-          data: { balance: { decrement: amount }, updatedAt: new Date() },
-        });
-        const reference = await this.generateTransactionReference('USER', tx);
-        const txRecord = await tx.transaction.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId,
-            walletId: wallet.id,
-            amount,
-            type: 'WITHDRAW',
-            status: 'SUCCESS',
-            reference: reference,
-            description,
-            movement: 'DEBIT',
-            currency: wallet.currency,
-          },
-        });
-        return { wallet: upd, transaction: txRecord };
-      });
+    try {
+      const result = await this.prisma.$transaction(
+        async (tx) => {
+          const description =
+            this.i18nService.translate('wallet.transaction_description_withdraw', lang)
+              .replace('{phone}', phone || '') +
+            ` (frais ${fees.payoutFee}% : ${feeAmount} ${wallet.currency}) - Net envoyé: ${netAmount} ${wallet.currency}` +
+            ' ' +
+            this.i18nService.translate('wallet.via_pawapay', lang, { provider }) +
+            (externalReference ? ` Ref: ${externalReference}` : '');
+
+          // Débiter le montant total (montant + frais)
+          const upd = await tx.wallet.update({
+            where: { id: wallet.id },
+            data: { balance: { decrement: totalAmount }, updatedAt: new Date() },
+          });
+
+          const reference = await this.generateTransactionReference('CASH', tx);
+          const txRecord = await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId,
+              walletId: wallet.id,
+              amount: totalAmount,
+              type: 'WITHDRAW',
+              status: 'SUCCESS',
+              reference: reference,
+              description,
+              movement: 'DEBIT',
+              currency: wallet.currency,
+              external_reference: externalReference,
+            },
+          });
+
+          return { wallet: upd, transaction: txRecord };
+        },
+        { timeout: 60000, maxWait: 60000 },
+      );
+
       updatedWallet = result.wallet;
       transaction = result.transaction;
     } catch (error) {
+      console.error('[WalletService] Cashout transaction error:', error);
       throw new RpcException({
         status: 'error',
         message: error.message || this.i18nService.translate('wallet.cashout_failed', lang),
@@ -2562,6 +2670,7 @@ export class WalletServiceService {
 
     // ---------- 6. Audit et notifications Push ----------
     await this.logAudit(user.id, 'cashout', transaction, ipAddress ?? null);
+
     try {
       await notifyTransaction(
         this.smsService,
