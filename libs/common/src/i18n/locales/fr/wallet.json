@@ -126,5 +126,6 @@
   "wallet.admin_pay_from_wallet_required": "Le wallet source est requis",
   "wallet.admin_pay_merchant_code_required": "Le code marchand est requis",
   "wallet.admin_pay_payer_description": "Paiement admin de {{amount}} {{currency}} au commerçant {{merchantName}} (code: {{merchantCode}})",
-  "wallet.admin_pay_merchant_description": "Réception admin de {{amount}} {{currency}} du client {{payerName}} ({{payerPhone}})"
+  "wallet.admin_pay_merchant_description": "Réception admin de {{amount}} {{currency}} du client {{payerName}} ({{payerPhone}})",
+  "wallet.transactions_retrieved": "Transactions récupérées avec succès"
 }

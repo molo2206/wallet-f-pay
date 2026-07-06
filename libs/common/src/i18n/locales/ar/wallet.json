@@ -126,5 +126,6 @@
     "wallet.admin_pay_from_wallet_required": "المحفظة المصدر مطلوبة",
     "wallet.admin_pay_merchant_code_required": "رمز التاجر مطلوب",
     "wallet.admin_pay_payer_description": "دفع إداري بمبلغ {{amount}} {{currency}} للتاجر {{merchantName}} (الرمز: {{merchantCode}})",
-    "wallet.admin_pay_merchant_description": "استلام إداري بمبلغ {{amount}} {{currency}} من العميل {{payerName}} ({{payerPhone}})"
+    "wallet.admin_pay_merchant_description": "استلام إداري بمبلغ {{amount}} {{currency}} من العميل {{payerName}} ({{payerPhone}})",
+    "wallet.transactions_retrieved": "تم استرجاع المعاملات بنجاح"
 }

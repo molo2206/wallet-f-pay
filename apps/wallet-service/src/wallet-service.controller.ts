@@ -167,6 +167,43 @@ export class WalletServiceController {
     }
   }
 
+  @MessagePattern('get_transactions_by_wallet')
+  async getTransactionsByWallet(
+    @Payload()
+    data: {
+      walletId: string;
+      page?: number;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] get_transactions_by_wallet received:', data);
+    try {
+      // Convertir les dates si présentes
+      const startDate = data.startDate ? new Date(data.startDate) : undefined;
+      const endDate = data.endDate ? new Date(data.endDate) : undefined;
+
+      return await this.walletService.getTransactionsByWalletId(
+        data.walletId,
+        data.page || 1,
+        data.limit || 10,
+        startDate,
+        endDate,
+        data.lang || 'fr',
+      );
+    } catch (error) {
+      console.error('[WalletService] get_transactions_by_wallet error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('list_all_transactions')
   async listAllTransactions(
     @Payload()

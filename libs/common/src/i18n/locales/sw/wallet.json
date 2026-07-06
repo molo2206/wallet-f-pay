@@ -126,5 +126,6 @@
   "wallet.admin_pay_from_wallet_required": "Pochi chanzo inahitajika",
   "wallet.admin_pay_merchant_code_required": "Msimbo wa mfanyabiashara unahitajika",
   "wallet.admin_pay_payer_description": "Malipo ya msimamizi wa {{amount}} {{currency}} kwa mfanyabiashara {{merchantName}} (msimbo: {{merchantCode}})",
-  "wallet.admin_pay_merchant_description": "Mapokezi ya msimamizi wa {{amount}} {{currency}} kutoka mteja {{payerName}} ({{payerPhone}})"
+  "wallet.admin_pay_merchant_description": "Mapokezi ya msimamizi wa {{amount}} {{currency}} kutoka mteja {{payerName}} ({{payerPhone}})",
+  "wallet.transactions_retrieved": "Miamala imepatikana kwa mafanikio"
 }

@@ -220,7 +220,6 @@ export class ApiGatewayController {
     }
   }
   // ==================== MÉTHODES D'ENVOI ====================
-  // apps/api-gateway/src/api-gateway.controller.ts
 
   private async sendAuthMessage<T>(
     pattern: string,
@@ -1541,6 +1540,67 @@ export class ApiGatewayController {
       this.i18nService.translate('wallet.wallet_not_found', lang),
       HttpStatus.NOT_FOUND,
     );
+    return response;
+  }
+
+  @Get('wallet/:walletId/transactions')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getTransactionsByWallet(
+    @CurrentUser() currentUser: any,
+    @Param('walletId') walletId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    if (!walletId) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.wallet_id_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+
+    let start: Date | undefined;
+    let end: Date | undefined;
+    if (startDate) {
+      start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        throw new HttpException(
+          this.i18nService.translate('wallet.invalid_start_date', lang),
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+    if (endDate) {
+      end = new Date(endDate);
+      if (isNaN(end.getTime())) {
+        throw new HttpException(
+          this.i18nService.translate('wallet.invalid_end_date', lang),
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    const response = await this.sendWalletMessage<any>(
+      'get_transactions_by_wallet',
+      {
+        walletId,
+        page: pageNum,
+        limit: limitNum,
+        startDate: start,
+        endDate: end,
+        lang,
+      },
+      this.i18nService.translate('wallet.transactions_retrieve_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+
     return response;
   }
 

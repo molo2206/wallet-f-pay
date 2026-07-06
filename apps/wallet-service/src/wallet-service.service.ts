@@ -3247,6 +3247,153 @@ export class WalletServiceService {
     };
   }
 
+  async getTransactionsByWalletId(
+    walletId: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: Date,
+    endDate?: Date,
+    lang: string = 'fr',
+  ) {
+    console.log('[WalletService] Get transactions by walletId:', { walletId, page, limit, startDate, endDate, lang });
+
+    // 1️⃣ Vérifier que le wallet existe
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { id: walletId },
+      include: { user: { select: { full_name: true, phone: true } } },
+    });
+
+    if (!wallet) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    if (!wallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        statusCode: 403,
+      });
+    }
+
+    // 2️⃣ Construire les filtres (exactement comme dans listTransactions)
+    const skip = (page - 1) * limit;
+    const where: any = { walletId };
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = startDate;
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endOfDay;
+      }
+    }
+
+    // 3️⃣ Exécuter les requêtes en parallèle (comme dans listTransactions)
+    const [transactions, total, creditSum, debitSum] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.aggregate({
+        where: { ...where, movement: 'CREDIT' },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { ...where, movement: 'DEBIT' },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const totalCredit = creditSum._sum.amount || 0;
+    const totalDebit = debitSum._sum.amount || 0;
+
+    // 4️⃣ Enrichir les transactions (exactement comme dans listTransactions)
+    const enrichedTransactions = await Promise.all(
+      transactions.map(async (tx) => {
+        let full_name: string | null = null;
+        let phone: string | null = null;
+
+        if (tx.type === 'TRANSFER' && tx.movement === 'DEBIT') {
+          const toMatch = tx.description?.match(/\[TO:([^\]]+)\]/);
+          const receiverId = toMatch?.[1];
+          if (receiverId) {
+            const receiver = await this.prisma.user.findUnique({
+              where: { id: receiverId },
+              select: { full_name: true, phone: true },
+            });
+            if (receiver) {
+              full_name = receiver.full_name;
+              phone = receiver.phone;
+            }
+          }
+        } else if (tx.type === 'TRANSFER' && tx.movement === 'CREDIT') {
+          const fromMatch = tx.description?.match(/\[FROM:([^\]]+)\]/);
+          const senderId = fromMatch?.[1];
+          if (senderId) {
+            const sender = await this.prisma.user.findUnique({
+              where: { id: senderId },
+              select: { full_name: true, phone: true },
+            });
+            if (sender) {
+              full_name = sender.full_name;
+              phone = sender.phone;
+            }
+          }
+        } else if (tx.type === 'PAYMENT' && tx.movement === 'DEBIT') {
+          const merchantMatch = tx.description?.match(
+            /Paiement à (.+?) \(([^)]+)\)/,
+          );
+          if (merchantMatch) {
+            full_name = merchantMatch[1];
+            phone = merchantMatch[2];
+          }
+        } else if (tx.type === 'PAYMENT' && tx.movement === 'CREDIT') {
+          const customerMatch = tx.description?.match(
+            /Reçu de [A-Z0-9]+ \(([^)]+)\)/,
+          );
+          if (customerMatch) {
+            full_name = customerMatch[1];
+          }
+        }
+
+        const cleanDescription =
+          tx.description?.replace(/\[TO:[^\]]+\]|\[FROM:[^\]]+\]/, '').trim() ||
+          tx.description;
+
+        const { description, ...rest } = tx;
+        return {
+          ...rest,
+          description: cleanDescription,
+          full_name,
+          phone,
+        };
+      }),
+    );
+
+    // 5️⃣ Retourner la réponse (exactement comme dans listTransactions)
+    return {
+      message: this.i18nService.translate('wallet.transactions_retrieved', lang),
+      data: {
+        data: enrichedTransactions,
+        total,
+        page,
+        limit,
+        analytics: {
+          totalCredit,
+          totalDebit,
+        },
+      },
+    };
+  }
+
   private async logFailedTransaction(
     transactionData: Partial<any>,
     error: Error | any,
