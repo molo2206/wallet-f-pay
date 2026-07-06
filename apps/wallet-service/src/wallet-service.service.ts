@@ -2701,7 +2701,7 @@ export class WalletServiceService {
     dto: SendDto,
     lang: string = 'fr',
     ipAddress: string,
-  ): Promise<ApiResponse<{ fromWallet: WalletResponseDto; toWallet: WalletResponseDto; transaction: any }>> {
+  ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
     const { fromWalletId, toPhone, amount, pin, description } = dto;
     console.log('[WalletService] Send request:', { fromWalletId, toPhone, amount, lang });
 
@@ -3007,16 +3007,15 @@ export class WalletServiceService {
       console.error('[Notifications] Send notification error:', err);
     }
 
+    // ✅ Format unifié : retourne le wallet source et la transaction
     return {
       message: this.i18nService.translate('wallet.transfer_success', lang),
       data: {
-        fromWallet: this.toResponse(result.fromWallet),
-        toWallet: this.toResponse(result.toWallet),
-        transaction: { reference: `SEND_${Date.now()}` },
+        wallet: this.toResponse(result.fromWallet),
+        transaction: result.senderTx,
       },
     };
   }
-
   async pay(
     dto: PayDto,
     lang: string = 'fr',
@@ -3131,7 +3130,7 @@ export class WalletServiceService {
       });
     }
 
-    // ========== VÉRIFICATION DU PIN (RAPIDE) ==========
+    // ========== VÉRIFICATION DU PIN ==========
     if (!skipPinCheck) {
       if (!fromUser.pin) {
         throw new RpcException({
@@ -3142,7 +3141,6 @@ export class WalletServiceService {
       }
       const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
       if (fromUser.pin !== hashedPin) {
-        // Incrémenter les tentatives
         const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
         let newStatus: user_status = fromUser.status;
         let lockedUntil: Date | null = null;
@@ -3169,7 +3167,6 @@ export class WalletServiceService {
           statusCode: 401,
         });
       }
-      // Réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: fromUser.id },
         data: { failed_pin_attempts: 0 },
@@ -3213,7 +3210,7 @@ export class WalletServiceService {
       });
     }
 
-    // ========== EXÉCUTER LA TRANSACTION (UNE SEULE) ==========
+    // ========== EXÉCUTER LA TRANSACTION ==========
     const result = await this.prisma.$transaction(async (tx) => {
       // Mettre à jour les soldes
       const [updatedUser, updatedMerchant] = await Promise.all([
@@ -3259,7 +3256,7 @@ export class WalletServiceService {
         merchantDescription = `${merchantDescription} (${fromText}: ${payerInfo})`;
       }
 
-      // Créer les transactions en parallèle
+      // Créer les transactions
       const reference = await this.generateTransactionReference('USER', tx);
       const [payerTx, merchantTx] = await Promise.all([
         tx.transaction.create({
@@ -3318,7 +3315,7 @@ export class WalletServiceService {
       };
     }, { timeout: 30000 });
 
-    // ========== SMS EN DEHORS DE LA TRANSACTION ==========
+    // ========== SMS ET NOTIFICATIONS ==========
     if (result.fromUser.phone) {
       try {
         const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
@@ -3351,7 +3348,6 @@ export class WalletServiceService {
       }
     }
 
-    // ========== NOTIFICATIONS PUSH ==========
     try {
       await Promise.all([
         notifyTransaction(
@@ -3391,6 +3387,7 @@ export class WalletServiceService {
       console.error('[Notifications] Pay notification error:', err);
     }
 
+    // ✅ Format unifié
     return {
       message: this.i18nService.translate('wallet.payment_success', lang),
       data: {
