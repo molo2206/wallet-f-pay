@@ -53,7 +53,7 @@ model user {
   pin_locked_until       DateTime?                @db.DateTime(0)
   kycStatus              user_kycStatus           @default(NOT_SUBMITTED)
   countryCode            String?                  @db.VarChar(11)
-  api_key                api_key[]                 @ignore 
+  api_key                api_key[]
   audit_log              audit_log[]
   failed_transaction_log failed_transaction_log[]
   kyc_submission         kyc_submission[]
