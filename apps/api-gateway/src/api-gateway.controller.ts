@@ -3034,6 +3034,7 @@ export class ApiGatewayController {
   ): never {
     this.logger.error('Raw RPC Error:', error);
 
+    // 1️⃣ Timeout
     if (error?.name === 'TimeoutError') {
       throw new HttpException(
         {
@@ -3045,30 +3046,45 @@ export class ApiGatewayController {
       );
     }
 
+    // 2️⃣ Extraire le message et le statut
     let message = defaultMessage;
     let status = defaultStatus;
 
     if (error?.response) {
       if (typeof error.response === 'object') {
-        message =
-          error.response.message || error.response.error || defaultMessage;
-        status =
-          error.response.statusCode || error.response.status || defaultStatus;
+        // ✅ Extraire le message
+        message = error.response.message || error.response.error || defaultMessage;
+
+        // ✅ Récupérer le statusCode et s'assurer que c'est un nombre
+        const rawStatus = error.response.statusCode || error.response.status || defaultStatus;
+        status = typeof rawStatus === 'number' ? rawStatus : defaultStatus;
       } else if (typeof error.response === 'string') {
         message = error.response;
       }
     } else if (error?.message) {
       message = error.message;
-      status = error.statusCode || error.status || defaultStatus;
+      const rawStatus = error.statusCode || error.status || defaultStatus;
+      status = typeof rawStatus === 'number' ? rawStatus : defaultStatus;
     }
+
+    // 3️⃣ ✅ FORCER le statut à être un nombre valide
+    if (typeof status !== 'number' || isNaN(status) || status < 100 || status > 599) {
+      this.logger.warn(`⚠️ StatusCode invalide: "${status}", utilisation de ${defaultStatus}`);
+      status = defaultStatus;
+    }
+
+    // 4️⃣ ✅ S'assurer que le statusCode dans le body est aussi un nombre
+    const statusCode = typeof status === 'number' ? status : defaultStatus;
+
+    this.logger.error(`❌ RPC Error: ${message} (${statusCode})`);
 
     throw new HttpException(
       {
         status: 'error',
         message,
-        statusCode: status,
+        statusCode: statusCode,
       },
-      status,
+      statusCode,
     );
   }
 }
