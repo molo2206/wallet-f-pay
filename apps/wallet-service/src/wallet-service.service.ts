@@ -2734,8 +2734,8 @@ export class WalletServiceService {
     lang: string = 'fr',
     ipAddress: string,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
-    const { fromWalletId, toPhone, amount, pin, description } = dto;
-    console.log('[WalletService] Send request:', { fromWalletId, toPhone, amount, lang });
+    const { fromWalletId, toPhone, amount, pin, description, countryCode } = dto;
+    console.log('[WalletService] Send request:', { fromWalletId, toPhone, amount, lang, countryCode });
 
     if (amount <= 0) {
       throw new RpcException({
@@ -2904,8 +2904,17 @@ export class WalletServiceService {
         });
 
         // 3. Déterminer les pays
+        // ✅ Utiliser le countryCode envoyé par le client pour le destinataire
+        // Si le client a envoyé un countryCode, on l'utilise, sinon on prend celui du destinataire en base
         const senderCountryCode = fromUser.countryCode || 'CD';
-        const receiverCountryCode = toUser.countryCode || 'CD';
+        let receiverCountryCode = toUser.countryCode || 'CD';
+
+        // ✅ Si le client a spécifié un countryCode, on l'utilise pour le destinataire
+        if (countryCode) {
+          receiverCountryCode = countryCode.toUpperCase();
+          console.log('[WalletService] 📌 CountryCode fourni par le client:', countryCode);
+        }
+
         const isInternational = senderCountryCode !== receiverCountryCode;
 
         console.log('[WalletService] Transfer type:', {
@@ -2913,6 +2922,7 @@ export class WalletServiceService {
           receiverCountry: receiverCountryCode,
           isInternational,
           fromCurrency: fromWallet.currency,
+          countryCodeProvided: countryCode || 'Non fourni',
         });
 
         // 4. Récupérer les frais internationaux dynamiques
@@ -2957,7 +2967,7 @@ export class WalletServiceService {
         let convertedAmount = amount;
 
         if (isInternational) {
-          // Récupérer le pays du destinataire
+          // Récupérer le pays du destinataire (avec le countryCode fourni ou celui de la base)
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3047,11 +3057,10 @@ export class WalletServiceService {
         }
 
         // 6. Récupérer ou créer le wallet du destinataire
-        // ✅ Utiliser targetCurrency comme string pour la recherche
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
-            currency: targetCurrency as any, // Cast car Prisma attend le type enum
+            currency: targetCurrency as any,
             isActive: true,
           },
         });
@@ -3061,7 +3070,7 @@ export class WalletServiceService {
             data: {
               id: crypto.randomUUID(),
               userId: toUser.id,
-              currency: targetCurrency as any, // Cast car Prisma attend le type enum
+              currency: targetCurrency as any,
               balance: 0,
               isActive: true,
             },
@@ -3116,6 +3125,9 @@ export class WalletServiceService {
 
         if (isInternational) {
           senderDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
+          if (countryCode) {
+            senderDescription += ` - Pays: ${countryCode}`;
+          }
         }
 
         if (!receiverDescription) {
@@ -3126,6 +3138,9 @@ export class WalletServiceService {
 
         if (isInternational) {
           receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
+          if (countryCode) {
+            receiverDescription += ` - Pays: ${countryCode}`;
+          }
         }
 
         // 10. Créer les transactions
@@ -3177,6 +3192,7 @@ export class WalletServiceService {
           fee,
           internationalFeePercentage,
           debitAmount,
+          receiverCountryCode,
         };
       },
       { timeout: 60000, maxWait: 60000 },
@@ -3234,6 +3250,7 @@ export class WalletServiceService {
           feePercentage: result.internationalFeePercentage,
           debitAmount: result.debitAmount,
           fromCurrency: result.fromWallet.currency,
+          countryCode: result.receiverCountryCode,
         }
       ),
       data: {

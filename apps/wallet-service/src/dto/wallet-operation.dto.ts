@@ -95,6 +95,9 @@ export class SendDto {
   @IsOptional()
   @IsString()
   lang?: string;
+
+  @IsOptional()
+  countryCode?: string;
 }
 
 export class PayDto {

@@ -402,7 +402,7 @@ export class WalletServiceController {
 
   @MessagePattern('send')
   async send(@Payload() data: SendDto & { lang?: string }, ipAddress: string) {
-    console.log('[WalletService] send received:', { from: data.fromWalletId, to: data.toPhone, amount: data.amount, lang: data.lang });
+    console.log('[WalletService] send received:', { from: data.fromWalletId, to: data.toPhone, amount: data.amount, countryCode: data.countryCode, lang: data.lang });
     try {
       return await this.walletService.send(data, data.lang || 'fr', ipAddress);
     } catch (error) {

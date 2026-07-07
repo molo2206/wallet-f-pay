@@ -1447,7 +1447,14 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async send(
     @CurrentUser() currentUser: any,
-    @Body() body: { fromWalletId: string; toPhone: string; amount: number; pin: string; description?: string },
+    @Body() body: {
+      fromWalletId: string;
+      toPhone: string;
+      amount: number;
+      pin: string;
+      description?: string;
+      countryCode?: string;
+    },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -1475,6 +1482,7 @@ export class ApiGatewayController {
         amount: body.amount,
         pin: body.pin,
         description: body.description,
+        countryCode: body.countryCode,
         lang,
         ipAddress,
       },
