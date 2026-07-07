@@ -352,16 +352,18 @@ model country_provider {
 }
 
 model network_provider {
-  id                  String           @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  name                String           @db.VarChar(100)
-  currency            String           @db.Text
-  pourcentage_deposit Float?           @default(0) @db.Float
-  pourcentage_payout  Float?           @default(0) @db.Float
-  image               String?          @db.Text
-  countryId           String           @db.VarChar(36)
-  createdAt           DateTime         @default(now()) @db.DateTime(0)
-  updatedAt           DateTime         @default(now()) @db.DateTime(0)
-  country_provider    country_provider @relation(fields: [countryId], references: [id], onDelete: Cascade, map: "fk_network_country")
+  id                         String           @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  name                       String           @db.VarChar(100)
+  currency                   String           @db.Text
+  pourcentage_deposit        Float?           @default(0) @db.Float
+  pourcentage_payout         Float?           @default(0) @db.Float
+  pourcentage_deposit_intern Float            @default(0) @db.Float
+  pourcentage_payout_intern  Float            @default(0) @db.Float
+  image                      String?          @db.Text
+  countryId                  String           @db.VarChar(36)
+  createdAt                  DateTime         @default(now()) @db.DateTime(0)
+  updatedAt                  DateTime         @default(now()) @db.DateTime(0)
+  country_provider           country_provider @relation(fields: [countryId], references: [id], onDelete: Cascade, map: "fk_network_country")
 
   @@index([countryId], map: "fk_network_country")
 }

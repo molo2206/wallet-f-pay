@@ -127,5 +127,20 @@
   "wallet.admin_pay_merchant_code_required": "Msimbo wa mfanyabiashara unahitajika",
   "wallet.admin_pay_payer_description": "Malipo ya msimamizi wa {{amount}} {{currency}} kwa mfanyabiashara {{merchantName}} (msimbo: {{merchantCode}})",
   "wallet.admin_pay_merchant_description": "Mapokezi ya msimamizi wa {{amount}} {{currency}} kutoka mteja {{payerName}} ({{payerPhone}})",
-  "wallet.transactions_retrieved": "Miamala imepatikana kwa mafanikio"
+  "wallet.transactions_retrieved": "Miamala imepatikana kwa mafanikio",
+
+  "wallet.phone_required": "Nambari ya simu ya mpokeaji inahitajika",
+  "wallet.transfer_international_success": "Uhamisho wa kimataifa umefanikiwa - {amount} {currency} zimepokelewa (ada: {feePercentage}%, {fee} {fromCurrency})",
+  "wallet.exchange_rate_not_found": "Kiwango cha ubadilishaji hakipatikani kwa {from} → {to}",
+  "wallet.country_code_required": "Msimbo wa nchi unahitajika",
+  "wallet.country_not_found": "Nchi haikupatikana",
+  "wallet.networks_retrieved": "Mitandao imepatikana kwa mafanikio",
+  "wallet.networks_retrieve_failed": "Imeshindwa kupata mitandao",
+  "wallet.no_wallet_found": "Hakuna pochi iliyopatikana kwa mtumiaji huyu",
+  "wallet.wallet_id_required": "Kitambulisho cha pochi kinahitajika",
+  "wallet.invalid_start_date": "Tarehe ya kuanza si sahihi",
+  "wallet.invalid_end_date": "Tarehe ya mwisho si sahihi",
+  "wallet.transactions_retrieve_failed": "Imeshindwa kupata miamala",
+  "wallet.missing_phone_for_payment": "Nambari ya simu inahitajika kwa malipo",
+  "wallet.account_or_provider_required": "Nambari ya akaunti ya benki au mtoa huduma wa mobile money inahitajika"
 }

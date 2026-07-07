@@ -127,5 +127,19 @@
   "wallet.admin_pay_merchant_code_required": "Le code marchand est requis",
   "wallet.admin_pay_payer_description": "Paiement admin de {{amount}} {{currency}} au commerçant {{merchantName}} (code: {{merchantCode}})",
   "wallet.admin_pay_merchant_description": "Réception admin de {{amount}} {{currency}} du client {{payerName}} ({{payerPhone}})",
-  "wallet.transactions_retrieved": "Transactions récupérées avec succès"
+  "wallet.transactions_retrieved": "Transactions récupérées avec succès",
+  "wallet.phone_required": "Le numéro de téléphone du destinataire est requis",
+  "wallet.transfer_international_success": "Transfert international réussi - {amount} {currency} reçus (frais: {feePercentage}%, {fee} {fromCurrency})",
+  "wallet.exchange_rate_not_found": "Taux de change non trouvé pour {from} → {to}",
+  "wallet.country_code_required": "Le code du pays est requis",
+  "wallet.country_not_found": "Pays non trouvé",
+  "wallet.networks_retrieved": "Réseaux récupérés avec succès",
+  "wallet.networks_retrieve_failed": "Échec de la récupération des réseaux",
+  "wallet.no_wallet_found": "Aucun portefeuille trouvé pour cet utilisateur",
+  "wallet.wallet_id_required": "L'ID du portefeuille est requis",
+  "wallet.invalid_start_date": "La date de début est invalide",
+  "wallet.invalid_end_date": "La date de fin est invalide",
+  "wallet.transactions_retrieve_failed": "Échec de la récupération des transactions",
+  "wallet.missing_phone_for_payment": "Le numéro de téléphone est requis pour le paiement",
+  "wallet.account_or_provider_required": "Un numéro de compte bancaire ou un fournisseur mobile money est requis"
 }

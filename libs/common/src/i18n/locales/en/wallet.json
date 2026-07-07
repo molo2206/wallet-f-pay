@@ -127,5 +127,19 @@
   "wallet.admin_pay_merchant_code_required": "Merchant code is required",
   "wallet.admin_pay_payer_description": "Admin payment of {{amount}} {{currency}} to merchant {{merchantName}} (code: {{merchantCode}})",
   "wallet.admin_pay_merchant_description": "Admin receipt of {{amount}} {{currency}} from customer {{payerName}} ({{payerPhone}})",
-  "wallet.transactions_retrieved": "Transactions retrieved successfully"
+  "wallet.transactions_retrieved": "Transactions retrieved successfully",
+  "wallet.phone_required": "Recipient phone number is required",
+  "wallet.transfer_international_success": "International transfer successful - {amount} {currency} received (fee: {feePercentage}%, {fee} {fromCurrency})",
+  "wallet.exchange_rate_not_found": "Exchange rate not found for {from} → {to}",
+  "wallet.country_code_required": "Country code is required",
+  "wallet.country_not_found": "Country not found",
+  "wallet.networks_retrieved": "Networks retrieved successfully",
+  "wallet.networks_retrieve_failed": "Failed to retrieve networks",
+  "wallet.no_wallet_found": "No wallet found for this user",
+  "wallet.wallet_id_required": "Wallet ID is required",
+  "wallet.invalid_start_date": "Invalid start date",
+  "wallet.invalid_end_date": "Invalid end date",
+  "wallet.transactions_retrieve_failed": "Failed to retrieve transactions",
+  "wallet.missing_phone_for_payment": "Phone number is required for payment",
+  "wallet.account_or_provider_required": "A bank account number or mobile money provider is required"
 }

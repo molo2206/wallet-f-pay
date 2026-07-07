@@ -127,5 +127,19 @@
     "wallet.admin_pay_merchant_code_required": "رمز التاجر مطلوب",
     "wallet.admin_pay_payer_description": "دفع إداري بمبلغ {{amount}} {{currency}} للتاجر {{merchantName}} (الرمز: {{merchantCode}})",
     "wallet.admin_pay_merchant_description": "استلام إداري بمبلغ {{amount}} {{currency}} من العميل {{payerName}} ({{payerPhone}})",
-    "wallet.transactions_retrieved": "تم استرجاع المعاملات بنجاح"
+    "wallet.transactions_retrieved": "تم استرجاع المعاملات بنجاح",
+    "wallet.phone_required": "رقم هاتف المستلم مطلوب",
+    "wallet.transfer_international_success": "تم التحويل الدولي بنجاح - استلام {amount} {currency} (الرسوم: {feePercentage}%، {fee} {fromCurrency})",
+    "wallet.exchange_rate_not_found": "سعر الصرف غير موجود لـ {from} → {to}",
+    "wallet.country_code_required": "رمز البلد مطلوب",
+    "wallet.country_not_found": "البلد غير موجود",
+    "wallet.networks_retrieved": "تم استرجاع الشبكات بنجاح",
+    "wallet.networks_retrieve_failed": "فشل استرجاع الشبكات",
+    "wallet.no_wallet_found": "لم يتم العثور على محفظة لهذا المستخدم",
+    "wallet.wallet_id_required": "معرف المحفظة مطلوب",
+    "wallet.invalid_start_date": "تاريخ البداية غير صالح",
+    "wallet.invalid_end_date": "تاريخ النهاية غير صالح",
+    "wallet.transactions_retrieve_failed": "فشل استرجاع المعاملات",
+    "wallet.missing_phone_for_payment": "رقم الهاتف مطلوب للدفع",
+    "wallet.account_or_provider_required": "مطلوب رقم حساب بنكي أو مزود خدمة الدفع عبر الهاتف المحمول"
 }

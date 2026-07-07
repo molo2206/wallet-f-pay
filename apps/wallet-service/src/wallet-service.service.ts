@@ -181,6 +181,38 @@ export class WalletServiceService {
     };
   }
 
+  /**
+   * Récupère les frais internationaux pour un pays donné
+   * Les frais sont configurés dans network_provider
+   */
+  private async getInternationalFeesByCountry(
+    countryCode: string,
+    tx?: any
+  ): Promise<{ depositFee: number; payoutFee: number }> {
+    // Récupérer le network provider du pays
+    const network = await (tx || this.prisma).network_provider.findFirst({
+      where: {
+        country_provider: {
+          countryCode: countryCode,
+        }
+      },
+      select: {
+        pourcentage_deposit_intern: true,
+        pourcentage_payout_intern: true,
+      },
+    });
+
+    if (!network) {
+      console.warn(`[WalletService] Aucun network provider trouvé pour le pays ${countryCode}, frais internationaux = 0`);
+      return { depositFee: 0, payoutFee: 0 };
+    }
+
+    return {
+      depositFee: network.pourcentage_deposit_intern || 0,
+      payoutFee: network.pourcentage_payout_intern || 0,
+    };
+  }
+
   private isNationalPhone(phone: string): boolean {
     // Supprime les espaces, tirets, etc.
     const clean = phone.replace(/[^0-9+]/g, '');
@@ -2721,9 +2753,54 @@ export class WalletServiceService {
       });
     }
 
+    if (!toPhone || toPhone.trim() === '') {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.phone_required', lang),
+        statusCode: 400,
+      });
+    }
+
+    const cleanToPhone = toPhone.replace(/[^0-9+]/g, '');
+    console.log('[WalletService] Clean phone:', cleanToPhone);
+
     const result = await this.prisma.$transaction(
       async (tx) => {
-        // 1. Récupérer le wallet source avec son utilisateur
+        // 1. Vérifier que le destinataire existe
+        const toUser = await tx.user.findFirst({
+          where: {
+            phone: {
+              in: [cleanToPhone, toPhone, `+${cleanToPhone.replace(/^\+/, '')}`]
+            }
+          },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            account_number: true,
+            countryCode: true,
+          },
+        });
+
+        if (!toUser) {
+          console.error('[WalletService] ❌ Destinataire non trouvé:', cleanToPhone);
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.receiver_not_found', lang, {
+              phone: toPhone,
+            }),
+            statusCode: 404,
+          });
+        }
+
+        console.log('[WalletService] ✅ Destinataire trouvé:', {
+          id: toUser.id,
+          name: toUser.full_name,
+          phone: toUser.phone,
+          countryCode: toUser.countryCode,
+        });
+
+        // 2. Récupérer le wallet source
         const fromWallet = await tx.wallet.findFirst({
           where: { id: fromWalletId },
           include: {
@@ -2736,6 +2813,7 @@ export class WalletServiceService {
                 pin: true,
                 status: true,
                 failed_pin_attempts: true,
+                countryCode: true,
               }
             }
           },
@@ -2772,6 +2850,14 @@ export class WalletServiceService {
             status: 'error',
             message: this.i18nService.translate('account_blocked_admin', lang),
             statusCode: 403,
+          });
+        }
+
+        if (fromUser.id === toUser.id) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.cannot_transfer_self', lang),
+            statusCode: 400,
           });
         }
 
@@ -2817,36 +2903,155 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0 },
         });
 
-        // 2. Récupérer le destinataire
-        const toUser = await tx.user.findFirst({
-          where: { phone: toPhone },
-          select: {
-            id: true,
-            full_name: true,
-            phone: true,
-            account_number: true,
-          },
+        // 3. Déterminer les pays
+        const senderCountryCode = fromUser.countryCode || 'CD';
+        const receiverCountryCode = toUser.countryCode || 'CD';
+        const isInternational = senderCountryCode !== receiverCountryCode;
+
+        console.log('[WalletService] Transfer type:', {
+          senderCountry: senderCountryCode,
+          receiverCountry: receiverCountryCode,
+          isInternational,
+          fromCurrency: fromWallet.currency,
         });
-        if (!toUser) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.receiver_not_found', lang),
-            statusCode: 404,
-          });
-        }
-        if (fromUser.id === toUser.id || fromUser.phone === toPhone) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.cannot_transfer_self', lang),
-            statusCode: 400,
-          });
+
+        // 4. Récupérer les frais internationaux dynamiques
+        let internationalFeePercentage = 0;
+        let fee = 0;
+        let debitAmount = amount;
+
+        if (isInternational) {
+          // Récupérer les frais internationaux depuis network_provider
+          const fees = await this.getInternationalFeesByCountry(senderCountryCode, tx);
+          internationalFeePercentage = fees.depositFee || 0;
+
+          if (internationalFeePercentage > 0) {
+            fee = (amount * internationalFeePercentage) / 100;
+            debitAmount = amount + fee;
+            console.log('[WalletService] Frais internationaux appliqués:', {
+              percentage: internationalFeePercentage,
+              fee,
+              debitAmount,
+            });
+          } else {
+            console.log('[WalletService] Aucun frais international configuré pour', senderCountryCode);
+          }
+        } else {
+          console.log('[WalletService] ✅ Même pays - Pas de frais');
+          internationalFeePercentage = 0;
+          fee = 0;
+          debitAmount = amount;
         }
 
-        // 3. Récupérer le wallet destination dans la MÊME DEVISE
+        console.log('[WalletService] Fee calculation:', {
+          isInternational,
+          amount,
+          feePercentage: internationalFeePercentage,
+          fee,
+          debitAmount,
+        });
+
+        // 5. Récupérer la devise du destinataire
+        let targetCurrency: string = fromWallet.currency;
+        let exchangeRate = 1;
+        let convertedAmount = amount;
+
+        if (isInternational) {
+          // Récupérer le pays du destinataire
+          const receiverCountry = await tx.country_provider.findFirst({
+            where: {
+              OR: [
+                { countryCode: receiverCountryCode },
+                { code: receiverCountryCode },
+              ]
+            },
+            include: {
+              country_currency: {
+                include: { currency: true },
+                where: { is_default: true },
+                take: 1,
+              }
+            },
+          });
+
+          // Déterminer la devise cible
+          if (receiverCountry?.country_currency && receiverCountry.country_currency.length > 0) {
+            const currencyCode = receiverCountry.country_currency[0].currency_code;
+            // Vérifier que la devise est supportée
+            const validCurrencies: string[] = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
+            if (validCurrencies.includes(currencyCode)) {
+              targetCurrency = currencyCode;
+            } else {
+              console.warn(`[WalletService] Devise ${currencyCode} non supportée, utilisation de ${fromWallet.currency}`);
+              targetCurrency = fromWallet.currency;
+            }
+          } else {
+            console.log('[WalletService] Aucune devise trouvée pour le pays, utilisation de la devise source');
+            targetCurrency = fromWallet.currency;
+          }
+
+          // Récupérer le taux de change
+          if (fromWallet.currency !== targetCurrency) {
+            // Chercher un taux direct
+            let rateRecord = await tx.exchange_rate.findFirst({
+              where: {
+                from_currency: fromWallet.currency,
+                to_currency: targetCurrency,
+              }
+            });
+
+            // Si pas de taux direct, passer par USD
+            if (!rateRecord) {
+              const fromToUsd = await tx.exchange_rate.findFirst({
+                where: {
+                  from_currency: fromWallet.currency,
+                  to_currency: 'USD',
+                }
+              });
+
+              const usdToTarget = await tx.exchange_rate.findFirst({
+                where: {
+                  from_currency: 'USD',
+                  to_currency: targetCurrency,
+                }
+              });
+
+              if (fromToUsd && usdToTarget) {
+                exchangeRate = fromToUsd.rate * usdToTarget.rate;
+              } else {
+                throw new RpcException({
+                  status: 'error',
+                  message: this.i18nService.translate('wallet.exchange_rate_not_found', lang, {
+                    from: fromWallet.currency,
+                    to: targetCurrency,
+                  }),
+                  statusCode: 404,
+                });
+              }
+            } else {
+              exchangeRate = rateRecord.rate;
+            }
+
+            convertedAmount = amount * exchangeRate;
+            console.log('[WalletService] Exchange rate:', {
+              from: fromWallet.currency,
+              to: targetCurrency,
+              rate: exchangeRate,
+              convertedAmount,
+            });
+          }
+        } else {
+          targetCurrency = fromWallet.currency;
+          exchangeRate = 1;
+          convertedAmount = amount;
+        }
+
+        // 6. Récupérer ou créer le wallet du destinataire
+        // ✅ Utiliser targetCurrency comme string pour la recherche
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
-            currency: fromWallet.currency,
+            currency: targetCurrency as any, // Cast car Prisma attend le type enum
             isActive: true,
           },
         });
@@ -2856,12 +3061,12 @@ export class WalletServiceService {
             data: {
               id: crypto.randomUUID(),
               userId: toUser.id,
-              currency: fromWallet.currency,
+              currency: targetCurrency as any, // Cast car Prisma attend le type enum
               balance: 0,
               isActive: true,
             },
           });
-          console.log(`[WalletService] 💰 Nouveau wallet créé en ${fromWallet.currency} pour l'utilisateur ${toUser.id}`);
+          console.log(`[WalletService] 💰 Nouveau wallet créé en ${targetCurrency} pour l'utilisateur ${toUser.id}`);
         }
 
         if (!toWallet.isActive) {
@@ -2872,8 +3077,7 @@ export class WalletServiceService {
           });
         }
 
-        // 4. Appliquer les frais internationaux si nécessaire
-        const { fee, debitAmount, creditAmount } = await this.applyInternationalFeeIfNeeded(toPhone, amount);
+        // 7. Vérifier le solde
         if (fromWallet.balance < debitAmount) {
           throw new RpcException({
             status: 'error',
@@ -2882,49 +3086,51 @@ export class WalletServiceService {
           });
         }
 
-        // 5. Mettre à jour les soldes
+        // 8. Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
         });
+
         const updatedTo = await tx.wallet.update({
           where: { id: toWallet.id },
-          data: { balance: { increment: creditAmount }, updatedAt: new Date() },
+          data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
 
-        // 6. Construire les descriptions
+        // 9. Construire les descriptions
         let senderDescription = description;
         let receiverDescription = description;
 
+        const toUserDisplay = toUser.full_name ? `${toUser.full_name} (${toUser.phone})` : toUser.phone;
+        const fromUserDisplay = fromUser.full_name ? `${fromUser.full_name} (${fromUser.phone})` : fromUser.phone;
+
         if (!senderDescription) {
-          const template = this.i18nService.translate('wallet.transaction_description_transfer_sent', lang);
-          senderDescription = template
-            .replace('{fullName}', toUser.full_name || '')
-            .replace('{phone}', toPhone);
+          senderDescription = `Transfert vers ${toUserDisplay}`;
         } else {
-          const recipientInfo = toUser.full_name ? `${toUser.full_name} (${toPhone})` : toPhone;
-          const toText = this.i18nService.translate('wallet.to', lang);
-          senderDescription = `${senderDescription} (${toText}: ${recipientInfo})`;
+          senderDescription = `${senderDescription} (vers: ${toUserDisplay})`;
         }
+
         if (fee > 0) {
-          senderDescription += ` (frais internationaux 1%: ${fee} ${fromWallet.currency})`;
+          senderDescription += ` (frais ${internationalFeePercentage}%: ${fee} ${fromWallet.currency})`;
+        }
+
+        if (isInternational) {
+          senderDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
         }
 
         if (!receiverDescription) {
-          const template = this.i18nService.translate('wallet.transaction_description_transfer_received', lang);
-          receiverDescription = template
-            .replace('{fullName}', fromUser.full_name || '')
-            .replace('{phone}', fromUser.phone || '');
+          receiverDescription = `Reçu de ${fromUserDisplay}`;
         } else {
-          const senderInfo = fromUser.full_name
-            ? `${fromUser.full_name} (${fromUser.phone})`
-            : fromUser.phone || fromUser.account_number;
-          const fromText = this.i18nService.translate('wallet.from', lang);
-          receiverDescription = `${receiverDescription} (${fromText}: ${senderInfo})`;
+          receiverDescription = `${description} (de: ${fromUserDisplay})`;
         }
 
-        // 7. Créer les transactions
-        const reference = await this.generateTransactionReference('USER', tx);
+        if (isInternational) {
+          receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
+        }
+
+        // 10. Créer les transactions
+        const reference = await this.generateTransactionReference('SEND', tx);
+
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2939,22 +3145,24 @@ export class WalletServiceService {
             currency: fromWallet.currency,
           },
         });
+
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
             userId: toUser.id,
             walletId: toWallet.id,
-            amount: creditAmount,
+            amount: convertedAmount,
             type: 'DEPOSIT',
             status: 'SUCCESS',
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
-            currency: toWallet.currency,
+            currency: targetCurrency,
           },
         });
 
         await this.logAudit(toUser.id, 'transfer', updatedTo, ipAddress || null);
+
         return {
           fromWallet: updatedFrom,
           toWallet: updatedTo,
@@ -2962,6 +3170,13 @@ export class WalletServiceService {
           toUser,
           senderTx,
           receiverTx,
+          isInternational,
+          exchangeRate,
+          convertedAmount,
+          targetCurrency,
+          fee,
+          internationalFeePercentage,
+          debitAmount,
         };
       },
       { timeout: 60000, maxWait: 60000 },
@@ -3007,15 +3222,27 @@ export class WalletServiceService {
       console.error('[Notifications] Send notification error:', err);
     }
 
-    // ✅ Format unifié : retourne le wallet source et la transaction
     return {
-      message: this.i18nService.translate('wallet.transfer_success', lang),
+      message: this.i18nService.translate(
+        result.isInternational ? 'wallet.transfer_international_success' : 'wallet.transfer_success',
+        lang,
+        {
+          amount: result.convertedAmount,
+          currency: result.targetCurrency,
+          rate: result.exchangeRate,
+          fee: result.fee,
+          feePercentage: result.internationalFeePercentage,
+          debitAmount: result.debitAmount,
+          fromCurrency: result.fromWallet.currency,
+        }
+      ),
       data: {
         wallet: this.toResponse(result.fromWallet),
         transaction: result.senderTx,
       },
     };
   }
+
   async pay(
     dto: PayDto,
     lang: string = 'fr',
@@ -3396,6 +3623,7 @@ export class WalletServiceService {
       },
     };
   }
+
   // ==================== ADMIN OPERATIONS (sans PIN) ====================
   async getMerchantByCode(
     merchantCode: string,
