@@ -141,5 +141,8 @@
     "wallet.invalid_end_date": "تاريخ النهاية غير صالح",
     "wallet.transactions_retrieve_failed": "فشل استرجاع المعاملات",
     "wallet.missing_phone_for_payment": "رقم الهاتف مطلوب للدفع",
-    "wallet.account_or_provider_required": "مطلوب رقم حساب بنكي أو مزود خدمة الدفع عبر الهاتف المحمول"
+    "wallet.account_or_provider_required": "مطلوب رقم حساب بنكي أو مزود خدمة الدفع عبر الهاتف المحمول",
+    "wallet.kyc_required_for_international_transfer": "يجب أن يكون لديك KYC موثق لإجراء التحويلات الدولية. يرجى تقديم مستنداتك.",
+    "wallet.kyc_pending_for_international_transfer": "طلب KYC الخاص بك قيد التحقق. يرجى الانتظار قبل إجراء التحويلات الدولية.",
+    "wallet.kyc_rejected_for_international_transfer": "تم رفض KYC الخاص بك. يرجى إعادة تقديم مستندات صالحة لإجراء التحويلات الدولية."
 }

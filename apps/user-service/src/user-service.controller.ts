@@ -426,6 +426,125 @@ export class UserServiceController {
     }
   }
 
+  // ==================== KYC MANAGEMENT ====================
+
+  @MessagePattern('submit_kyc')
+  async submitKyc(
+    @Payload()
+    data: {
+      userId: string;
+      documentType: string;
+      documentNumber: string;
+      documentFront: Express.Multer.File;
+      documentBack?: Express.Multer.File;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par submit_kyc :', lang);
+    try {
+      return await this.userService.submitKyc(
+        data.userId,
+        {
+          documentType: data.documentType,
+          documentNumber: data.documentNumber,
+          documentFront: data.documentFront,
+          documentBack: data.documentBack,
+        },
+        lang,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_kyc_status')
+  async getKycStatus(@Payload() data: { userId: string; lang?: string }) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par get_kyc_status :', lang);
+    try {
+      return await this.userService.getKycStatus(data.userId, lang);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_all_kyc_submissions')
+  async getAllKycSubmissions(
+    @Payload()
+    data: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      documentType?: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par get_all_kyc_submissions :', lang);
+    try {
+      return await this.userService.getAllKycSubmissions({
+        page: data.page || 1,
+        limit: data.limit || 10,
+        status: data.status,
+        documentType: data.documentType,
+        lang,
+      });
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('verify_kyc')
+  async verifyKyc(
+    @Payload()
+    data: {
+      kycId: string;
+      status: 'VERIFIED' | 'REJECTED';
+      adminNotes?: string;
+      rejectionReason?: string;
+      adminId: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par verify_kyc :', lang);
+    try {
+      return await this.userService.verifyKyc(
+        data.kycId,
+        {
+          status: data.status,
+          adminNotes: data.adminNotes,
+          rejectionReason: data.rejectionReason,
+        },
+        data.adminId,
+        lang,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('create_api_key')
   async createApiKey(@Payload() data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
     return this.userService.createApiKey(data);

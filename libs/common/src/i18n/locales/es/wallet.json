@@ -132,5 +132,8 @@
     "wallet.invalid_end_date": "Fecha de fin inválida",
     "wallet.transactions_retrieve_failed": "Error al recuperar las transacciones",
     "wallet.missing_phone_for_payment": "El número de teléfono es requerido para el pago",
-    "wallet.account_or_provider_required": "Se requiere un número de cuenta bancaria o un proveedor de dinero móvil"
+    "wallet.account_or_provider_required": "Se requiere un número de cuenta bancaria o un proveedor de dinero móvil",
+    "wallet.kyc_required_for_international_transfer": "Debe tener un KYC verificado para realizar transferencias internacionales. Por favor, envíe sus documentos.",
+    "wallet.kyc_pending_for_international_transfer": "Su solicitud KYC está siendo verificada. Por favor, espere antes de realizar transferencias internacionales.",
+    "wallet.kyc_rejected_for_international_transfer": "Su KYC ha sido rechazado. Por favor, envíe nuevamente documentos válidos para realizar transferencias internacionales."
 }

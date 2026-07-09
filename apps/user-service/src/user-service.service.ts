@@ -24,6 +24,8 @@ import { AssignMultipleResourcesDto } from './dto/assign-resource.dto';
 import { UpsertAppSettingsDto } from './dto/app-settings.dto';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
+import type { Multer } from 'multer';
+
 
 @Injectable()
 export class UserServiceService {
@@ -371,11 +373,11 @@ export class UserServiceService {
     lang: string = 'fr',
   ): Promise<{
     message: string;
-    data: UserResponseDto & { resources?: any[]; wallets?: any[] };
+    data: UserResponseDto & { resources?: any[]; wallets?: any[]; kyc?: any };
   }> {
     console.log(`[getUser] Langue utilisée : ${lang} pour l'utilisateur ${id}`);
 
-    // ✅ CHANGÉ: findUnique → findFirst
+    // ✅ Récupérer l'utilisateur avec les champs nécessaires
     const user = await this.prisma.user.findFirst({
       where: { id },
       select: {
@@ -397,6 +399,7 @@ export class UserServiceService {
         businessName: true,
         failed_login_attempts: true,
         locked_until: true,
+        kycStatus: true, // ✅ Ajout du statut KYC
       },
     });
 
@@ -443,6 +446,43 @@ export class UserServiceService {
       },
     });
 
+    // ✅ Récupération des informations KYC de l'utilisateur
+    const kycSubmission = await this.prisma.kyc_submission.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        documentType: true,
+        documentNumber: true,
+        documentFrontUrl: true,
+        documentBackUrl: true,
+        status: true,
+        submittedAt: true,
+        reviewedAt: true,
+        adminNotes: true,
+        rejectionReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // ✅ Formater les informations KYC
+    const kyc = {
+      status: user.kycStatus,
+      submission: kycSubmission ? {
+        id: kycSubmission.id,
+        documentType: kycSubmission.documentType || null,
+        documentNumber: kycSubmission.documentNumber || null,
+        documentFrontUrl: kycSubmission.documentFrontUrl || null,
+        documentBackUrl: kycSubmission.documentBackUrl || null,
+        status: kycSubmission.status,
+        submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
+        reviewedAt: kycSubmission.reviewedAt || null,
+        adminNotes: kycSubmission.adminNotes || null,
+        rejectionReason: kycSubmission.rejectionReason || null,
+      } : null,
+    };
+
     const userDto = this.toResponse(user);
 
     return {
@@ -451,6 +491,7 @@ export class UserServiceService {
         ...userDto,
         resources,
         wallets,
+        kyc, // ✅ Ajout des informations KYC
       },
     };
   }
@@ -1658,8 +1699,519 @@ export class UserServiceService {
     }
   }
 
- 
-  
+  // ========================= KYC MANAGEMENT =========================
+  /**
+   * Soumettre une demande KYC avec upload de fichiers
+   */
+  async submitKyc(
+    userId: string,
+    data: {
+      documentType: string;
+      documentNumber: string;
+      documentFront: Express.Multer.File;
+      documentBack?: Express.Multer.File;
+    },
+    lang: string = 'fr',
+  ): Promise<{ message: string; data: any }> {
+    console.log(`[submitKyc] Utilisateur ${userId} soumet une demande KYC`);
+
+    // 1. Vérifier que l'utilisateur existe
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('user_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // 2. Vérifier les types de documents autorisés
+    const allowedTypes = ['NATIONAL_ID', 'PASSPORT', 'DRIVING_LICENSE', 'RESIDENCE_PERMIT', 'VOTER_CARD', 'HEALTH_CARD', 'STUDENT_ID', 'PROFESSIONAL_ID', 'OTHER'];
+    if (!allowedTypes.includes(data.documentType)) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_invalid_document_type', lang, {
+          types: allowedTypes.join(', '),
+        }),
+        statusCode: 400,
+      });
+    }
+
+    // 3. Vérifier que le numéro de document est fourni
+    if (!data.documentNumber || data.documentNumber.trim() === '') {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_document_number_required', lang),
+        statusCode: 400,
+      });
+    }
+
+    // 4. Vérifier que le fichier recto est fourni
+    if (!data.documentFront) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_document_front_required', lang),
+        statusCode: 400,
+      });
+    }
+
+    // 5. Upload du fichier recto
+    let documentFrontUrl: string;
+    try {
+      const formData = new FormData();
+      const frontBuffer = Buffer.from(data.documentFront.buffer);
+      const frontBlob = new Blob([frontBuffer], {
+        type: data.documentFront.mimetype
+      });
+      formData.append('file', frontBlob, data.documentFront.originalname);
+
+      console.log('[KYC] Uploading front file:', {
+        fileName: data.documentFront.originalname,
+        size: data.documentFront.size,
+        mimetype: data.documentFront.mimetype
+      });
+
+      const response = await fetch('https://api-prod.favorhelp.com/api/v1/files/upload/kyc/single', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const responseText = await response.text();
+      console.log('[KYC] Upload response status:', response.status);
+      console.log('[KYC] Upload response body:', responseText);
+
+      if (!response.ok) {
+        console.error('[KYC] Upload error:', responseText);
+        throw new Error(`Upload recto failed: ${response.statusText}`);
+      }
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        throw new Error('Invalid JSON response from upload service');
+      }
+
+      // ✅ Récupérer l'URL depuis la structure de l'API
+      // La réponse est: { message: "...", data: "URL" }
+      documentFrontUrl = result.data || result.url || result.fileUrl;
+
+      if (!documentFrontUrl) {
+        throw new Error('No URL returned from upload service');
+      }
+
+      console.log('[KYC] ✅ Document front URL:', documentFrontUrl);
+    } catch (error) {
+      console.error('[KYC] ❌ Erreur upload recto:', error);
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_upload_front_failed', lang),
+        statusCode: 500,
+      });
+    }
+
+    // 6. Upload du fichier verso (optionnel)
+    let documentBackUrl: string | null = null;
+    if (data.documentBack) {
+      try {
+        const formData = new FormData();
+        const backBuffer = Buffer.from(data.documentBack.buffer);
+        const backBlob = new Blob([backBuffer], {
+          type: data.documentBack.mimetype
+        });
+        formData.append('file', backBlob, data.documentBack.originalname);
+
+        console.log('[KYC] Uploading back file:', {
+          fileName: data.documentBack.originalname,
+          size: data.documentBack.size,
+          mimetype: data.documentBack.mimetype
+        });
+
+        const response = await fetch('https://api-prod.favorhelp.com/api/v1/files/upload/kyc/single', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const responseText = await response.text();
+        console.log('[KYC] Upload back response status:', response.status);
+
+        if (!response.ok) {
+          console.error('[KYC] Upload back error:', responseText);
+          throw new Error(`Upload verso failed: ${response.statusText}`);
+        }
+
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch {
+          throw new Error('Invalid JSON response from upload service');
+        }
+
+        // ✅ Récupérer l'URL depuis la structure de l'API
+        documentBackUrl = result.data || result.url || result.fileUrl;
+
+        if (!documentBackUrl) {
+          throw new Error('No URL returned from upload service');
+        }
+
+        console.log('[KYC] ✅ Document back URL:', documentBackUrl);
+      } catch (error) {
+        console.error('[KYC] ❌ Erreur upload verso:', error);
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('kyc_upload_back_failed', lang),
+          statusCode: 500,
+        });
+      }
+    }
+
+    // 7. Vérifier si une soumission KYC existe déjà
+    const existingKyc = await this.prisma.kyc_submission.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingKyc) {
+      if (existingKyc.status === 'PENDING') {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('kyc_already_pending', lang),
+          statusCode: 400,
+        });
+      }
+      if (existingKyc.status === 'VERIFIED') {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('kyc_already_verified', lang),
+          statusCode: 400,
+        });
+      }
+    }
+
+    // 8. Créer la soumission KYC
+    const kyc = await this.prisma.kyc_submission.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId,
+        documentType: data.documentType,
+        documentNumber: data.documentNumber,
+        documentFrontUrl: documentFrontUrl,
+        documentBackUrl: documentBackUrl,
+        status: 'PENDING',
+        submittedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    // 9. Mettre à jour le statut KYC de l'utilisateur
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { kycStatus: 'PENDING' },
+    });
+
+    // 10. Audit
+    await this.logAudit(
+      userId,
+      'KYC_SUBMITTED',
+      {
+        kycId: kyc.id,
+        documentType: data.documentType,
+        documentNumber: data.documentNumber,
+        documentFrontUrl: documentFrontUrl,
+        documentBackUrl: documentBackUrl,
+      },
+      null,
+    );
+
+    return {
+      message: this.i18nService.translate('kyc_submitted_success', lang),
+      data: kyc,
+    };
+  }
+
+  async getKycStatus(
+    userId: string,
+    lang: string = 'fr',
+  ): Promise<{ message: string; data: any }> {
+    console.log(`[getKycStatus] Utilisateur ${userId}`);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        kycStatus: true,
+        full_name: true,
+        phone: true,
+        email: true,
+      },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('user_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // ✅ Utiliser select explicite avec tous les champs
+    const kyc = await this.prisma.kyc_submission.findFirst({
+      where: { userId },
+      select: {
+        id: true,
+        documentType: true,
+        documentNumber: true,
+        documentFrontUrl: true,
+        documentBackUrl: true,
+        status: true,
+        submittedAt: true,
+        reviewedAt: true,
+        adminNotes: true,
+        rejectionReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // ✅ Vérifier et formater les données KYC avec fallback
+    const submissionData = kyc ? {
+      id: kyc.id,
+      documentType: kyc.documentType || 'NATIONAL_ID',
+      documentNumber: kyc.documentNumber || null,
+      documentFrontUrl: kyc.documentFrontUrl || null,
+      documentBackUrl: kyc.documentBackUrl || null,
+      status: kyc.status,
+      submittedAt: kyc.submittedAt || kyc.createdAt,
+      reviewedAt: kyc.reviewedAt || null,
+      adminNotes: kyc.adminNotes || null,
+      rejectionReason: kyc.rejectionReason || null,
+    } : null;
+
+    return {
+      message: this.i18nService.translate('kyc_status_retrieved', lang),
+      data: {
+        status: user.kycStatus,
+        submission: submissionData,
+      },
+    };
+  }
+
+  /**
+   * Récupérer toutes les soumissions KYC (Admin)
+   */
+  async getAllKycSubmissions(
+    params: {
+      page: number;
+      limit: number;
+      status?: string;
+      documentType?: string;
+      lang?: string;
+    },
+  ): Promise<{ message: string; data: any }> {
+    const lang = params.lang || 'fr';
+    const { page = 1, limit = 10, status, documentType } = params;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (status) where.status = status;
+    if (documentType) where.documentType = documentType;
+
+    const [submissions, total] = await Promise.all([
+      this.prisma.kyc_submission.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          userId: true,
+          documentType: true,
+          documentNumber: true,
+          documentFrontUrl: true,
+          documentBackUrl: true,
+          documentUrl: true,
+          status: true,
+          adminNotes: true,
+          rejectionReason: true,
+          submittedAt: true,
+          reviewedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              full_name: true,
+              phone: true,
+              email: true,
+              account_number: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.kyc_submission.count({ where }),
+    ]);
+
+    // ✅ Formater les données
+    const formattedData = submissions.map((submission) => ({
+      ...submission,
+      documentType: submission.documentType || 'NATIONAL_ID',
+      documentNumber: submission.documentNumber || null,
+      documentFrontUrl: submission.documentFrontUrl || null,
+      documentBackUrl: submission.documentBackUrl || null,
+      rejectionReason: submission.rejectionReason || null,
+      submittedAt: submission.submittedAt || submission.createdAt,
+    }));
+
+    return {
+      message: this.i18nService.translate('kyc_submissions_retrieved', lang),
+      data: {
+        data: formattedData,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async verifyKyc(
+    kycId: string,
+    data: {
+      status: 'VERIFIED' | 'REJECTED';
+      adminNotes?: string;
+      rejectionReason?: string;
+    },
+    adminId: string,
+    lang: string = 'fr',
+  ): Promise<{ message: string; data: any }> {
+    console.log(`[verifyKyc] Admin ${adminId} vérifie KYC ${kycId}`);
+
+    // 1. Vérifier que la soumission existe
+    const kyc = await this.prisma.kyc_submission.findUnique({
+      where: { id: kycId },
+      include: { user: true },
+    });
+
+    if (!kyc) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // 2. Vérifier que le statut est valide
+    if (!['VERIFIED', 'REJECTED'].includes(data.status)) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_invalid_status', lang),
+        statusCode: 400,
+      });
+    }
+
+    // 3. Vérifier que la soumission est en attente
+    if (kyc.status !== 'PENDING') {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_not_pending', lang, {
+          status: kyc.status,
+        }),
+        statusCode: 400,
+      });
+    }
+
+    // 4. Mettre à jour la soumission
+    const updatedKyc = await this.prisma.kyc_submission.update({
+      where: { id: kycId },
+      data: {
+        status: data.status,
+        adminNotes: data.adminNotes || null,
+        rejectionReason: data.status === 'REJECTED' ? (data.rejectionReason || 'Document non conforme') : null,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    // 5. Mettre à jour le statut KYC de l'utilisateur
+    const userKycStatus = data.status === 'VERIFIED' ? 'VERIFIED' : 'REJECTED';
+    await this.prisma.user.update({
+      where: { id: kyc.userId },
+      data: { kycStatus: userKycStatus },
+    });
+
+    // 6. Audit
+    await this.logAudit(
+      adminId,
+      `KYC_${data.status}`,
+      {
+        kycId,
+        userId: kyc.userId,
+        adminNotes: data.adminNotes,
+        rejectionReason: data.rejectionReason,
+      },
+      null,
+    );
+
+    // 7. Notification par SMS
+    if (kyc.user.phone) {
+      try {
+        const cleanPhone = kyc.user.phone.replace(/[^0-9+]/g, '');
+        const smsText = data.status === 'VERIFIED'
+          ? this.i18nService.translate('kyc_verified_sms', lang, {
+            full_name: kyc.user.full_name || '',
+          })
+          : this.i18nService.translate('kyc_rejected_sms', lang, {
+            full_name: kyc.user.full_name || '',
+            reason: data.rejectionReason || 'Document non conforme',
+          });
+        await this.smsService.sendSms(cleanPhone, smsText);
+      } catch (err) {
+        console.error('[KYC] Erreur envoi SMS:', err);
+      }
+    }
+
+    // 8. Email de notification
+    if (kyc.user.email) {
+      try {
+        const emailData = {
+          title: data.status === 'VERIFIED'
+            ? this.i18nService.translate('kyc_verified_email_title', lang)
+            : this.i18nService.translate('kyc_rejected_email_title', lang),
+          greeting: this.i18nService.translate('kyc_email_greeting', lang, {
+            name: kyc.user.full_name || '',
+          }),
+          message: data.status === 'VERIFIED'
+            ? this.i18nService.translate('kyc_verified_email_message', lang)
+            : this.i18nService.translate('kyc_rejected_email_message', lang, {
+              reason: data.rejectionReason || 'Document non conforme',
+            }),
+          footer: this.i18nService.translate('kyc_email_footer', lang),
+          copyright: `© ${new Date().getFullYear()} F-Pay`,
+          email: kyc.user.email,
+        };
+        await this.mailService.sendHtmlEmail(
+          kyc.user.email,
+          emailData.title,
+          'kyc-status.html',
+          emailData,
+        );
+      } catch (err) {
+        console.error('[KYC] Erreur envoi email:', err);
+      }
+    }
+
+    return {
+      message: this.i18nService.translate(
+        data.status === 'VERIFIED' ? 'kyc_verified_success' : 'kyc_rejected_success',
+        lang,
+      ),
+      data: updatedKyc,
+    };
+  }
+
   async createApiKey(data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
     // Vérifier que l'utilisateur existe
     const user = await this.prisma.user.findUnique({ where: { id: data.userId } });

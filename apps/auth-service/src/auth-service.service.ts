@@ -433,7 +433,7 @@ export class AuthServiceService {
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
-  ): Promise<AuthResponseDto & { wallets?: any[] }> {
+  ): Promise<AuthResponseDto & { wallets?: any[]; kyc?: any }> {
     const lang = dto.lang || 'fr';
     const identifier = dto.identifier;
 
@@ -512,8 +512,6 @@ export class AuthServiceService {
         let newStatus: user_status = user.status;
 
         if (newAttempts >= 5) {
-          // lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-          // newStatus = user_status.BLOCKED;
           lockedUntil = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
           newStatus = user_status.BLOCKED;
         }
@@ -586,6 +584,43 @@ export class AuthServiceService {
         },
       });
 
+      // ✅ Récupération des informations KYC de l'utilisateur
+      const kycSubmission = await this.prisma.kyc_submission.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          documentType: true,
+          documentNumber: true,
+          documentFrontUrl: true,
+          documentBackUrl: true,
+          status: true,
+          submittedAt: true,
+          reviewedAt: true,
+          adminNotes: true,
+          rejectionReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // ✅ Formater les informations KYC
+      const kyc = {
+        status: user.kycStatus,
+        submission: kycSubmission ? {
+          id: kycSubmission.id,
+          documentType: kycSubmission.documentType || null,
+          documentNumber: kycSubmission.documentNumber || null,
+          documentFrontUrl: kycSubmission.documentFrontUrl || null,
+          documentBackUrl: kycSubmission.documentBackUrl || null,
+          status: kycSubmission.status,
+          submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
+          reviewedAt: kycSubmission.reviewedAt || null,
+          adminNotes: kycSubmission.adminNotes || null,
+          rejectionReason: kycSubmission.rejectionReason || null,
+        } : null,
+      };
+
       // Gestion deviceId
       let deviceId = dto.fcmToken;
       if (!deviceId) {
@@ -656,8 +691,14 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ Retour avec les wallets
-      return { ...result, sessionId, resources, wallets };
+      // ✅ Retour avec les wallets et les informations KYC
+      return {
+        ...result,
+        sessionId,
+        resources,
+        wallets,
+        kyc, // ✅ Ajout des informations KYC
+      };
     } catch (error) {
       if (
         error instanceof RpcException ||

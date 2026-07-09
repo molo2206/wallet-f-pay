@@ -62,7 +62,8 @@ import { ExchangeRateDto } from 'apps/wallet-service/src/dto/currency-convert.dt
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { PermissionsApi_Key } from './permissions/decorator';
 import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
-
+import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { UploadedFile, UploadedFiles } from '@nestjs/common';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
@@ -3025,6 +3026,219 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
     return response;
+  }
+
+  // ==================== KYC ENDPOINTS ====================
+
+  /**
+   * Soumettre une demande KYC avec upload de fichiers
+   */
+  @Post('users/kyc/submit')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'documentFront', maxCount: 1 },
+      { name: 'documentBack', maxCount: 1 },
+    ])
+  )
+  async submitKyc(
+    @CurrentUser() currentUser: any,
+    @UploadedFiles() files: {
+      documentFront?: Express.Multer.File[];
+      documentBack?: Express.Multer.File[];
+    },
+    @Body() body: {
+      documentType: string;
+      documentNumber: string;
+    },
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    console.log('[submitKyc] Body:', body);
+    console.log('[submitKyc] Files:', files);
+
+    if (!body.documentType) {
+      throw new HttpException(
+        this.i18nService.translate('kyc_document_type_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.documentNumber) {
+      throw new HttpException(
+        this.i18nService.translate('kyc_document_number_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const documentFront = files.documentFront?.[0] || null;
+    const documentBack = files.documentBack?.[0] || null;
+
+    if (!documentFront) {
+      throw new HttpException(
+        this.i18nService.translate('kyc_document_front_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return this.sendUserMessage(
+      'submit_kyc',
+      {
+        userId: currentUser.id,
+        documentType: body.documentType,
+        documentNumber: body.documentNumber,
+        documentFront: documentFront,
+        documentBack: documentBack,
+        lang,
+      },
+      this.i18nService.translate('kyc_submit_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  /**
+   * Récupérer le statut KYC de l'utilisateur connecté
+   */
+  @Get('users/me/kyc/status')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getMyKycStatus(
+    @CurrentUser() currentUser: any,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    return this.sendUserMessage(
+      'get_kyc_status',
+      { userId: currentUser.id, lang },
+      this.i18nService.translate('kyc_status_error', lang),
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  /**
+   * Récupérer le statut KYC d'un utilisateur (Admin)
+   */
+  @Get('admin/users/:userId/kyc/status')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getUserKycStatus(
+    @CurrentUser() currentUser: any,
+    @Param('userId') userId: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+    return this.sendUserMessage(
+      'get_kyc_status',
+      { userId, lang },
+      this.i18nService.translate('kyc_status_error', lang),
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  /**
+   * Lister toutes les soumissions KYC (Admin)
+   */
+  @Get('admin/kyc/submissions')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getAllKycSubmissions(
+    @CurrentUser() currentUser: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('documentType') documentType?: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+
+    return this.sendUserMessage(
+      'get_all_kyc_submissions',
+      {
+        page: pageNum,
+        limit: limitNum,
+        status,
+        documentType,
+        lang,
+      },
+      this.i18nService.translate('kyc_submissions_error', lang),
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  /**
+   * Vérifier une soumission KYC (Admin)
+   */
+  @Patch('admin/kyc/verify/:kycId')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async verifyKyc(
+    @CurrentUser() currentUser: any,
+    @Param('kycId') kycId: string,
+    @Body() body: {
+      status: 'VERIFIED' | 'REJECTED';
+      adminNotes?: string;
+      rejectionReason?: string;
+    },
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+
+    if (!kycId) {
+      throw new HttpException(
+        this.i18nService.translate('kyc_id_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.status || !['VERIFIED', 'REJECTED'].includes(body.status)) {
+      throw new HttpException(
+        this.i18nService.translate('kyc_invalid_status', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return this.sendUserMessage(
+      'verify_kyc',
+      {
+        kycId,
+        status: body.status,
+        adminNotes: body.adminNotes,
+        rejectionReason: body.rejectionReason,
+        adminId: currentUser.id,
+        lang,
+      },
+      this.i18nService.translate('kyc_verify_error', lang),
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  /**
+   * Statistiques KYC (Admin)
+   */
+  @Get('admin/kyc/stats')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getKycStats(
+    @CurrentUser() currentUser: any,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+    return this.sendUserMessage(
+      'get_kyc_stats',
+      { lang },
+      this.i18nService.translate('kyc_stats_error', lang),
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
   }
   //=====================================================================================================================
   private handleRpcError(

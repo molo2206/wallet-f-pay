@@ -2814,6 +2814,7 @@ export class WalletServiceService {
                 status: true,
                 failed_pin_attempts: true,
                 countryCode: true,
+                kycStatus: true, // ✅ Ajout du statut KYC
               }
             }
           },
@@ -2861,6 +2862,61 @@ export class WalletServiceService {
           });
         }
 
+        // 3. Déterminer les pays
+        const senderCountryCode = fromUser.countryCode || 'CD';
+        let receiverCountryCode = toUser.countryCode || 'CD';
+
+        if (countryCode) {
+          receiverCountryCode = countryCode.toUpperCase();
+          console.log('[WalletService] 📌 CountryCode fourni par le client:', countryCode);
+        }
+
+        const isInternational = senderCountryCode !== receiverCountryCode;
+
+        console.log('[WalletService] Transfer type:', {
+          senderCountry: senderCountryCode,
+          receiverCountry: receiverCountryCode,
+          isInternational,
+          fromCurrency: fromWallet.currency,
+          countryCodeProvided: countryCode || 'Non fourni',
+        });
+
+        // ✅ VÉRIFICATION KYC POUR LES TRANSFERTS INTERNATIONAUX
+        if (isInternational) {
+          // Vérifier si l'utilisateur a un KYC vérifié
+          const kycStatus = fromUser.kycStatus || 'NOT_SUBMITTED';
+
+          if (kycStatus !== 'VERIFIED') {
+            console.error('[WalletService] ❌ KYC non vérifié pour transfert international:', {
+              userId: fromUser.id,
+              kycStatus: kycStatus,
+            });
+
+            let errorMessage = '';
+            switch (kycStatus) {
+              case 'NOT_SUBMITTED':
+                errorMessage = this.i18nService.translate('wallet.kyc_required_for_international_transfer', lang);
+                break;
+              case 'PENDING':
+                errorMessage = this.i18nService.translate('wallet.kyc_pending_for_international_transfer', lang);
+                break;
+              case 'REJECTED':
+                errorMessage = this.i18nService.translate('wallet.kyc_rejected_for_international_transfer', lang);
+                break;
+              default:
+                errorMessage = this.i18nService.translate('wallet.kyc_required_for_international_transfer', lang);
+            }
+
+            throw new RpcException({
+              status: 'error',
+              message: errorMessage,
+              statusCode: 403,
+            });
+          }
+
+          console.log('[WalletService] ✅ KYC vérifié pour transfert international');
+        }
+
         // Vérifier le PIN
         if (!fromUser.pin) {
           throw new RpcException({
@@ -2903,35 +2959,12 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0 },
         });
 
-        // 3. Déterminer les pays
-        // ✅ Utiliser le countryCode envoyé par le client pour le destinataire
-        // Si le client a envoyé un countryCode, on l'utilise, sinon on prend celui du destinataire en base
-        const senderCountryCode = fromUser.countryCode || 'CD';
-        let receiverCountryCode = toUser.countryCode || 'CD';
-
-        // ✅ Si le client a spécifié un countryCode, on l'utilise pour le destinataire
-        if (countryCode) {
-          receiverCountryCode = countryCode.toUpperCase();
-          console.log('[WalletService] 📌 CountryCode fourni par le client:', countryCode);
-        }
-
-        const isInternational = senderCountryCode !== receiverCountryCode;
-
-        console.log('[WalletService] Transfer type:', {
-          senderCountry: senderCountryCode,
-          receiverCountry: receiverCountryCode,
-          isInternational,
-          fromCurrency: fromWallet.currency,
-          countryCodeProvided: countryCode || 'Non fourni',
-        });
-
         // 4. Récupérer les frais internationaux dynamiques
         let internationalFeePercentage = 0;
         let fee = 0;
         let debitAmount = amount;
 
         if (isInternational) {
-          // Récupérer les frais internationaux depuis network_provider
           const fees = await this.getInternationalFeesByCountry(senderCountryCode, tx);
           internationalFeePercentage = fees.depositFee || 0;
 
@@ -2967,7 +3000,6 @@ export class WalletServiceService {
         let convertedAmount = amount;
 
         if (isInternational) {
-          // Récupérer le pays du destinataire (avec le countryCode fourni ou celui de la base)
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -2984,10 +3016,8 @@ export class WalletServiceService {
             },
           });
 
-          // Déterminer la devise cible
           if (receiverCountry?.country_currency && receiverCountry.country_currency.length > 0) {
             const currencyCode = receiverCountry.country_currency[0].currency_code;
-            // Vérifier que la devise est supportée
             const validCurrencies: string[] = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
             if (validCurrencies.includes(currencyCode)) {
               targetCurrency = currencyCode;
@@ -3000,9 +3030,7 @@ export class WalletServiceService {
             targetCurrency = fromWallet.currency;
           }
 
-          // Récupérer le taux de change
           if (fromWallet.currency !== targetCurrency) {
-            // Chercher un taux direct
             let rateRecord = await tx.exchange_rate.findFirst({
               where: {
                 from_currency: fromWallet.currency,
@@ -3010,7 +3038,6 @@ export class WalletServiceService {
               }
             });
 
-            // Si pas de taux direct, passer par USD
             if (!rateRecord) {
               const fromToUsd = await tx.exchange_rate.findFirst({
                 where: {
