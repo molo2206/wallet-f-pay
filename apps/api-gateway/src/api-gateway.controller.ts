@@ -3035,28 +3035,17 @@ export class ApiGatewayController {
    */
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
-  @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'documentFront', maxCount: 1 },
-      { name: 'documentBack', maxCount: 1 },
-    ])
-  )
   async submitKyc(
     @CurrentUser() currentUser: any,
-    @UploadedFiles() files: {
-      documentFront?: Express.Multer.File[];
-      documentBack?: Express.Multer.File[];
-    },
     @Body() body: {
       documentType: string;
       documentNumber: string;
+      documentFrontUrl: string;
+      documentBackUrl?: string;
     },
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-
-    console.log('[submitKyc] Body:', body);
-    console.log('[submitKyc] Files:', files);
 
     if (!body.documentType) {
       throw new HttpException(
@@ -3072,10 +3061,7 @@ export class ApiGatewayController {
       );
     }
 
-    const documentFront = files.documentFront?.[0] || null;
-    const documentBack = files.documentBack?.[0] || null;
-
-    if (!documentFront) {
+    if (!body.documentFrontUrl) {
       throw new HttpException(
         this.i18nService.translate('kyc_document_front_required', lang),
         HttpStatus.BAD_REQUEST,
@@ -3088,8 +3074,8 @@ export class ApiGatewayController {
         userId: currentUser.id,
         documentType: body.documentType,
         documentNumber: body.documentNumber,
-        documentFront: documentFront,
-        documentBack: documentBack,
+        documentFrontUrl: body.documentFrontUrl,
+        documentBackUrl: body.documentBackUrl || null,
         lang,
       },
       this.i18nService.translate('kyc_submit_failed', lang),

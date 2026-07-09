@@ -435,8 +435,8 @@ export class UserServiceController {
       userId: string;
       documentType: string;
       documentNumber: string;
-      documentFront: Express.Multer.File;
-      documentBack?: Express.Multer.File;
+      documentFrontUrl: string;  // ✅ URL du fichier
+      documentBackUrl?: string;  // ✅ URL du fichier (optionnel)
       lang?: string;
     },
   ) {
@@ -448,8 +448,8 @@ export class UserServiceController {
         {
           documentType: data.documentType,
           documentNumber: data.documentNumber,
-          documentFront: data.documentFront,
-          documentBack: data.documentBack,
+          documentFrontUrl: data.documentFrontUrl,
+          documentBackUrl: data.documentBackUrl,
         },
         lang,
       );
