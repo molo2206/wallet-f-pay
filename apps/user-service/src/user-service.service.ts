@@ -1715,131 +1715,86 @@ export class UserServiceService {
   ): Promise<{ message: string; data: any }> {
     console.log(`[submitKyc] Utilisateur ${userId} soumet une demande KYC`);
 
-    // 1. Vérifier que l'utilisateur existe
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!user) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('user_not_found', lang),
-        statusCode: 404,
-      });
-    }
-
-    // 2. Vérifier les types de documents autorisés
-    const allowedTypes = ['NATIONAL_ID', 'PASSPORT', 'DRIVING_LICENSE', 'RESIDENCE_PERMIT', 'VOTER_CARD', 'HEALTH_CARD', 'STUDENT_ID', 'PROFESSIONAL_ID', 'OTHER'];
-    if (!allowedTypes.includes(data.documentType)) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('kyc_invalid_document_type', lang, {
-          types: allowedTypes.join(', '),
-        }),
-        statusCode: 400,
-      });
-    }
-
-    // 3. Vérifier que le numéro de document est fourni
-    if (!data.documentNumber || data.documentNumber.trim() === '') {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('kyc_document_number_required', lang),
-        statusCode: 400,
-      });
-    }
-
-    // 4. Vérifier que le fichier recto est fourni
-    if (!data.documentFront) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('kyc_document_front_required', lang),
-        statusCode: 400,
-      });
-    }
-
-    // 5. Upload du fichier recto
-    let documentFrontUrl: string;
     try {
-      const formData = new FormData();
-      const frontBuffer = Buffer.from(data.documentFront.buffer);
-      const frontBlob = new Blob([frontBuffer], {
-        type: data.documentFront.mimetype
+      // 1. Vérifier que l'utilisateur existe
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
       });
-      formData.append('file', frontBlob, data.documentFront.originalname);
-
-      console.log('[KYC] Uploading front file:', {
-        fileName: data.documentFront.originalname,
-        size: data.documentFront.size,
-        mimetype: data.documentFront.mimetype
-      });
-
-      const response = await fetch('https://api-prod.favorhelp.com/api/v1/files/upload/kyc/single', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const responseText = await response.text();
-      console.log('[KYC] Upload response status:', response.status);
-      console.log('[KYC] Upload response body:', responseText);
-
-      if (!response.ok) {
-        console.error('[KYC] Upload error:', responseText);
-        throw new Error(`Upload recto failed: ${response.statusText}`);
+      if (!user) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('user_not_found', lang),
+          statusCode: 404,
+        });
       }
 
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        throw new Error('Invalid JSON response from upload service');
+      // 2. Vérifier les types de documents autorisés
+      const allowedTypes = ['NATIONAL_ID', 'PASSPORT', 'DRIVING_LICENSE', 'RESIDENCE_PERMIT', 'VOTER_CARD', 'HEALTH_CARD', 'STUDENT_ID', 'PROFESSIONAL_ID', 'OTHER'];
+      if (!allowedTypes.includes(data.documentType)) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('kyc_invalid_document_type', lang, {
+            types: allowedTypes.join(', '),
+          }),
+          statusCode: 400,
+        });
       }
 
-      // ✅ Récupérer l'URL depuis la structure de l'API
-      // La réponse est: { message: "...", data: "URL" }
-      documentFrontUrl = result.data || result.url || result.fileUrl;
-
-      if (!documentFrontUrl) {
-        throw new Error('No URL returned from upload service');
+      // 3. Vérifier que le numéro de document est fourni
+      if (!data.documentNumber || data.documentNumber.trim() === '') {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('kyc_document_number_required', lang),
+          statusCode: 400,
+        });
       }
 
-      console.log('[KYC] ✅ Document front URL:', documentFrontUrl);
-    } catch (error) {
-      console.error('[KYC] ❌ Erreur upload recto:', error);
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('kyc_upload_front_failed', lang),
-        statusCode: 500,
-      });
-    }
+      // 4. Vérifier que le fichier recto est fourni
+      if (!data.documentFront) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('kyc_document_front_required', lang),
+          statusCode: 400,
+        });
+      }
 
-    // 6. Upload du fichier verso (optionnel)
-    let documentBackUrl: string | null = null;
-    if (data.documentBack) {
+      // 5. Upload du fichier recto
+      let documentFrontUrl: string;
       try {
         const formData = new FormData();
-        const backBuffer = Buffer.from(data.documentBack.buffer);
-        const backBlob = new Blob([backBuffer], {
-          type: data.documentBack.mimetype
+        const frontBuffer = Buffer.from(data.documentFront.buffer);
+        const frontBlob = new Blob([frontBuffer], {
+          type: data.documentFront.mimetype
         });
-        formData.append('file', backBlob, data.documentBack.originalname);
+        formData.append('file', frontBlob, data.documentFront.originalname);
 
-        console.log('[KYC] Uploading back file:', {
-          fileName: data.documentBack.originalname,
-          size: data.documentBack.size,
-          mimetype: data.documentBack.mimetype
+        console.log('[KYC] Uploading front file:', {
+          fileName: data.documentFront.originalname,
+          size: data.documentFront.size,
+          mimetype: data.documentFront.mimetype
         });
 
-        const response = await fetch('https://api-prod.favorhelp.com/api/v1/files/upload/kyc/single', {
+        const uploadUrl = process.env.FILE_SERVICE_URL || 'https://api-prod.favorhelp.com/api/v1/files/upload';
+        const response = await fetch(`${uploadUrl}/kyc/single`, {
           method: 'POST',
           body: formData,
+          signal: AbortSignal.timeout(30000), // 30 secondes timeout
         });
 
         const responseText = await response.text();
-        console.log('[KYC] Upload back response status:', response.status);
+        console.log('[KYC] Upload response status:', response.status);
+        console.log('[KYC] Upload response body:', responseText);
 
         if (!response.ok) {
-          console.error('[KYC] Upload back error:', responseText);
-          throw new Error(`Upload verso failed: ${response.statusText}`);
+          // ✅ Gestion spécifique des erreurs HTTP
+          let errorMessage = `Upload failed: ${response.status}`;
+          try {
+            const errorJson = JSON.parse(responseText);
+            errorMessage = errorJson.message || errorJson.error || errorMessage;
+          } catch {
+            errorMessage = responseText || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
 
         let result;
@@ -1849,87 +1804,228 @@ export class UserServiceService {
           throw new Error('Invalid JSON response from upload service');
         }
 
-        // ✅ Récupérer l'URL depuis la structure de l'API
-        documentBackUrl = result.data || result.url || result.fileUrl;
+        documentFrontUrl = result.data || result.url || result.fileUrl;
 
-        if (!documentBackUrl) {
+        if (!documentFrontUrl) {
           throw new Error('No URL returned from upload service');
         }
 
-        console.log('[KYC] ✅ Document back URL:', documentBackUrl);
+        console.log('[KYC] ✅ Document front URL:', documentFrontUrl);
       } catch (error) {
-        console.error('[KYC] ❌ Erreur upload verso:', error);
+        console.error('[KYC] ❌ Erreur upload recto:', error);
+
+        // ✅ Gestion spécifique des erreurs de réseau
+        if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('kyc_upload_timeout', lang),
+            statusCode: 504, // Gateway Timeout
+          });
+        }
+
+        // ✅ Gestion des erreurs de connexion
+        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('kyc_upload_service_unavailable', lang),
+            statusCode: 503, // Service Unavailable
+          });
+        }
+
+        // ✅ Gestion des autres erreurs
         throw new RpcException({
           status: 'error',
-          message: this.i18nService.translate('kyc_upload_back_failed', lang),
+          message: error.message || this.i18nService.translate('kyc_upload_front_failed', lang),
           statusCode: 500,
         });
       }
-    }
 
-    // 7. Vérifier si une soumission KYC existe déjà
-    const existingKyc = await this.prisma.kyc_submission.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+      // 6. Upload du fichier verso (optionnel)
+      let documentBackUrl: string | null = null;
+      if (data.documentBack) {
+        try {
+          const formData = new FormData();
+          const backBuffer = Buffer.from(data.documentBack.buffer);
+          const backBlob = new Blob([backBuffer], {
+            type: data.documentBack.mimetype
+          });
+          formData.append('file', backBlob, data.documentBack.originalname);
 
-    if (existingKyc) {
-      if (existingKyc.status === 'PENDING') {
+          console.log('[KYC] Uploading back file:', {
+            fileName: data.documentBack.originalname,
+            size: data.documentBack.size,
+            mimetype: data.documentBack.mimetype
+          });
+
+          const uploadUrl = process.env.FILE_SERVICE_URL || 'https://api-prod.favorhelp.com/api/v1/files/upload';
+          const response = await fetch(`${uploadUrl}/kyc/single`, {
+            method: 'POST',
+            body: formData,
+            signal: AbortSignal.timeout(30000),
+          });
+
+          const responseText = await response.text();
+          console.log('[KYC] Upload back response status:', response.status);
+
+          if (!response.ok) {
+            let errorMessage = `Upload failed: ${response.status}`;
+            try {
+              const errorJson = JSON.parse(responseText);
+              errorMessage = errorJson.message || errorJson.error || errorMessage;
+            } catch {
+              errorMessage = responseText || errorMessage;
+            }
+            throw new Error(errorMessage);
+          }
+
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch {
+            throw new Error('Invalid JSON response from upload service');
+          }
+
+          documentBackUrl = result.data || result.url || result.fileUrl;
+
+          if (!documentBackUrl) {
+            throw new Error('No URL returned from upload service');
+          }
+
+          console.log('[KYC] ✅ Document back URL:', documentBackUrl);
+        } catch (error) {
+          console.error('[KYC] ❌ Erreur upload verso:', error);
+
+          if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+            throw new RpcException({
+              status: 'error',
+              message: this.i18nService.translate('kyc_upload_timeout', lang),
+              statusCode: 504,
+            });
+          }
+
+          if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+            throw new RpcException({
+              status: 'error',
+              message: this.i18nService.translate('kyc_upload_service_unavailable', lang),
+              statusCode: 503,
+            });
+          }
+
+          throw new RpcException({
+            status: 'error',
+            message: error.message || this.i18nService.translate('kyc_upload_back_failed', lang),
+            statusCode: 500,
+          });
+        }
+      }
+
+      // 7. Vérifier si une soumission KYC existe déjà
+      try {
+        const existingKyc = await this.prisma.kyc_submission.findFirst({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (existingKyc) {
+          if (existingKyc.status === 'PENDING') {
+            throw new RpcException({
+              status: 'error',
+              message: this.i18nService.translate('kyc_already_pending', lang),
+              statusCode: 400,
+            });
+          }
+          if (existingKyc.status === 'VERIFIED') {
+            throw new RpcException({
+              status: 'error',
+              message: this.i18nService.translate('kyc_already_verified', lang),
+              statusCode: 400,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[KYC] ❌ Erreur vérification KYC existant:', error);
         throw new RpcException({
           status: 'error',
-          message: this.i18nService.translate('kyc_already_pending', lang),
-          statusCode: 400,
+          message: error.message || this.i18nService.translate('kyc_check_error', lang),
+          statusCode: 500,
         });
       }
-      if (existingKyc.status === 'VERIFIED') {
+
+      // 8. Créer la soumission KYC
+      let kyc;
+      try {
+        kyc = await this.prisma.kyc_submission.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId,
+            documentType: data.documentType,
+            documentNumber: data.documentNumber,
+            documentFrontUrl: documentFrontUrl,
+            documentBackUrl: documentBackUrl,
+            status: 'PENDING',
+            submittedAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+      } catch (error) {
+        console.error('[KYC] ❌ Erreur création KYC:', error);
         throw new RpcException({
           status: 'error',
-          message: this.i18nService.translate('kyc_already_verified', lang),
-          statusCode: 400,
+          message: this.i18nService.translate('kyc_create_error', lang),
+          statusCode: 500,
         });
       }
+
+      // 9. Mettre à jour le statut KYC de l'utilisateur
+      try {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { kycStatus: 'PENDING' },
+        });
+      } catch (error) {
+        console.error('[KYC] ❌ Erreur mise à jour statut KYC:', error);
+        // On continue même si la mise à jour échoue
+      }
+
+      // 10. Audit
+      try {
+        await this.logAudit(
+          userId,
+          'KYC_SUBMITTED',
+          {
+            kycId: kyc.id,
+            documentType: data.documentType,
+            documentNumber: data.documentNumber,
+            documentFrontUrl: documentFrontUrl,
+            documentBackUrl: documentBackUrl,
+          },
+          null,
+        );
+      } catch (error) {
+        console.error('[KYC] ❌ Erreur audit:', error);
+        // On continue même si l'audit échoue
+      }
+
+      return {
+        message: this.i18nService.translate('kyc_submitted_success', lang),
+        data: kyc,
+      };
+    } catch (error) {
+      console.error('[KYC] ❌ Erreur submitKyc:', error);
+
+      // ✅ Si c'est déjà un RpcException, on le propage
+      if (error instanceof RpcException) {
+        throw error;
+      }
+
+      // ✅ Sinon, on crée une erreur générique
+      throw new RpcException({
+        status: 'error',
+        message: error.message || this.i18nService.translate('kyc_submit_error', lang),
+        statusCode: 500,
+      });
     }
-
-    // 8. Créer la soumission KYC
-    const kyc = await this.prisma.kyc_submission.create({
-      data: {
-        id: crypto.randomUUID(),
-        userId,
-        documentType: data.documentType,
-        documentNumber: data.documentNumber,
-        documentFrontUrl: documentFrontUrl,
-        documentBackUrl: documentBackUrl,
-        status: 'PENDING',
-        submittedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    // 9. Mettre à jour le statut KYC de l'utilisateur
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { kycStatus: 'PENDING' },
-    });
-
-    // 10. Audit
-    await this.logAudit(
-      userId,
-      'KYC_SUBMITTED',
-      {
-        kycId: kyc.id,
-        documentType: data.documentType,
-        documentNumber: data.documentNumber,
-        documentFrontUrl: documentFrontUrl,
-        documentBackUrl: documentBackUrl,
-      },
-      null,
-    );
-
-    return {
-      message: this.i18nService.translate('kyc_submitted_success', lang),
-      data: kyc,
-    };
   }
 
   async getKycStatus(
