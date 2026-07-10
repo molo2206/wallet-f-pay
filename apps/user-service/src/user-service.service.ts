@@ -1995,10 +1995,35 @@ export class UserServiceService {
   ): Promise<{ message: string; data: any }> {
     console.log(`[verifyKyc] Admin ${adminId} vérifie KYC ${kycId}`);
 
-    //  1. Vérifier que la soumission existe avec tous les champs
+    // ✅ 1. Utiliser select pour récupérer explicitement profileImage
     const kyc = await this.prisma.kyc_submission.findUnique({
       where: { id: kycId },
-      include: { user: true },
+      select: {
+        id: true,
+        userId: true,
+        documentType: true,
+        documentNumber: true,
+        documentFrontUrl: true,
+        documentBackUrl: true,
+        profileImage: true, // ✅ Inclure profileImage
+        status: true,
+        adminNotes: true,
+        rejectionReason: true,
+        submittedAt: true,
+        reviewedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            email: true,
+            profileImage: true,
+            kycStatus: true,
+          },
+        },
+      },
     });
 
     if (!kyc) {
@@ -2029,9 +2054,10 @@ export class UserServiceService {
       });
     }
 
-    //4. Récupérer l'URL de la photo de profil (documentFrontUrl)
-    // Le champ profileImage dans kyc_submission sera mis à jour avec la même valeur
-    const profileImageUrl = kyc.documentFrontUrl || null;
+    // 4. ✅ Récupérer profileImage du KYC
+    const profileImageUrl = kyc.profileImage || null;
+
+    console.log(`[verifyKyc] 📷 ProfileImage à utiliser: ${profileImageUrl}`);
 
     // 5. Mettre à jour la soumission KYC
     const updatedKyc = await this.prisma.kyc_submission.update({
@@ -2042,20 +2068,18 @@ export class UserServiceService {
         rejectionReason: data.status === 'REJECTED' ? (data.rejectionReason || 'Document non conforme') : null,
         reviewedAt: new Date(),
         updatedAt: new Date(),
-        // ✅ Si le KYC est vérifié, mettre à jour profileImage dans kyc_submission
-        ...(data.status === 'VERIFIED' && profileImageUrl ? { profileImage: profileImageUrl } : {}),
       },
     });
 
     // 6. Mettre à jour le statut KYC de l'utilisateur
     const userKycStatus = data.status === 'VERIFIED' ? 'VERIFIED' : 'REJECTED';
 
-    // 7. Mettre à jour le profileImage de l'utilisateur si le KYC est vérifié
+    // 7. ✅ Mettre à jour le profileImage de l'utilisateur avec profileImage du KYC
     let userUpdateData: any = { kycStatus: userKycStatus };
 
     if (data.status === 'VERIFIED' && profileImageUrl) {
       userUpdateData.profileImage = profileImageUrl;
-      console.log(`[verifyKyc]  ProfileImage mis à jour pour l'utilisateur: ${profileImageUrl}`);
+      console.log(`[verifyKyc] ✅ ProfileImage mis à jour pour l'utilisateur ${kyc.userId}: ${profileImageUrl}`);
     }
 
     await this.prisma.user.update({
@@ -2073,6 +2097,7 @@ export class UserServiceService {
         adminNotes: data.adminNotes,
         rejectionReason: data.rejectionReason,
         profileImageUpdated: data.status === 'VERIFIED' && !!profileImageUrl,
+        profileImageUrl: profileImageUrl,
       },
       null,
     );
