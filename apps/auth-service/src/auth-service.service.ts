@@ -229,7 +229,7 @@ export class AuthServiceService {
       const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-      // Créer l'utilisateur avec profileImage
+      // Créer l'utilisateur
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
@@ -243,7 +243,7 @@ export class AuthServiceService {
           fcmToken: data.fcmToken ?? null,
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
-          profileImage: data.profileImage ?? null,
+          profileImage: null, // ✅ ICI null
         },
       });
 
@@ -466,14 +466,14 @@ export class AuthServiceService {
       });
 
       const kyc = {
-        status: user.kycStatus,
+        status: user.kycStatus || 'NOT_SUBMITTED',
         submission: kycSubmission ? {
           id: kycSubmission.id,
           documentType: kycSubmission.documentType || null,
           documentNumber: kycSubmission.documentNumber || null,
           documentFront: kycSubmission.documentFront || null,
           documentBack: kycSubmission.documentBack || null,
-          profileImage: kycSubmission.profileImage || null,
+          profileImage: kycSubmission.profileImage ?? null,
           status: kycSubmission.status,
           submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
           reviewedAt: kycSubmission.reviewedAt || null,
@@ -504,7 +504,7 @@ export class AuthServiceService {
           deleted: user.deleted ?? false,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          profileImage: null,
+          profileImage: null, // ✅ ICI null
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
         },
@@ -517,6 +517,7 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
+
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
