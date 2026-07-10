@@ -1705,17 +1705,24 @@ export class UserServiceService {
   /**
    * Soumettre une demande KYC avec upload de fichiers
    */
+  // Dans user-service.service.ts
+
   async submitKyc(
     userId: string,
     data: {
       documentType: string;
       documentNumber: string;
-      documentFrontUrl: string;  // ✅ URL du fichier recto
-      documentBackUrl?: string;  // ✅ URL du fichier verso (optionnel)
-      profileImage?: string; // ✅ URL de l'image de profil (optionnel)
+      documentFrontUrl: string;
+      documentBackUrl?: string;
+      profileImage?: string;
     },
     lang: string = 'fr',
-  ): Promise<{ message: string; data: any }> {
+  ): Promise<{
+    message: string;
+    data: any;
+    wallets?: any[];
+    kyc?: any;
+  }> {
     console.log(`[submitKyc] Utilisateur ${userId} soumet une demande KYC`);
 
     try {
@@ -1822,9 +1829,108 @@ export class UserServiceService {
         null,
       );
 
+      // ✅ 9. Récupérer les informations complètes de l'utilisateur
+      const updatedUser = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          fcmToken: true,
+          full_name: true,
+          account_number: true,
+          branch: true,
+          role: true,
+          passwordStatus: true,
+          pinstatus: true,
+          merchantCode: true,
+          businessName: true,
+          status: true,
+          deleted: true,
+          createdAt: true,
+          updatedAt: true,
+          profileImage: true,
+          kycStatus: true,
+        },
+      });
+
+      // ✅ 10. Récupérer les wallets de l'utilisateur
+      const wallets = await this.prisma.wallet.findMany({
+        where: { userId: user.id, isActive: true },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          currency: true,
+          balance: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // ✅ 11. Récupérer les informations KYC formatées comme dans login
+      const kycSubmission = await this.prisma.kyc_submission.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          documentType: true,
+          documentNumber: true,
+          documentFrontUrl: true,
+          documentBackUrl: true,
+          profileImage: true,
+          status: true,
+          submittedAt: true,
+          reviewedAt: true,
+          adminNotes: true,
+          rejectionReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // ✅ 12. Formater les informations KYC comme dans login
+      const kycData = {
+        status: updatedUser?.kycStatus || 'NOT_SUBMITTED',
+        submission: kycSubmission ? {
+          id: kycSubmission.id,
+          documentType: kycSubmission.documentType || null,
+          documentNumber: kycSubmission.documentNumber || null,
+          documentFrontUrl: kycSubmission.documentFrontUrl || null,
+          documentBackUrl: kycSubmission.documentBackUrl || null,
+          profileImage: kycSubmission.profileImage || null,
+          status: kycSubmission.status,
+          submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
+          reviewedAt: kycSubmission.reviewedAt || null,
+          adminNotes: kycSubmission.adminNotes || null,
+          rejectionReason: kycSubmission.rejectionReason || null,
+        } : null,
+      };
+
+      // ✅ 13. Retourner les données formatées comme login
       return {
         message: this.i18nService.translate('kyc_submitted_success', lang),
-        data: kyc,
+        data: {
+          id: updatedUser?.id,
+          email: updatedUser?.email,
+          phone: updatedUser?.phone,
+          fcmToken: updatedUser?.fcmToken,
+          full_name: updatedUser?.full_name,
+          account_number: updatedUser?.account_number,
+          branch: updatedUser?.branch,
+          role: updatedUser?.role,
+          passwordStatus: updatedUser?.passwordStatus,
+          pinstatus: updatedUser?.pinstatus,
+          merchantCode: updatedUser?.merchantCode,
+          businessName: updatedUser?.businessName,
+          status: updatedUser?.status,
+          deleted: updatedUser?.deleted,
+          createdAt: updatedUser?.createdAt,
+          updatedAt: updatedUser?.updatedAt,
+          profileImage: updatedUser?.profileImage,
+        },
+        wallets: wallets,
+        kyc: kycData,
       };
     } catch (error) {
       console.error('[KYC] ❌ Erreur submitKyc:', error);
@@ -1881,6 +1987,7 @@ export class UserServiceService {
         rejectionReason: true,
         createdAt: true,
         updatedAt: true,
+        profileImage: true,  // ✅ Inclure profileImage ici
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1897,6 +2004,7 @@ export class UserServiceService {
       reviewedAt: kyc.reviewedAt || null,
       adminNotes: kyc.adminNotes || null,
       rejectionReason: kyc.rejectionReason || null,
+      profileImage: kyc.profileImage || null,
     } : null;
 
     return {
