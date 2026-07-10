@@ -198,9 +198,33 @@ export class AuthServiceService {
           }
         }
 
+        // ✅ RETOUR OTP AVEC TOUS LES CHAMPS REQUIS
         return {
-          requiresOtp: true,
+          accessToken: null,
+          refreshToken: null,
           message: this.i18nService.translate('otp_sent', lang),
+          data: {
+            id: null,
+            email: null,
+            phone: null,
+            fcmToken: null,
+            full_name: null,
+            account_number: null,
+            branch: null,
+            role: null,
+            passwordStatus: null,
+            pinstatus: null,
+            merchantCode: null,
+            businessName: null,
+            status: null,
+            deleted: false,
+            createdAt: null,
+            updatedAt: null,
+            profileImage: null,
+            kycStatus: 'NOT_SUBMITTED',
+            countryCode: null,
+          },
+          requiresOtp: true,
         };
       }
 
@@ -229,7 +253,7 @@ export class AuthServiceService {
       const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-      // Créer l'utilisateur
+      // Créer l'utilisateur avec profileImage
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
@@ -243,7 +267,7 @@ export class AuthServiceService {
           fcmToken: data.fcmToken ?? null,
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
-          profileImage: null, // ✅ ICI null
+          profileImage: null,
         },
       });
 
@@ -482,7 +506,7 @@ export class AuthServiceService {
         } : null,
       };
 
-      // ✅ Retour EXACTEMENT comme login
+      // ✅ RETOUR FINAL AVEC TOUS LES CHAMPS
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -504,7 +528,7 @@ export class AuthServiceService {
           deleted: user.deleted ?? false,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          profileImage: null, // ✅ ICI null
+          profileImage: null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
         },
@@ -517,7 +541,6 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
-
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
