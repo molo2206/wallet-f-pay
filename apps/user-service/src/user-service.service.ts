@@ -1774,20 +1774,12 @@ export class UserServiceService {
 
       let kyc;
 
-      // ✅ 6. Si une soumission existe, la mettre à jour (pas en créer une nouvelle)
+      // ✅ 6. Si une soumission existe, la mettre à jour (même si déjà VERIFIED)
       if (existingKyc) {
         console.log(`[submitKyc] 📝 Mise à jour de la soumission KYC existante: ${existingKyc.id}`);
+        console.log(`[submitKyc] Status actuel: ${existingKyc.status}`);
 
-        // Si la soumission est déjà VERIFIED, on ne peut pas la modifier
-        if (existingKyc.status === 'VERIFIED') {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('kyc_already_verified', lang),
-            statusCode: 400,
-          });
-        }
-
-        // ✅ Mettre à jour la soumission existante
+        // ✅ Mettre à jour la soumission existante (même si VERIFIED)
         kyc = await this.prisma.kyc_submission.update({
           where: { id: existingKyc.id },
           data: {
@@ -1796,7 +1788,7 @@ export class UserServiceService {
             documentFront: data.documentFront,
             documentBack: data.documentBack || null,
             profileImage: data.profileImage || null,
-            status: 'PENDING', // Remettre en attente
+            status: 'PENDING', // ✅ Remettre en attente
             submittedAt: new Date(),
             updatedAt: new Date(),
             // Réinitialiser les champs de vérification
@@ -1804,6 +1796,12 @@ export class UserServiceService {
             adminNotes: null,
             rejectionReason: null,
           },
+        });
+
+        // ✅ Mettre à jour le statut KYC de l'utilisateur en PENDING
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { kycStatus: 'PENDING' },
         });
 
       } else {
@@ -1824,15 +1822,15 @@ export class UserServiceService {
             updatedAt: new Date(),
           },
         });
+
+        // Mettre à jour le statut KYC de l'utilisateur
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { kycStatus: 'PENDING' },
+        });
       }
 
-      // 8. Mettre à jour le statut KYC de l'utilisateur
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { kycStatus: 'PENDING' },
-      });
-
-      // 9. Audit
+      // 8. Audit
       await this.logAudit(
         userId,
         existingKyc ? 'KYC_UPDATED' : 'KYC_SUBMITTED',
@@ -1844,11 +1842,12 @@ export class UserServiceService {
           documentBack: data.documentBack,
           profileImage: data.profileImage,
           isUpdate: !!existingKyc,
+          previousStatus: existingKyc?.status || null,
         },
         null,
       );
 
-      // ✅ 10. Récupérer les informations complètes de l'utilisateur
+      // ✅ 9. Récupérer les informations complètes de l'utilisateur
       const updatedUser = await this.prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -1873,7 +1872,7 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 11. Récupérer les wallets de l'utilisateur
+      // ✅ 10. Récupérer les wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -1887,7 +1886,7 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 12. Récupérer les informations KYC formatées comme dans login
+      // ✅ 11. Récupérer les informations KYC formatées comme dans login
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -1908,7 +1907,7 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 13. Formater les informations KYC comme dans login
+      // ✅ 12. Formater les informations KYC comme dans login
       const kycData = {
         status: updatedUser?.kycStatus || 'NOT_SUBMITTED',
         submission: kycSubmission ? {
@@ -1926,7 +1925,7 @@ export class UserServiceService {
         } : null,
       };
 
-      // ✅ 14. Retourner les données formatées comme login
+      // ✅ 13. Retourner les données formatées comme login
       return {
         message: existingKyc
           ? this.i18nService.translate('kyc_updated_success', lang)
