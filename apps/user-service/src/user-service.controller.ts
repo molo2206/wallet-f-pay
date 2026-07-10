@@ -453,8 +453,8 @@ export class UserServiceController {
         {
           documentType: data.documentType,
           documentNumber: data.documentNumber,
-          documentFrontUrl: data.documentFrontUrl,
-          documentBackUrl: data.documentBackUrl,
+          documentFront: data.documentFrontUrl,
+          documentBack: data.documentBackUrl,
           profileImage: data.profileImage,
         },
         lang,

@@ -592,8 +592,8 @@ export class AuthServiceService {
           id: true,
           documentType: true,
           documentNumber: true,
-          documentFrontUrl: true,
-          documentBackUrl: true,
+          documentFront: true,
+          documentBack: true,
           profileImage: true,
           status: true,
           submittedAt: true,
@@ -612,8 +612,8 @@ export class AuthServiceService {
           id: kycSubmission.id,
           documentType: kycSubmission.documentType || null,
           documentNumber: kycSubmission.documentNumber || null,
-          documentFrontUrl: kycSubmission.documentFrontUrl || null,
-          documentBackUrl: kycSubmission.documentBackUrl || null,
+          documentFront: kycSubmission.documentFront || null,
+          documentBack: kycSubmission.documentBack || null,
           profileImage: kycSubmission.profileImage || null,
           status: kycSubmission.status,
           submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
@@ -699,7 +699,7 @@ export class AuthServiceService {
         sessionId,
         resources,
         wallets,
-        kyc, // ✅ Ajout des informations KYC
+        kyc, 
       };
     } catch (error) {
       if (
