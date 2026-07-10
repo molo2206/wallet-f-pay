@@ -378,7 +378,7 @@ export class UserServiceService {
   }> {
     console.log(`[getUser] Langue utilisée : ${lang} pour l'utilisateur ${id}`);
 
-    // ✅ Récupérer l'utilisateur avec les champs nécessaires
+    // ✅ Récupérer l'utilisateur avec tous les champs
     const user = await this.prisma.user.findFirst({
       where: { id },
       select: {
@@ -401,7 +401,7 @@ export class UserServiceService {
         businessName: true,
         failed_login_attempts: true,
         locked_until: true,
-        kycStatus: true, // ✅ Ajout du statut KYC
+        kycStatus: true,
       },
     });
 
@@ -458,6 +458,7 @@ export class UserServiceService {
         documentNumber: true,
         documentFront: true,
         documentBack: true,
+        profileImage: true,
         status: true,
         submittedAt: true,
         reviewedAt: true,
@@ -477,6 +478,7 @@ export class UserServiceService {
         documentNumber: kycSubmission.documentNumber || null,
         documentFront: kycSubmission.documentFront || null,
         documentBack: kycSubmission.documentBack || null,
+        profileImage: kycSubmission.profileImage || null,
         status: kycSubmission.status,
         submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
         reviewedAt: kycSubmission.reviewedAt || null,
@@ -485,15 +487,14 @@ export class UserServiceService {
       } : null,
     };
 
-    const userDto = this.toResponse(user);
-
+    // ✅ Retourner les données formatées
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
-        ...userDto,
-        resources,
-        wallets,
-        kyc, // ✅ Ajout des informations KYC
+        ...this.toResponse(user),
+        resources: resources,
+        wallets: wallets,
+        kyc: kyc,
       },
     };
   }
@@ -1714,9 +1715,27 @@ export class UserServiceService {
     lang: string = 'fr',
   ): Promise<{
     message: string;
-    data: any;
-    wallets?: any[];
-    kyc?: any;
+    data: {
+      id: string;
+      email: string | null;
+      phone: string | null;
+      fcmToken: string | null;
+      full_name: string | null;
+      account_number: string | null;
+      branch: string | null;
+      role: string;
+      passwordStatus: string;
+      pinstatus: boolean | null;
+      merchantCode: string | null;
+      businessName: string | null;
+      status: string;
+      deleted: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      profileImage: string | null;
+      wallets: any[];
+      kyc: any;
+    };
   }> {
     console.log(`[submitKyc] Utilisateur ${userId} soumet une demande KYC`);
     console.log(`[submitKyc] documentFront:`, data.documentFront);
@@ -1779,7 +1798,6 @@ export class UserServiceService {
         console.log(`[submitKyc] 📝 Mise à jour de la soumission KYC existante: ${existingKyc.id}`);
         console.log(`[submitKyc] Status actuel: ${existingKyc.status}`);
 
-        // ✅ Mettre à jour la soumission existante (même si VERIFIED)
         kyc = await this.prisma.kyc_submission.update({
           where: { id: existingKyc.id },
           data: {
@@ -1788,17 +1806,15 @@ export class UserServiceService {
             documentFront: data.documentFront,
             documentBack: data.documentBack || null,
             profileImage: data.profileImage || null,
-            status: 'PENDING', // ✅ Remettre en attente
+            status: 'PENDING',
             submittedAt: new Date(),
             updatedAt: new Date(),
-            // Réinitialiser les champs de vérification
             reviewedAt: null,
             adminNotes: null,
             rejectionReason: null,
           },
         });
 
-        // ✅ Mettre à jour le statut KYC de l'utilisateur en PENDING
         await this.prisma.user.update({
           where: { id: userId },
           data: { kycStatus: 'PENDING' },
@@ -1823,7 +1839,6 @@ export class UserServiceService {
           },
         });
 
-        // Mettre à jour le statut KYC de l'utilisateur
         await this.prisma.user.update({
           where: { id: userId },
           data: { kycStatus: 'PENDING' },
@@ -1872,7 +1887,16 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 10. Récupérer les wallets de l'utilisateur
+      // ✅ 10. S'assurer que updatedUser existe (il devrait, car on l'a créé ou mis à jour)
+      if (!updatedUser) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('user_not_found', lang),
+          statusCode: 404,
+        });
+      }
+
+      // ✅ 11. Récupérer les wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -1886,7 +1910,7 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 11. Récupérer les informations KYC formatées comme dans login
+      // ✅ 12. Récupérer les informations KYC formatées comme dans login
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -1907,9 +1931,9 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 12. Formater les informations KYC comme dans login
+      // ✅ 13. Formater les informations KYC comme dans login
       const kycData = {
-        status: updatedUser?.kycStatus || 'NOT_SUBMITTED',
+        status: updatedUser.kycStatus || 'NOT_SUBMITTED',
         submission: kycSubmission ? {
           id: kycSubmission.id,
           documentType: kycSubmission.documentType || null,
@@ -1925,32 +1949,32 @@ export class UserServiceService {
         } : null,
       };
 
-      // ✅ 13. Retourner les données formatées comme login
+      // ✅ 14. Retourner les données formatées comme login
       return {
         message: existingKyc
           ? this.i18nService.translate('kyc_updated_success', lang)
           : this.i18nService.translate('kyc_submitted_success', lang),
         data: {
-          id: updatedUser?.id,
-          email: updatedUser?.email,
-          phone: updatedUser?.phone,
-          fcmToken: updatedUser?.fcmToken,
-          full_name: updatedUser?.full_name,
-          account_number: updatedUser?.account_number,
-          branch: updatedUser?.branch,
-          role: updatedUser?.role,
-          passwordStatus: updatedUser?.passwordStatus,
-          pinstatus: updatedUser?.pinstatus,
-          merchantCode: updatedUser?.merchantCode,
-          businessName: updatedUser?.businessName,
-          status: updatedUser?.status,
-          deleted: updatedUser?.deleted,
-          createdAt: updatedUser?.createdAt,
-          updatedAt: updatedUser?.updatedAt,
-          profileImage: updatedUser?.profileImage,
+          id: updatedUser.id,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+          fcmToken: updatedUser.fcmToken,
+          full_name: updatedUser.full_name,
+          account_number: updatedUser.account_number,
+          branch: updatedUser.branch,
+          role: updatedUser.role,
+          passwordStatus: updatedUser.passwordStatus,
+          pinstatus: updatedUser.pinstatus,
+          merchantCode: updatedUser.merchantCode,
+          businessName: updatedUser.businessName,
+          status: updatedUser.status,
+          deleted: updatedUser.deleted ?? false,
+          createdAt: updatedUser.createdAt,
+          updatedAt: updatedUser.updatedAt,
+          profileImage: updatedUser.profileImage,
+          wallets: wallets,
+          kyc: kycData,
         },
-        wallets: wallets,
-        kyc: kycData,
       };
     } catch (error) {
       console.error('[KYC] ❌ Erreur submitKyc:', error);

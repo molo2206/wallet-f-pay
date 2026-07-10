@@ -230,6 +230,7 @@ export class AuthServiceService {
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
       // Créer l'utilisateur
+      // Dans register - créer l'utilisateur avec profileImage
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
@@ -243,6 +244,7 @@ export class AuthServiceService {
           fcmToken: data.fcmToken ?? null,
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
+          profileImage: data.profileImage ?? null, // ✅ INCLURE ICI
         },
       });
 
@@ -255,7 +257,7 @@ export class AuthServiceService {
           const networks = await this.prisma.network_provider.findMany({
             where: {
               country_provider: {
-                countryCode: data.countryCode  // ✅ Utiliser 'countryCode' car c'est le nom du champ dans votre schéma
+                countryCode: data.countryCode
               }
             }
           });
@@ -268,22 +270,21 @@ export class AuthServiceService {
           }
           currenciesToCreate = Array.from(currenciesSet);
           if (currenciesToCreate.length === 0) {
-            console.warn(` Aucune devise trouvée pour ${data.countryCode}, utilisation de CDF`);
+            console.warn(`Aucune devise trouvée pour ${data.countryCode}, utilisation de CDF`);
             currenciesToCreate.push('CDF');
           }
         } catch (err) {
-          console.error(' Erreur lecture network_provider:', err);
+          console.error('Erreur lecture network_provider:', err);
           currenciesToCreate.push('CDF');
         }
       } else {
-        console.log(' Aucun countryCode fourni, création d’un wallet par défaut en CDF');
+        console.log('Aucun countryCode fourni, création d\'un wallet par défaut en CDF');
         currenciesToCreate.push('CDF');
       }
 
       // Création directe via Prisma
       for (const currency of currenciesToCreate) {
         try {
-          // Vérifier si un wallet avec cette devise existe déjà
           const existing = await this.prisma.wallet.findFirst({
             where: { userId: user.id, currency: currency as wallet_currency },
           });
@@ -390,7 +391,7 @@ export class AuthServiceService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
 
-      await this.prisma.sessions.create({
+      const createdSession = await this.prisma.sessions.create({
         data: {
           id: crypto.randomUUID(),
           user_id: user.id,
@@ -403,6 +404,7 @@ export class AuthServiceService {
           created_at: new Date(),
         },
       });
+      const sessionId = createdSession.id;
 
       // Générer le JWT
       const result = this.generateJwt(
@@ -411,7 +413,21 @@ export class AuthServiceService {
         this.i18nService.translate('register_success', lang),
       );
 
-      // Récupérer les sessions actives
+      // ✅ Récupérer les wallets de l'utilisateur (comme login)
+      const wallets = await this.prisma.wallet.findMany({
+        where: { userId: user.id, isActive: true },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          currency: true,
+          balance: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // ✅ Récupérer les sessions actives (comme login)
       const sessions = await this.prisma.sessions.findMany({
         where: {
           user_id: user.id,
@@ -419,11 +435,83 @@ export class AuthServiceService {
           expires_at: { gt: new Date() },
         },
         orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          device_info: true,
+          ip_address: true,
+          last_activity: true,
+          created_at: true,
+          expires_at: true,
+        },
       });
 
+      // ✅ Récupérer les informations KYC (comme login)
+      const kycSubmission = await this.prisma.kyc_submission.findFirst({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          documentType: true,
+          documentNumber: true,
+          documentFront: true,
+          documentBack: true,
+          profileImage: true,
+          status: true,
+          submittedAt: true,
+          reviewedAt: true,
+          adminNotes: true,
+          rejectionReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      const kyc = {
+        status: user.kycStatus,
+        submission: kycSubmission ? {
+          id: kycSubmission.id,
+          documentType: kycSubmission.documentType || null,
+          documentNumber: kycSubmission.documentNumber || null,
+          documentFront: kycSubmission.documentFront || null,
+          documentBack: kycSubmission.documentBack || null,
+          profileImage: kycSubmission.profileImage || null,
+          status: kycSubmission.status,
+          submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
+          reviewedAt: kycSubmission.reviewedAt || null,
+          adminNotes: kycSubmission.adminNotes || null,
+          rejectionReason: kycSubmission.rejectionReason || null,
+        } : null,
+      };
+
+      // ✅ Retour EXACTEMENT comme login
       return {
-        ...result,
-        sessions,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        message: result.message,
+        data: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          fcmToken: user.fcmToken,
+          full_name: user.full_name,
+          account_number: user.account_number,
+          branch: user.branch,
+          role: user.role,
+          passwordStatus: user.passwordStatus,
+          pinstatus: user.pinstatus,
+          merchantCode: user.merchantCode,
+          businessName: user.businessName,
+          status: user.status,
+          deleted: user.deleted ?? false,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          kycStatus: user.kycStatus,
+          countryCode: user.countryCode,
+        },
+        sessionId: sessionId,
+        sessions: sessions,
+        wallets: wallets,
+        kyc: kyc,
       };
     } finally {
       registerLocks.delete(key);
@@ -433,14 +521,40 @@ export class AuthServiceService {
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
-  ): Promise<AuthResponseDto & { wallets?: any[]; kyc?: any }> {
+  ): Promise<AuthResponseDto> {
     const lang = dto.lang || 'fr';
     const identifier = dto.identifier;
 
     try {
+      // ✅ 1. Récupérer l'utilisateur avec tous les champs nécessaires
       const user = await this.prisma.user.findFirst({
         where: {
           OR: [{ phone: identifier }, { email: identifier.toLowerCase() }],
+        },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          password: true,
+          full_name: true,
+          account_number: true,
+          branch: true,
+          role: true,
+          status: true,
+          deleted: true,
+          createdAt: true,
+          updatedAt: true,
+          fcmToken: true,
+          passwordStatus: true,
+          pinstatus: true,
+          merchantCode: true,
+          businessName: true,
+          failed_login_attempts: true,
+          locked_until: true,
+          pin: true,
+          kycStatus: true,
+          countryCode: true,
+          profileImage: true,
         },
       });
 
@@ -459,6 +573,7 @@ export class AuthServiceService {
         });
       }
 
+      // 2. Vérifier si le compte est bloqué temporairement
       if (user.locked_until && user.locked_until > new Date()) {
         const minutesLeft = Math.ceil(
           (user.locked_until.getTime() - Date.now()) / 60000,
@@ -475,6 +590,7 @@ export class AuthServiceService {
         throw new RpcException({ status: 'error', message, statusCode: 403 });
       }
 
+      // 3. Vérifier si le compte est actif
       if (user.status !== user_status.ACTIVE) {
         await logFailedLoginAttempt(
           this.prisma,
@@ -490,6 +606,7 @@ export class AuthServiceService {
         });
       }
 
+      // 4. Vérifier que l'utilisateur a un mot de passe
       if (!user.password) {
         await logFailedLoginAttempt(
           this.prisma,
@@ -505,6 +622,7 @@ export class AuthServiceService {
         });
       }
 
+      // 5. Vérifier le mot de passe
       const isValidPassword = await bcrypt.compare(dto.password, user.password);
       if (!isValidPassword) {
         const newAttempts = (user.failed_login_attempts || 0) + 1;
@@ -512,7 +630,7 @@ export class AuthServiceService {
         let newStatus: user_status = user.status;
 
         if (newAttempts >= 5) {
-          lockedUntil = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
+          lockedUntil = new Date(Date.now() + 1 * 60 * 1000);
           newStatus = user_status.BLOCKED;
         }
 
@@ -540,7 +658,7 @@ export class AuthServiceService {
         });
       }
 
-      // Succès
+      // 6. Succès - Réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -550,7 +668,7 @@ export class AuthServiceService {
         },
       });
 
-      // Récupération des ressources
+      // 7. Récupération des ressources (permissions)
       const userResources = await this.prisma.user_has_resources.findMany({
         where: { userId: user.id },
         include: { resources: true },
@@ -570,7 +688,7 @@ export class AuthServiceService {
         expiresAt: ur.expiresAt,
       }));
 
-      // ✅ Récupération des wallets de l'utilisateur
+      // 8. Récupération des wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -584,7 +702,7 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Récupération des informations KYC de l'utilisateur
+      // 9. Récupération des informations KYC de l'utilisateur
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -605,7 +723,7 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Formater les informations KYC
+      // 10. Formater les informations KYC
       const kyc = {
         status: user.kycStatus,
         submission: kycSubmission ? {
@@ -623,7 +741,7 @@ export class AuthServiceService {
         } : null,
       };
 
-      // Gestion deviceId
+      // 11. Gestion deviceId
       let deviceId = dto.fcmToken;
       if (!deviceId) {
         const fingerprint = `${dto.deviceInfo || ''}|${dto.platform || ''}|${ipAddress || ''}`;
@@ -633,6 +751,7 @@ export class AuthServiceService {
           .digest('hex');
       }
 
+      // 12. Supprimer les anciennes sessions avec le même deviceId
       await this.prisma.sessions.deleteMany({
         where: {
           user_id: user.id,
@@ -641,6 +760,7 @@ export class AuthServiceService {
         },
       });
 
+      // 13. Créer une nouvelle session
       const sessionToken = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
@@ -661,6 +781,7 @@ export class AuthServiceService {
       });
       const sessionId = createdSession.id;
 
+      // 14. Enregistrer le token FCM si présent
       if (dto.fcmToken && dto.fcmToken.trim()) {
         await this.prisma.device_tokens.upsert({
           where: { token: dto.fcmToken },
@@ -680,12 +801,32 @@ export class AuthServiceService {
         });
       }
 
+      // 15. Récupérer les sessions actives
+      const sessions = await this.prisma.sessions.findMany({
+        where: {
+          user_id: user.id,
+          is_valid: true,
+          expires_at: { gt: new Date() },
+        },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          device_info: true,
+          ip_address: true,
+          last_activity: true,
+          created_at: true,
+          expires_at: true,
+        },
+      });
+
+      // 16. Générer le JWT
       const result = this.generateJwt(
         user,
         sessionToken,
         this.i18nService.translate('login_success', lang),
       );
 
+      // 17. Audit
       await this.logAuditWithDebounce(
         user.id,
         'LOGIN',
@@ -693,13 +834,37 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ Retour avec les wallets et les informations KYC
+      // ✅ 18. Retourner la réponse complète
       return {
-        ...result,
-        sessionId,
-        resources,
-        wallets,
-        kyc, 
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        message: result.message,
+        data: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          fcmToken: user.fcmToken,
+          full_name: user.full_name,
+          account_number: user.account_number,
+          branch: user.branch,
+          role: user.role,
+          passwordStatus: user.passwordStatus,
+          pinstatus: user.pinstatus,
+          merchantCode: user.merchantCode,
+          businessName: user.businessName,
+          status: user.status,
+          deleted: user.deleted ?? false,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          profileImage: user.profileImage,
+          kycStatus: user.kycStatus,
+          countryCode: user.countryCode,
+        },
+        sessionId: sessionId,
+        sessions: sessions,
+        resources: resources,
+        wallets: wallets,
+        kyc: kyc,
       };
     } catch (error) {
       if (
@@ -715,7 +880,6 @@ export class AuthServiceService {
       });
     }
   }
-
   async validateSession(
     userId: string,
     sessionToken: string,

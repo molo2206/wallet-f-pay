@@ -44,5 +44,9 @@ export class RegisterUserDto {
   countryCode?: string;
 
   @IsOptional()
+  @IsString()
+  profileImage?: string; // ✅ AJOUTÉ - URL de la photo de profil
+
+  @IsOptional()
   lang?: string;
 }

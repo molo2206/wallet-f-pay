@@ -21,8 +21,9 @@ export interface UserInfoDto {
   merchantCode?: string | null;
   businessName?: string | null;
   countryCode?: string | null;
+  profileImage: string | null; // ✅ AJOUTÉ
+  kycStatus: string; // ✅ AJOUTÉ (user_kycStatus)
 }
-
 
 export interface SessionDto {
   id: string;
@@ -48,6 +49,34 @@ export interface ResourcePermissionDto {
   expiresAt: Date | null;
 }
 
+export interface WalletDto {
+  id: string;
+  currency: string;
+  balance: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface KycSubmissionDto {
+  id: string;
+  documentType: string | null;
+  documentNumber: string | null;
+  documentFront: string | null;
+  documentBack: string | null;
+  profileImage: string | null;
+  status: string;
+  submittedAt: Date | null;
+  reviewedAt: Date | null;
+  adminNotes: string | null;
+  rejectionReason: string | null;
+}
+
+export interface KycDto {
+  status: string;
+  submission: KycSubmissionDto | null;
+}
+
 export interface AuthResponseDto {
   accessToken: string;
   refreshToken: string;
@@ -56,5 +85,6 @@ export interface AuthResponseDto {
   sessions?: SessionDto[];
   sessionId?: string;
   resources?: ResourcePermissionDto[];
-  wallets?: any[];
+  wallets?: WalletDto[];
+  kyc?: KycDto;
 }
