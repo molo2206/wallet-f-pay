@@ -3042,6 +3042,7 @@ export class ApiGatewayController {
       documentNumber: string;
       documentFrontUrl: string;
       documentBackUrl?: string;
+      profileImage?: string;
     },
     @Headers('lang') langHeader?: string,
   ) {

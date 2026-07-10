@@ -437,6 +437,7 @@ export class UserServiceController {
       documentNumber: string;
       documentFrontUrl: string;  // ✅ URL du fichier
       documentBackUrl?: string;  // ✅ URL du fichier (optionnel)
+      profileImage?: string; // ✅ URL de l'image de profil (optionnel)
       lang?: string;
     },
   ) {
@@ -450,6 +451,7 @@ export class UserServiceController {
           documentNumber: data.documentNumber,
           documentFrontUrl: data.documentFrontUrl,
           documentBackUrl: data.documentBackUrl,
+          profileImage: data.profileImage,
         },
         lang,
       );
