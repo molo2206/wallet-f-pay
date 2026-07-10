@@ -3040,13 +3040,15 @@ export class ApiGatewayController {
     @Body() body: {
       documentType: string;
       documentNumber: string;
-      documentFrontUrl: string;
-      documentBackUrl?: string;
-      profileImage?: string; // ✅ Ajouté
+      documentFront: string;  // ✅ Sans "Url"
+      documentBack?: string;  // ✅ Sans "Url"
+      profileImage?: string;
     },
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
+
+    console.log('[submitKyc] Body reçu:', body);
 
     if (!body.documentType) {
       throw new HttpException(
@@ -3062,7 +3064,7 @@ export class ApiGatewayController {
       );
     }
 
-    if (!body.documentFrontUrl) {
+    if (!body.documentFront) {
       throw new HttpException(
         this.i18nService.translate('kyc_document_front_required', lang),
         HttpStatus.BAD_REQUEST,
@@ -3075,9 +3077,9 @@ export class ApiGatewayController {
         userId: currentUser.id,
         documentType: body.documentType,
         documentNumber: body.documentNumber,
-        documentFrontUrl: body.documentFrontUrl,
-        documentBackUrl: body.documentBackUrl || null,
-        profileImage: body.profileImage || null, // ✅ AJOUTÉ !
+        documentFrontUrl: body.documentFront,  // ✅ Renommer pour le service
+        documentBackUrl: body.documentBack || null,  // ✅ Renommer pour le service
+        profileImage: body.profileImage || null,
         lang,
       },
       this.i18nService.translate('kyc_submit_failed', lang),

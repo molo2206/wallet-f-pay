@@ -435,15 +435,17 @@ export class UserServiceController {
       userId: string;
       documentType: string;
       documentNumber: string;
-      documentFrontUrl: string;
-      documentBackUrl?: string;
-      profileImage?: string; // ✅ Inclure dans le Payload
+      documentFrontUrl: string;  // ✅ Déjà avec "Url"
+      documentBackUrl?: string;  // ✅ Déjà avec "Url"
+      profileImage?: string;
       lang?: string;
     },
   ) {
     const lang = data.lang || 'fr';
     console.log('🔍 Langue reçue par submit_kyc :', lang);
-    console.log('🔍 profileImage reçu:', data.profileImage); // ✅ Log pour debug
+    console.log('🔍 documentFrontUrl reçu:', data.documentFrontUrl);
+    console.log('🔍 documentBackUrl reçu:', data.documentBackUrl);
+    console.log('🔍 profileImage reçu:', data.profileImage);
 
     try {
       return await this.userService.submitKyc(
@@ -453,7 +455,7 @@ export class UserServiceController {
           documentNumber: data.documentNumber,
           documentFrontUrl: data.documentFrontUrl,
           documentBackUrl: data.documentBackUrl,
-          profileImage: data.profileImage, // ✅ Passer profileImage
+          profileImage: data.profileImage,
         },
         lang,
       );

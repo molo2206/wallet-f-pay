@@ -394,22 +394,22 @@ model api_key {
 }
 
 model kyc_submission {
-  id               String                @id @db.VarChar(36)
-  userId           String                @db.VarChar(36)
-  documentUrl      String?               @db.Text
-  status           kyc_submission_status @default(PENDING)
-  adminNotes       String?               @db.Text
-  reviewedAt       DateTime?             @db.DateTime(0)
-  createdAt        DateTime              @default(now()) @db.DateTime(0)
-  updatedAt        DateTime              @default(now()) @db.DateTime(0)
-  documentType     String?               @default("NATIONAL_ID") @db.VarChar(50)
-  documentNumber   String?               @db.VarChar(100)
-  documentFrontUrl String?               @db.Text
-  documentBackUrl  String?               @db.Text
-  rejectionReason  String?               @db.Text
-  submittedAt      DateTime?             @db.DateTime(0)
-  profileImage     String?               @db.VarChar(500)
-  user             user                  @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_kyc_user")
+  id              String                @id @db.VarChar(36)
+  userId          String                @db.VarChar(36)
+  documentUrl     String?               @db.Text
+  status          kyc_submission_status @default(PENDING)
+  adminNotes      String?               @db.Text
+  reviewedAt      DateTime?             @db.DateTime(0)
+  createdAt       DateTime              @default(now()) @db.DateTime(0)
+  updatedAt       DateTime              @default(now()) @db.DateTime(0)
+  documentType    String?               @default("NATIONAL_ID") @db.VarChar(50)
+  documentNumber  String?               @db.VarChar(100)
+  documentFront   String?               @db.Text
+  documentBack    String?               @db.Text
+  rejectionReason String?               @db.Text
+  submittedAt     DateTime?             @db.DateTime(0)
+  profileImage    String?               @db.VarChar(500)
+  user            user                  @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_kyc_user")
 
   @@index([userId], map: "fk_kyc_user")
   @@index([documentNumber], map: "idx_kyc_document_number")

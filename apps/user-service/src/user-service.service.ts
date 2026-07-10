@@ -1702,18 +1702,13 @@ export class UserServiceService {
   }
 
   // ========================= KYC MANAGEMENT =========================
-  /**
-   * Soumettre une demande KYC avec upload de fichiers
-   */
-  // Dans user-service.service.ts
-
   async submitKyc(
     userId: string,
     data: {
       documentType: string;
       documentNumber: string;
-      documentFrontUrl: string;
-      documentBackUrl?: string;
+      documentFront: string;  // ✅ Correspond au champ dans le body
+      documentBack?: string;  // ✅ Correspond au champ dans le body
       profileImage?: string;
     },
     lang: string = 'fr',
@@ -1724,6 +1719,9 @@ export class UserServiceService {
     kyc?: any;
   }> {
     console.log(`[submitKyc] Utilisateur ${userId} soumet une demande KYC`);
+    console.log(`[submitKyc] documentFront:`, data.documentFront);
+    console.log(`[submitKyc] documentBack:`, data.documentBack);
+    console.log(`[submitKyc] profileImage:`, data.profileImage);
 
     try {
       // 1. Vérifier que l'utilisateur existe
@@ -1760,7 +1758,7 @@ export class UserServiceService {
       }
 
       // 4. Vérifier que l'URL du recto est fournie
-      if (!data.documentFrontUrl || data.documentFrontUrl.trim() === '') {
+      if (!data.documentFront || data.documentFront.trim() === '') {
         throw new RpcException({
           status: 'error',
           message: this.i18nService.translate('kyc_document_front_required', lang),
@@ -1798,8 +1796,8 @@ export class UserServiceService {
           userId,
           documentType: data.documentType,
           documentNumber: data.documentNumber,
-          documentFrontUrl: data.documentFrontUrl,
-          documentBackUrl: data.documentBackUrl || null,
+          documentFront: data.documentFront,  // ✅ Directement documentFront
+          documentBack: data.documentBack || null,  // ✅ Directement documentBack
           profileImage: data.profileImage || null,
           status: 'PENDING',
           submittedAt: new Date(),
@@ -1822,8 +1820,8 @@ export class UserServiceService {
           kycId: kyc.id,
           documentType: data.documentType,
           documentNumber: data.documentNumber,
-          documentFrontUrl: data.documentFrontUrl,
-          documentBackUrl: data.documentBackUrl,
+          documentFront: data.documentFront,
+          documentBack: data.documentBack,
           profileImage: data.profileImage,
         },
         null,
@@ -1876,8 +1874,8 @@ export class UserServiceService {
           id: true,
           documentType: true,
           documentNumber: true,
-          documentFrontUrl: true,
-          documentBackUrl: true,
+          documentFront: true,
+          documentBack: true,
           profileImage: true,
           status: true,
           submittedAt: true,
@@ -1896,8 +1894,8 @@ export class UserServiceService {
           id: kycSubmission.id,
           documentType: kycSubmission.documentType || null,
           documentNumber: kycSubmission.documentNumber || null,
-          documentFrontUrl: kycSubmission.documentFrontUrl || null,
-          documentBackUrl: kycSubmission.documentBackUrl || null,
+          documentFront: kycSubmission.documentFront || null,
+          documentBack: kycSubmission.documentBack || null,
           profileImage: kycSubmission.profileImage || null,
           status: kycSubmission.status,
           submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
