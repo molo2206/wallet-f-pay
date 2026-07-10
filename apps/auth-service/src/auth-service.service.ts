@@ -229,8 +229,7 @@ export class AuthServiceService {
       const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-      // Créer l'utilisateur
-      // Dans register - créer l'utilisateur avec profileImage
+      // Créer l'utilisateur avec profileImage
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
@@ -244,7 +243,7 @@ export class AuthServiceService {
           fcmToken: data.fcmToken ?? null,
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
-          profileImage: data.profileImage ?? null, // ✅ INCLURE ICI
+          profileImage: data.profileImage ?? null,
         },
       });
 
@@ -413,7 +412,7 @@ export class AuthServiceService {
         this.i18nService.translate('register_success', lang),
       );
 
-      // ✅ Récupérer les wallets de l'utilisateur (comme login)
+      // ✅ Récupérer les wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -427,7 +426,7 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Récupérer les sessions actives (comme login)
+      // ✅ Récupérer les sessions actives
       const sessions = await this.prisma.sessions.findMany({
         where: {
           user_id: user.id,
@@ -445,7 +444,7 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Récupérer les informations KYC (comme login)
+      // ✅ Récupérer les informations KYC
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -505,8 +504,9 @@ export class AuthServiceService {
           deleted: user.deleted ?? false,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          kycStatus: user.kycStatus,
-          countryCode: user.countryCode,
+          profileImage: null,
+          kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+          countryCode: user.countryCode || 'CD',
         },
         sessionId: sessionId,
         sessions: sessions,
@@ -517,7 +517,6 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
-
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
@@ -856,9 +855,9 @@ export class AuthServiceService {
           deleted: user.deleted ?? false,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          profileImage: user.profileImage,
-          kycStatus: user.kycStatus,
-          countryCode: user.countryCode,
+          profileImage: user.profileImage ?? null,
+          kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+          countryCode: user.countryCode || 'CD',
         },
         sessionId: sessionId,
         sessions: sessions,
@@ -880,6 +879,7 @@ export class AuthServiceService {
       });
     }
   }
+
   async validateSession(
     userId: string,
     sessionToken: string,
