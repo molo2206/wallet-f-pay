@@ -25,6 +25,7 @@ import { UpsertAppSettingsDto } from './dto/app-settings.dto';
 import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import type { Multer } from 'multer';
+import { uploadFile } from 'apps/wallet-service/src/utilils/uploadFile.utils';
 
 
 @Injectable()
@@ -1710,6 +1711,7 @@ export class UserServiceService {
       documentNumber: string;
       documentFrontUrl: string;  // ✅ URL du fichier recto
       documentBackUrl?: string;  // ✅ URL du fichier verso (optionnel)
+      profileImage?: string; // ✅ URL de l'image de profil (optionnel)
     },
     lang: string = 'fr',
   ): Promise<{ message: string; data: any }> {
@@ -1790,6 +1792,7 @@ export class UserServiceService {
           documentNumber: data.documentNumber,
           documentFrontUrl: data.documentFrontUrl,
           documentBackUrl: data.documentBackUrl || null,
+          profileImage: data.profileImage || null,
           status: 'PENDING',
           submittedAt: new Date(),
           createdAt: new Date(),
@@ -1813,6 +1816,7 @@ export class UserServiceService {
           documentNumber: data.documentNumber,
           documentFrontUrl: data.documentFrontUrl,
           documentBackUrl: data.documentBackUrl,
+          profileImage: data.profileImage,
         },
         null,
       );
@@ -1903,9 +1907,6 @@ export class UserServiceService {
     };
   }
 
-  /**
-   * Récupérer toutes les soumissions KYC (Admin)
-   */
   async getAllKycSubmissions(
     params: {
       page: number;
@@ -1993,7 +1994,7 @@ export class UserServiceService {
   ): Promise<{ message: string; data: any }> {
     console.log(`[verifyKyc] Admin ${adminId} vérifie KYC ${kycId}`);
 
-    // 1. Vérifier que la soumission existe
+    //  1. Vérifier que la soumission existe avec tous les champs
     const kyc = await this.prisma.kyc_submission.findUnique({
       where: { id: kycId },
       include: { user: true },
@@ -2027,7 +2028,11 @@ export class UserServiceService {
       });
     }
 
-    // 4. Mettre à jour la soumission
+    //4. Récupérer l'URL de la photo de profil (documentFrontUrl)
+    // Le champ profileImage dans kyc_submission sera mis à jour avec la même valeur
+    const profileImageUrl = kyc.documentFrontUrl || null;
+
+    // 5. Mettre à jour la soumission KYC
     const updatedKyc = await this.prisma.kyc_submission.update({
       where: { id: kycId },
       data: {
@@ -2036,17 +2041,28 @@ export class UserServiceService {
         rejectionReason: data.status === 'REJECTED' ? (data.rejectionReason || 'Document non conforme') : null,
         reviewedAt: new Date(),
         updatedAt: new Date(),
+        // ✅ Si le KYC est vérifié, mettre à jour profileImage dans kyc_submission
+        ...(data.status === 'VERIFIED' && profileImageUrl ? { profileImage: profileImageUrl } : {}),
       },
     });
 
-    // 5. Mettre à jour le statut KYC de l'utilisateur
+    // 6. Mettre à jour le statut KYC de l'utilisateur
     const userKycStatus = data.status === 'VERIFIED' ? 'VERIFIED' : 'REJECTED';
+
+    // 7. Mettre à jour le profileImage de l'utilisateur si le KYC est vérifié
+    let userUpdateData: any = { kycStatus: userKycStatus };
+
+    if (data.status === 'VERIFIED' && profileImageUrl) {
+      userUpdateData.profileImage = profileImageUrl;
+      console.log(`[verifyKyc]  ProfileImage mis à jour pour l'utilisateur: ${profileImageUrl}`);
+    }
+
     await this.prisma.user.update({
       where: { id: kyc.userId },
-      data: { kycStatus: userKycStatus },
+      data: userUpdateData,
     });
 
-    // 6. Audit
+    // 8. Audit
     await this.logAudit(
       adminId,
       `KYC_${data.status}`,
@@ -2055,11 +2071,12 @@ export class UserServiceService {
         userId: kyc.userId,
         adminNotes: data.adminNotes,
         rejectionReason: data.rejectionReason,
+        profileImageUpdated: data.status === 'VERIFIED' && !!profileImageUrl,
       },
       null,
     );
 
-    // 7. Notification par SMS
+    // 9. Notification par SMS
     if (kyc.user.phone) {
       try {
         const cleanPhone = kyc.user.phone.replace(/[^0-9+]/g, '');
@@ -2077,7 +2094,7 @@ export class UserServiceService {
       }
     }
 
-    // 8. Email de notification
+    // 10. Email de notification
     if (kyc.user.email) {
       try {
         const emailData = {
@@ -2114,6 +2131,82 @@ export class UserServiceService {
       ),
       data: updatedKyc,
     };
+  }
+
+  async uploadFileOnly(
+    userId: string,
+    file: Express.Multer.File,
+    folder: string,
+    lang: string = 'fr',
+  ): Promise<{ message: string; data: { url: string } }> {
+    console.log(`[uploadFileOnly] Utilisateur ${userId} upload un fichier dans ${folder}`);
+
+    try {
+      // 1. Vérifier que l'utilisateur existe
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+      if (!user) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('user_not_found', lang),
+          statusCode: 404,
+        });
+      }
+
+      // 2. Vérifier que le fichier est fourni
+      if (!file) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Aucun fichier fourni',
+          statusCode: 400,
+        });
+      }
+
+      // 3. Vérifier que le dossier est fourni
+      if (!folder || folder.trim() === '') {
+        throw new RpcException({
+          status: 'error',
+          message: 'Le nom du dossier est requis',
+          statusCode: 400,
+        });
+      }
+
+      // 4. Upload du fichier vers le dossier spécifié
+      console.log(`[uploadFileOnly] Upload du fichier: ${file.originalname} vers ${folder}`);
+      const fileUrl = await uploadFile(file, { folder: folder.trim() });
+      console.log(`[uploadFileOnly] ✅ Fichier uploadé: ${fileUrl}`);
+
+      // 5. Audit
+      await this.logAudit(
+        userId,
+        'FILE_UPLOAD',
+        {
+          fileName: file.originalname,
+          fileSize: file.size,
+          folder: folder,
+          url: fileUrl,
+        },
+        null,
+      );
+
+      return {
+        message: `Fichier uploadé avec succès dans ${folder}`,
+        data: { url: fileUrl },
+      };
+    } catch (error) {
+      console.error('[uploadFileOnly] ❌ Erreur:', error);
+
+      if (error instanceof RpcException) {
+        throw error;
+      }
+
+      throw new RpcException({
+        status: 'error',
+        message: error.message || 'Erreur lors de l\'upload du fichier',
+        statusCode: 500,
+      });
+    }
   }
 
   async createApiKey(data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {

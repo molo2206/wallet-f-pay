@@ -3226,6 +3226,44 @@ export class ApiGatewayController {
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
+
+  @Post('upload')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFile(
+    @CurrentUser() currentUser: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('folder') folder: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    if (!file) {
+      throw new HttpException(
+        'Aucun fichier fourni',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!folder || folder.trim() === '') {
+      throw new HttpException(
+        'Le nom du dossier est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return this.sendUserMessage(
+      'upload_file',
+      {
+        userId: currentUser.id,
+        file: file,
+        folder: folder.trim(),
+        lang,
+      },
+      'Erreur lors de l\'upload',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
   //=====================================================================================================================
   private handleRpcError(
     error: any,

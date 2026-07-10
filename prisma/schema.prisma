@@ -53,6 +53,7 @@ model user {
   pin_locked_until       DateTime?                @db.DateTime(0)
   kycStatus              user_kycStatus           @default(NOT_SUBMITTED)
   countryCode            String?                  @db.VarChar(11)
+  profileImage           String?                  @db.VarChar(500)
   api_key                api_key[]
   audit_log              audit_log[]
   failed_transaction_log failed_transaction_log[]
@@ -407,6 +408,7 @@ model kyc_submission {
   documentBackUrl  String?               @db.Text
   rejectionReason  String?               @db.Text
   submittedAt      DateTime?             @db.DateTime(0)
+  profileImage     String?               @db.VarChar(500)
   user             user                  @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_kyc_user")
 
   @@index([userId], map: "fk_kyc_user")

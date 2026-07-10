@@ -545,6 +545,35 @@ export class UserServiceController {
     }
   }
 
+  @MessagePattern('upload_file')
+  async uploadFile(
+    @Payload() data: {
+      userId: string;
+      file: Express.Multer.File;
+      folder: string; // ✅ Dossier obligatoire
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 upload_file - folder:', data.folder);
+
+    try {
+      return await this.userService.uploadFileOnly(
+        data.userId,
+        data.file,
+        data.folder, 
+        lang,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('create_api_key')
   async createApiKey(@Payload() data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
     return this.userService.createApiKey(data);
