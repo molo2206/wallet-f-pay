@@ -1995,7 +1995,7 @@ export class UserServiceService {
   ): Promise<{ message: string; data: any }> {
     console.log(`[verifyKyc] Admin ${adminId} vérifie KYC ${kycId}`);
 
-    // ✅ 1. Utiliser select pour récupérer explicitement profileImage
+    // 1. Vérifier que la soumission existe avec tous les champs
     const kyc = await this.prisma.kyc_submission.findUnique({
       where: { id: kycId },
       select: {
@@ -2005,7 +2005,7 @@ export class UserServiceService {
         documentNumber: true,
         documentFrontUrl: true,
         documentBackUrl: true,
-        profileImage: true, // ✅ Inclure profileImage
+        profileImage: true,
         status: true,
         adminNotes: true,
         rejectionReason: true,
@@ -2054,9 +2054,8 @@ export class UserServiceService {
       });
     }
 
-    // 4. ✅ Récupérer profileImage du KYC
+    // 4. Récupérer profileImage du KYC
     const profileImageUrl = kyc.profileImage || null;
-
     console.log(`[verifyKyc] 📷 ProfileImage à utiliser: ${profileImageUrl}`);
 
     // 5. Mettre à jour la soumission KYC
@@ -2074,7 +2073,7 @@ export class UserServiceService {
     // 6. Mettre à jour le statut KYC de l'utilisateur
     const userKycStatus = data.status === 'VERIFIED' ? 'VERIFIED' : 'REJECTED';
 
-    // 7. ✅ Mettre à jour le profileImage de l'utilisateur avec profileImage du KYC
+    // 7. Mettre à jour le profileImage de l'utilisateur
     let userUpdateData: any = { kycStatus: userKycStatus };
 
     if (data.status === 'VERIFIED' && profileImageUrl) {
@@ -2097,38 +2096,46 @@ export class UserServiceService {
         adminNotes: data.adminNotes,
         rejectionReason: data.rejectionReason,
         profileImageUpdated: data.status === 'VERIFIED' && !!profileImageUrl,
-        profileImageUrl: profileImageUrl,
       },
       null,
     );
 
-    // 9. Notification par SMS
+    // 9. ✅ Notification par SMS avec fallback
     if (kyc.user.phone) {
       try {
         const cleanPhone = kyc.user.phone.replace(/[^0-9+]/g, '');
+
+        // ✅ Récupérer le nom complet avec fallback
+        const userFullName = kyc.user.full_name || 'Cher client';
+        console.log(`[verifyKyc] 👤 Nom du destinataire: ${userFullName}`);
+
         const smsText = data.status === 'VERIFIED'
           ? this.i18nService.translate('kyc_verified_sms', lang, {
-            full_name: kyc.user.full_name || '',
+            full_name: userFullName,
           })
           : this.i18nService.translate('kyc_rejected_sms', lang, {
-            full_name: kyc.user.full_name || '',
+            full_name: userFullName,
             reason: data.rejectionReason || 'Document non conforme',
           });
+
+        console.log(`[verifyKyc] 📱 SMS envoyé à ${cleanPhone}: ${smsText}`);
         await this.smsService.sendSms(cleanPhone, smsText);
       } catch (err) {
         console.error('[KYC] Erreur envoi SMS:', err);
       }
     }
 
-    // 10. Email de notification
+    // 10. ✅ Email de notification avec fallback
     if (kyc.user.email) {
       try {
+        const userFullName = kyc.user.full_name || 'Cher client';
+
         const emailData = {
           title: data.status === 'VERIFIED'
             ? this.i18nService.translate('kyc_verified_email_title', lang)
             : this.i18nService.translate('kyc_rejected_email_title', lang),
           greeting: this.i18nService.translate('kyc_email_greeting', lang, {
-            name: kyc.user.full_name || '',
+            name: userFullName,
           }),
           message: data.status === 'VERIFIED'
             ? this.i18nService.translate('kyc_verified_email_message', lang)
