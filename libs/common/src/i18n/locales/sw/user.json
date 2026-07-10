@@ -54,8 +54,8 @@
   "kyc_not_found": "Mawasilisho ya KYC hayakupatikana",
   "kyc_invalid_status": "Hali si sahihi. Tumia VERIFIED au REJECTED",
   "kyc_not_pending": "Ombi hili halisubiri tena (hali ya sasa: {status})",
-  "kyc_verified_sms": "Habari {full_name}, KYC yako imethibitishwa kwa mafanikio. Asante.",
-  "kyc_rejected_sms": "Habari {full_name}, KYC yako imekataliwa. Sababu: {reason}. Tafadhali wasilisha tena.",
+  "kyc_verified_sms": "Habari, KYC yako imethibitishwa kwa mafanikio. Asante.",
+  "kyc_rejected_sms": "Habari, KYC yako imekataliwa. Sababu: {reason}. Tafadhali wasilisha tena.",
   "kyc_verified_email_title": "KYC yako imethibitishwa",
   "kyc_rejected_email_title": "KYC yako imekataliwa",
   "kyc_email_greeting": "Habari {name},",
@@ -68,5 +68,6 @@
   "kyc_status_error": "Hitilafu katika kupata hali ya KYC",
   "kyc_submissions_error": "Hitilafu katika kupata mawasilisho ya KYC",
   "kyc_verify_error": "Hitilafu katika kuthibitisha KYC",
-  "kyc_id_required": "Kitambulisho cha mawasilisho ya KYC kinahitajika"
+  "kyc_id_required": "Kitambulisho cha mawasilisho ya KYC kinahitajika",
+  "kyc_updated_success": "Ombi lako la KYC limebadilishwa kwa mafanikio"
 }

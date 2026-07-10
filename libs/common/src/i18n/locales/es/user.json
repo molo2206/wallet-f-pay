@@ -53,8 +53,8 @@
   "kyc_not_found": "Solicitud KYC no encontrada",
   "kyc_invalid_status": "Estado inválido. Use VERIFIED o REJECTED",
   "kyc_not_pending": "Esta solicitud ya no está pendiente (estado actual: {status})",
-  "kyc_verified_sms": "Hola {full_name}, su KYC ha sido verificado con éxito. Gracias.",
-  "kyc_rejected_sms": "Hola {full_name}, su KYC ha sido rechazado. Razón: {reason}. Por favor, vuelva a enviar.",
+  "kyc_verified_sms": "Hola , su KYC ha sido verificado con éxito. Gracias.",
+  "kyc_rejected_sms": "Hola , su KYC ha sido rechazado. Razón: {reason}. Por favor, vuelva a enviar.",
   "kyc_verified_email_title": "Su KYC ha sido verificado",
   "kyc_rejected_email_title": "Su KYC ha sido rechazado",
   "kyc_email_greeting": "Hola {name},",
@@ -67,5 +67,6 @@
   "kyc_status_error": "Error al recuperar el estado KYC",
   "kyc_submissions_error": "Error al recuperar las solicitudes KYC",
   "kyc_verify_error": "Error al verificar KYC",
-  "kyc_id_required": "El ID de la solicitud KYC es requerido"
+  "kyc_id_required": "El ID de la solicitud KYC es requerido",
+  "kyc_updated_success": "Su solicitud KYC ha sido actualizada con éxito"
  }

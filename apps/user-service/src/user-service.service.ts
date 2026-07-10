@@ -1707,8 +1707,8 @@ export class UserServiceService {
     data: {
       documentType: string;
       documentNumber: string;
-      documentFront: string;  // ✅ Correspond au champ dans le body
-      documentBack?: string;  // ✅ Correspond au champ dans le body
+      documentFront: string;
+      documentBack?: string;
       profileImage?: string;
     },
     lang: string = 'fr',
@@ -1766,20 +1766,19 @@ export class UserServiceService {
         });
       }
 
-      // 5. Vérifier si une soumission KYC existe déjà
+      // ✅ 5. Vérifier si une soumission KYC existe déjà
       const existingKyc = await this.prisma.kyc_submission.findFirst({
         where: { userId },
         orderBy: { createdAt: 'desc' },
       });
 
+      let kyc;
+
+      // ✅ 6. Si une soumission existe, la mettre à jour (pas en créer une nouvelle)
       if (existingKyc) {
-        if (existingKyc.status === 'PENDING') {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('kyc_already_pending', lang),
-            statusCode: 400,
-          });
-        }
+        console.log(`[submitKyc] 📝 Mise à jour de la soumission KYC existante: ${existingKyc.id}`);
+
+        // Si la soumission est déjà VERIFIED, on ne peut pas la modifier
         if (existingKyc.status === 'VERIFIED') {
           throw new RpcException({
             status: 'error',
@@ -1787,35 +1786,56 @@ export class UserServiceService {
             statusCode: 400,
           });
         }
+
+        // ✅ Mettre à jour la soumission existante
+        kyc = await this.prisma.kyc_submission.update({
+          where: { id: existingKyc.id },
+          data: {
+            documentType: data.documentType,
+            documentNumber: data.documentNumber,
+            documentFront: data.documentFront,
+            documentBack: data.documentBack || null,
+            profileImage: data.profileImage || null,
+            status: 'PENDING', // Remettre en attente
+            submittedAt: new Date(),
+            updatedAt: new Date(),
+            // Réinitialiser les champs de vérification
+            reviewedAt: null,
+            adminNotes: null,
+            rejectionReason: null,
+          },
+        });
+
+      } else {
+        // ✅ 7. Créer une nouvelle soumission KYC
+        console.log(`[submitKyc] 📝 Création d'une nouvelle soumission KYC`);
+        kyc = await this.prisma.kyc_submission.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId,
+            documentType: data.documentType,
+            documentNumber: data.documentNumber,
+            documentFront: data.documentFront,
+            documentBack: data.documentBack || null,
+            profileImage: data.profileImage || null,
+            status: 'PENDING',
+            submittedAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
       }
 
-      // 6. Créer la soumission KYC
-      const kyc = await this.prisma.kyc_submission.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId,
-          documentType: data.documentType,
-          documentNumber: data.documentNumber,
-          documentFront: data.documentFront,  // ✅ Directement documentFront
-          documentBack: data.documentBack || null,  // ✅ Directement documentBack
-          profileImage: data.profileImage || null,
-          status: 'PENDING',
-          submittedAt: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
-
-      // 7. Mettre à jour le statut KYC de l'utilisateur
+      // 8. Mettre à jour le statut KYC de l'utilisateur
       await this.prisma.user.update({
         where: { id: userId },
         data: { kycStatus: 'PENDING' },
       });
 
-      // 8. Audit
+      // 9. Audit
       await this.logAudit(
         userId,
-        'KYC_SUBMITTED',
+        existingKyc ? 'KYC_UPDATED' : 'KYC_SUBMITTED',
         {
           kycId: kyc.id,
           documentType: data.documentType,
@@ -1823,11 +1843,12 @@ export class UserServiceService {
           documentFront: data.documentFront,
           documentBack: data.documentBack,
           profileImage: data.profileImage,
+          isUpdate: !!existingKyc,
         },
         null,
       );
 
-      // ✅ 9. Récupérer les informations complètes de l'utilisateur
+      // ✅ 10. Récupérer les informations complètes de l'utilisateur
       const updatedUser = await this.prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -1852,7 +1873,7 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 10. Récupérer les wallets de l'utilisateur
+      // ✅ 11. Récupérer les wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -1866,7 +1887,7 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 11. Récupérer les informations KYC formatées comme dans login
+      // ✅ 12. Récupérer les informations KYC formatées comme dans login
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -1887,7 +1908,7 @@ export class UserServiceService {
         },
       });
 
-      // ✅ 12. Formater les informations KYC comme dans login
+      // ✅ 13. Formater les informations KYC comme dans login
       const kycData = {
         status: updatedUser?.kycStatus || 'NOT_SUBMITTED',
         submission: kycSubmission ? {
@@ -1905,9 +1926,11 @@ export class UserServiceService {
         } : null,
       };
 
-      // ✅ 13. Retourner les données formatées comme login
+      // ✅ 14. Retourner les données formatées comme login
       return {
-        message: this.i18nService.translate('kyc_submitted_success', lang),
+        message: existingKyc
+          ? this.i18nService.translate('kyc_updated_success', lang)
+          : this.i18nService.translate('kyc_submitted_success', lang),
         data: {
           id: updatedUser?.id,
           email: updatedUser?.email,

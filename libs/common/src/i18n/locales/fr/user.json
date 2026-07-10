@@ -51,13 +51,13 @@
   "kyc_not_found": "Soumission KYC non trouvée",
   "kyc_invalid_status": "Statut invalide. Utilisez VERIFIED ou REJECTED",
   "kyc_not_pending": "Cette demande n'est plus en attente (statut actuel: {status})",
-  "kyc_verified_sms": "Bonjour {full_name}, votre KYC a été vérifié avec succès. Merci.",
-  "kyc_rejected_sms": "Bonjour {full_name}, votre KYC a été rejeté. Raison: {reason}. Veuillez re-soumettre.",
+  "kyc_verified_sms": "Bonjour, votre KYC a été vérifié avec succès. Merci.",
+  "kyc_rejected_sms": "Bonjour, votre KYC a été rejeté. Raison: {reason}. Veuillez re-soumettre.",
   "kyc_verified_email_title": "Votre KYC a été vérifié",
   "kyc_rejected_email_title": "Votre KYC a été rejeté",
   "kyc_email_greeting": "Bonjour {name},",
   "kyc_verified_email_message": "Félicitations ! Votre demande KYC a été vérifiée avec succès. Vous avez maintenant accès à toutes les fonctionnalités.",
   "kyc_rejected_email_message": "Votre demande KYC a été rejetée. Raison: {reason}. Veuillez soumettre à nouveau avec des documents valides.",
-  "kyc_email_footer": "Merci de faire confiance à F-Pay."
-  
+  "kyc_email_footer": "Merci de faire confiance à F-Pay.",
+  "kyc_updated_success": "Votre demande KYC a été mise à jour avec succès"
 }

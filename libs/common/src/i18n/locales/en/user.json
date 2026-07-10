@@ -53,8 +53,8 @@
   "kyc_not_found": "KYC submission not found",
   "kyc_invalid_status": "Invalid status. Use VERIFIED or REJECTED",
   "kyc_not_pending": "This request is no longer pending (current status: {status})",
-  "kyc_verified_sms": "Hello {full_name}, your KYC has been verified successfully. Thank you.",
-  "kyc_rejected_sms": "Hello {full_name}, your KYC has been rejected. Reason: {reason}. Please resubmit.",
+  "kyc_verified_sms": "Hello, your KYC has been verified successfully. Thank you.",
+  "kyc_rejected_sms": "Hello , your KYC has been rejected. Reason: {reason}. Please resubmit.",
   "kyc_verified_email_title": "Your KYC has been verified",
   "kyc_rejected_email_title": "Your KYC has been rejected",
   "kyc_email_greeting": "Hello {name},",
@@ -67,5 +67,6 @@
   "kyc_status_error": "Error retrieving KYC status",
   "kyc_submissions_error": "Error retrieving KYC submissions",
   "kyc_verify_error": "Error verifying KYC",
-  "kyc_id_required": "KYC submission ID is required"
+  "kyc_id_required": "KYC submission ID is required",
+  "kyc_updated_success": "Your KYC request has been updated successfully"
 }

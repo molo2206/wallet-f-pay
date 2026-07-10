@@ -53,8 +53,8 @@
   "kyc_not_found": "لم يتم العثور على طلب KYC",
   "kyc_invalid_status": "الحالة غير صالحة. استخدم VERIFIED أو REJECTED",
   "kyc_not_pending": "هذا الطلب لم يعد قيد الانتظار (الحالة الحالية: {status})",
-  "kyc_verified_sms": "مرحباً {full_name}، تم التحقق من KYC الخاص بك بنجاح. شكراً لك.",
-  "kyc_rejected_sms": "مرحباً {full_name}، تم رفض KYC الخاص بك. السبب: {reason}. يرجى إعادة التقديم.",
+  "kyc_verified_sms": "مرحباً، تم التحقق من KYC الخاص بك بنجاح. شكراً لك.",
+  "kyc_rejected_sms": "مرحباً ، تم رفض KYC الخاص بك. السبب: {reason}. يرجى إعادة التقديم.",
   "kyc_verified_email_title": "تم التحقق من KYC الخاص بك",
   "kyc_rejected_email_title": "تم رفض KYC الخاص بك",
   "kyc_email_greeting": "مرحباً {name}،",
@@ -67,5 +67,6 @@
   "kyc_status_error": "خطأ في استرجاع حالة KYC",
   "kyc_submissions_error": "خطأ في استرجاع طلبات KYC",
   "kyc_verify_error": "خطأ في التحقق من KYC",
-  "kyc_id_required": "معرف طلب KYC مطلوب"
+  "kyc_id_required": "معرف طلب KYC مطلوب",
+  "kyc_updated_success": "تم تحديث طلب KYC الخاص بك بنجاح"
 }
