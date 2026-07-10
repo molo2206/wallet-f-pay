@@ -3042,7 +3042,7 @@ export class ApiGatewayController {
       documentNumber: string;
       documentFrontUrl: string;
       documentBackUrl?: string;
-      profileImage?: string;
+      profileImage?: string; // ✅ Ajouté
     },
     @Headers('lang') langHeader?: string,
   ) {
@@ -3077,6 +3077,7 @@ export class ApiGatewayController {
         documentNumber: body.documentNumber,
         documentFrontUrl: body.documentFrontUrl,
         documentBackUrl: body.documentBackUrl || null,
+        profileImage: body.profileImage || null, // ✅ AJOUTÉ !
         lang,
       },
       this.i18nService.translate('kyc_submit_failed', lang),

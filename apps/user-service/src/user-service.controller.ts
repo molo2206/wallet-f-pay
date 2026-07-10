@@ -435,14 +435,16 @@ export class UserServiceController {
       userId: string;
       documentType: string;
       documentNumber: string;
-      documentFrontUrl: string;  // ✅ URL du fichier
-      documentBackUrl?: string;  // ✅ URL du fichier (optionnel)
-      profileImage?: string; // ✅ URL de l'image de profil (optionnel)
+      documentFrontUrl: string;
+      documentBackUrl?: string;
+      profileImage?: string; // ✅ Inclure dans le Payload
       lang?: string;
     },
   ) {
     const lang = data.lang || 'fr';
     console.log('🔍 Langue reçue par submit_kyc :', lang);
+    console.log('🔍 profileImage reçu:', data.profileImage); // ✅ Log pour debug
+
     try {
       return await this.userService.submitKyc(
         data.userId,
@@ -451,7 +453,7 @@ export class UserServiceController {
           documentNumber: data.documentNumber,
           documentFrontUrl: data.documentFrontUrl,
           documentBackUrl: data.documentBackUrl,
-          profileImage: data.profileImage,
+          profileImage: data.profileImage, // ✅ Passer profileImage
         },
         lang,
       );
@@ -563,7 +565,7 @@ export class UserServiceController {
       return await this.userService.uploadFileOnly(
         data.userId,
         data.file,
-        data.folder, 
+        data.folder,
         lang,
       );
     } catch (error) {

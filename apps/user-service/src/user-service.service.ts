@@ -387,6 +387,7 @@ export class UserServiceService {
         phone: true,
         full_name: true,
         account_number: true,
+        profileImage: true,
         branch: true,
         role: true,
         status: true,
