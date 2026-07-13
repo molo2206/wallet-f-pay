@@ -198,7 +198,6 @@ export class AuthServiceService {
           }
         }
 
-        // ✅ RETOUR OTP AVEC TOUS LES CHAMPS REQUIS
         return {
           accessToken: null,
           refreshToken: null,
@@ -223,6 +222,10 @@ export class AuthServiceService {
             profileImage: null,
             kycStatus: 'NOT_SUBMITTED',
             countryCode: null,
+            sessionId: null,
+            sessions: [],
+            wallets: [],
+            kyc: null,
           },
           requiresOtp: true,
         };
@@ -506,7 +509,7 @@ export class AuthServiceService {
         } : null,
       };
 
-      // ✅ RETOUR FINAL AVEC TOUS LES CHAMPS
+      // ✅ RETOUR FINAL AVEC TOUS LES CHAMPS DANS data
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -531,16 +534,17 @@ export class AuthServiceService {
           profileImage: null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
+          sessionId: sessionId,
+          sessions: sessions,
+          wallets: wallets,
+          kyc: kyc,
         },
-        sessionId: sessionId,
-        sessions: sessions,
-        wallets: wallets,
-        kyc: kyc,
       };
     } finally {
       registerLocks.delete(key);
     }
   }
+
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
@@ -857,7 +861,7 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ 18. Retourner la réponse complète
+      // ✅ 18. Retourner la réponse complète avec tout dans data
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -882,12 +886,12 @@ export class AuthServiceService {
           profileImage: user.profileImage ?? null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
+          sessionId: sessionId,
+          sessions: sessions,
+          resources: resources,
+          wallets: wallets,
+          kyc: kyc,
         },
-        sessionId: sessionId,
-        sessions: sessions,
-        resources: resources,
-        wallets: wallets,
-        kyc: kyc,
       };
     } catch (error) {
       if (
@@ -903,6 +907,7 @@ export class AuthServiceService {
       });
     }
   }
+
 
   async validateSession(
     userId: string,
