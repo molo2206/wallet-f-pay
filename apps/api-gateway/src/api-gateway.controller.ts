@@ -3273,7 +3273,7 @@ export class ApiGatewayController {
   /**
    * Récupère les taux de change pour les wallets de l'utilisateur connecté
    */
-  @Get('wallet/exchange-rates')
+  @Get('wallet/rates/user')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getExchangeRatesForUser(
     @CurrentUser() currentUser: any,
