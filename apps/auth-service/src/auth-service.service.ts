@@ -199,35 +199,8 @@ export class AuthServiceService {
         }
 
         return {
-          accessToken: null,
-          refreshToken: null,
-          message: this.i18nService.translate('otp_sent', lang),
-          data: {
-            id: null,
-            email: null,
-            phone: null,
-            fcmToken: null,
-            full_name: null,
-            account_number: null,
-            branch: null,
-            role: null,
-            passwordStatus: null,
-            pinstatus: null,
-            merchantCode: null,
-            businessName: null,
-            status: null,
-            deleted: false,
-            createdAt: null,
-            updatedAt: null,
-            profileImage: null,
-            kycStatus: 'NOT_SUBMITTED',
-            countryCode: null,
-            sessionId: null,
-            sessions: [],
-            wallets: [],
-            kyc: null,
-          },
           requiresOtp: true,
+          message: this.i18nService.translate('otp_sent', lang),
         };
       }
 
@@ -509,7 +482,7 @@ export class AuthServiceService {
         } : null,
       };
 
-      // ✅ RETOUR FINAL AVEC TOUS LES CHAMPS DANS data
+      // ✅ RETOUR FINAL - sessionId, sessions, wallets, kyc EN DEHORS de data
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -534,11 +507,11 @@ export class AuthServiceService {
           profileImage: null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
-          sessionId: sessionId,
-          sessions: sessions,
-          wallets: wallets,
-          kyc: kyc,
         },
+        sessionId: sessionId,
+        sessions: sessions,
+        wallets: wallets,
+        kyc: kyc,
       };
     } finally {
       registerLocks.delete(key);
@@ -861,7 +834,7 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ 18. Retourner la réponse complète avec tout dans data
+      // ✅ 18. Retourner la réponse complète - sessionId, sessions, resources, wallets, kyc EN DEHORS de data
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -886,12 +859,12 @@ export class AuthServiceService {
           profileImage: user.profileImage ?? null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
-          sessionId: sessionId,
-          sessions: sessions,
-          resources: resources,
-          wallets: wallets,
-          kyc: kyc,
         },
+        sessionId: sessionId,
+        sessions: sessions,
+        resources: resources,
+        wallets: wallets,
+        kyc: kyc,
       };
     } catch (error) {
       if (
