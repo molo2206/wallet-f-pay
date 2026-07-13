@@ -135,5 +135,7 @@
     "wallet.account_or_provider_required": "Se requiere un número de cuenta bancaria o un proveedor de dinero móvil",
     "wallet.kyc_required_for_international_transfer": "Debe tener un KYC verificado para realizar transferencias internacionales. Por favor, envíe sus documentos.",
     "wallet.kyc_pending_for_international_transfer": "Su solicitud KYC está siendo verificada. Por favor, espere antes de realizar transferencias internacionales.",
-    "wallet.kyc_rejected_for_international_transfer": "Su KYC ha sido rechazado. Por favor, envíe nuevamente documentos válidos para realizar transferencias internacionales."
+    "wallet.kyc_rejected_for_international_transfer": "Su KYC ha sido rechazado. Por favor, envíe nuevamente documentos válidos para realizar transferencias internacionales.",
+    "wallet.exchange_rates_retrieved": "Tasas de cambio recuperadas con éxito",
+    "wallet.exchange_rate_same_currency": "La tasa de cambio es idéntica para la misma moneda (1:1)"
 }

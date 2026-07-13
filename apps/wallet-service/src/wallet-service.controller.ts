@@ -604,6 +604,25 @@ export class WalletServiceController {
     }
   }
 
+  // ==================== EXCHANGE RATES ====================
+
+  @MessagePattern('get_exchange_rates_for_user')
+  async getExchangeRatesForUser(@Payload() data: { userId: string; lang?: string }) {
+    console.log('[WalletService] get_exchange_rates_for_user received:', data);
+    try {
+      return await this.walletService.getExchangeRatesForUser(data.userId, data.lang);
+    } catch (error) {
+      console.error('[WalletService] get_exchange_rates_for_user error:', error);
+      const lang = data?.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+
   // ==================== HEALTH CHECK ====================
 
   @MessagePattern('health_check')

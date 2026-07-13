@@ -3268,6 +3268,26 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
   }
+  // ==================== EXCHANGE RATES ENDPOINTS ====================
+
+  /**
+   * Récupère les taux de change pour les wallets de l'utilisateur connecté
+   */
+  @Get('wallet/exchange-rates')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getExchangeRatesForUser(
+    @CurrentUser() currentUser: any,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    return this.sendWalletMessage(
+      'get_exchange_rates_for_user',
+      { userId: currentUser.id, lang },
+      this.i18nService.translate('wallet.exchange_rates_failed', lang),
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
   //=====================================================================================================================
   private handleRpcError(
     error: any,

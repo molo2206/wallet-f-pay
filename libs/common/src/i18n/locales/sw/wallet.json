@@ -144,5 +144,7 @@
   "wallet.account_or_provider_required": "Nambari ya akaunti ya benki au mtoa huduma wa mobile money inahitajika",
   "wallet.kyc_required_for_international_transfer": "Lazima uwe na KYC iliyothibitishwa ili kufanya uhamisho wa kimataifa. Tafadhali wasilisha nyaraka zako.",
   "wallet.kyc_pending_for_international_transfer": "Ombi lako la KYC linathibitishwa. Tafadhali subiri kabla ya kufanya uhamisho wa kimataifa.",
-  "wallet.kyc_rejected_for_international_transfer": "KYC yako imekataliwa. Tafadhali wasilisha tena nyaraka halali ili kufanya uhamisho wa kimataifa."
+  "wallet.kyc_rejected_for_international_transfer": "KYC yako imekataliwa. Tafadhali wasilisha tena nyaraka halali ili kufanya uhamisho wa kimataifa.",
+  "wallet.exchange_rates_retrieved": "Viwango vya ubadilishaji vimepatikana kwa mafanikio",
+  "wallet.exchange_rate_same_currency": "Kiwango cha ubadilishaji ni sawa kwa sarafu moja (1:1)"
 }

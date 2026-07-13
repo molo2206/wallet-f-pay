@@ -562,6 +562,118 @@ export class WalletServiceService {
     };
   }
 
+  async getExchangeRatesForUser(
+    userId: string,
+    lang: string = 'fr',
+  ): Promise<ApiResponse<{ currencies: string[]; exchangeRates: any[] }>> {
+    console.log('[WalletService] Get exchange rates for user:', { userId, lang });
+
+    // 1. Récupérer tous les wallets actifs de l'utilisateur
+    const wallets = await this.prisma.wallet.findMany({
+      where: { userId, isActive: true },
+      select: { currency: true },
+      distinct: ['currency'],
+    });
+
+    if (!wallets || wallets.length === 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.no_wallet_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // 2. Extraire les devises uniques
+    const currencies = wallets.map(w => w.currency);
+
+    // 3. Récupérer tous les taux de change pour ces devises
+    const exchangeRates = await this.prisma.exchange_rate.findMany({
+      where: {
+        OR: [
+          { from_currency: { in: currencies } },
+          { to_currency: { in: currencies } },
+        ],
+      },
+      orderBy: {
+        from_currency: 'asc',
+      },
+    });
+
+    // ✅ 4. Définir le type pour les taux
+    interface RateItem {
+      from_currency: string;
+      to_currency: string;
+      rate: number;
+      updated_at: Date;
+      is_direct: boolean;
+      is_default?: boolean;
+    }
+
+    const formattedRates: RateItem[] = [];
+
+    // 5. Pour chaque devise source
+    for (const fromCurrency of currencies) {
+      // Pour chaque devise destination
+      for (const toCurrency of currencies) {
+        if (fromCurrency === toCurrency) continue;
+
+        // Chercher le taux direct
+        const rate = exchangeRates.find(
+          r => r.from_currency === fromCurrency && r.to_currency === toCurrency
+        );
+
+        // Si pas de taux direct, chercher via USD
+        if (!rate) {
+          const fromToUsd = exchangeRates.find(
+            r => r.from_currency === fromCurrency && r.to_currency === 'USD'
+          );
+          const usdToTarget = exchangeRates.find(
+            r => r.from_currency === 'USD' && r.to_currency === toCurrency
+          );
+
+          if (fromToUsd && usdToTarget) {
+            const calculatedRate = fromToUsd.rate * usdToTarget.rate;
+            formattedRates.push({
+              from_currency: fromCurrency,
+              to_currency: toCurrency,
+              rate: calculatedRate,
+              updated_at: new Date(),
+              is_direct: false,
+            });
+            continue;
+          }
+
+          // Si toujours pas de taux, utiliser 1:1
+          formattedRates.push({
+            from_currency: fromCurrency,
+            to_currency: toCurrency,
+            rate: 1,
+            updated_at: new Date(),
+            is_direct: false,
+            is_default: true,
+          });
+          continue;
+        }
+
+        formattedRates.push({
+          from_currency: rate.from_currency,
+          to_currency: rate.to_currency,
+          rate: rate.rate,
+          updated_at: rate.updated_at,
+          is_direct: true,
+        });
+      }
+    }
+
+    return {
+      message: this.i18nService.translate('wallet.exchange_rates_retrieved', lang),
+      data: {
+        currencies,
+        exchangeRates: formattedRates,
+      },
+    };
+  }
+
   async adminTopUp(
     dto: AdminTopUpDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
