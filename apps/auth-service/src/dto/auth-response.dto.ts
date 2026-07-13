@@ -21,8 +21,14 @@ export interface UserInfoDto {
   merchantCode?: string | null;
   businessName?: string | null;
   countryCode?: string | null;
-  profileImage: string | null; // ✅ AJOUTÉ
-  kycStatus: string; // ✅ AJOUTÉ (user_kycStatus)
+  profileImage: string | null;
+  kycStatus: string;
+  // ✅ AJOUTER TOUT ICI
+  sessionId?: string | null;
+  sessions?: SessionDto[];
+  resources?: ResourcePermissionDto[];
+  wallets?: WalletDto[];
+  kyc?: KycDto;
 }
 
 export interface SessionDto {

@@ -199,35 +199,8 @@ export class AuthServiceService {
         }
 
         return {
-          accessToken: null,
-          refreshToken: null,
-          message: this.i18nService.translate('otp_sent', lang),
-          data: {
-            id: null,
-            email: null,
-            phone: null,
-            fcmToken: null,
-            full_name: null,
-            account_number: null,
-            branch: null,
-            role: null,
-            passwordStatus: null,
-            pinstatus: null,
-            merchantCode: null,
-            businessName: null,
-            status: null,
-            deleted: false,
-            createdAt: null,
-            updatedAt: null,
-            profileImage: null,
-            kycStatus: 'NOT_SUBMITTED',
-            countryCode: null,
-            sessionId: null,
-            sessions: [],
-            wallets: [],
-            kyc: null,
-          },
           requiresOtp: true,
+          message: this.i18nService.translate('otp_sent', lang),
         };
       }
 
@@ -907,6 +880,7 @@ export class AuthServiceService {
       });
     }
   }
+
 
   async validateSession(
     userId: string,
