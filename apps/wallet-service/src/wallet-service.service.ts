@@ -422,14 +422,50 @@ export class WalletServiceService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       // 1. Récupérer les wallets
-      const fromWallet = await tx.wallet.findUnique({ where: { id: fromWalletId }, include: { user: true } });
-      if (!fromWallet) throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.wallet_not_found', lang), statusCode: 404 });
-      if (!fromWallet.isActive) throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.wallet_inactive', lang), statusCode: 403 });
-      if (fromWallet.balance < amount) throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang), statusCode: 400 });
+      const fromWallet = await tx.wallet.findUnique({
+        where: { id: fromWalletId },
+        include: { user: true }
+      });
+      if (!fromWallet) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_not_found', lang),
+          statusCode: 404
+        });
+      }
+      if (!fromWallet.isActive) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_inactive', lang),
+          statusCode: 403
+        });
+      }
+      if (fromWallet.balance < amount) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+          statusCode: 400
+        });
+      }
 
-      const toWallet = await tx.wallet.findUnique({ where: { id: toWalletId }, include: { user: true } });
-      if (!toWallet) throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.wallet_not_found', lang), statusCode: 404 });
-      if (!toWallet.isActive) throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.wallet_inactive', lang), statusCode: 403 });
+      const toWallet = await tx.wallet.findUnique({
+        where: { id: toWalletId },
+        include: { user: true }
+      });
+      if (!toWallet) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_not_found', lang),
+          statusCode: 404
+        });
+      }
+      if (!toWallet.isActive) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_inactive', lang),
+          statusCode: 403
+        });
+      }
 
       // Vérifier que les deux wallets appartiennent au même utilisateur
       if (fromWallet.userId !== toWallet.userId) {
@@ -444,8 +480,13 @@ export class WalletServiceService {
 
       // 2. Vérifier le PIN
       if (!user.pin) {
-        throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.no_pin_set', lang), statusCode: 400 });
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.no_pin_set', lang),
+          statusCode: 400
+        });
       }
+
       const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
       if (user.pin !== hashedPin) {
         const newAttempts = (user.failed_pin_attempts || 0) + 1;
@@ -457,7 +498,11 @@ export class WalletServiceService {
         }
         await tx.user.update({
           where: { id: user.id },
-          data: { failed_pin_attempts: newAttempts, status: newStatus },
+          data: {
+            failed_pin_attempts: newAttempts,
+            status: newStatus,
+            pin_locked_until: lockedUntil,
+          },
         });
         await logFailedLoginAttempt(
           this.prisma,
@@ -474,9 +519,12 @@ export class WalletServiceService {
           statusCode: 401,
         });
       }
-      await tx.user.update({ where: { id: user.id }, data: { failed_pin_attempts: 0 } });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { failed_pin_attempts: 0, pin_locked_until: null }
+      });
 
-      // 3. Récupérer le taux de change
+      // ✅ 3. Récupérer le taux de change (avec findFirst)
       const rate = await this.getExchangeRate(fromWallet.currency, toWallet.currency, tx);
       const convertedAmount = amount * rate;
 
@@ -491,6 +539,8 @@ export class WalletServiceService {
       });
 
       // 5. Créer les transactions
+      const reference = `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+
       const senderTx = await tx.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -499,7 +549,7 @@ export class WalletServiceService {
           amount,
           type: 'TRANSFER',
           status: 'SUCCESS',
-          reference: `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+          reference: reference,
           description: description || this.i18nService.translate('wallet.conversion_debit', lang, {
             amount,
             fromCurrency: fromWallet.currency,
@@ -508,8 +558,10 @@ export class WalletServiceService {
             convertedAmount,
           }),
           movement: 'DEBIT',
+          currency: fromWallet.currency,
         },
       });
+
       const receiverTx = await tx.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -518,7 +570,7 @@ export class WalletServiceService {
           amount: convertedAmount,
           type: 'DEPOSIT',
           status: 'SUCCESS',
-          reference: `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+          reference: reference,
           description: description || this.i18nService.translate('wallet.conversion_credit', lang, {
             amount,
             fromCurrency: fromWallet.currency,
@@ -527,14 +579,29 @@ export class WalletServiceService {
             convertedAmount,
           }),
           movement: 'CREDIT',
+          currency: toWallet.currency,
         },
       });
 
-      await this.logAudit(user.id, 'convertCurrency', { from: updatedFrom, to: updatedTo }, ipAddress || null);
-      return { fromWallet: updatedFrom, toWallet: updatedTo, user, senderTx, receiverTx };
+      await this.logAudit(user.id, 'convertCurrency', {
+        from: updatedFrom,
+        to: updatedTo,
+        rate,
+        convertedAmount,
+      }, ipAddress || null);
+
+      return {
+        fromWallet: updatedFrom,
+        toWallet: updatedTo,
+        user,
+        senderTx,
+        receiverTx,
+        rate,
+        convertedAmount,
+      };
     });
 
-    // Notifications (optionnel)
+    // Notifications
     try {
       await notifyTransaction(
         this.smsService,
