@@ -232,20 +232,59 @@ export class WalletServiceService {
     }
     return { fee: 0, debitAmount: amount, creditAmount: amount };
   }
-
-  private async getExchangeRate(from: string, to: string, tx?: any): Promise<number> {
+  private async getExchangeRate(
+    from: string,
+    to: string,
+    tx?: Prisma.TransactionClient
+  ): Promise<number> {
     if (from === to) return 1;
-    const rateRecord = await (tx || this.prisma).exchange_rate.findUnique({
-      where: { from_currency_to_currency: { from_currency: from, to_currency: to } },
+
+    // ✅ Utiliser findFirst au lieu de findUnique
+    const rateRecord = await (tx || this.prisma).exchange_rate.findFirst({
+      where: {
+        from_currency: from,
+        to_currency: to,
+      },
     });
-    if (!rateRecord) {
-      throw new RpcException({
-        status: 'error',
-        message: `Taux de change ${from} -> ${to} non trouvé`,
-        statusCode: 404,
-      });
+
+    if (rateRecord) {
+      return rateRecord.rate;
     }
-    return rateRecord.rate;
+
+    // Si pas de taux direct, essayer via USD
+    const fromToUsd = await (tx || this.prisma).exchange_rate.findFirst({
+      where: {
+        from_currency: from,
+        to_currency: 'USD',
+      },
+    });
+
+    const usdToTarget = await (tx || this.prisma).exchange_rate.findFirst({
+      where: {
+        from_currency: 'USD',
+        to_currency: to,
+      },
+    });
+
+    if (fromToUsd && usdToTarget) {
+      return fromToUsd.rate * usdToTarget.rate;
+    }
+
+    // 🔥 Fallback: chercher l'inverse
+    const inverseRate = await (tx || this.prisma).exchange_rate.findFirst({
+      where: {
+        from_currency: to,
+        to_currency: from,
+      },
+    });
+
+    if (inverseRate && inverseRate.rate > 0) {
+      return 1 / inverseRate.rate;
+    }
+
+    // 🚨 Si toujours pas de taux, retourner 1 avec warning
+    console.warn(`[WalletService] Taux de change non trouvé pour ${from} -> ${to}, utilisation de 1`);
+    return 1;
   }
 
   async createWallet(
