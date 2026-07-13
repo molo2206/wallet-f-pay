@@ -442,6 +442,7 @@ export class WalletServiceService {
       throw error;
     }
   }
+
   async convertCurrency(
     dto: ConvertCurrencyDto,
     lang: string = 'fr',
@@ -458,7 +459,7 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Augmenter le timeout à 30 secondes
+    // ✅ Augmenter le timeout à 60 secondes
     const result = await this.prisma.$transaction(
       async (tx) => {
         // 1. Récupérer les wallets
@@ -641,8 +642,8 @@ export class WalletServiceService {
         };
       },
       {
-        timeout: 30000,   // ✅ 30 secondes
-        maxWait: 30000,   // ✅ 30 secondes maximum d'attente
+        timeout: 120000,   // ✅ 120 secondes
+        maxWait: 120000,   // ✅ 120 secondes maximum d'attente
       }
     );
 
