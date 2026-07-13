@@ -2814,7 +2814,7 @@ export class WalletServiceService {
                 status: true,
                 failed_pin_attempts: true,
                 countryCode: true,
-                kycStatus: true, // ✅ Ajout du statut KYC
+                kycStatus: true,
               }
             }
           },
@@ -2883,7 +2883,6 @@ export class WalletServiceService {
 
         // ✅ VÉRIFICATION KYC POUR LES TRANSFERTS INTERNATIONAUX
         if (isInternational) {
-          // Vérifier si l'utilisateur a un KYC vérifié
           const kycStatus = fromUser.kycStatus || 'NOT_SUBMITTED';
 
           if (kycStatus !== 'VERIFIED') {
@@ -3173,6 +3172,9 @@ export class WalletServiceService {
         // 10. Créer les transactions
         const reference = await this.generateTransactionReference('SEND', tx);
 
+        // ✅ Déterminer le statut de la transaction
+        const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
+
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3180,7 +3182,7 @@ export class WalletServiceService {
             walletId: fromWallet.id,
             amount: debitAmount,
             type: 'TRANSFER',
-            status: 'SUCCESS',
+            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
             reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
@@ -3195,7 +3197,7 @@ export class WalletServiceService {
             walletId: toWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: 'SUCCESS',
+            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
@@ -3238,7 +3240,7 @@ export class WalletServiceService {
           result.senderTx,
           result.fromUser,
           result.fromWallet,
-          'send_sent',
+          result.isInternational ? 'send_pending' : 'send_sent',
           {
             name: result.toUser.full_name ?? undefined,
             phone: result.toUser.phone ?? undefined,
@@ -3254,7 +3256,7 @@ export class WalletServiceService {
           result.receiverTx,
           result.toUser,
           result.toWallet,
-          'send_received',
+          result.isInternational ? 'receive_pending' : 'send_received',
           {
             name: result.fromUser.full_name ?? undefined,
             phone: result.fromUser.phone ?? undefined,
@@ -3267,7 +3269,7 @@ export class WalletServiceService {
 
     return {
       message: this.i18nService.translate(
-        result.isInternational ? 'wallet.transfer_international_success' : 'wallet.transfer_success',
+        result.isInternational ? 'wallet.transfer_international_pending' : 'wallet.transfer_success',
         lang,
         {
           amount: result.convertedAmount,
