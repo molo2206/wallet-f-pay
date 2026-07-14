@@ -234,55 +234,50 @@ export class WalletServiceService {
   }
   private async getExchangeRate(
     from: string,
-    to: string,
-    tx?: Prisma.TransactionClient
+    to: string
   ): Promise<number> {
     if (from === to) return 1;
 
-    // ✅ Utiliser findFirst au lieu de findUnique
-    const rateRecord = await (tx || this.prisma).exchange_rate.findFirst({
+    // ✅ Récupérer tous les taux nécessaires en une seule requête
+    const rates = await this.prisma.exchange_rate.findMany({
       where: {
-        from_currency: from,
-        to_currency: to,
+        OR: [
+          { from_currency: from, to_currency: to },
+          { from_currency: from, to_currency: 'USD' },
+          { from_currency: 'USD', to_currency: to },
+          { from_currency: to, to_currency: from },
+        ],
       },
     });
 
-    if (rateRecord) {
-      return rateRecord.rate;
+    // Créer un map pour un accès rapide
+    const rateMap = new Map<string, number>();
+    rates.forEach(r => {
+      rateMap.set(`${r.from_currency}-${r.to_currency}`, r.rate);
+    });
+
+    // Chercher le taux direct
+    const directKey = `${from}-${to}`;
+    if (rateMap.has(directKey)) {
+      return rateMap.get(directKey)!;
     }
 
-    // Si pas de taux direct, essayer via USD
-    const fromToUsd = await (tx || this.prisma).exchange_rate.findFirst({
-      where: {
-        from_currency: from,
-        to_currency: 'USD',
-      },
-    });
-
-    const usdToTarget = await (tx || this.prisma).exchange_rate.findFirst({
-      where: {
-        from_currency: 'USD',
-        to_currency: to,
-      },
-    });
-
-    if (fromToUsd && usdToTarget) {
-      return fromToUsd.rate * usdToTarget.rate;
+    // Chercher via USD
+    const fromToUsdKey = `${from}-USD`;
+    const usdToTargetKey = `USD-${to}`;
+    if (rateMap.has(fromToUsdKey) && rateMap.has(usdToTargetKey)) {
+      return rateMap.get(fromToUsdKey)! * rateMap.get(usdToTargetKey)!;
     }
 
-    // 🔥 Fallback: chercher l'inverse
-    const inverseRate = await (tx || this.prisma).exchange_rate.findFirst({
-      where: {
-        from_currency: to,
-        to_currency: from,
-      },
-    });
-
-    if (inverseRate && inverseRate.rate > 0) {
-      return 1 / inverseRate.rate;
+    // Chercher l'inverse
+    const inverseKey = `${to}-${from}`;
+    if (rateMap.has(inverseKey)) {
+      const inverseRate = rateMap.get(inverseKey)!;
+      if (inverseRate > 0) {
+        return 1 / inverseRate;
+      }
     }
 
-    // 🚨 Si toujours pas de taux, retourner 1 avec warning
     console.warn(`[WalletService] Taux de change non trouvé pour ${from} -> ${to}, utilisation de 1`);
     return 1;
   }
@@ -459,117 +454,142 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Augmenter le timeout à 60 secondes
+    // ✅ Récupérer les wallets en parallèle
+    const [fromWallet, toWallet] = await Promise.all([
+      this.prisma.wallet.findUnique({
+        where: { id: fromWalletId },
+        include: { user: true }
+      }),
+      this.prisma.wallet.findUnique({
+        where: { id: toWalletId },
+        include: { user: true }
+      })
+    ]);
+
+    // ✅ Vérifications hors transaction
+    if (!fromWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_not_found', lang),
+        statusCode: 404
+      });
+    }
+    if (!fromWallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        statusCode: 403
+      });
+    }
+    if (fromWallet.balance < amount) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        statusCode: 400
+      });
+    }
+
+    if (!toWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_not_found', lang),
+        statusCode: 404
+      });
+    }
+    if (!toWallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        statusCode: 403
+      });
+    }
+
+    // Vérifier que les deux wallets appartiennent au même utilisateur
+    if (fromWallet.userId !== toWallet.userId) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.conversion_same_owner', lang),
+        statusCode: 400,
+      });
+    }
+
+    const user = fromWallet.user;
+
+    // ✅ Vérification du PIN hors transaction
+    if (!user.pin) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.no_pin_set', lang),
+        statusCode: 400
+      });
+    }
+
+    const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+    if (user.pin !== hashedPin) {
+      const newAttempts = (user.failed_pin_attempts || 0) + 1;
+      let newStatus = user.status;
+      let lockedUntil: Date | null = null;
+      if (newAttempts >= 5) {
+        newStatus = user_status.BLOCKED;
+        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+      }
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failed_pin_attempts: newAttempts,
+          status: newStatus,
+          pin_locked_until: lockedUntil,
+        },
+      });
+      await logFailedLoginAttempt(
+        this.prisma,
+        user.id,
+        user.phone ?? user.id,
+        ipAddress,
+        undefined,
+        newAttempts,
+        lockedUntil,
+      );
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_incorrect', lang),
+        statusCode: 401,
+      });
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { failed_pin_attempts: 0, pin_locked_until: null }
+    });
+
+    // ✅ Récupérer le taux de change une seule fois (optimisé)
+    const rate = await this.getExchangeRate(fromWallet.currency, toWallet.currency);
+
+    // ✅ Calculer le montant converti avec arrondi par défaut (floor)
+    const rawConvertedAmount = amount * rate;
+    const convertedAmount = Math.floor(rawConvertedAmount * 100) / 100; // Arrondi à 2 décimales par défaut
+
+    console.log('[WalletService] Conversion calculée:', {
+      fromCurrency: fromWallet.currency,
+      toCurrency: toWallet.currency,
+      amount,
+      rate,
+      rawConvertedAmount,
+      convertedAmount,
+    });
+
+    // ✅ Vérifier que le montant converti est valide
+    if (convertedAmount <= 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.conversion_amount_too_small', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ✅ Transaction rapide
     const result = await this.prisma.$transaction(
       async (tx) => {
-        // 1. Récupérer les wallets
-        const fromWallet = await tx.wallet.findUnique({
-          where: { id: fromWalletId },
-          include: { user: true }
-        });
-        if (!fromWallet) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_not_found', lang),
-            statusCode: 404
-          });
-        }
-        if (!fromWallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403
-          });
-        }
-        if (fromWallet.balance < amount) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
-            statusCode: 400
-          });
-        }
-
-        const toWallet = await tx.wallet.findUnique({
-          where: { id: toWalletId },
-          include: { user: true }
-        });
-        if (!toWallet) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_not_found', lang),
-            statusCode: 404
-          });
-        }
-        if (!toWallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403
-          });
-        }
-
-        // Vérifier que les deux wallets appartiennent au même utilisateur
-        if (fromWallet.userId !== toWallet.userId) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.conversion_same_owner', lang),
-            statusCode: 400,
-          });
-        }
-
-        const user = fromWallet.user;
-
-        // 2. Vérifier le PIN
-        if (!user.pin) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.no_pin_set', lang),
-            statusCode: 400
-          });
-        }
-
-        const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
-        if (user.pin !== hashedPin) {
-          const newAttempts = (user.failed_pin_attempts || 0) + 1;
-          let newStatus = user.status;
-          let lockedUntil: Date | null = null;
-          if (newAttempts >= 5) {
-            newStatus = user_status.BLOCKED;
-            lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-          }
-          await tx.user.update({
-            where: { id: user.id },
-            data: {
-              failed_pin_attempts: newAttempts,
-              status: newStatus,
-              pin_locked_until: lockedUntil,
-            },
-          });
-          await logFailedLoginAttempt(
-            this.prisma,
-            user.id,
-            user.phone ?? user.id,
-            ipAddress,
-            undefined,
-            newAttempts,
-            lockedUntil,
-          );
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.pin_incorrect', lang),
-            statusCode: 401,
-          });
-        }
-        await tx.user.update({
-          where: { id: user.id },
-          data: { failed_pin_attempts: 0, pin_locked_until: null }
-        });
-
-        // 3. Récupérer le taux de change
-        const rate = await this.getExchangeRate(fromWallet.currency, toWallet.currency, tx);
-        const convertedAmount = amount * rate;
-
-        // 4. Mettre à jour les soldes
+        // Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
@@ -579,7 +599,7 @@ export class WalletServiceService {
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
 
-        // 5. Créer les transactions
+        // Créer les transactions
         const reference = `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 
         const senderTx = await tx.transaction.create({
@@ -642,8 +662,8 @@ export class WalletServiceService {
         };
       },
       {
-        timeout: 120000,   // ✅ 120 secondes
-        maxWait: 120000,   // ✅ 120 secondes maximum d'attente
+        timeout: 30000,
+        maxWait: 30000,
       }
     );
 

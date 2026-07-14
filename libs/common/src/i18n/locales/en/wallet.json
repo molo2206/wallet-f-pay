@@ -146,5 +146,6 @@
   "wallet.kyc_pending_for_international_transfer": "Your KYC request is being verified. Please wait before making international transfers.",
   "wallet.kyc_rejected_for_international_transfer": "Your KYC has been rejected. Please submit valid documents again to make international transfers.",
   "wallet.exchange_rates_retrieved": "Exchange rates retrieved successfully",
-  "wallet.exchange_rate_same_currency": "Exchange rate is identical for the same currency (1:1)"
+  "wallet.exchange_rate_same_currency": "Exchange rate is identical for the same currency (1:1)",
+  "wallet.conversion_amount_too_small": "The converted amount is too small (less than 0.01). Please try a higher amount."
 }
