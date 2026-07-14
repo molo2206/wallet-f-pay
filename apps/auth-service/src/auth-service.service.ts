@@ -487,6 +487,7 @@ export class AuthServiceService {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
         message: result.message,
+        sessionId: sessionId,
         data: {
           id: user.id,
           email: user.email,
@@ -507,7 +508,6 @@ export class AuthServiceService {
           profileImage: null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
-          sessionId: sessionId,
           sessions: sessions,
           wallets: wallets,
           kyc: kyc,
@@ -839,6 +839,7 @@ export class AuthServiceService {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
         message: result.message,
+        sessionId: sessionId,
         data: {
           id: user.id,
           email: user.email,
@@ -859,7 +860,6 @@ export class AuthServiceService {
           profileImage: user.profileImage ?? null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
-          sessionId: sessionId,
           sessions: sessions,
           resources: resources,
           wallets: wallets,
@@ -880,7 +880,6 @@ export class AuthServiceService {
       });
     }
   }
-
 
   async validateSession(
     userId: string,
