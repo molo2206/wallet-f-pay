@@ -2082,7 +2082,7 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminTopUp(
     @CurrentUser() currentUser: any,  // ICI on a l'admin
-    @Body() body: { walletId: string; amount: number; pin: string },
+    @Body() body: { walletId: string; amount: number; pin: string; paymentMethod: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2100,7 +2100,8 @@ export class ApiGatewayController {
         amount: body.amount,
         pin: body.pin,
         lang,
-        ipAddress
+        ipAddress,
+        paymentMethod: body.paymentMethod
       },
       this.i18nService.translate('wallet.top_up_failed', lang),
       HttpStatus.BAD_REQUEST,
@@ -2112,7 +2113,7 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminCashout(
     @CurrentUser() currentUser: any,
-    @Body() body: { walletId: string; amount: number; pin: string },
+    @Body() body: { walletId: string; amount: number; pin: string; paymentMethod: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2128,7 +2129,8 @@ export class ApiGatewayController {
         amount: body.amount,
         pin: body.pin,
         lang,
-        ipAddress
+        ipAddress,
+        paymentMethod: body.paymentMethod
       },
       this.i18nService.translate('wallet.cashout_failed', lang),
       HttpStatus.BAD_REQUEST,
@@ -2139,7 +2141,7 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminSend(
     @CurrentUser() currentUser: any,
-    @Body() body: { fromWalletId: string; toPhone: string; amount: number; pin: string; description?: string },
+    @Body() body: { fromWalletId: string; toPhone: string; amount: number; pin: string; description?: string; paymentMethod: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2184,7 +2186,8 @@ export class ApiGatewayController {
         pin: body.pin,
         description: body.description,
         lang,
-        ipAddress
+        ipAddress,
+        paymentMethod: body.paymentMethod
       },
       this.i18nService.translate('wallet.transfer_failed', lang),
       HttpStatus.BAD_REQUEST,
@@ -2196,7 +2199,7 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminPay(
     @CurrentUser() currentUser: any,
-    @Body() body: { fromWalletId: string; merchantCode: string; amount: number; pin: string; description?: string },
+    @Body() body: { fromWalletId: string; merchantCode: string; amount: number; pin: string; description?: string; paymentMethod: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2241,7 +2244,8 @@ export class ApiGatewayController {
         pin: body.pin,
         description: body.description,
         lang,
-        ipAddress
+        ipAddress,
+        paymentMethod: body.paymentMethod
       },
       this.i18nService.translate('wallet.payment_failed', lang),
       HttpStatus.BAD_REQUEST,
@@ -3068,7 +3072,6 @@ export class ApiGatewayController {
 
     return response;
   }
-
   // ==================== KYC ENDPOINTS ====================
 
   /**
