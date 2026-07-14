@@ -374,7 +374,33 @@ export class UserServiceService {
     lang: string = 'fr',
   ): Promise<{
     message: string;
-    data: UserResponseDto & { resources?: any[]; wallets?: any[]; kyc?: any };
+    data: {
+      id: string;
+      email: string | null;
+      phone: string | null;
+      full_name: string | null;
+      account_number: string | null;
+      profileImage: string | null;
+      branch: string | null;
+      role: string;
+      status: string;
+      deleted: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      fcmToken: string | null;
+      passwordStatus: string | null;
+      pinstatus: boolean | null;
+      merchantCode: string | null;
+      businessName: string | null;
+      failed_login_attempts: number;
+      locked_until: Date | null;
+      kycStatus: string;
+      sessionId: string | null;
+      sessions: any[];
+      resources: any[];
+      wallets: any[];
+      kyc: any;
+    };
   }> {
     console.log(`[getUser] Langue utilisée : ${lang} pour l'utilisateur ${id}`);
 
@@ -412,6 +438,42 @@ export class UserServiceService {
         statusCode: 404,
       });
     }
+
+    // ✅ Récupérer la session active de l'utilisateur
+    const activeSession = await this.prisma.sessions.findFirst({
+      where: {
+        user_id: user.id,
+        is_valid: true,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        device_info: true,
+        ip_address: true,
+        last_activity: true,
+        created_at: true,
+        expires_at: true,
+      },
+    });
+
+    // ✅ Récupérer toutes les sessions actives
+    const sessions = await this.prisma.sessions.findMany({
+      where: {
+        user_id: user.id,
+        is_valid: true,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        device_info: true,
+        ip_address: true,
+        last_activity: true,
+        created_at: true,
+        expires_at: true,
+      },
+    });
 
     // Récupération des ressources (permissions)
     const userResources = await this.prisma.user_has_resources.findMany({
@@ -487,11 +549,32 @@ export class UserServiceService {
       } : null,
     };
 
-    // ✅ Retourner les données formatées
+    // ✅ Retourner TOUT dans data (avec sessionId)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
-        ...this.toResponse(user),
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        account_number: user.account_number,
+        profileImage: user.profileImage,
+        branch: user.branch,
+        role: user.role,
+        status: user.status,
+        deleted: user.deleted ?? false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        fcmToken: user.fcmToken,
+        passwordStatus: user.passwordStatus,
+        pinstatus: user.pinstatus,
+        merchantCode: user.merchantCode,
+        businessName: user.businessName,
+        failed_login_attempts: user.failed_login_attempts,
+        locked_until: user.locked_until,
+        kycStatus: user.kycStatus,
+        sessionId: activeSession?.id || null,
+        sessions: sessions,
         resources: resources,
         wallets: wallets,
         kyc: kyc,
