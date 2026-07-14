@@ -6,6 +6,7 @@ export class AdminTopUpDto {
     pin: string;               // REQUIS
     lang?: string;
     ipAddress?: string;
+    paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour le top-up (ex: "bank_transfer", "credit_card", etc.)
 }
 
 export class AdminCashoutDto {
@@ -15,6 +16,7 @@ export class AdminCashoutDto {
     pin: string;
     lang?: string;
     ipAddress?: string;
+    paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour le cashout (ex: "bank_transfer", "mobile_money", etc.)
 }
 
 export class AdminSendDto {
@@ -26,6 +28,7 @@ export class AdminSendDto {
     description?: string;
     lang?: string;
     ipAddress?: string;
+    paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour l'envoi (ex: "bank_transfer", "mobile_money", etc.)
 }
 
 export class AdminPayDto {
@@ -37,4 +40,5 @@ export class AdminPayDto {
     description?: string;
     lang?: string;
     ipAddress?: string;
+    paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour le paiement (ex: "bank_transfer", "mobile_money", etc.)
 }

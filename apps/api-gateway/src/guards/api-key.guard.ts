@@ -14,7 +14,21 @@ export class ApiKeyGuard implements CanActivate {
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
-        const apiKey = request.headers['x-api-key'];
+        
+        // ✅ Récupérer la clé API du header Authorization
+        const authHeader = request.headers['authorization'];
+        
+        if (!authHeader) {
+            throw new UnauthorizedException('API key required in Authorization header');
+        }
+
+        // ✅ Extraire le token du header (format: "Bearer <api_key>")
+        const parts = authHeader.split(' ');
+        if (parts.length !== 2 || parts[0] !== 'Bearer') {
+            throw new UnauthorizedException('Invalid Authorization header format. Expected: Bearer <api_key>');
+        }
+
+        const apiKey = parts[1];
 
         if (!apiKey) {
             throw new UnauthorizedException('API key required');
@@ -23,6 +37,7 @@ export class ApiKeyGuard implements CanActivate {
         let userId: string | undefined;
         let permissionsArray: string[] = [];
         let isJwt = false;
+        let apiKeyRecord: any = null;
 
         // 1️⃣ Essayer de valider comme JWT
         try {
@@ -38,18 +53,32 @@ export class ApiKeyGuard implements CanActivate {
 
         // 2️⃣ Si ce n'est pas un JWT, rechercher dans la base
         if (!isJwt) {
-            // ✅ CHANGÉ: findUnique → findFirst (car key n'a pas @unique)
+            // ✅ Utiliser findFirst avec typage explicite
             const keyRecord = await this.prisma.api_key.findFirst({
-                where: { key: apiKey },
-                include: { user: true },
+                where: {
+                    key: apiKey,
+                    isActive: true,
+                    expiresAt: {
+                        gt: new Date(),
+                    },
+                },
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            full_name: true,
+                            phone: true,
+                            email: true,
+                            merchantCode: true,
+                            role: true,
+                            status: true,
+                        },
+                    },
+                },
             });
 
-            if (!keyRecord || !keyRecord.isActive) {
-                throw new UnauthorizedException('Invalid API key');
-            }
-
-            if (keyRecord.expiresAt && keyRecord.expiresAt < new Date()) {
-                throw new UnauthorizedException('API key expired');
+            if (!keyRecord) {
+                throw new UnauthorizedException('Invalid or expired API key');
             }
 
             // Mettre à jour la date de dernière utilisation
@@ -59,6 +88,8 @@ export class ApiKeyGuard implements CanActivate {
             });
 
             userId = keyRecord.userId;
+            apiKeyRecord = keyRecord;
+
             // Extraire les permissions
             if (typeof keyRecord.permissions === 'string') {
                 try {
@@ -82,9 +113,12 @@ export class ApiKeyGuard implements CanActivate {
         if (requiredPermissions && requiredPermissions.length) {
             const hasPermission = requiredPermissions.some(p => permissionsArray.includes(p));
             if (!hasPermission) {
-                throw new ForbiddenException('Insufficient permissions');
+                throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
             }
         }
+
+        // ✅ Ajouter la clé API à la requête pour le webhook
+        request.apiKey = apiKeyRecord;
 
         return true;
     }

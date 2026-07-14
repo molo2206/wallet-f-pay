@@ -2979,14 +2979,19 @@ export class ApiGatewayController {
     const user = req.user;
     let fromWalletId = body.walletId;
 
-    // Cache pour le walletId
+    // ✅ Si walletId n'est pas fourni, récupérer par devise
     if (!fromWalletId) {
+      // Devise par défaut: USD si non spécifiée
       const targetCurrency = body.currency || 'USD';
       const cacheKey = `${user.id}:${targetCurrency}`;
+
+      // Vérifier le cache
       const cached = walletCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         fromWalletId = cached.walletId;
+        console.log(`[ExternalPay] ✅ Wallet trouvé en cache pour ${targetCurrency}: ${fromWalletId}`);
       } else {
+        // ✅ Récupérer le wallet par devise
         const wallet = await this.prisma.wallet.findFirst({
           select: { id: true },
           where: {
@@ -2995,25 +3000,60 @@ export class ApiGatewayController {
             currency: targetCurrency as any,
           },
         });
+
         if (!wallet) {
+          console.error(`[ExternalPay] ❌ Aucun wallet trouvé pour l'utilisateur ${user.id} en ${targetCurrency}`);
+
+          // ✅ Lister les wallets disponibles pour l'utilisateur
+          const availableWallets = await this.prisma.wallet.findMany({
+            where: { userId: user.id, isActive: true },
+            select: { id: true, currency: true },
+          });
+
+          const availableCurrencies = availableWallets.map(w => w.currency).join(', ');
+
           throw new HttpException(
-            `No active ${targetCurrency} wallet found for this user`,
+            `No active ${targetCurrency} wallet found for this user. Available currencies: ${availableCurrencies || 'None'}`,
             HttpStatus.BAD_REQUEST,
           );
         }
+
         fromWalletId = wallet.id;
+
+        // Mettre en cache
         walletCache.set(cacheKey, {
           walletId: fromWalletId,
           expiresAt: Date.now() + CACHE_TTL_MS,
         });
+
+        console.log(`[ExternalPay] ✅ Wallet trouvé pour ${targetCurrency}: ${fromWalletId}`);
       }
+    } else {
+      // ✅ Vérifier que le walletId appartient bien à l'utilisateur
+      const wallet = await this.prisma.wallet.findFirst({
+        select: { id: true, currency: true },
+        where: {
+          id: fromWalletId,
+          userId: user.id,
+          isActive: true,
+        },
+      });
+
+      if (!wallet) {
+        throw new HttpException(
+          `Wallet ${fromWalletId} not found or does not belong to this user`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      console.log(`[ExternalPay] ✅ Wallet ${fromWalletId} (${wallet.currency}) appartient à l'utilisateur`);
     }
 
-    // Appel à sendWalletMessage en utilisant uniquement fromWalletId
+    // ✅ Appel à sendWalletMessage
     const response = await this.sendWalletMessage(
       'pay',
       {
-        fromWalletId,                      // ← suffisant pour identifier l'utilisateur
+        fromWalletId: fromWalletId,
         toPhone: body.toPhoneOrCode,
         merchantCode: null,
         amount: body.amount,
@@ -3025,6 +3065,7 @@ export class ApiGatewayController {
       this.i18nService.translate('wallet.payment_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
+
     return response;
   }
 

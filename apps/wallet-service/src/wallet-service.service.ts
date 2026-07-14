@@ -973,6 +973,7 @@ export class WalletServiceService {
             description: `Alimentation admin (cash)`,
             movement: 'CREDIT',
             currency: wallet.currency,
+            paymentMethod: dto.paymentMethod || 'CASH',
           },
         });
 
@@ -1209,6 +1210,7 @@ export class WalletServiceService {
             description: `Retrait admin (cash)`,
             movement: 'DEBIT',
             currency: wallet.currency,
+            paymentMethod: dto.paymentMethod || 'CASH',
           },
         });
 
@@ -1493,6 +1495,7 @@ export class WalletServiceService {
               toName: toUser.full_name || 'Destinataire',
               toPhone: toPhone,
             }),
+            paymentMethod: dto.paymentMethod || 'CASH',
             movement: 'DEBIT',
           },
         });
@@ -1823,6 +1826,7 @@ export class WalletServiceService {
               merchantName: toUser.full_name || 'Commerçant',
               merchantCode: merchantCode,
             }),
+            paymentMethod: dto.paymentMethod || 'CASH',
             movement: 'DEBIT',
           },
         });

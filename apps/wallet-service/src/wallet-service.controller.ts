@@ -76,7 +76,7 @@ export class WalletServiceController {
   async getWalletByUser(@Payload() data: { userId: string; lang?: string }) {
     console.log('[WalletService] get_wallet received:', data.userId);
     try {
-      return await this.walletService.getWalletById(data.userId);
+      return await this.walletService.getUserWallets(data.userId);
     } catch (error) {
       console.error('[WalletService] get_wallet error:', error);
       const lang = data.lang || 'fr';
