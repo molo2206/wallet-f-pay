@@ -585,13 +585,67 @@ export class UserServiceService {
   async getUserByEmail(
     email: string,
     lang: string = 'fr',
-  ): Promise<ApiResponse<UserResponseDto>> {
+  ): Promise<{
+    message: string;
+    data: {
+      id: string;
+      email: string | null;
+      phone: string | null;
+      full_name: string | null;
+      account_number: string | null;
+      profileImage: string | null;
+      branch: string | null;
+      role: string;
+      status: string;
+      deleted: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      fcmToken: string | null;
+      passwordStatus: string | null;
+      pinstatus: boolean | null;
+      merchantCode: string | null;
+      businessName: string | null;
+      failed_login_attempts: number;
+      locked_until: Date | null;
+      kycStatus: string;
+      sessionId: string | null;
+      sessions: any[];
+      resources: any[];
+      wallets: any[];
+      kyc: any;
+    };
+  }> {
     console.log(
       `[getUserByEmail] Langue utilisée : ${lang} pour l'email ${email}`,
     );
+
+    // ✅ Récupérer l'utilisateur avec tous les champs
     const user = await this.prisma.user.findFirst({
       where: { email: email.toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        full_name: true,
+        account_number: true,
+        profileImage: true,
+        branch: true,
+        role: true,
+        status: true,
+        deleted: true,
+        createdAt: true,
+        updatedAt: true,
+        fcmToken: true,
+        passwordStatus: true,
+        pinstatus: true,
+        merchantCode: true,
+        businessName: true,
+        failed_login_attempts: true,
+        locked_until: true,
+        kycStatus: true,
+      },
     });
+
     if (!user) {
       throw new RpcException({
         status: 'error',
@@ -599,20 +653,214 @@ export class UserServiceService {
         statusCode: 404,
       });
     }
+
+    // ✅ Récupérer la session active de l'utilisateur
+    const activeSession = await this.prisma.sessions.findFirst({
+      where: {
+        user_id: user.id,
+        is_valid: true,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        device_info: true,
+        ip_address: true,
+        last_activity: true,
+        created_at: true,
+        expires_at: true,
+      },
+    });
+
+    // ✅ Récupérer toutes les sessions actives
+    const sessions = await this.prisma.sessions.findMany({
+      where: {
+        user_id: user.id,
+        is_valid: true,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        device_info: true,
+        ip_address: true,
+        last_activity: true,
+        created_at: true,
+        expires_at: true,
+      },
+    });
+
+    // Récupération des ressources (permissions)
+    const userResources = await this.prisma.user_has_resources.findMany({
+      where: { userId: user.id },
+      include: { resources: true },
+    });
+
+    const resources = userResources.map((ur) => ({
+      id: ur.resources.id,
+      name: ur.resources.name,
+      label: ur.resources.label,
+      permissions: {
+        canCreate: ur.canCreate,
+        canRead: ur.canRead,
+        canUpdate: ur.canUpdate,
+        canDelete: ur.canDelete,
+        canManage: ur.canManage,
+      },
+      grantedAt: ur.grantedAt,
+      expiresAt: ur.expiresAt,
+    }));
+
+    // Récupération des wallets de l'utilisateur
+    const wallets = await this.prisma.wallet.findMany({
+      where: { userId: user.id, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        currency: true,
+        balance: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // ✅ Récupération des informations KYC de l'utilisateur
+    const kycSubmission = await this.prisma.kyc_submission.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        documentType: true,
+        documentNumber: true,
+        documentFront: true,
+        documentBack: true,
+        profileImage: true,
+        status: true,
+        submittedAt: true,
+        reviewedAt: true,
+        adminNotes: true,
+        rejectionReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // ✅ Formater les informations KYC
+    const kyc = {
+      status: user.kycStatus,
+      submission: kycSubmission ? {
+        id: kycSubmission.id,
+        documentType: kycSubmission.documentType || null,
+        documentNumber: kycSubmission.documentNumber || null,
+        documentFront: kycSubmission.documentFront || null,
+        documentBack: kycSubmission.documentBack || null,
+        profileImage: kycSubmission.profileImage || null,
+        status: kycSubmission.status,
+        submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
+        reviewedAt: kycSubmission.reviewedAt || null,
+        adminNotes: kycSubmission.adminNotes || null,
+        rejectionReason: kycSubmission.rejectionReason || null,
+      } : null,
+    };
+
+    // ✅ Retourner TOUT dans data (avec sessionId)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
-      data: this.toResponse(user),
+      data: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        account_number: user.account_number,
+        profileImage: user.profileImage,
+        branch: user.branch,
+        role: user.role,
+        status: user.status,
+        deleted: user.deleted ?? false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        fcmToken: user.fcmToken,
+        passwordStatus: user.passwordStatus,
+        pinstatus: user.pinstatus,
+        merchantCode: user.merchantCode,
+        businessName: user.businessName,
+        failed_login_attempts: user.failed_login_attempts,
+        locked_until: user.locked_until,
+        kycStatus: user.kycStatus,
+        sessionId: activeSession?.id || null,
+        sessions: sessions,
+        resources: resources,
+        wallets: wallets,
+        kyc: kyc,
+      },
     };
   }
 
   async getUserByPhone(
     phone: string,
     lang: string = 'fr',
-  ): Promise<ApiResponse<UserResponseDto>> {
+  ): Promise<{
+    message: string;
+    data: {
+      id: string;
+      email: string | null;
+      phone: string | null;
+      full_name: string | null;
+      account_number: string | null;
+      profileImage: string | null;
+      branch: string | null;
+      role: string;
+      status: string;
+      deleted: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      fcmToken: string | null;
+      passwordStatus: string | null;
+      pinstatus: boolean | null;
+      merchantCode: string | null;
+      businessName: string | null;
+      failed_login_attempts: number;
+      locked_until: Date | null;
+      kycStatus: string;
+      sessionId: string | null;
+      sessions: any[];
+      resources: any[];
+      wallets: any[];
+      kyc: any;
+    };
+  }> {
     console.log(
       `[getUserByPhone] Langue utilisée : ${lang} pour le téléphone ${phone}`,
     );
-    const user = await this.prisma.user.findFirst({ where: { phone } });
+
+    // ✅ Récupérer l'utilisateur avec tous les champs
+    const user = await this.prisma.user.findFirst({
+      where: { phone },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        full_name: true,
+        account_number: true,
+        profileImage: true,
+        branch: true,
+        role: true,
+        status: true,
+        deleted: true,
+        createdAt: true,
+        updatedAt: true,
+        fcmToken: true,
+        passwordStatus: true,
+        pinstatus: true,
+        merchantCode: true,
+        businessName: true,
+        failed_login_attempts: true,
+        locked_until: true,
+        kycStatus: true,
+      },
+    });
+
     if (!user) {
       throw new RpcException({
         status: 'error',
@@ -620,9 +868,147 @@ export class UserServiceService {
         statusCode: 404,
       });
     }
+
+    // ✅ Récupérer la session active de l'utilisateur
+    const activeSession = await this.prisma.sessions.findFirst({
+      where: {
+        user_id: user.id,
+        is_valid: true,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        device_info: true,
+        ip_address: true,
+        last_activity: true,
+        created_at: true,
+        expires_at: true,
+      },
+    });
+
+    // ✅ Récupérer toutes les sessions actives
+    const sessions = await this.prisma.sessions.findMany({
+      where: {
+        user_id: user.id,
+        is_valid: true,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        device_info: true,
+        ip_address: true,
+        last_activity: true,
+        created_at: true,
+        expires_at: true,
+      },
+    });
+
+    // Récupération des ressources (permissions)
+    const userResources = await this.prisma.user_has_resources.findMany({
+      where: { userId: user.id },
+      include: { resources: true },
+    });
+
+    const resources = userResources.map((ur) => ({
+      id: ur.resources.id,
+      name: ur.resources.name,
+      label: ur.resources.label,
+      permissions: {
+        canCreate: ur.canCreate,
+        canRead: ur.canRead,
+        canUpdate: ur.canUpdate,
+        canDelete: ur.canDelete,
+        canManage: ur.canManage,
+      },
+      grantedAt: ur.grantedAt,
+      expiresAt: ur.expiresAt,
+    }));
+
+    // Récupération des wallets de l'utilisateur
+    const wallets = await this.prisma.wallet.findMany({
+      where: { userId: user.id, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        currency: true,
+        balance: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // ✅ Récupération des informations KYC de l'utilisateur
+    const kycSubmission = await this.prisma.kyc_submission.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        documentType: true,
+        documentNumber: true,
+        documentFront: true,
+        documentBack: true,
+        profileImage: true,
+        status: true,
+        submittedAt: true,
+        reviewedAt: true,
+        adminNotes: true,
+        rejectionReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // ✅ Formater les informations KYC
+    const kyc = {
+      status: user.kycStatus,
+      submission: kycSubmission ? {
+        id: kycSubmission.id,
+        documentType: kycSubmission.documentType || null,
+        documentNumber: kycSubmission.documentNumber || null,
+        documentFront: kycSubmission.documentFront || null,
+        documentBack: kycSubmission.documentBack || null,
+        profileImage: kycSubmission.profileImage || null,
+        status: kycSubmission.status,
+        submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
+        reviewedAt: kycSubmission.reviewedAt || null,
+        adminNotes: kycSubmission.adminNotes || null,
+        rejectionReason: kycSubmission.rejectionReason || null,
+      } : null,
+    };
+
+    // ✅ Retourner TOUT dans data (avec sessionId)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
-      data: this.toResponse(user),
+      data: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        account_number: user.account_number,
+        profileImage: user.profileImage,
+        branch: user.branch,
+        role: user.role,
+        status: user.status,
+        deleted: user.deleted ?? false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        fcmToken: user.fcmToken,
+        passwordStatus: user.passwordStatus,
+        pinstatus: user.pinstatus,
+        merchantCode: user.merchantCode,
+        businessName: user.businessName,
+        failed_login_attempts: user.failed_login_attempts,
+        locked_until: user.locked_until,
+        kycStatus: user.kycStatus,
+        sessionId: activeSession?.id || null,
+        sessions: sessions,
+        resources: resources,
+        wallets: wallets,
+        kyc: kyc,
+      },
     };
   }
 
