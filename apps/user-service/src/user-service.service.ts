@@ -608,9 +608,6 @@ export class UserServiceService {
       failed_login_attempts: number;
       locked_until: Date | null;
       kycStatus: string;
-      sessionId: string | null;
-      sessions: any[];
-      resources: any[];
       wallets: any[];
       kyc: any;
     };
@@ -654,63 +651,6 @@ export class UserServiceService {
       });
     }
 
-    // ✅ Récupérer la session active de l'utilisateur
-    const activeSession = await this.prisma.sessions.findFirst({
-      where: {
-        user_id: user.id,
-        is_valid: true,
-        expires_at: { gt: new Date() },
-      },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id: true,
-        device_info: true,
-        ip_address: true,
-        last_activity: true,
-        created_at: true,
-        expires_at: true,
-      },
-    });
-
-    // ✅ Récupérer toutes les sessions actives
-    const sessions = await this.prisma.sessions.findMany({
-      where: {
-        user_id: user.id,
-        is_valid: true,
-        expires_at: { gt: new Date() },
-      },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id: true,
-        device_info: true,
-        ip_address: true,
-        last_activity: true,
-        created_at: true,
-        expires_at: true,
-      },
-    });
-
-    // Récupération des ressources (permissions)
-    const userResources = await this.prisma.user_has_resources.findMany({
-      where: { userId: user.id },
-      include: { resources: true },
-    });
-
-    const resources = userResources.map((ur) => ({
-      id: ur.resources.id,
-      name: ur.resources.name,
-      label: ur.resources.label,
-      permissions: {
-        canCreate: ur.canCreate,
-        canRead: ur.canRead,
-        canUpdate: ur.canUpdate,
-        canDelete: ur.canDelete,
-        canManage: ur.canManage,
-      },
-      grantedAt: ur.grantedAt,
-      expiresAt: ur.expiresAt,
-    }));
-
     // Récupération des wallets de l'utilisateur
     const wallets = await this.prisma.wallet.findMany({
       where: { userId: user.id, isActive: true },
@@ -764,7 +704,7 @@ export class UserServiceService {
       } : null,
     };
 
-    // ✅ Retourner TOUT dans data (avec sessionId)
+    // ✅ Retourner les données (sans sessions ni resources)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
@@ -788,9 +728,6 @@ export class UserServiceService {
         failed_login_attempts: user.failed_login_attempts,
         locked_until: user.locked_until,
         kycStatus: user.kycStatus,
-        sessionId: activeSession?.id || null,
-        sessions: sessions,
-        resources: resources,
         wallets: wallets,
         kyc: kyc,
       },
@@ -823,9 +760,6 @@ export class UserServiceService {
       failed_login_attempts: number;
       locked_until: Date | null;
       kycStatus: string;
-      sessionId: string | null;
-      sessions: any[];
-      resources: any[];
       wallets: any[];
       kyc: any;
     };
@@ -869,63 +803,6 @@ export class UserServiceService {
       });
     }
 
-    // ✅ Récupérer la session active de l'utilisateur
-    const activeSession = await this.prisma.sessions.findFirst({
-      where: {
-        user_id: user.id,
-        is_valid: true,
-        expires_at: { gt: new Date() },
-      },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id: true,
-        device_info: true,
-        ip_address: true,
-        last_activity: true,
-        created_at: true,
-        expires_at: true,
-      },
-    });
-
-    // ✅ Récupérer toutes les sessions actives
-    const sessions = await this.prisma.sessions.findMany({
-      where: {
-        user_id: user.id,
-        is_valid: true,
-        expires_at: { gt: new Date() },
-      },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id: true,
-        device_info: true,
-        ip_address: true,
-        last_activity: true,
-        created_at: true,
-        expires_at: true,
-      },
-    });
-
-    // Récupération des ressources (permissions)
-    const userResources = await this.prisma.user_has_resources.findMany({
-      where: { userId: user.id },
-      include: { resources: true },
-    });
-
-    const resources = userResources.map((ur) => ({
-      id: ur.resources.id,
-      name: ur.resources.name,
-      label: ur.resources.label,
-      permissions: {
-        canCreate: ur.canCreate,
-        canRead: ur.canRead,
-        canUpdate: ur.canUpdate,
-        canDelete: ur.canDelete,
-        canManage: ur.canManage,
-      },
-      grantedAt: ur.grantedAt,
-      expiresAt: ur.expiresAt,
-    }));
-
     // Récupération des wallets de l'utilisateur
     const wallets = await this.prisma.wallet.findMany({
       where: { userId: user.id, isActive: true },
@@ -979,7 +856,7 @@ export class UserServiceService {
       } : null,
     };
 
-    // ✅ Retourner TOUT dans data (avec sessionId)
+    // ✅ Retourner les données (sans sessions ni resources)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
@@ -1003,9 +880,6 @@ export class UserServiceService {
         failed_login_attempts: user.failed_login_attempts,
         locked_until: user.locked_until,
         kycStatus: user.kycStatus,
-        sessionId: activeSession?.id || null,
-        sessions: sessions,
-        resources: resources,
         wallets: wallets,
         kyc: kyc,
       },
