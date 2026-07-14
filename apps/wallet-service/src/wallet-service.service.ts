@@ -37,6 +37,7 @@ import { CreateWalletDto, WalletResponseDto } from './dto/create-wallet.dto';
 import { AdminCashoutDto, AdminPayDto, AdminSendDto, AdminTopUpDto } from './dto/admin-wallet.dto';
 import { ConvertCurrencyDto, ExchangeRateDto } from './dto/currency-convert.dto';
 import { Prisma } from '@prisma/client';
+type TransactionPaymentMethod = 'CASH' | 'MOBILE_MONEY' | 'CREDIT_DEBIT_CARD' | 'BANK_TRANSFERT' | 'INTERNAL' | 'EXTERNAL_API';
 
 type FormattedTransaction = {
   description: string;
@@ -281,7 +282,34 @@ export class WalletServiceService {
     console.warn(`[WalletService] Taux de change non trouvé pour ${from} -> ${to}, utilisation de 1`);
     return 1;
   }
+  private mapPaymentMethod(paymentMethod?: string): TransactionPaymentMethod {
+    // Si aucune valeur n'est fournie, retourner INTERNAL
+    if (!paymentMethod) {
+      return 'INTERNAL';
+    }
 
+    // Nettoyer et mettre en majuscules
+    const normalized = paymentMethod.toUpperCase().trim().replace(/\s+/g, '_');
+
+    // Vérifier si la valeur existe dans l'énumération
+    const validMethods: TransactionPaymentMethod[] = [
+      'CASH',
+      'MOBILE_MONEY',
+      'CREDIT_DEBIT_CARD',
+      'BANK_TRANSFERT',
+      'INTERNAL',
+      'EXTERNAL_API'
+    ];
+
+    const found = validMethods.find(m => m === normalized);
+    if (found) {
+      return found;
+    }
+
+    // Valeur par défaut si non reconnue
+    console.warn(`[mapPaymentMethod] Valeur non reconnue: ${paymentMethod}, utilisation de INTERNAL par défaut`);
+    return 'INTERNAL';
+  }
   async createWallet(
     data: CreateWalletDto,
   ): Promise<ApiResponse<WalletResponseDto>> {
@@ -973,7 +1001,7 @@ export class WalletServiceService {
             description: `Alimentation admin (cash)`,
             movement: 'CREDIT',
             currency: wallet.currency,
-            paymentMethod: dto.paymentMethod || 'CASH',
+            paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
           },
         });
 
@@ -1210,7 +1238,7 @@ export class WalletServiceService {
             description: `Retrait admin (cash)`,
             movement: 'DEBIT',
             currency: wallet.currency,
-            paymentMethod: dto.paymentMethod || 'CASH',
+            paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
           },
         });
 
@@ -1495,7 +1523,7 @@ export class WalletServiceService {
               toName: toUser.full_name || 'Destinataire',
               toPhone: toPhone,
             }),
-            paymentMethod: dto.paymentMethod || 'CASH',
+            paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
             movement: 'DEBIT',
           },
         });
@@ -1826,7 +1854,7 @@ export class WalletServiceService {
               merchantName: toUser.full_name || 'Commerçant',
               merchantCode: merchantCode,
             }),
-            paymentMethod: dto.paymentMethod || 'CASH',
+            paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
             movement: 'DEBIT',
           },
         });

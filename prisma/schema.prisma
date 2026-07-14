@@ -8,24 +8,26 @@ datasource db {
 }
 
 model transaction {
-  id                 String               @id @db.VarChar(36)
-  userId             String               @db.VarChar(36)
-  walletId           String               @db.VarChar(36)
+  id                 String                     @id @db.VarChar(36)
+  userId             String                     @db.VarChar(36)
+  walletId           String                     @db.VarChar(36)
   amount             Float
-  currency           String?              @db.VarChar(11)
+  currency           String?                    @db.VarChar(11)
   type               transaction_type?
-  status             transaction_status   @default(PENDING)
-  reference          String               @db.VarChar(255)
-  description        String?              @db.Text
-  createdAt          DateTime             @default(now()) @db.DateTime(0)
-  updatedAt          DateTime             @default(now()) @db.DateTime(0)
+  status             transaction_status         @default(PENDING)
+  reference          String                     @db.VarChar(255)
+  description        String?                    @db.Text
+  createdAt          DateTime                   @default(now()) @db.DateTime(0)
+  updatedAt          DateTime                   @default(now()) @db.DateTime(0)
   movement           transaction_movement
-  external_reference String?              @db.Text
-  user               user                 @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Transaction_userId_fkey")
-  wallet             wallet               @relation(fields: [walletId], references: [id], onDelete: Cascade, map: "Transaction_walletId_fkey")
+  external_reference String?                    @db.Text
+  paymentMethod      transaction_paymentMethod? @default(INTERNAL)
+  user               user                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Transaction_userId_fkey")
+  wallet             wallet                     @relation(fields: [walletId], references: [id], onDelete: Cascade, map: "Transaction_walletId_fkey")
 
   @@index([userId], map: "Transaction_userId_fkey")
   @@index([walletId], map: "Transaction_walletId_fkey")
+  @@index([paymentMethod], map: "idx_transaction_paymentMethod")
 }
 
 model user {
@@ -607,4 +609,13 @@ enum user_kycStatus {
   PENDING
   VERIFIED
   REJECTED
+}
+
+enum transaction_paymentMethod {
+  CASH
+  MOBILE_MONEY
+  CREDIT_DEBIT_CARD
+  BANK_TRANSFERT
+  INTERNAL
+  EXTERNAL_API
 }
