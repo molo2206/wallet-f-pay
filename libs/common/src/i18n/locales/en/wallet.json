@@ -149,7 +149,7 @@
   "wallet.exchange_rate_same_currency": "Exchange rate is identical for the same currency (1:1)",
   "wallet.conversion_amount_too_small": "The converted amount is too small (less than 0.01). Please try a higher amount.",
   "wallet.cashout_otp_sent_client": "An OTP code has been sent via SMS to the client to confirm the withdrawal.",
-  "wallet.cashout_client_otp_request": "Hello {full_name}, a withdrawal of {amount} {currency} has been requested by {merchant}. Confirm with OTP: {otpCode}",
+  "wallet.cashout_client_otp_request": "Hello {{full_name}}, a withdrawal of {{amount}} {{currency}} has been requested by {{merchant}}. Confirm with OTP: {{otpCode}}",
   "wallet.otp_min_length": "OTP must contain at least 4 digits",
   "wallet.otp_digits_only": "OTP must contain only digits",
   "wallet.otp_invalid": "Invalid OTP code",

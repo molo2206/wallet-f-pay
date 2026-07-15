@@ -149,7 +149,7 @@
   "wallet.exchange_rate_same_currency": "Kiwango cha ubadilishaji ni sawa kwa sarafu moja (1:1)",
   "wallet.conversion_amount_too_small": "Kiasi kilichobadilishwa ni kidogo sana (chini ya 0.01). Tafadhali jaribu kiasi kikubwa zaidi.",
   "wallet.cashout_otp_sent_client": "Nambari ya OTP imetumwa kwa SMS kwa mteja kuthibitisha uondoaji.",
-  "wallet.cashout_client_otp_request": "Habari {full_name}, uondoaji wa {amount} {currency} umeombwa na {merchant}. Thibitisha kwa OTP: {otpCode}",
+  "wallet.cashout_client_otp_request": "Habari {full_name}, uondoaji wa {{amount}} {{currency}} umeombwa na {{merchant}}. Thibitisha kwa OTP: {{otpCode}}",
   "wallet.otp_min_length": "OTP lazima iwe na angalau tarakimu 4",
   "wallet.otp_digits_only": "OTP lazima iwe na tarakimu tu",
   "wallet.otp_invalid": "Nambari ya OTP si sahihi",

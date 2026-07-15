@@ -148,7 +148,7 @@
     "wallet.exchange_rates_retrieved": "تم استرجاع أسعار الصرف بنجاح",
     "wallet.exchange_rate_same_currency": "سعر الصرف متطابق لنفس العملة (1:1)",
     "wallet.cashout_otp_sent_client": "تم إرسال رمز OTP عبر SMS إلى العميل لتأكيد السحب.",
-    "wallet.cashout_client_otp_request": "مرحباً {full_name}، تم طلب سحب مبلغ {amount} {currency} بواسطة {merchant}. قم بالتأكيد باستخدام OTP: {otpCode}",
+    "wallet.cashout_client_otp_request": "مرحباً {{full_name}، تم طلب سحب مبلغ {{amount}} {{currency}} بواسطة {{merchant}}. قم بالتأكيد باستخدام OTP: {{otpCode}}",
     "wallet.otp_min_length": "يجب أن يحتوي OTP على 4 أرقام على الأقل",
     "wallet.otp_digits_only": "يجب أن يحتوي OTP على أرقام فقط",
     "wallet.otp_invalid": "رمز OTP غير صالح",
