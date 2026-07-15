@@ -1315,7 +1315,7 @@ export class WalletServiceService {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.pin_incorrect', lang),
-        statusCode: 401,
+        statusCode: 403,
       });
     }
 
