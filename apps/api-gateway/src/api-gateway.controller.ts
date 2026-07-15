@@ -2112,7 +2112,7 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminCashout(
     @CurrentUser() currentUser: any,
-    @Body() body: { walletId: string; amount: number; otpCode?: string; paymentMethod?: string },
+    @Body() body: { walletId: string; amount: number; otpCode?: string; paymentMethod?: string ;pin?: string; },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2131,6 +2131,7 @@ export class ApiGatewayController {
         walletId: body.walletId,
         amount: body.amount,
         otpCode: body.otpCode, // ✅ OTP au lieu de pin (peut être undefined ou "123456")
+        pin: body.pin, // ✅ Pin au lieu de otpCode (peut être undefined ou "123456")
         lang,
         ipAddress,
         paymentMethod: body.paymentMethod // "CASH"
