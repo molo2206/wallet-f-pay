@@ -8,16 +8,21 @@ dotenv.config();
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ✅ Configuration CORS complète
+  const allowedOrigins = [
+    'https://f-pay-eight.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:4200',
+  ];
+
   app.enableCors({
-    origin: [
-      'f-pay-eight.vercel.app',
-      'http://localhost:3000',
-      'http://localhost:4200',
-      'http://localhost:3001',
-      'http://localhost:4201',
-      // Ajoutez d'autres domaines si nécessaire
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
@@ -28,13 +33,13 @@ async function bootstrap() {
       'x-lang',
     ],
     credentials: true,
-    maxAge: 86400, // 24 heures
+    maxAge: 86400,
   });
 
   const port = process.env.API_GATEWAY_PORT || 3000;
   await app.listen(port);
   console.log(`✅ API Gateway listening on http://localhost:${port}`);
-  console.log(`✅ CORS enabled for: https://f-pay-eight.vercel.app`);
+  console.log(`✅ CORS allowed origins: ${allowedOrigins.join(', ')}`);
 }
 
 bootstrap();
