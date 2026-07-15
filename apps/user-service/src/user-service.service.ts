@@ -2501,6 +2501,7 @@ export class UserServiceService {
         documentNumber: true,
         documentFront: true,
         documentBack: true,
+        profileImage: true,
         documentUrl: true,
         status: true,
         adminNotes: true,
