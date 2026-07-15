@@ -11,7 +11,7 @@ async function bootstrap() {
   // ✅ Configuration CORS complète
   app.enableCors({
     origin: [
-      'https://f-pay.vercel.app',
+      'f-pay-eight.vercel.app',
       'http://localhost:3000',
       'http://localhost:4200',
       'http://localhost:3001',
@@ -34,7 +34,7 @@ async function bootstrap() {
   const port = process.env.API_GATEWAY_PORT || 3000;
   await app.listen(port);
   console.log(`✅ API Gateway listening on http://localhost:${port}`);
-  console.log(`✅ CORS enabled for: https://f-pay.vercel.app`);
+  console.log(`✅ CORS enabled for: https://f-pay-eight.vercel.app`);
 }
 
 bootstrap();
