@@ -17,6 +17,7 @@ export class AdminCashoutDto {
     ipAddress?: string;
     paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour le cashout (ex: "bank_transfer", "mobile_money", etc.),
     otpCode?: string;
+    pin?: string;
 }
 
 export class AdminSendDto {

@@ -59,7 +59,7 @@ export class WalletServiceService {
     private readonly i18nService: I18nService,
     private readonly bankService: BankService,
     private readonly pawapayService: PawapayService,
-      private readonly mailService: MailService,
+    private readonly mailService: MailService,
   ) { }
 
   private async generateTransactionReference(
@@ -1072,8 +1072,8 @@ export class WalletServiceService {
   async adminCashout(
     dto: AdminCashoutDto,
   ): Promise<ApiResponse<{ wallet?: WalletResponseDto; transaction?: any; transactionId?: string; requiresOtp?: boolean; message: string }>> {
-    const { adminId, walletId, amount, otpCode, lang = 'fr', ipAddress, paymentMethod } = dto;
-    console.log('[WalletService] Admin Cashout:', { adminId, walletId, amount, hasOtp: !!otpCode, lang });
+    const { adminId, walletId, amount, pin, otpCode, lang = 'fr', ipAddress, paymentMethod } = dto;
+    console.log('[WalletService] Admin Cashout:', { adminId, walletId, amount, hasOtp: !!otpCode, hasAdminPin: !!pin, lang });
 
     // ========== VALIDATIONS COMMUNES ==========
     if (amount <= 0) {
@@ -1107,6 +1107,10 @@ export class WalletServiceService {
         id: true,
         full_name: true,
         phone: true,
+        pin: true,
+        status: true,
+        failed_pin_attempts: true,
+        pin_locked_until: true,
       }
     });
 
@@ -1151,13 +1155,23 @@ export class WalletServiceService {
     const user = wallet.user; // Le client
 
     // ========== ÉTAPE 1 : Demande de retrait (sans OTP) ==========
+    // ✅ On ne vérifie PAS le PIN de l'admin ici
     if (!otpCode || otpCode.trim() === '') {
+      // Vérifier que l'admin a un PIN (pour la suite)
+      if (!admin.pin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'L\'admin n\'a pas de PIN défini.',
+          statusCode: 400,
+        });
+      }
+
       // Créer une transaction en attente
       const reference = await this.generateTransactionReference('ADM');
 
       // Générer un OTP (6 chiffres)
       const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
       // Désactiver les anciens OTP du client
       await this.prisma.otp.updateMany({
@@ -1181,7 +1195,7 @@ export class WalletServiceService {
         },
       });
 
-      // Créer la transaction en attente avec référence à l'OTP
+      // Créer la transaction en attente
       const pendingTransaction = await this.prisma.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -1222,33 +1236,6 @@ export class WalletServiceService {
         console.error('[AdminCashout] Erreur envoi SMS OTP:', err);
       }
 
-      // ✅ Envoyer l'OTP par email si le client a un email
-      if (user.email) {
-        try {
-          await this.mailService.sendHtmlEmail(
-            user.email,
-            this.i18nService.translate('email_otp_title', lang),
-            'otp-email.html',
-            {
-              title: this.i18nService.translate('email_otp_title', lang),
-              greeting: this.i18nService.translate('email_otp_greeting', lang),
-              message: this.i18nService.translate('email_otp_message', lang),
-              otpCode: newOtpCode,
-              expiry: this.i18nService.translate('email_otp_expiry', lang),
-              ignore: this.i18nService.translate('email_otp_ignore', lang),
-              thanks: this.i18nService.translate('email_otp_thanks', lang),
-              team: this.i18nService.translate('email_otp_team', lang),
-              footer: this.i18nService.translate('email_otp_footer', lang),
-              sent_to: this.i18nService.translate('email_otp_sent_to', lang),
-              copyright: this.i18nService.translate('email_otp_copyright', lang, { year: new Date().getFullYear() }),
-              email: user.email,
-            },
-          );
-        } catch (err) {
-          console.error(`Erreur email OTP à ${user.email}:`, err);
-        }
-      }
-
       // Audit log
       await this.logAudit(
         admin.id,
@@ -1267,8 +1254,78 @@ export class WalletServiceService {
       };
     }
 
-    // ========== ÉTAPE 2 : Confirmation avec OTP ==========
-    // Valider l'OTP
+    // ========== ÉTAPE 2 : Confirmation avec OTP + PIN ADMIN ==========
+    // ✅ ICI on vérifie le PIN de l'admin
+
+    // ✅ 1. Vérifier le PIN de l'admin
+    if (!pin || pin.trim() === '') {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le PIN de l\'admin est requis pour valider la transaction.',
+        statusCode: 400,
+      });
+    }
+
+    if (pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!/^\d+$/.test(pin)) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_digits_only', lang),
+        statusCode: 400,
+      });
+    }
+
+    // Vérifier si le PIN de l'admin est bloqué
+    if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
+      const minutesLeft = Math.ceil(
+        (admin.pin_locked_until.getTime() - Date.now()) / 60000,
+      );
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+        statusCode: 403,
+      });
+    }
+
+    // Vérifier le PIN de l'admin
+    const hashedAdminPin = crypto.createHash('sha256').update(pin).digest('hex');
+    if (admin.pin !== hashedAdminPin) {
+      const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+      let newStatus = admin.status;
+      let lockedUntil: Date | null = null;
+      if (newAttempts >= 5) {
+        newStatus = user_status.BLOCKED;
+        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+      }
+      await this.prisma.user.update({
+        where: { id: admin.id },
+        data: {
+          failed_pin_attempts: newAttempts,
+          status: newStatus,
+          pin_locked_until: lockedUntil
+        },
+      });
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_incorrect', lang),
+        statusCode: 401,
+      });
+    }
+
+    // Réinitialiser les tentatives de PIN de l'admin
+    await this.prisma.user.update({
+      where: { id: admin.id },
+      data: { failed_pin_attempts: 0, pin_locked_until: null },
+    });
+
+    // ✅ 2. Vérifier l'OTP du client
     if (otpCode.length < 4) {
       throw new RpcException({
         status: 'error',
@@ -1285,7 +1342,6 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ 1. Vérifier l'OTP dans la table otp
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
         userId: user.id,
@@ -1310,7 +1366,7 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ 2. Récupérer la transaction en attente
+    // ✅ 3. Récupérer la transaction en attente
     const pendingTx = await this.prisma.transaction.findFirst({
       where: {
         userId: user.id,
@@ -1349,7 +1405,6 @@ export class WalletServiceService {
           description: 'Retrait annulé - OTP expiré'
         },
       });
-      // Marquer l'OTP comme utilisé
       await this.prisma.otp.update({
         where: { id: otpRecord.id },
         data: { isUsed: true },
@@ -1364,7 +1419,6 @@ export class WalletServiceService {
     // ========== EXÉCUTER LA TRANSACTION ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
-        // 1️⃣ Récupérer le wallet à jour
         const currentWallet = await tx.wallet.findFirst({
           where: { id: walletId },
           include: { user: true }
@@ -1386,7 +1440,6 @@ export class WalletServiceService {
           });
         }
 
-        // Vérifier à nouveau le solde
         if (currentWallet.balance < amount) {
           throw new RpcException({
             status: 'error',
@@ -1395,29 +1448,25 @@ export class WalletServiceService {
           });
         }
 
-        // 2️⃣ Mettre à jour le wallet
         const updated = await tx.wallet.update({
           where: { id: currentWallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
         });
 
-        // 3️⃣ Mettre à jour la transaction (PENDING -> SUCCESS)
         const transaction = await tx.transaction.update({
           where: { id: pendingTx.id },
           data: {
             status: 'SUCCESS',
-            description: `Retrait admin confirmé par le client (OTP)`,
+            description: `Retrait admin confirmé par le client (OTP) et admin (PIN)`,
             updatedAt: new Date(),
           },
         });
 
-        // 4️⃣ Marquer l'OTP comme utilisé
         await tx.otp.update({
           where: { id: otpRecord.id },
           data: { isUsed: true },
         });
 
-        // 5️⃣ Audit log
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
@@ -1426,7 +1475,8 @@ export class WalletServiceService {
             details: JSON.stringify({
               transaction,
               targetUserId: user.id,
-              otpVerified: true
+              otpVerified: true,
+              adminPinVerified: true
             }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
@@ -1481,7 +1531,6 @@ export class WalletServiceService {
       },
     };
   }
-
   async adminSend(
     dto: AdminSendDto,
   ): Promise<ApiResponse<{ fromWallet: WalletResponseDto; toWallet: WalletResponseDto; transaction: any }>> {
