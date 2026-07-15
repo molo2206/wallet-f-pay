@@ -2112,7 +2112,7 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminCashout(
     @CurrentUser() currentUser: any,
-    @Body() body: { walletId: string; amount: number; otpCode?: string; paymentMethod?: string ;pin?: string; },
+    @Body() body: { walletId: string; amount: number; otpCode?: string; paymentMethod?: string; pin?: string; },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2140,12 +2140,12 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
   }
-  
+
   @Post('admin/wallet/send')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminSend(
     @CurrentUser() currentUser: any,
-    @Body() body: { fromWalletId: string; toPhone: string; amount: number; pin: string; description?: string; paymentMethod: string },
+    @Body() body: { fromWalletId: string; toPhone: string; amount: number; pin: string; description?: string; paymentMethod?: string; countryCode?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2191,7 +2191,8 @@ export class ApiGatewayController {
         description: body.description,
         lang,
         ipAddress,
-        paymentMethod: body.paymentMethod
+        paymentMethod: body.paymentMethod,
+        countryCode: body.countryCode // ✅ AJOUTÉ
       },
       this.i18nService.translate('wallet.transfer_failed', lang),
       HttpStatus.BAD_REQUEST,
