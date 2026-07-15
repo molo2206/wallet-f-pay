@@ -124,7 +124,7 @@ export class WalletServiceService {
       attempts++;
     }
 
-    // Fallback si toutes les tentatives échouent
+    // Fallback si toutes les tentatives échouen-t
     if (!isUnique) {
       const timestamp = Date.now().toString().slice(-4);
       const random = Math.floor(1000 + Math.random() * 9000);
@@ -990,7 +990,7 @@ export class WalletServiceService {
         });
 
         // 4️⃣ Créer la transaction
-        const reference = await this.generateTransactionReference('ADM', tx);
+        const reference = await this.generateTransactionReference('',tx);
         const transaction = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1167,7 +1167,7 @@ export class WalletServiceService {
       }
 
       // Créer une transaction en attente
-      const reference = await this.generateTransactionReference('ADM');
+      const reference = await this.generateTransactionReference();
 
       // Générer un OTP (6 chiffres)
       const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -1739,7 +1739,7 @@ export class WalletServiceService {
         });
 
         // 6️⃣ Créer les transactions avec descriptions enrichies
-        const reference = await this.generateTransactionReference('ADM', tx);
+        const reference = await this.generateTransactionReference('',tx);
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2070,7 +2070,7 @@ export class WalletServiceService {
         });
 
         // 6️⃣ Créer les transactions avec descriptions enrichies
-        const reference = await this.generateTransactionReference('ADM', tx);
+        const reference = await this.generateTransactionReference('',tx);
         const payerTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2739,7 +2739,7 @@ export class WalletServiceService {
             amount: netAmount,
             type: 'DEPOSIT',
             status: 'FAILED',
-            reference: await this.generateTransactionReference('USER', tx),
+            reference: await this.generateTransactionReference('', tx),
             description: this.i18nService.translate('wallet.failed_description', lang, {
               reason: failureMessage,
             }),
@@ -2778,7 +2778,7 @@ export class WalletServiceService {
             amount: netAmount,
             type: 'DEPOSIT',
             status: 'SUCCESS',
-            reference: await this.generateTransactionReference('USER', tx),
+            reference: await this.generateTransactionReference('', tx),
             description,
             movement: 'CREDIT',
             currency: wallet.currency,
@@ -3100,7 +3100,7 @@ export class WalletServiceService {
               amount: totalAmount,
               type: 'WITHDRAW',
               status: 'FAILED',
-              reference: await this.generateTransactionReference('CASH', tx),
+              reference: await this.generateTransactionReference('', tx),
               description: this.i18nService.translate('wallet.failed_description', lang, {
                 reason: failureMessage,
               }),
@@ -3160,7 +3160,7 @@ export class WalletServiceService {
             data: { balance: { decrement: totalAmount }, updatedAt: new Date() },
           });
 
-          const reference = await this.generateTransactionReference('CASH', tx);
+          const reference = await this.generateTransactionReference('', tx);
           const txRecord = await tx.transaction.create({
             data: {
               id: crypto.randomUUID(),
@@ -3680,7 +3680,7 @@ export class WalletServiceService {
         }
 
         // 10. Créer les transactions
-        const reference = await this.generateTransactionReference('SEND', tx);
+        const reference = await this.generateTransactionReference('', tx);
 
         // ✅ Déterminer le statut de la transaction
         const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
@@ -4040,7 +4040,7 @@ export class WalletServiceService {
       }
 
       // Créer les transactions
-      const reference = await this.generateTransactionReference('USER', tx);
+      const reference = await this.generateTransactionReference('', tx);
       const [payerTx, merchantTx] = await Promise.all([
         tx.transaction.create({
           data: {
