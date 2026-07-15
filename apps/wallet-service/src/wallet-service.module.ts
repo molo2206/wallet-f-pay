@@ -1,9 +1,8 @@
-/* eslint-disable prettier/prettier */
 // apps/wallet-service/src/wallet-service.module.ts
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { HttpModule } from '@nestjs/axios';
-import { ConfigModule } from '@nestjs/config';        // ✅ ajout
+import { ConfigModule } from '@nestjs/config';
 import { WalletServiceController } from './wallet-service.controller';
 import { WalletServiceService } from './wallet-service.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -14,6 +13,7 @@ import { BankService } from './bank/bank.service';
 import { EncryptionService } from './bank/encryption.service';
 import { PawapayService } from './pawapay/pawapay.service';
 import { PawapayModule } from './pawapay/pawapay.module';
+import { MailModule } from 'apps/auth-service/src/email/email.module'; // ✅ IMPORT
 
 @Module({
   imports: [
@@ -21,6 +21,7 @@ import { PawapayModule } from './pawapay/pawapay.module';
     PawapayModule,
     HttpModule,
     ConfigModule,
+    MailModule, // ✅ AJOUTER LE MODULE MAIL
     ClientsModule.register([
       {
         name: 'NOTIFICATION_CLIENT',
@@ -38,6 +39,7 @@ import { PawapayModule } from './pawapay/pawapay.module';
   providers: [
     WalletServiceService,
     SmsService,
+    // MailService est fourni par MailModule, pas besoin de le déclarer ici
     NotificationHelper,
     BankService,
     EncryptionService,

@@ -2108,35 +2108,38 @@ export class ApiGatewayController {
     );
   }
 
-  // adminCashout dans l'API Gateway - CORRIGÉ
   @Post('admin/wallet/cashout')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminCashout(
     @CurrentUser() currentUser: any,
-    @Body() body: { walletId: string; amount: number; pin: string; paymentMethod: string },
+    @Body() body: { walletId: string; amount: number; otpCode?: string; paymentMethod?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
+    // Vérification des rôles
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
+
     const lang = langHeader || 'fr';
+
+    // Appel direct au service
     return this.sendWalletMessage(
       'admin_cashout',
       {
         adminId: currentUser.id,
         walletId: body.walletId,
         amount: body.amount,
-        pin: body.pin,
+        otpCode: body.otpCode, // ✅ OTP au lieu de pin (peut être undefined ou "123456")
         lang,
         ipAddress,
-        paymentMethod: body.paymentMethod
+        paymentMethod: body.paymentMethod // "CASH"
       },
       this.i18nService.translate('wallet.cashout_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
   }
-
+  
   @Post('admin/wallet/send')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async adminSend(

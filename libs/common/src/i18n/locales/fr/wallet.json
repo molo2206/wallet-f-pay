@@ -147,5 +147,11 @@
   "wallet.kyc_rejected_for_international_transfer": "Votre KYC a été rejeté. Veuillez soumettre à nouveau des documents valides pour effectuer des transferts internationaux.",
   "wallet.exchange_rates_retrieved": "Taux de change récupérés avec succès",
   "wallet.exchange_rate_same_currency": "Taux de change identique pour la même devise (1:1)",
-  "wallet.conversion_amount_too_small": "Le montant converti est trop petit (moins de 0.01). Veuillez essayer un montant plus élevé."
+  "wallet.conversion_amount_too_small": "Le montant converti est trop petit (moins de 0.01). Veuillez essayer un montant plus élevé.",
+  "cashout_otp_sent_client": "Un code OTP a été envoyé par SMS au client pour confirmer le retrait.",
+  "cashout_client_otp_request": "Bonjour {full_name}, un retrait de {amount} {currency} est demandé par {merchant}. Confirmez avec l'OTP : {otpCode}",
+  "otp_min_length": "L'OTP doit contenir au moins 4 chiffres",
+  "otp_digits_only": "L'OTP ne doit contenir que des chiffres",
+  "otp_invalid": "Code OTP invalide",
+  "otp_expired": "Le code OTP a expiré"
 }

@@ -146,5 +146,11 @@
     "wallet.kyc_pending_for_international_transfer": "طلب KYC الخاص بك قيد التحقق. يرجى الانتظار قبل إجراء التحويلات الدولية.",
     "wallet.kyc_rejected_for_international_transfer": "تم رفض KYC الخاص بك. يرجى إعادة تقديم مستندات صالحة لإجراء التحويلات الدولية.",
     "wallet.exchange_rates_retrieved": "تم استرجاع أسعار الصرف بنجاح",
-    "wallet.exchange_rate_same_currency": "سعر الصرف متطابق لنفس العملة (1:1)"
+    "wallet.exchange_rate_same_currency": "سعر الصرف متطابق لنفس العملة (1:1)",
+    "cashout_otp_sent_client": "تم إرسال رمز OTP عبر SMS إلى العميل لتأكيد السحب.",
+    "cashout_client_otp_request": "مرحباً {full_name}، تم طلب سحب مبلغ {amount} {currency} بواسطة {merchant}. قم بالتأكيد باستخدام OTP: {otpCode}",
+    "otp_min_length": "يجب أن يحتوي OTP على 4 أرقام على الأقل",
+    "otp_digits_only": "يجب أن يحتوي OTP على أرقام فقط",
+    "otp_invalid": "رمز OTP غير صالح",
+    "otp_expired": "انتهت صلاحية رمز OTP"
 }

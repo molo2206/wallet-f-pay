@@ -13,10 +13,10 @@ export class AdminCashoutDto {
     adminId: string;           // REQUIS
     walletId: string;          // REQUIS
     amount: number;
-    pin: string;
     lang?: string;
     ipAddress?: string;
-    paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour le cashout (ex: "bank_transfer", "mobile_money", etc.)
+    paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour le cashout (ex: "bank_transfer", "mobile_money", etc.),
+    otpCode?: string;
 }
 
 export class AdminSendDto {
