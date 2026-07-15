@@ -516,6 +516,25 @@ export class UserServiceController {
     }
   }
 
+  @MessagePattern('get_kyc_submission_by_id')
+  async getKycSubmissionById(
+    @Payload() data: { id: string; lang?: string },
+  ): Promise<{ message: string; data: any }> {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Récupération KYC par ID:', { id: data.id, lang });
+
+    try {
+      return await this.userService.getKycSubmissionById(data.id, lang);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('verify_kyc')
   async verifyKyc(
     @Payload()

@@ -3136,6 +3136,34 @@ export class ApiGatewayController {
     );
   }
 
+  @Get('admin/kyc/submissions/:id')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getKycSubmissionById(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+
+    if (!id) {
+      throw new HttpException(
+        this.i18nService.translate('kyc_submission_id_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return this.sendUserMessage(
+      'get_kyc_submission_by_id',
+      { id, lang },
+      this.i18nService.translate('kyc_submission_not_found', lang),
+      HttpStatus.NOT_FOUND,
+    );
+  }
+
+
   /**
    * Récupérer le statut KYC de l'utilisateur connecté
    */

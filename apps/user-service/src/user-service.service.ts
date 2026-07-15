@@ -2478,6 +2478,76 @@ export class UserServiceService {
     };
   }
 
+  async getKycSubmissionById(
+    id: string,
+    lang: string = 'fr',
+  ): Promise<{ message: string; data: any }> {
+    console.log('[KYC Service] Get KYC submission by ID:', { id, lang });
+
+    if (!id) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_submission_id_required', lang),
+        statusCode: 400,
+      });
+    }
+
+    const submission = await this.prisma.kyc_submission.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        documentType: true,
+        documentNumber: true,
+        documentFront: true,
+        documentBack: true,
+        documentUrl: true,
+        status: true,
+        adminNotes: true,
+        rejectionReason: true,
+        submittedAt: true,
+        reviewedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            email: true,
+            account_number: true,
+            countryCode: true,
+            profileImage: true,
+          },
+        },
+      },
+    });
+
+    if (!submission) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('kyc_submission_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // ✅ Formater les données
+    const formattedData = {
+      ...submission,
+      documentType: submission.documentType || 'NATIONAL_ID',
+      documentNumber: submission.documentNumber || null,
+      documentFront: submission.documentFront || null,
+      documentBack: submission.documentBack || null,
+      documentUrl: submission.documentUrl || null,
+      rejectionReason: submission.rejectionReason || null,
+      submittedAt: submission.submittedAt || submission.createdAt,
+    };
+
+    return {
+      message: this.i18nService.translate('kyc_submission_retrieved', lang),
+      data: formattedData,
+    };
+  }
   async verifyKyc(
     kycId: string,
     data: {
