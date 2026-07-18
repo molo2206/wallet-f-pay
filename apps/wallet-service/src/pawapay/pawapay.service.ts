@@ -549,8 +549,16 @@ export class PawapayService {
     };
   }
 
-  async getAllCountries() {
+  async getAllCountries(status?: string) {
+    const where: any = {};
+
+    // ✅ Filtrer par status si fourni
+    if (status) {
+      where.status = status;
+    }
+
     const countries = await this.prisma.country_provider.findMany({
+      where,
       include: {
         country_currency: {
           include: {
@@ -567,7 +575,6 @@ export class PawapayService {
       },
     });
 
-    // ✅ Retour avec message et data
     return {
       message: 'Countries retrieved successfully',
       data: countries.map(country => this.formatCountryResponse(country)),

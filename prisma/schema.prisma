@@ -344,15 +344,16 @@ model login_attempt {
 }
 
 model country_provider {
-  id               String             @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  code             String             @db.VarChar(10)
-  countryCode      String?            @db.VarChar(100)
-  name             String             @db.VarChar(100)
-  flag             String?            @db.Text
-  prefix           String?            @db.VarChar(10)
-  default_currency String?            @db.VarChar(255)
-  createdAt        DateTime           @default(now()) @db.DateTime(0)
-  updatedAt        DateTime           @default(now()) @db.DateTime(0)
+  id               String                   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  code             String                   @db.VarChar(10)
+  countryCode      String?                  @db.VarChar(100)
+  name             String                   @db.VarChar(100)
+  flag             String?                  @db.Text
+  prefix           String?                  @db.VarChar(10)
+  default_currency String?                  @db.VarChar(255)
+  createdAt        DateTime                 @default(now()) @db.DateTime(0)
+  updatedAt        DateTime                 @default(now()) @db.DateTime(0)
+  status           country_provider_status? @default(ACTIVE)
   country_currency country_currency[]
   network_provider network_provider[]
 }
@@ -646,4 +647,10 @@ enum user_merchantType {
   ELECTRONICS
   AUTOMOTIVE
   OTHER
+}
+
+enum country_provider_status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }

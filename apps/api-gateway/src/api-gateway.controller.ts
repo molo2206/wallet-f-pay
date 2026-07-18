@@ -2833,15 +2833,15 @@ export class ApiGatewayController {
   }
 
   @Get('pawapay/countries')
-  async getAllCountries() {
+  async getAllCountries(@Query('status') status?: string) {
     return this.sendWalletMessage(
       'get_all_countries',
-      {},
+      { status }, // ✅ Passer le status
       'Failed to get countries',
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
-
+  
   @Post('admin/pawapay/networks')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async createNetwork(
