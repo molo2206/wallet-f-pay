@@ -1,159 +1,237 @@
 <!DOCTYPE html>
-<html lang="fr">
-
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Western Union - Suivi de transfert</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Money Transfer Processing</title>
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f4f4f4;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
-    }
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    .email-container {
-      background-color: #ffffff;
-      width: 100%;
-      max-width: 600px;
-      min-height: 550px;
-      position: relative;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      overflow: hidden;
-      padding-bottom: 40px;
-    }
+<style>
 
-    /* En-tête jaune stylisé */
-    .header-bg {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 250px;
-      height: 120px;
-      background-color: #FFDD00;
-      border-bottom-right-radius: 60px;
-      z-index: 1;
-    }
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
 
-    .logo-container {
-      position: relative;
-      z-index: 2;
-      padding: 30px 0 0 40px;
-      display: flex;
-      align-items: center;
-    }
+body{
+    background:#f5f5f5;
+    font-family:'Inter',sans-serif;
+    color:#111;
+}
 
-    /* Contenu principal */
-    .content {
-      padding: 140px 50px 20px 50px;
-    }
+.wrapper{
+    width:100%;
+    padding:40px 15px;
+}
 
-    h1 {
-      font-size: 36px;
-      font-weight: 700;
-      color: #000000;
-      line-height: 1.15;
-      margin-bottom: 45px;
-      letter-spacing: -0.5px;
-    }
+.email{
+    max-width:625px;
+    margin:auto;
+    background:#fff;
+}
 
-    .salutation {
-      font-size: 16px;
-      color: #000000;
-      margin-bottom: 25px;
-    }
+/* ================= Header ================= */
 
-    .message-body {
-      font-size: 15px;
-      color: #1a1a1a;
-      line-height: 1.45;
-      margin-bottom: 45px;
-    }
+.header{
+    width:225px;
+    height:92px;
+    background:#FFD100;
+    border-bottom-right-radius:35px;
+    display:flex;
+    align-items:center;
+    padding-left:28px;
+}
 
-    .underlined-link {
-      text-decoration: underline;
-      color: #000000;
-      font-weight: bold;
-    }
+.logo{
+    color:#000;
+    font-weight:800;
+    font-size:18px;
+    line-height:1.05;
+}
 
-    .thanks {
-      font-size: 16px;
-      color: #000000;
-      margin-bottom: 25px;
-    }
+.logo span{
+    display:block;
+    font-size:36px;
+    letter-spacing:-4px;
+    margin-bottom:2px;
+}
 
-    /* Section tracking bas de page */
-    .tracking-footer {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 15px;
-      color: #000000;
-    }
+/* ================= Body ================= */
 
-    .tracking-link {
-      color: #0076A8;
-      text-decoration: underline;
-    }
-  </style>
+.content{
+    padding:55px 62px 60px;
+}
+
+h1{
+    font-size:58px;
+    line-height:1.05;
+    font-weight:800;
+    letter-spacing:-1.5px;
+    margin-bottom:58px;
+}
+
+.greeting{
+    font-size:34px;
+    margin-bottom:40px;
+    line-height:1.5;
+}
+
+.greeting strong{
+    font-weight:700;
+}
+
+.text{
+    font-size:31px;
+    line-height:1.6;
+    color:#222;
+    margin-bottom:55px;
+}
+
+.text strong{
+    font-weight:700;
+}
+
+.thanks{
+    font-size:34px;
+    margin-bottom:48px;
+}
+
+.track{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    font-size:31px;
+    line-height:1.5;
+}
+
+.track a{
+    color:#006FCF;
+    text-decoration:underline;
+}
+
+.icon{
+    width:34px;
+    height:34px;
+    border:3px solid #111;
+    border-radius:50%;
+    position:relative;
+    flex-shrink:0;
+}
+
+.icon:before{
+    content:'';
+    position:absolute;
+    width:14px;
+    height:14px;
+    border:3px solid #111;
+    border-radius:50%;
+    left:7px;
+    top:7px;
+}
+
+.icon:after{
+    content:'';
+    position:absolute;
+    width:8px;
+    height:8px;
+    background:#111;
+    border-radius:50%;
+    left:10px;
+    top:10px;
+}
+
+@media(max-width:650px){
+
+.header{
+    width:180px;
+    height:78px;
+}
+
+.content{
+    padding:35px 25px;
+}
+
+h1{
+    font-size:42px;
+    margin-bottom:35px;
+}
+
+.greeting{
+    font-size:22px;
+}
+
+.text{
+    font-size:20px;
+}
+
+.thanks{
+    font-size:22px;
+}
+
+.track{
+    font-size:19px;
+}
+
+}
+
+</style>
+
 </head>
-
 <body>
 
-  <div class="email-container">
-    <!-- Forme jaune du logo -->
-    <div class="header-bg"></div>
+<div class="wrapper">
 
-    <!-- Logo Western Union -->
-    <div class="logo-container">
-      <svg width="150" height="40" viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Icone 'W' -->
-        <path d="M0 6H9.5L16.5 28L23.5 6H33L21.5 34H11.5L0 6Z" fill="black" />
-        <path d="M12 6H21.5L28.5 28L35.5 6H45L33.5 34H23.5L12 6Z" fill="black" />
-        <!-- Texte Western Union -->
-        <text x="52" y="18" fill="black" font-family="Arial, sans-serif" font-weight="bold"
-          font-size="13">Western</text>
-        <text x="52" y="31" fill="black" font-family="Arial, sans-serif" font-weight="bold" font-size="13">Union</text>
-      </svg>
+<div class="email">
+
+    <div class="header">
+        <div class="logo">
+            <span>WU</span>
+            Western<br>Union
+        </div>
     </div>
 
-    <!-- Contenu de l'e-mail -->
     <div class="content">
-      <h1>We are processing<br>your money transfer</h1>
 
-      <p class="salutation">Hi <strong>Mohammed Abdul Hafeez,</strong></p>
+        <h1>
+            We are processing<br>
+            your money transfer
+        </h1>
 
-      <p class="message-body">
-        We're on it! Your money transfer <span class="underlined-link">MTCN</span> <strong>0684021987</strong> is being
-        processed and will be available in <strong>Habiba's</strong> bank account by <strong>10-11-2024</strong>.
-      </p>
+        <p class="greeting">
+            Hi <strong>Mohammed Abdul Hafeez,</strong>
+        </p>
 
-      <p class="thanks">Thanks for choosing us.</p>
+        <p class="text">
+            We're on it! Your money transfer
+            <strong>MTCN 0684021987</strong>
+            is being processed and will be available in
+            <strong>Habiba's</strong>
+            bank account by
+            <strong>10-11-2024.</strong>
+        </p>
 
-      <!-- Lien de suivi avec icône -->
-      <div class="tracking-footer">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.5"
-          stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10" stroke-dasharray="4 4" />
-          <path d="M12 2a10 10 0 0 1 10 10" />
-          <circle cx="12" cy="12" r="5" />
-          <path d="M12 7v5l3 2" />
-        </svg>
-        <span><a href="#" class="tracking-link">Track your transfer</a> with your 10-digit MTCN number.</span>
-      </div>
+        <p class="thanks">
+            Thanks for choosing us.
+        </p>
+
+        <div class="track">
+
+            <div class="icon"></div>
+
+            <div>
+                <a href="#">Track your transfer</a>
+                with your 10-digit MTCN number.
+            </div>
+
+        </div>
+
     </div>
-  </div>
+
+</div>
+
+</div>
 
 </body>
-
 </html>
