@@ -2897,47 +2897,54 @@ export class ApiGatewayController {
   @Get('pawapay/networks/filter/by-country')
   async getMyNetworksByWallet(
     @CurrentUser() currentUser: any,
+    @Query('countryCode') countryCodeParam?: string,
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
 
-    // 🔍 Récupérer le pays depuis le wallet de l'utilisateur
+    // 🔍 Si un countryCode est fourni en paramètre, l'utiliser directement
     let finalCountryCode = 'CD'; // Default
 
-    try {
-      // 1. Récupérer le wallet de l'utilisateur
-      const wallet = await this.prisma.wallet.findFirst({
-        where: {
-          userId: currentUser.id,
-          isActive: true,
-          isDefault: true, // Ou le premier wallet
-        },
-        select: { currency: true },
-      });
-
-      if (wallet) {
-        // 2. Trouver le pays correspondant à la devise
-        const country = await this.prisma.country_provider.findFirst({
+    if (countryCodeParam) {
+      finalCountryCode = countryCodeParam.toUpperCase();
+      console.log('[API Gateway] CountryCode from query param:', finalCountryCode);
+    } else {
+      // Sinon, récupérer le pays depuis le wallet de l'utilisateur
+      try {
+        // 1. Récupérer le wallet de l'utilisateur
+        const wallet = await this.prisma.wallet.findFirst({
           where: {
-            OR: [
-              { default_currency: wallet.currency },
-              {
-                country_currency: {
-                  some: { currency_code: wallet.currency }
-                }
-              }
-            ]
+            userId: currentUser.id,
+            isActive: true,
+            isDefault: true,
           },
-          select: { countryCode: true, code: true },
+          select: { currency: true },
         });
 
-        if (country) {
-          finalCountryCode = country.countryCode || country.code || 'CD';
-          console.log('[API Gateway] Country from wallet currency:', finalCountryCode);
+        if (wallet) {
+          // 2. Trouver le pays correspondant à la devise
+          const country = await this.prisma.country_provider.findFirst({
+            where: {
+              OR: [
+                { default_currency: wallet.currency },
+                {
+                  country_currency: {
+                    some: { currency_code: wallet.currency }
+                  }
+                }
+              ]
+            },
+            select: { countryCode: true, code: true },
+          });
+
+          if (country) {
+            finalCountryCode = country.countryCode || country.code || 'CD';
+            console.log('[API Gateway] Country from wallet currency:', finalCountryCode);
+          }
         }
+      } catch (error) {
+        console.error('[API Gateway] Error fetching country from wallet:', error);
       }
-    } catch (error) {
-      console.error('[API Gateway] Error fetching country from wallet:', error);
     }
 
     console.log('[API Gateway] getMyNetworksByWallet - finalCountryCode:', finalCountryCode);

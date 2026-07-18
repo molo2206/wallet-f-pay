@@ -1,145 +1,289 @@
 <!doctype html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{{ title }}</title>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-      
-      body {
-        margin: 0;
-        padding: 30px 0;
-        font-family: 'Poppins', 'Helvetica Neue', sans-serif;
-        color: #1e2a3e;
-        background-color: #f4f7fc;
-      }
-      
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title }}</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #f5f7fb;
+      font-family: 'Poppins', Arial, Helvetica, sans-serif;
+      padding: 40px 15px;
+      color: #24324b;
+    }
+
+    .container {
+      max-width: 620px;
+      margin: auto;
+      background: #ffffff;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid #ececec;
+      box-shadow:
+        0 15px 40px rgba(0, 0, 0, 0.08),
+        0 5px 15px rgba(0, 0, 0, 0.04);
+    }
+
+    /* ================= HEADER ================= */
+
+    .header {
+      background: linear-gradient(135deg, #0127d6 0%, #000b88 100%);
+      text-align: center;
+      padding: 45px 30px;
+    }
+
+    .logo {
+      width: 150px;
+      margin-bottom: 20px;
+    }
+
+    .header-title {
+      color: #fcb423;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    /* ================= CONTENT ================= */
+
+    .content {
+      padding: 40px 35px;
+    }
+
+    .greeting {
+      font-size: 22px;
+      color: #0127d6;
+      font-weight: 600;
+      margin-bottom: 18px;
+    }
+
+    .content p {
+      font-size: 15px;
+      color: #56657d;
+      line-height: 1.8;
+      margin-bottom: 18px;
+    }
+
+    /* ================= CARD ================= */
+
+    .highlight {
+      margin: 30px 0;
+      background: linear-gradient(135deg, #fff9e9 0%, #fff2ca 100%);
+      border-left: 6px solid #fcb423;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(252, 180, 35, 0.15);
+    }
+
+    .highlight-title {
+      font-size: 17px;
+      color: #0127d6;
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+
+    .credential {
+      margin-bottom: 14px;
+      font-size: 15px;
+      color: #24324b;
+    }
+
+    .credential span {
+      font-weight: 600;
+      color: #0127d6;
+    }
+
+    .password {
+      color: #e53935 !important;
+    }
+
+    /* ================= BUTTON ================= */
+
+    .btn-container {
+      text-align: center;
+      margin-top: 35px;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 15px 34px;
+      background: #fcb423;
+      color: #0127d6 !important;
+      text-decoration: none;
+      font-weight: 700;
+      border-radius: 50px;
+      font-size: 15px;
+      box-shadow: 0 12px 30px rgba(252, 180, 35, 0.35);
+    }
+
+    /* ================= FOOTER ================= */
+
+    .footer {
+      background: #fafafa;
+      border-top: 1px solid #eeeeee;
+      text-align: center;
+      padding: 28px;
+      color: #7b8798;
+      font-size: 13px;
+    }
+
+    .footer a {
+      color: #0127d6;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .footer a:hover {
+      color: #fcb423;
+    }
+
+    /* ================= EMAIL INFO ================= */
+
+    .email-info {
+      max-width: 620px;
+      margin: 20px auto 0;
+      background: white;
+      border-radius: 15px;
+      padding: 15px;
+      text-align: center;
+      color: #6f7b8f;
+      font-size: 13px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.04);
+    }
+
+    .email-info a {
+      color: #0127d6;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .copyright {
+      text-align: center;
+      margin-top: 15px;
+      color: #0127d6;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* ================= MOBILE ================= */
+
+    @media only screen and (max-width: 600px) {
       .container {
-        margin: 0 auto;
-        width: 100%;
-        max-width: 580px;
-        background-color: #ffffff;
-        border-radius: 20px;
-        box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-        border: 2px solid #FEA812;
+        border-radius: 15px;
       }
-      
+
       .header {
-        text-align: center;
-        padding: 35px 20px 20px;
-        background: linear-gradient(135deg, #0002DF 0%, #0005B0 100%);
+        padding: 35px 20px;
       }
-      
+
       .logo {
-        max-width: 140px;
-        margin-bottom: 15px;
+        width: 120px;
       }
-      
+
       .header-title {
-        font-size: 24px;
-        font-weight: 600;
-        color: #FEA812;
-        margin: 0;
-        letter-spacing: -0.3px;
+        font-size: 22px;
       }
-      
+
       .content {
-        padding: 35px 30px 25px;
-        background-color: #ffffff;
+        padding: 30px 20px;
       }
-      
-      .highlight {
-        background-color: #FDB51F;
-        border-left: 4px solid #0002DF;
-        padding: 16px 20px;
-        border-radius: 12px;
-        margin: 20px 0;
-        font-size: 14px;
-        color: #1e2a3e;
+
+      .greeting {
+        font-size: 20px;
       }
-      
-      .highlight strong {
-        color: #0002DF;
+
+      .button {
+        width: 100%;
+        padding: 15px;
       }
-      
-      .footer {
-        text-align: center;
-        padding: 20px 20px 25px;
-        background-color: #f8fafd;
-        border-top: 1px solid #e2e8f0;
-        font-size: 12px;
-        color: #5a6874;
-      }
-      
-      .footer a {
-        color: #0002DF !important;
-      }
-      
-      .email-info {
-        text-align: center;
-        font-size: 12px;
-        color: #5a6874;
-        margin-top: 20px;
-        background-color: #f8fafd;
-        padding: 10px;
-      }
-      
-      .email-info a {
-        color: #FF0000;
-        text-decoration: none;
-        font-weight: 500;
-      }
-      
-      hr {
-        border: none;
-        border-top: 2px solid #FEA812;
-        margin: 0;
-      }
-      
-      .content p a {
-        color: #0002DF;
-        font-weight: 600;
-        text-decoration: none;
-      }
-      
-      .content p a:hover {
-        text-decoration: underline;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <img
-          src="https://api-prod.favorhelp.com/uploads/fpay/logo.png"
-          alt="F-Pay"
-          class="logo"
-        />
-        <h1 class="header-title">{{ title }}</h1>
-      </div>
-      <div class="content">
-        <strong style="font-size: 18px; color: #0002DF;">{{ greeting }}</strong>
-        <p style="margin-top: 12px; line-height: 1.5">{{ message }}</p>
-        <div class="highlight">
-          <strong style="color: #0002DF;">{{ credentials_label }}</strong><br />
-          {{ phone_label }}<br />
-          {{ account_label }}<br />
-          <strong style="color: #FF0000;">{{ password_label }}</strong>
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo" />
+
+      <h1 class="header-title">{{ title }}</h1>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="greeting">{{ greeting }}</div>
+
+      <p>{{ message }}</p>
+
+      <!-- Credentials -->
+      <div class="highlight">
+        <div class="highlight-title">
+          {{ credentials_label }}
         </div>
-        <p style="font-size: 14px; margin-top: 20px">{{ recommend }}</p>
-        <p style="margin-top: 20px; font-size: 14px">{{ support }}</p>
+
+        <div class="credential">
+          <span>{{ phone_label }}</span>
+        </div>
+
+        <div class="credential">
+          <span>{{ account_label }}</span>
+        </div>
+
+        <div class="credential">
+          <span class="password">{{ password_label }}</span>
+        </div>
       </div>
-      <hr />
-      <div class="footer">
-        {{ footer }}<br />
-        <a href="https://fpay.com" style="color: #0002DF;">fpay.com</a>
-      </div>
+
+      <p>{{ recommend }}</p>
+
+      <p>{{ support }}</p>
+
+      <!-- Optional Button -->
+      <!--
+        <div class="btn-container">
+            <a href="{{ login_url }}" class="button">
+                Se connecter
+            </a>
+        </div>
+        -->
     </div>
-    <div class="email-info">
-      {{ sent_to }} <a href="mailto:{{ email }}">{{ email }}</a>
+
+    <!-- Footer -->
+    <div class="footer">
+      {{ footer }}
+
+      <br /><br />
+
+      🌐
+      <a href="https://fpay.com">
+        www.fpay.com
+      </a>
     </div>
-    <div class="email-info" style="color: #0005B0;">{{ copyright }}</div>
-  </body>
+  </div>
+
+  <!-- Email -->
+  <div class="email-info">
+    {{ sent_to }}
+
+    <a href="mailto:{{ email }}">
+      {{ email }}
+    </a>
+  </div>
+
+  <!-- Copyright -->
+  <div class="copyright">
+    {{ copyright }}
+  </div>
+</body>
+
 </html>
