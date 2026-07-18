@@ -550,15 +550,10 @@ export class PawapayService {
   }
 
   async getAllCountries(status?: string) {
-    const where: any = {};
+    console.log('🔍 [PawaPay Service] Status reçu:', status);
 
-    // ✅ Filtrer par status si fourni
-    if (status) {
-      where.status = 'ACTIVE';
-    }
-
+    // ✅ Récupérer tous les pays
     const countries = await this.prisma.country_provider.findMany({
-      where,
       include: {
         country_currency: {
           include: {
@@ -575,12 +570,19 @@ export class PawapayService {
       },
     });
 
+    // ✅ Filtrer manuellement
+    let filteredCountries = countries;
+    if (status) {
+      filteredCountries = countries.filter(c => c.status === status);
+      console.log(`🔍 [PawaPay Service] Pays filtrés par status ${status}:`, filteredCountries.length);
+    }
+
     return {
       message: 'Countries retrieved successfully',
-      data: countries.map(country => this.formatCountryResponse(country)),
+      data: filteredCountries.map(country => this.formatCountryResponse(country)),
     };
   }
-
+  
   private async getCountryWithRelations(id: string) {
     const country = await this.prisma.country_provider.findUnique({
       where: { id },
