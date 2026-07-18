@@ -554,7 +554,7 @@ export class PawapayService {
 
     // ✅ Filtrer par status si fourni
     if (status) {
-      where.status = status;
+      where.status = 'ACTIVE';
     }
 
     const countries = await this.prisma.country_provider.findMany({
