@@ -609,6 +609,7 @@ export class PawapayService {
       flag: country.flag || undefined,
       prefix: country.prefix || undefined,
       default_currency: country.default_currency || undefined,
+      status: country.status || 'ACTIVE',
       currencies: country.country_currency.map(cc => ({
         currency_code: cc.currency_code,
         currency_name: cc.currency.name,

@@ -46,6 +46,7 @@ export class CountryResponseDto {
   flag?: string;
   prefix?: string;
   default_currency?: string;
+  status?: string; 
   currencies: {
     currency_code: string;
     currency_name: string;
