@@ -2,289 +2,235 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Money Transfer Processing</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Transfer Processing</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-    rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
 
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    body {
-      background: #f4f5f7;
-      font-family: 'Inter', sans-serif;
-      color: #111827;
-    }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            background: #f4f5f7;
+            font-family: 'Inter', sans-serif;
+        }
 
-    .wrapper {
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 40px 20px;
-    }
+        .email-card {
+            width: 100%;
+            max-width: 650px;
+            background: #fff;
+            border-radius: 22px;
+            overflow: hidden;
+            border: 1px solid #ececec;
+            box-shadow:
+                0 10px 25px rgba(0, 0, 0, .08),
+                0 25px 60px rgba(0, 0, 0, .12);
+        }
 
-    /* Card */
+        /* Header */
 
-    .email-card {
-      width: 100%;
-      max-width: 640px;
-      background: #ffffff;
-      border-radius: 22px;
-      overflow: hidden;
-      box-shadow:
-        0 6px 18px rgba(0, 0, 0, .05),
-        0 20px 50px rgba(0, 0, 0, .08);
-      border: 1px solid #ececec;
-    }
+        .header {
+            width: 230px;
+            height: 90px;
+            background: #FFD100;
+            border-bottom-right-radius: 35px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-    /* Header */
+        .logo {
+            width: 145px;
+            height: auto;
+        }
 
-    .header {
-      width: 235px;
-      height: 92px;
-      background: #FFD100;
-      border-bottom-right-radius: 38px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 24px;
-    }
+        /* Content */
 
-    .logo {
-      width: 145px;
-      display: block;
-    }
+        .content {
+            padding: 60px;
+        }
 
-    /* Content */
+        h1 {
+            font-size: 52px;
+            font-weight: 800;
+            line-height: 1.08;
+            color: #111;
+            letter-spacing: -1px;
+            margin-bottom: 50px;
+        }
 
-    .content {
-      padding: 60px;
-    }
+        .greeting {
+            font-size: 28px;
+            margin-bottom: 35px;
+            color: #111;
+        }
 
-    h1 {
-      font-size: 54px;
-      line-height: 1.08;
-      font-weight: 800;
-      margin-bottom: 55px;
-      letter-spacing: -1px;
-      color: #111;
-    }
+        .text {
+            font-size: 22px;
+            line-height: 1.8;
+            color: #444;
+            margin-bottom: 45px;
+        }
 
-    .greeting {
-      font-size: 27px;
-      margin-bottom: 30px;
-      color: #222;
-    }
+        .thanks {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 45px;
+        }
 
-    .greeting strong {
-      font-weight: 700;
-    }
+        .track {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
 
-    .text {
-      font-size: 22px;
-      line-height: 1.8;
-      color: #444;
-      margin-bottom: 45px;
-    }
+        .icon {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #111;
+            border-radius: 50%;
+            position: relative;
+            flex-shrink: 0;
+        }
 
-    .text strong {
-      color: #111;
-      font-weight: 700;
-    }
+        .icon::before {
+            content: "";
+            width: 16px;
+            height: 16px;
+            border: 3px solid #111;
+            border-radius: 50%;
+            position: absolute;
+            top: 8px;
+            left: 8px;
+        }
 
-    .thanks {
-      font-size: 24px;
-      font-weight: 600;
-      margin-bottom: 40px;
-      color: #111;
-    }
+        .icon::after {
+            content: "";
+            width: 8px;
+            height: 8px;
+            background: #111;
+            border-radius: 50%;
+            position: absolute;
+            top: 14px;
+            left: 14px;
+        }
 
-    /* Track */
+        .track p {
+            font-size: 20px;
+            line-height: 1.7;
+        }
 
-    .track {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
+        .track a {
+            color: #0066D6;
+            font-weight: 600;
+            text-decoration: underline;
+        }
 
-    .icon {
-      width: 42px;
-      height: 42px;
-      border: 3px solid #111;
-      border-radius: 50%;
-      position: relative;
-      flex-shrink: 0;
-    }
+        @media (max-width:768px) {
 
-    .icon::before {
-      content: "";
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      border: 3px solid #111;
-      border-radius: 50%;
-      left: 8px;
-      top: 8px;
-    }
+            body {
+                padding: 20px;
+                align-items: flex-start;
+            }
 
-    .icon::after {
-      content: "";
-      position: absolute;
-      width: 8px;
-      height: 8px;
-      background: #111;
-      border-radius: 50%;
-      left: 14px;
-      top: 14px;
-    }
+            .content {
+                padding: 35px 28px;
+            }
 
-    .track p {
-      font-size: 20px;
-      line-height: 1.7;
-      color: #333;
-    }
+            .header {
+                width: 190px;
+                height: 75px;
+            }
 
-    .track a {
-      color: #0068D9;
-      text-decoration: underline;
-      font-weight: 600;
-    }
+            .logo {
+                width: 120px;
+            }
 
-    /* Responsive */
+            h1 {
+                font-size: 36px;
+                margin-bottom: 35px;
+            }
 
-    @media (max-width:768px) {
+            .greeting {
+                font-size: 22px;
+            }
 
-      .content {
-        padding: 40px 30px;
-      }
+            .text {
+                font-size: 18px;
+            }
 
-      .header {
-        width: 200px;
-        height: 80px;
-      }
+            .thanks {
+                font-size: 20px;
+            }
 
-      .logo {
-        width: 125px;
-      }
-
-      h1 {
-        font-size: 38px;
-        margin-bottom: 35px;
-      }
-
-      .greeting {
-        font-size: 22px;
-      }
-
-      .text {
-        font-size: 18px;
-      }
-
-      .thanks {
-        font-size: 22px;
-      }
-
-      .track p {
-        font-size: 17px;
-      }
-
-    }
-
-    @media (max-width:480px) {
-
-      .content {
-        padding: 30px 22px;
-      }
-
-      h1 {
-        font-size: 32px;
-      }
-
-      .greeting {
-        font-size: 20px;
-      }
-
-      .text {
-        font-size: 16px;
-      }
-
-      .thanks {
-        font-size: 18px;
-      }
-
-      .track {
-        align-items: flex-start;
-      }
-
-      .track p {
-        font-size: 15px;
-      }
-
-    }
-  </style>
+            .track p {
+                font-size: 16px;
+            }
+        }
+    </style>
 
 </head>
 
 <body>
 
-  <div class="wrapper">
-
     <div class="email-card">
 
-      <div class="header">
-        <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo">
-      </div>
+        <div class="header">
+            <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo">
+        </div>
 
-      <div class="content">
+        <div class="content">
 
-        <h1>
-          We are processing<br>
-          your money transfer
-        </h1>
+            <h1>
+                We are processing<br>
+                your money transfer
+            </h1>
 
-        <p class="greeting">
-          Hi <strong>Mohammed Abdul Hafeez,</strong>
-        </p>
+            <p class="greeting">
+                Hi <strong>Mohammed Abdul Hafeez,</strong>
+            </p>
 
-        <p class="text">
-          We're on it! Your money transfer
-          <strong>MTCN 0684021987</strong>
-          is being processed and will be available in
-          <strong>Habiba's</strong>
-          bank account by
-          <strong>10-11-2024.</strong>
-        </p>
+            <p class="text">
+                We're on it! Your money transfer
+                <strong>MTCN 0684021987</strong>
+                is being processed and will be available in
+                <strong>Habiba's</strong>
+                bank account by
+                <strong>10-11-2024.</strong>
+            </p>
 
-        <p class="thanks">
-          Thanks for choosing us.
-        </p>
+            <p class="thanks">
+                Thanks for choosing us.
+            </p>
 
-        <div class="track">
+            <div class="track">
 
-          <div class="icon"></div>
+                <div class="icon"></div>
 
-          <p>
-            <a href="#">Track your transfer</a>
-            with your 10-digit MTCN number.
-          </p>
+                <p>
+                    <a href="#">Track your transfer</a>
+                    with your 10-digit MTCN number.
+                </p>
+
+            </div>
 
         </div>
 
-      </div>
-
     </div>
-
-  </div>
 
 </body>
 
