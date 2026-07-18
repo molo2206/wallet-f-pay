@@ -18,7 +18,7 @@ import { MailService } from './email.service';
         },
       },
       defaults: {
-        from: `"ACCESPAY" <${process.env.SMTP_USER || 'no-reply@accespay.com'}>`,
+        from: `"F-pay" <${process.env.SMTP_USER || 'no-reply@fpay.com'}>`,
       },
     }),
   ],
