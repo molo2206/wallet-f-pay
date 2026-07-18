@@ -1,237 +1,237 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Money Transfer Processing</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Money Transfer Processing</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
 
-<style>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-}
+    body {
+      background: #f5f5f5;
+      font-family: 'Inter', sans-serif;
+      color: #111;
+    }
 
-body{
-    background:#f5f5f5;
-    font-family:'Inter',sans-serif;
-    color:#111;
-}
+    .wrapper {
+      width: 100%;
+      padding: 40px 15px;
+    }
 
-.wrapper{
-    width:100%;
-    padding:40px 15px;
-}
+    .email {
+      max-width: 625px;
+      margin: auto;
+      background: #fff;
+    }
 
-.email{
-    max-width:625px;
-    margin:auto;
-    background:#fff;
-}
+    /* ================= Header ================= */
 
-/* ================= Header ================= */
+    /* ================= Header ================= */
 
-.header{
-    width:225px;
-    height:92px;
-    background:#FFD100;
-    border-bottom-right-radius:35px;
-    display:flex;
-    align-items:center;
-    padding-left:28px;
-}
+    .header {
+      width: 230px;
+      height: 92px;
+      background: #FFD100;
+      border-bottom-right-radius: 35px;
+      display: flex;
+      align-items: center;
+      padding: 0 28px;
+    }
 
-.logo{
-    color:#000;
-    font-weight:800;
-    font-size:18px;
-    line-height:1.05;
-}
+    .logo {
+      width: 150px;
+      height: auto;
+      display: block;
+    }
 
-.logo span{
-    display:block;
-    font-size:36px;
-    letter-spacing:-4px;
-    margin-bottom:2px;
-}
+    .logo span {
+      display: block;
+      font-size: 36px;
+      letter-spacing: -4px;
+      margin-bottom: 2px;
+    }
 
-/* ================= Body ================= */
+    /* ================= Body ================= */
 
-.content{
-    padding:55px 62px 60px;
-}
+    .content {
+      padding: 55px 62px 60px;
+    }
 
-h1{
-    font-size:58px;
-    line-height:1.05;
-    font-weight:800;
-    letter-spacing:-1.5px;
-    margin-bottom:58px;
-}
+    h1 {
+      font-size: 58px;
+      line-height: 1.05;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      margin-bottom: 58px;
+    }
 
-.greeting{
-    font-size:34px;
-    margin-bottom:40px;
-    line-height:1.5;
-}
+    .greeting {
+      font-size: 34px;
+      margin-bottom: 40px;
+      line-height: 1.5;
+    }
 
-.greeting strong{
-    font-weight:700;
-}
+    .greeting strong {
+      font-weight: 700;
+    }
 
-.text{
-    font-size:31px;
-    line-height:1.6;
-    color:#222;
-    margin-bottom:55px;
-}
+    .text {
+      font-size: 31px;
+      line-height: 1.6;
+      color: #222;
+      margin-bottom: 55px;
+    }
 
-.text strong{
-    font-weight:700;
-}
+    .text strong {
+      font-weight: 700;
+    }
 
-.thanks{
-    font-size:34px;
-    margin-bottom:48px;
-}
+    .thanks {
+      font-size: 34px;
+      margin-bottom: 48px;
+    }
 
-.track{
-    display:flex;
-    align-items:center;
-    gap:18px;
-    font-size:31px;
-    line-height:1.5;
-}
+    .track {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 31px;
+      line-height: 1.5;
+    }
 
-.track a{
-    color:#006FCF;
-    text-decoration:underline;
-}
+    .track a {
+      color: #006FCF;
+      text-decoration: underline;
+    }
 
-.icon{
-    width:34px;
-    height:34px;
-    border:3px solid #111;
-    border-radius:50%;
-    position:relative;
-    flex-shrink:0;
-}
+    .icon {
+      width: 34px;
+      height: 34px;
+      border: 3px solid #111;
+      border-radius: 50%;
+      position: relative;
+      flex-shrink: 0;
+    }
 
-.icon:before{
-    content:'';
-    position:absolute;
-    width:14px;
-    height:14px;
-    border:3px solid #111;
-    border-radius:50%;
-    left:7px;
-    top:7px;
-}
+    .icon:before {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border: 3px solid #111;
+      border-radius: 50%;
+      left: 7px;
+      top: 7px;
+    }
 
-.icon:after{
-    content:'';
-    position:absolute;
-    width:8px;
-    height:8px;
-    background:#111;
-    border-radius:50%;
-    left:10px;
-    top:10px;
-}
+    .icon:after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: #111;
+      border-radius: 50%;
+      left: 10px;
+      top: 10px;
+    }
 
-@media(max-width:650px){
+    @media(max-width:650px) {
 
-.header{
-    width:180px;
-    height:78px;
-}
+      .header {
+        width: 180px;
+        height: 78px;
+      }
 
-.content{
-    padding:35px 25px;
-}
+      .content {
+        padding: 35px 25px;
+      }
 
-h1{
-    font-size:42px;
-    margin-bottom:35px;
-}
+      h1 {
+        font-size: 42px;
+        margin-bottom: 35px;
+      }
 
-.greeting{
-    font-size:22px;
-}
+      .greeting {
+        font-size: 22px;
+      }
 
-.text{
-    font-size:20px;
-}
+      .text {
+        font-size: 20px;
+      }
 
-.thanks{
-    font-size:22px;
-}
+      .thanks {
+        font-size: 22px;
+      }
 
-.track{
-    font-size:19px;
-}
+      .track {
+        font-size: 19px;
+      }
 
-}
-
-</style>
+    }
+  </style>
 
 </head>
+
 <body>
 
-<div class="wrapper">
+  <div class="wrapper">
 
-<div class="email">
+    <div class="email">
 
-    <div class="header">
-        <div class="logo">
-            <span>WU</span>
-            Western<br>Union
-        </div>
-    </div>
+      <div class="header">
+        <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo" />
+      </div>
 
-    <div class="content">
+      <div class="content">
 
         <h1>
-            We are processing<br>
-            your money transfer
+          We are processing<br>
+          your money transfer
         </h1>
 
         <p class="greeting">
-            Hi <strong>Mohammed Abdul Hafeez,</strong>
+          Hi <strong>Mohammed Abdul Hafeez,</strong>
         </p>
 
         <p class="text">
-            We're on it! Your money transfer
-            <strong>MTCN 0684021987</strong>
-            is being processed and will be available in
-            <strong>Habiba's</strong>
-            bank account by
-            <strong>10-11-2024.</strong>
+          We're on it! Your money transfer
+          <strong>MTCN 0684021987</strong>
+          is being processed and will be available in
+          <strong>Habiba's</strong>
+          bank account by
+          <strong>10-11-2024.</strong>
         </p>
 
         <p class="thanks">
-            Thanks for choosing us.
+          Thanks for choosing us.
         </p>
 
         <div class="track">
 
-            <div class="icon"></div>
+          <div class="icon"></div>
 
-            <div>
-                <a href="#">Track your transfer</a>
-                with your 10-digit MTCN number.
-            </div>
+          <div>
+            <a href="#">Track your transfer</a>
+            with your 10-digit MTCN number.
+          </div>
 
         </div>
 
+      </div>
+
     </div>
 
-</div>
-
-</div>
+  </div>
 
 </body>
+
 </html>
