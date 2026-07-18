@@ -249,7 +249,8 @@ export class UserServiceService {
         const template = 'welcome-email.html';
         const emailTitle = this.i18nService.translate('welcome_email_title', lang);
 
-        const emailData = {
+        // ✅ Données communes
+        const emailData: any = {
           title: emailTitle,
           greeting: this.i18nService.translate(
             'welcome_email_greeting',
@@ -269,7 +270,22 @@ export class UserServiceService {
           copyright: `© ${new Date().getFullYear()} F-Pay. Tous droits réservés.`,
           login_url: process.env.FRONTEND_URL || 'https://fpay.com/login',
           button_text: 'Se connecter',
+          isMerchant: isMerchant || false,
         };
+
+        // ✅ Ajouter les données marchand seulement si c'est un marchand
+        if (isMerchant) {
+          emailData.business_name = data.businessName || 'N/A';
+          emailData.merchant_code = merchantCode || 'N/A';
+          emailData.merchant_type = data.merchantType || 'N/A';
+          emailData.business_address = data.businessAddress || 'N/A';
+          emailData.business_category = data.businessCategory || 'N/A';
+          emailData.business_label = 'Entreprise';
+          emailData.category_label = 'Catégorie';
+          emailData.address_label = 'Adresse';
+          emailData.merchant_code_label = 'Code Marchand';
+          emailData.merchant_type_label = 'Type de commerce';
+        }
 
         await this.mailService.sendHtmlEmail(
           user.email,
