@@ -5,10 +5,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Money Transfer Processing</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
+
   <style>
     * {
       margin: 0;
@@ -33,10 +35,13 @@
       border-radius: 22px;
       overflow: hidden;
       border: 1px solid #ececec;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, .08), 0 25px 60px rgba(0, 0, 0, .12);
+      box-shadow:
+        0 10px 25px rgba(0, 0, 0, .08),
+        0 25px 60px rgba(0, 0, 0, .12);
     }
 
     /* Header */
+
     .header {
       width: 230px;
       height: 90px;
@@ -53,6 +58,7 @@
     }
 
     /* Content */
+
     .content {
       padding: 60px;
     }
@@ -133,104 +139,8 @@
       text-decoration: underline;
     }
 
-    /* credentials / merchant blocks */
-    .credentials-block {
-      background: #f8f9fa;
-      border-radius: 18px;
-      padding: 22px 28px;
-      margin: 30px 0 28px 0;
-      border-left: 6px solid #FFD100;
-    }
-
-    .credentials-block p {
-      font-size: 18px;
-      line-height: 1.7;
-      color: #1e1e1e;
-      margin: 4px 0;
-    }
-
-    .credentials-block strong {
-      font-weight: 600;
-      color: #111;
-    }
-
-    .merchant-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 28px;
-      background: #f8f9fa;
-      border-radius: 18px;
-      padding: 22px 28px;
-      margin: 20px 0 28px 0;
-      border-left: 6px solid #FFD100;
-    }
-
-    .merchant-grid p {
-      font-size: 18px;
-      line-height: 1.9;
-      color: #1e1e1e;
-      margin: 0;
-    }
-
-    .merchant-grid strong {
-      font-weight: 600;
-      color: #111;
-    }
-
-    .support-line {
-      font-size: 20px;
-      color: #444;
-      margin-top: 30px;
-      padding-top: 18px;
-      border-top: 1px solid #eaeaea;
-    }
-
-    .support-line a {
-      color: #0066D6;
-      font-weight: 600;
-      text-decoration: none;
-    }
-
-    .footer-note {
-      margin-top: 32px;
-      font-size: 16px;
-      color: #888;
-      text-align: center;
-      letter-spacing: 0.2px;
-      border-top: 1px solid #ececec;
-      padding-top: 28px;
-    }
-
-    .footer-note a {
-      color: #0066D6;
-      text-decoration: none;
-    }
-
-    .btn-login {
-      display: inline-block;
-      background: #111;
-      color: #fff;
-      font-weight: 600;
-      font-size: 20px;
-      padding: 14px 44px;
-      border-radius: 60px;
-      text-decoration: none;
-      margin: 12px 0 6px 0;
-      border: none;
-      transition: 0.15s;
-      letter-spacing: 0.3px;
-    }
-
-    .btn-login:hover {
-      background: #2b2b2b;
-      transform: scale(1.02);
-    }
-
-    .login-wrap {
-      margin: 18px 0 10px 0;
-    }
-
     @media (max-width:768px) {
+
       body {
         padding: 20px;
         align-items: flex-start;
@@ -269,31 +179,9 @@
       .track p {
         font-size: 16px;
       }
-
-      .credentials-block p {
-        font-size: 16px;
-      }
-
-      .merchant-grid {
-        grid-template-columns: 1fr;
-        gap: 4px;
-        padding: 18px 22px;
-      }
-
-      .merchant-grid p {
-        font-size: 16px;
-      }
-
-      .btn-login {
-        font-size: 17px;
-        padding: 12px 32px;
-      }
-
-      .support-line {
-        font-size: 17px;
-      }
     }
   </style>
+
 </head>
 
 <body>
@@ -306,74 +194,47 @@
 
     <div class="content">
 
-      <!-- Title from variable: title -->
-      <h1>{{title}}</h1>
+      <h1>
+        {{title}}
+      </h1>
 
-      <!-- Greeting: "Hi <name>" -->
-      <p class="greeting">{{greeting}}</p>
+      <p class="greeting">
+        {{greeting}}
+      </p>
 
-      <!-- Main message -->
-      <p class="text">{{message}}</p>
+      <p class="text">
+        {{message}}
+      </p>
 
-      <!-- Credentials block (phone, account, password) -->
-      <div class="credentials-block">
-        <p><strong>{{credentials_label}}</strong></p>
-        <p>{{phone_label}}</p>
-        <p>{{account_label}}</p>
-        <p>{{password_label}}</p>
-      </div>
+      <p class="thanks">
+        {{recommend}}
+      </p>
 
-      <!-- Merchant details (only if isMerchant) -->
-      {{#if isMerchant}}
-      <div class="merchant-grid">
-        <p><strong>{{business_label}}:</strong> {{business_name}}</p>
-        <p><strong>{{merchant_code_label}}:</strong> {{merchant_code}}</p>
-        <p><strong>{{merchant_type_label}}:</strong> {{merchant_type}}</p>
-        <p><strong>{{category_label}}:</strong> {{business_category}}</p>
-        <p><strong>{{address_label}}:</strong> {{business_address}}</p>
-      </div>
-      {{/if}}
-
-      <!-- Recommend + support -->
-      <p class="thanks">{{recommend}}</p>
-      <p class="support-line">{{{support}}}</p>
-
-      <!-- Login button -->
-      <div class="login-wrap">
-        <a href="{{login_url}}" class="btn-login">{{button_text}}</a>
-      </div>
-
-      <!-- Track section (static, kept as design) -->
       <div class="track">
+
         <div class="icon"></div>
+
         <p>
           <a href="#">Track your transfer</a>
           with your 10-digit MTCN number.
         </p>
+
       </div>
 
-      <!-- Footer: sent_to, email, copyright -->
-      <div class="footer-note">
-        <p>{{sent_to}} {{email}}</p>
-        <p style="margin-top: 6px;">{{copyright}}</p>
-      </div>
+      <!-- Variables supplémentaires que vous pouvez ajouter où vous voulez -->
+      <!--
+            <p>{{credentials_label}}</p>
+            <p>{{phone_label}}</p>
+            <p>{{account_label}}</p>
+            <p>{{password_label}}</p>
+            <p>{{support}}</p>
+            <p>{{sent_to}} {{email}}</p>
+            <p>{{copyright}}</p>
+            -->
 
     </div>
-  </div>
 
-  <!--
-  ************************************************************
-  INSTRUCTION: This template uses Handlebars-like syntax.
-  Replace the placeholders with your actual variables:
-  - {{title}}, {{greeting}}, {{message}}, {{credentials_label}}
-  - {{phone_label}}, {{account_label}}, {{password_label}}
-  - {{recommend}}, {{{support}}} (triple for unescaped HTML)
-  - {{sent_to}}, {{email}}, {{copyright}}, {{login_url}}, {{button_text}}
-  - {{#if isMerchant}} ... {{/if}} for merchant block
-  - merchant fields: business_name, merchant_code, merchant_type,
-    business_category, business_address, and labels.
-  ************************************************************
--->
+  </div>
 
 </body>
 
