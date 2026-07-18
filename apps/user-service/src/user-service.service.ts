@@ -101,7 +101,9 @@ export class UserServiceService {
     // 3. Génération du code marchand si rôle MERCHANT
     const roleStr = data.role as string | undefined;
     let merchantCode: string | undefined = undefined;
-    if (roleStr === 'MERCHANT') {
+    const isMerchant = roleStr === 'MERCHANT';
+
+    if (isMerchant) {
       let isUnique = false;
       while (!isUnique) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -117,13 +119,17 @@ export class UserServiceService {
 
     // 4. Convertir le rôle en enum Prisma
     let roleEnum: user_role = user_role.USER;
-    if (roleStr === 'MERCHANT') roleEnum = user_role.MERCHANT;
+    if (isMerchant) roleEnum = user_role.MERCHANT;
     else if (roleStr === 'ADMIN') roleEnum = user_role.ADMIN;
     else if (roleStr === 'SUPER_ADMIN') roleEnum = user_role.SUPER_ADMIN;
 
     // 5. Création de l'utilisateur
     const defaultPassword = 'Fpay!026';
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    // ✅ PIN par défaut : 1234
+    const defaultPin = '1234';
+    const hashedPin = crypto.createHash('sha256').update(defaultPin).digest('hex');
 
     const user = await this.prisma.user.create({
       data: {
@@ -134,6 +140,8 @@ export class UserServiceService {
         account_number: data.account_number || null,
         branch: data.branch,
         password: hashedPassword,
+        pin: hashedPin, // ✅ PIN par défaut
+        pinstatus: true, // ✅ PIN activé par défaut
         role: roleEnum,
         status: user_status.ACTIVE,
         deleted: false,
@@ -213,24 +221,24 @@ export class UserServiceService {
 
     console.log(`📊 ${walletsCreated} wallet(s) créé(s) pour l’utilisateur ${user.id}`);
 
-    // 7. SMS de bienvenue
+    // 7. SMS de bienvenue avec PIN
     if (data.phone) {
       const cleanPhone = data.phone.replace(/[^0-9+]/g, '');
       let smsText = this.i18nService.translate('welcome_sms', lang, {
         full_name: user.full_name,
-        account_number: user.account_number,
+        account_number: user.account_number || 'N/A',
         phone: cleanPhone,
         password: defaultPassword,
+        pin: defaultPin,
       });
-      if (merchantCode) {
-        smsText +=
-          ' ' +
-          this.i18nService.translate('merchant_code_sms', lang, {
-            merchantCode,
-          });
+      if (isMerchant && merchantCode) {
+        smsText += ' ' + this.i18nService.translate('merchant_code_sms', lang, {
+          merchantCode,
+        });
       }
       try {
         await this.smsService.sendSms(cleanPhone, smsText);
+        console.log(`✅ SMS envoyé à ${cleanPhone}`);
       } catch (smsErr) {
         console.error(`SMS non envoyé à ${cleanPhone}:`, smsErr.message);
       }
@@ -239,36 +247,54 @@ export class UserServiceService {
     // 8. Email de bienvenue
     if (user.email) {
       try {
+        // ✅ Choix du template selon le rôle
+        const isMerchantTemplate = isMerchant;
+        const template = isMerchantTemplate ? 'merchant-welcome-email.html' : 'welcome-email.html';
+        const emailTitle = isMerchantTemplate
+          ? this.i18nService.translate('merchant_welcome_email_title', lang)
+          : this.i18nService.translate('welcome_email_title', lang);
+
+        const emailData = isMerchantTemplate ? {
+          title: emailTitle,
+          greeting: this.i18nService.translate('merchant_welcome_email_greeting', lang, { name: user.full_name }),
+          message: this.i18nService.translate('merchant_welcome_email_message', lang),
+          credentials_label: this.i18nService.translate('welcome_email_credentials', lang),
+          phone_label: `${this.i18nService.translate('phone', lang)}: ${user.phone || ''}`,
+          account_label: `${this.i18nService.translate('account', lang)}: ${user.account_number || ''}`,
+          password_label: `${this.i18nService.translate('password', lang)}: ${defaultPassword}`,
+          pin_label: `${this.i18nService.translate('pin', lang)}: ${defaultPin}`,
+          merchant_code_label: `${this.i18nService.translate('merchant_code', lang)}: ${merchantCode || 'N/A'}`,
+          business_name_label: `${this.i18nService.translate('business_name', lang)}: ${data.businessName || 'N/A'}`,
+          recommend: this.i18nService.translate('welcome_email_recommend', lang),
+          support: this.i18nService.translate('welcome_email_support', lang),
+          footer: this.i18nService.translate('welcome_email_footer', lang),
+          sent_to: this.i18nService.translate('email_sent_to', lang),
+          copyright: `© ${new Date().getFullYear()} F-Pay`,
+          email: user.email,
+        } : {
+          title: emailTitle,
+          greeting: this.i18nService.translate('welcome_email_greeting', lang, { name: user.full_name }),
+          message: this.i18nService.translate('welcome_email_message', lang),
+          credentials_label: this.i18nService.translate('welcome_email_credentials', lang),
+          phone_label: `${this.i18nService.translate('phone', lang)}: ${user.phone || ''}`,
+          account_label: `${this.i18nService.translate('account', lang)}: ${user.account_number || ''}`,
+          password_label: `${this.i18nService.translate('password', lang)}: ${defaultPassword}`,
+          pin_label: `${this.i18nService.translate('pin', lang)}: ${defaultPin}`,
+          recommend: this.i18nService.translate('welcome_email_recommend', lang),
+          support: this.i18nService.translate('welcome_email_support', lang),
+          footer: this.i18nService.translate('welcome_email_footer', lang),
+          sent_to: this.i18nService.translate('email_sent_to', lang),
+          copyright: `© ${new Date().getFullYear()} F-Pay`,
+          email: user.email,
+        };
+
         await this.mailService.sendHtmlEmail(
           user.email,
-          this.i18nService.translate('welcome_email_title', lang),
-          'welcome-email.html',
-          {
-            title: this.i18nService.translate('welcome_email_title', lang),
-            greeting: this.i18nService.translate(
-              'welcome_email_greeting',
-              lang,
-              { name: user.full_name },
-            ),
-            message: this.i18nService.translate('welcome_email_message', lang),
-            credentials_label: this.i18nService.translate(
-              'welcome_email_credentials',
-              lang,
-            ),
-            phone_label: `${this.i18nService.translate('phone', lang)}: ${user.phone || ''}`,
-            account_label: `${this.i18nService.translate('account', lang)}: ${user.account_number || ''}`,
-            password_label: `${this.i18nService.translate('password', lang)}: ${defaultPassword}`,
-            recommend: this.i18nService.translate(
-              'welcome_email_recommend',
-              lang,
-            ),
-            support: this.i18nService.translate('welcome_email_support', lang),
-            footer: this.i18nService.translate('welcome_email_footer', lang),
-            sent_to: this.i18nService.translate('email_sent_to', lang),
-            copyright: `© ${new Date().getFullYear()} ACCESPAY`,
-            email: user.email,
-          },
+          emailTitle,
+          template,
+          emailData,
         );
+        console.log(`✅ Email envoyé à ${user.email}`);
       } catch (emailError) {
         console.error(`Erreur envoi email à ${user.email}:`, emailError);
       }
@@ -277,17 +303,17 @@ export class UserServiceService {
     // 9. Audit
     await this.logAudit(
       user.id,
-      'CREATE_USER_COTE_ADMIN',
-      { identifier: user },
+      isMerchant ? 'CREATE_MERCHANT_COTE_ADMIN' : 'CREATE_USER_COTE_ADMIN',
+      { identifier: user, isMerchant, merchantCode },
       ipAddress ?? null,
     );
 
+    // 10. Retour
     return {
-      message: this.i18nService.translate('user_created_success', lang),
+      message: this.i18nService.translate(isMerchant ? 'merchant_created_success' : 'user_created_success', lang),
       data: this.toResponse(user),
     };
   }
-
   async createUserFromAccount(
     data: CreateUserFromAccountDto,
     ipAddress?: string,
@@ -455,6 +481,9 @@ export class UserServiceService {
       pinstatus: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
+      merchantType: string | null;
+      businessCategory: string | null;
+      businessAddress: string | null;
       failed_login_attempts: number;
       locked_until: Date | null;
       kycStatus: string;
@@ -488,6 +517,9 @@ export class UserServiceService {
         pinstatus: true,
         merchantCode: true,
         businessName: true,
+        merchantType: true,
+        businessCategory: true,
+        businessAddress: true,
         failed_login_attempts: true,
         locked_until: true,
         kycStatus: true,
@@ -633,6 +665,9 @@ export class UserServiceService {
         pinstatus: user.pinstatus,
         merchantCode: user.merchantCode,
         businessName: user.businessName,
+        merchantType: user.merchantType,
+        businessCategory: user.businessCategory,
+        businessAddress: user.businessAddress,
         failed_login_attempts: user.failed_login_attempts,
         locked_until: user.locked_until,
         kycStatus: user.kycStatus,
@@ -668,6 +703,9 @@ export class UserServiceService {
       pinstatus: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
+      merchantType: string | null;
+      businessCategory: string | null;
+      businessAddress: string | null;
       failed_login_attempts: number;
       locked_until: Date | null;
       kycStatus: string;
@@ -700,6 +738,9 @@ export class UserServiceService {
         pinstatus: true,
         merchantCode: true,
         businessName: true,
+        merchantType: true,
+        businessCategory: true,
+        businessAddress: true,
         failed_login_attempts: true,
         locked_until: true,
         kycStatus: true,
@@ -788,6 +829,9 @@ export class UserServiceService {
         pinstatus: user.pinstatus,
         merchantCode: user.merchantCode,
         businessName: user.businessName,
+        merchantType: user.merchantType,
+        businessCategory: user.businessCategory,
+        businessAddress: user.businessAddress,
         failed_login_attempts: user.failed_login_attempts,
         locked_until: user.locked_until,
         kycStatus: user.kycStatus,
@@ -820,6 +864,9 @@ export class UserServiceService {
       pinstatus: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
+      merchantType: string | null;
+      businessCategory: string | null;
+      businessAddress: string | null;
       failed_login_attempts: number;
       locked_until: Date | null;
       kycStatus: string;
@@ -852,6 +899,9 @@ export class UserServiceService {
         pinstatus: true,
         merchantCode: true,
         businessName: true,
+        merchantType: true,
+        businessCategory: true,
+        businessAddress: true,
         failed_login_attempts: true,
         locked_until: true,
         kycStatus: true,
@@ -940,6 +990,9 @@ export class UserServiceService {
         pinstatus: user.pinstatus,
         merchantCode: user.merchantCode,
         businessName: user.businessName,
+        merchantType: user.merchantType,
+        businessCategory: user.businessCategory,
+        businessAddress: user.businessAddress,
         failed_login_attempts: user.failed_login_attempts,
         locked_until: user.locked_until,
         kycStatus: user.kycStatus,

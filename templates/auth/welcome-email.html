@@ -29,22 +29,45 @@
       border-radius: 24px;
       overflow: hidden;
       border: 1px solid #ececec;
-      box-shadow:
-        0 15px 40px rgba(0, 0, 0, 0.08),
-        0 5px 15px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08), 0 5px 15px rgba(0, 0, 0, 0.04);
     }
 
     /* ================= HEADER ================= */
-
     .header {
       background: linear-gradient(135deg, #0127d6 0%, #000b88 100%);
       text-align: center;
       padding: 45px 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 300px;
+      height: 300px;
+      background: rgba(252, 180, 35, 0.08);
+      border-radius: 50%;
+    }
+
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -40%;
+      left: -10%;
+      width: 200px;
+      height: 200px;
+      background: rgba(252, 180, 35, 0.05);
+      border-radius: 50%;
     }
 
     .logo {
       width: 150px;
       margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
     }
 
     .header-title {
@@ -52,19 +75,41 @@
       font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.5px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .header-badge {
+      display: inline-block;
+      background: rgba(252, 180, 35, 0.2);
+      color: #fcb423;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-top: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      position: relative;
+      z-index: 1;
     }
 
     /* ================= CONTENT ================= */
-
     .content {
       padding: 40px 35px;
     }
 
     .greeting {
-      font-size: 22px;
+      font-size: 24px;
       color: #0127d6;
-      font-weight: 600;
-      margin-bottom: 18px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .greeting-sub {
+      font-size: 14px;
+      color: #7b8798;
+      margin-bottom: 20px;
     }
 
     .content p {
@@ -74,41 +119,137 @@
       margin-bottom: 18px;
     }
 
-    /* ================= CARD ================= */
+    .divider {
+      height: 2px;
+      background: linear-gradient(90deg, #fcb423, #0127d6);
+      margin: 25px 0;
+      border-radius: 10px;
+      opacity: 0.3;
+    }
 
+    /* ================= CARD ================= */
     .highlight {
-      margin: 30px 0;
+      margin: 25px 0;
       background: linear-gradient(135deg, #fff9e9 0%, #fff2ca 100%);
       border-left: 6px solid #fcb423;
       border-radius: 18px;
-      padding: 24px;
+      padding: 24px 28px;
       box-shadow: 0 10px 25px rgba(252, 180, 35, 0.15);
     }
 
     .highlight-title {
-      font-size: 17px;
+      font-size: 16px;
       color: #0127d6;
       font-weight: 700;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
     .credential {
-      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px dashed rgba(1, 39, 214, 0.08);
+    }
+
+    .credential:last-child {
+      border-bottom: none;
+    }
+
+    .credential-label {
+      font-size: 13px;
+      color: #7b8798;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .credential-value {
       font-size: 15px;
       color: #24324b;
-    }
-
-    .credential span {
       font-weight: 600;
-      color: #0127d6;
     }
 
-    .password {
+    .credential-value.password {
       color: #e53935 !important;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1px;
+    }
+
+    .credential-value.pin {
+      color: #0127d6 !important;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      letter-spacing: 2px;
+    }
+
+    .credential-value.merchant {
+      color: #e67e22 !important;
+      font-weight: 700;
+    }
+
+    .badge-merchant {
+      display: inline-block;
+      background: #e67e22;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 12px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ================= INFO BOX ================= */
+    .info-box {
+      background: #f0f4ff;
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin: 20px 0;
+      border: 1px solid rgba(1, 39, 214, 0.08);
+    }
+
+    .info-box .label {
+      font-size: 12px;
+      color: #7b8798;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .info-box .value {
+      font-size: 16px;
+      color: #0127d6;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .info-box .sub-info {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #7b8798;
+    }
+
+    /* ================= SECURITY TIP ================= */
+    .security-tip {
+      background: #fff5f5;
+      border-radius: 16px;
+      padding: 18px 24px;
+      margin: 20px 0;
+      border-left: 4px solid #e53935;
+    }
+
+    .security-tip .text {
+      font-size: 13px;
+      color: #56657d;
+      line-height: 1.6;
+    }
+
+    .security-tip .text strong {
+      color: #e53935;
     }
 
     /* ================= BUTTON ================= */
-
     .btn-container {
       text-align: center;
       margin-top: 35px;
@@ -116,7 +257,7 @@
 
     .button {
       display: inline-block;
-      padding: 15px 34px;
+      padding: 16px 40px;
       background: #fcb423;
       color: #0127d6 !important;
       text-decoration: none;
@@ -124,10 +265,15 @@
       border-radius: 50px;
       font-size: 15px;
       box-shadow: 0 12px 30px rgba(252, 180, 35, 0.35);
+      transition: all 0.3s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 40px rgba(252, 180, 35, 0.45);
     }
 
     /* ================= FOOTER ================= */
-
     .footer {
       background: #fafafa;
       border-top: 1px solid #eeeeee;
@@ -147,8 +293,17 @@
       color: #fcb423;
     }
 
-    /* ================= EMAIL INFO ================= */
+    .footer-social {
+      margin-top: 12px;
+    }
 
+    .footer-social a {
+      margin: 0 8px;
+      font-size: 18px;
+      text-decoration: none;
+    }
+
+    /* ================= EMAIL INFO ================= */
     .email-info {
       max-width: 620px;
       margin: 20px auto 0;
@@ -176,7 +331,6 @@
     }
 
     /* ================= MOBILE ================= */
-
     @media only screen and (max-width: 600px) {
       .container {
         border-radius: 15px;
@@ -195,7 +349,7 @@
       }
 
       .content {
-        padding: 30px 20px;
+        padding: 25px 18px;
       }
 
       .greeting {
@@ -205,6 +359,25 @@
       .button {
         width: 100%;
         padding: 15px;
+      }
+
+      .credential {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding: 8px 0;
+      }
+
+      .credential-label {
+        font-size: 11px;
+      }
+
+      .credential-value {
+        font-size: 14px;
+      }
+
+      .highlight {
+        padding: 18px 20px;
       }
     }
   </style>
@@ -217,30 +390,75 @@
       <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo" />
 
       <h1 class="header-title">{{ title }}</h1>
+      <div class="header-badge">{{ badge }}</div>
     </div>
 
     <!-- Content -->
     <div class="content">
       <div class="greeting">{{ greeting }}</div>
+      <div class="greeting-sub">{{ greeting_sub }}</div>
 
       <p>{{ message }}</p>
 
+      <!-- Merchant Info -->
+      {{#if isMerchant}}
+      <div class="info-box">
+        <div class="label">{{ business_label }}</div>
+        <div class="value">{{ business_name }}</div>
+        {{#if business_category}}
+        <div class="sub-info">{{ category_label }}: {{ business_category }}</div>
+        {{/if}}
+        {{#if business_address}}
+        <div class="sub-info">{{ address_label }}: {{ business_address }}</div>
+        {{/if}}
+      </div>
+      {{/if}}
+
+      <!-- Divider -->
+      <div class="divider"></div>
+
       <!-- Credentials -->
       <div class="highlight">
-        <div class="highlight-title">
-          {{ credentials_label }}
+        <div class="highlight-title">{{ credentials_label }}</div>
+
+        <div class="credential">
+          <span class="credential-label">{{ phone_label }}</span>
+          <span class="credential-value">{{ phone_value }}</span>
         </div>
 
         <div class="credential">
-          <span>{{ phone_label }}</span>
+          <span class="credential-label">{{ account_label }}</span>
+          <span class="credential-value">{{ account_value }}</span>
         </div>
 
         <div class="credential">
-          <span>{{ account_label }}</span>
+          <span class="credential-label">{{ password_label }}</span>
+          <span class="credential-value password">{{ password_value }}</span>
         </div>
 
         <div class="credential">
-          <span class="password">{{ password_label }}</span>
+          <span class="credential-label">{{ pin_label }}</span>
+          <span class="credential-value pin">{{ pin_value }}</span>
+        </div>
+
+        {{#if isMerchant}}
+        <div class="credential">
+          <span class="credential-label">{{ merchant_code_label }}</span>
+          <span class="credential-value merchant">{{ merchant_code_value }}</span>
+        </div>
+
+        <div class="credential">
+          <span class="credential-label">{{ merchant_type_label }}</span>
+          <span class="credential-value">{{ merchant_type_value }}</span>
+        </div>
+        {{/if}}
+      </div>
+
+      <!-- Security Tip -->
+      <div class="security-tip">
+        <div class="text">
+          <strong>{{ security_title }}</strong><br>
+          {{ security_message }}
         </div>
       </div>
 
@@ -249,22 +467,28 @@
       <p>{{ support }}</p>
 
       <!-- Optional Button -->
-      <!--
-        <div class="btn-container">
-            <a href="{{ login_url }}" class="button">
-                Se connecter
-            </a>
-        </div>
-        -->
+      {{#if login_url}}
+      <div class="btn-container">
+        <a href="{{ login_url }}" class="button">
+          {{ button_text }}
+        </a>
+      </div>
+      {{/if}}
     </div>
 
     <!-- Footer -->
     <div class="footer">
       {{ footer }}
 
-      <br /><br />
+      <div class="footer-social">
+        <a href="#">Facebook</a>
+        <a href="#">Twitter</a>
+        <a href="#">Instagram</a>
+        <a href="#">LinkedIn</a>
+      </div>
 
-      🌐
+      <br />
+
       <a href="https://fpay.com">
         www.fpay.com
       </a>
