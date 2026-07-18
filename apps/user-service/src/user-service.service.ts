@@ -122,7 +122,7 @@ export class UserServiceService {
     else if (roleStr === 'SUPER_ADMIN') roleEnum = user_role.SUPER_ADMIN;
 
     // 5. Création de l'utilisateur
-    const defaultPassword = 'Accespay!26';
+    const defaultPassword = 'Fpay!026';
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
     const user = await this.prisma.user.create({

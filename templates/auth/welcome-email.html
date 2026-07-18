@@ -6,6 +6,7 @@
     <title>{{ title }}</title>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+      
       body {
         margin: 0;
         padding: 30px 0;
@@ -13,6 +14,7 @@
         color: #1e2a3e;
         background-color: #f4f7fc;
       }
+      
       .container {
         margin: 0 auto;
         width: 100%;
@@ -21,35 +23,47 @@
         border-radius: 20px;
         box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.1);
         overflow: hidden;
+        border: 2px solid #FEA812;
       }
+      
       .header {
         text-align: center;
         padding: 35px 20px 20px;
-        background: linear-gradient(135deg, #233fc0 0%, #1a2f8f 100%);
+        background: linear-gradient(135deg, #0002DF 0%, #0005B0 100%);
       }
+      
       .logo {
         max-width: 140px;
         margin-bottom: 15px;
       }
+      
       .header-title {
         font-size: 24px;
         font-weight: 600;
-        color: #ffffff;
+        color: #FEA812;
         margin: 0;
         letter-spacing: -0.3px;
       }
+      
       .content {
         padding: 35px 30px 25px;
         background-color: #ffffff;
       }
+      
       .highlight {
-        background-color: #f0f4ff;
-        border-left: 4px solid #233fc0;
+        background-color: #FDB51F;
+        border-left: 4px solid #0002DF;
         padding: 16px 20px;
         border-radius: 12px;
         margin: 20px 0;
         font-size: 14px;
+        color: #1e2a3e;
       }
+      
+      .highlight strong {
+        color: #0002DF;
+      }
+      
       .footer {
         text-align: center;
         padding: 20px 20px 25px;
@@ -58,6 +72,11 @@
         font-size: 12px;
         color: #5a6874;
       }
+      
+      .footer a {
+        color: #0002DF !important;
+      }
+      
       .email-info {
         text-align: center;
         font-size: 12px;
@@ -66,15 +85,27 @@
         background-color: #f8fafd;
         padding: 10px;
       }
+      
       .email-info a {
-        color: #233fc0;
+        color: #FF0000;
         text-decoration: none;
         font-weight: 500;
       }
+      
       hr {
         border: none;
-        border-top: 1px solid #e2e8f0;
+        border-top: 2px solid #FEA812;
         margin: 0;
+      }
+      
+      .content p a {
+        color: #0002DF;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      
+      .content p a:hover {
+        text-decoration: underline;
       }
     </style>
   </head>
@@ -82,20 +113,20 @@
     <div class="container">
       <div class="header">
         <img
-          src="https://elezardc.org/logo-default.png"
+          src="https://api-prod.favorhelp.com/uploads/fpay/logo.png"
           alt="F-Pay"
           class="logo"
         />
         <h1 class="header-title">{{ title }}</h1>
       </div>
       <div class="content">
-        <strong style="font-size: 18px">{{ greeting }}</strong>
+        <strong style="font-size: 18px; color: #0002DF;">{{ greeting }}</strong>
         <p style="margin-top: 12px; line-height: 1.5">{{ message }}</p>
         <div class="highlight">
-          <strong>{{ credentials_label }}</strong><br />
+          <strong style="color: #0002DF;">{{ credentials_label }}</strong><br />
           {{ phone_label }}<br />
           {{ account_label }}<br />
-          {{ password_label }}
+          <strong style="color: #FF0000;">{{ password_label }}</strong>
         </div>
         <p style="font-size: 14px; margin-top: 20px">{{ recommend }}</p>
         <p style="margin-top: 20px; font-size: 14px">{{ support }}</p>
@@ -103,12 +134,12 @@
       <hr />
       <div class="footer">
         {{ footer }}<br />
-        <a href="https://fpay.com" style="color: #233fc0">fpay.com</a>
+        <a href="https://fpay.com" style="color: #0002DF;">fpay.com</a>
       </div>
     </div>
     <div class="email-info">
       {{ sent_to }} <a href="mailto:{{ email }}">{{ email }}</a>
     </div>
-    <div class="email-info">{{ copyright }}</div>
+    <div class="email-info" style="color: #0005B0;">{{ copyright }}</div>
   </body>
 </html>
