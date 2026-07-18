@@ -140,8 +140,8 @@ export class UserServiceService {
         account_number: data.account_number || null,
         branch: data.branch,
         password: hashedPassword,
-        pin: hashedPin, // ✅ PIN par défaut
-        pinstatus: true, // ✅ PIN activé par défaut
+        pin: hashedPin,
+        pinstatus: true,
         role: roleEnum,
         status: user_status.ACTIVE,
         deleted: false,
@@ -221,19 +221,18 @@ export class UserServiceService {
 
     console.log(`📊 ${walletsCreated} wallet(s) créé(s) pour l’utilisateur ${user.id}`);
 
-    // 7. SMS de bienvenue avec PIN
+    // 7. SMS de bienvenue avec PIN (sans account_number)
     if (data.phone) {
       const cleanPhone = data.phone.replace(/[^0-9+]/g, '');
       let smsText = this.i18nService.translate('welcome_sms', lang, {
-        full_name: user.full_name,
-        account_number: user.account_number || 'N/A',
+        full_name: user.full_name || '',
         phone: cleanPhone,
         password: defaultPassword,
         pin: defaultPin,
       });
       if (isMerchant && merchantCode) {
         smsText += ' ' + this.i18nService.translate('merchant_code_sms', lang, {
-          merchantCode,
+          merchantCode: merchantCode,
         });
       }
       try {
@@ -247,45 +246,57 @@ export class UserServiceService {
     // 8. Email de bienvenue
     if (user.email) {
       try {
-        // ✅ Choix du template selon le rôle
         const isMerchantTemplate = isMerchant;
         const template = isMerchantTemplate ? 'merchant-welcome-email.html' : 'welcome-email.html';
         const emailTitle = isMerchantTemplate
           ? this.i18nService.translate('merchant_welcome_email_title', lang)
           : this.i18nService.translate('welcome_email_title', lang);
 
-        const emailData = isMerchantTemplate ? {
+        const emailData = {
           title: emailTitle,
-          greeting: this.i18nService.translate('merchant_welcome_email_greeting', lang, { name: user.full_name }),
-          message: this.i18nService.translate('merchant_welcome_email_message', lang),
+          badge: isMerchantTemplate ? 'Compte Marchand' : 'Compte Actif',
+          greeting: this.i18nService.translate(
+            isMerchantTemplate ? 'merchant_welcome_email_greeting' : 'welcome_email_greeting',
+            lang,
+            { name: user.full_name || '' }
+          ),
+          greeting_sub: isMerchantTemplate
+            ? 'Votre compte marchand a été créé avec succès'
+            : 'Votre compte a été créé avec succès',
+          message: this.i18nService.translate(
+            isMerchantTemplate ? 'merchant_welcome_email_message' : 'welcome_email_message',
+            lang
+          ),
+          isMerchant: isMerchantTemplate,
+          business_label: 'Entreprise',
+          business_name: data.businessName || 'N/A',
+          business_category: data.businessCategory || null,
+          business_address: data.businessAddress || null,
+          category_label: 'Catégorie',
+          address_label: 'Adresse',
           credentials_label: this.i18nService.translate('welcome_email_credentials', lang),
-          phone_label: `${this.i18nService.translate('phone', lang)}: ${user.phone || ''}`,
-          account_label: `${this.i18nService.translate('account', lang)}: ${user.account_number || ''}`,
-          password_label: `${this.i18nService.translate('password', lang)}: ${defaultPassword}`,
-          pin_label: `${this.i18nService.translate('pin', lang)}: ${defaultPin}`,
-          merchant_code_label: `${this.i18nService.translate('merchant_code', lang)}: ${merchantCode || 'N/A'}`,
-          business_name_label: `${this.i18nService.translate('business_name', lang)}: ${data.businessName || 'N/A'}`,
+          phone_label: this.i18nService.translate('phone', lang),
+          phone_value: user.phone || '',
+          account_label: this.i18nService.translate('account', lang),
+          account_value: user.account_number || '',
+          password_label: this.i18nService.translate('password', lang),
+          password_value: defaultPassword,
+          pin_label: this.i18nService.translate('pin', lang),
+          pin_value: defaultPin,
+          merchant_code_label: this.i18nService.translate('merchant_code', lang),
+          merchant_code_value: merchantCode || 'N/A',
+          merchant_type_label: 'Type de commerce',
+          merchant_type_value: data.merchantType || 'N/A',
+          security_title: 'Sécurité',
+          security_message: this.i18nService.translate('welcome_email_recommend', lang),
           recommend: this.i18nService.translate('welcome_email_recommend', lang),
           support: this.i18nService.translate('welcome_email_support', lang),
           footer: this.i18nService.translate('welcome_email_footer', lang),
           sent_to: this.i18nService.translate('email_sent_to', lang),
-          copyright: `© ${new Date().getFullYear()} F-Pay`,
           email: user.email,
-        } : {
-          title: emailTitle,
-          greeting: this.i18nService.translate('welcome_email_greeting', lang, { name: user.full_name }),
-          message: this.i18nService.translate('welcome_email_message', lang),
-          credentials_label: this.i18nService.translate('welcome_email_credentials', lang),
-          phone_label: `${this.i18nService.translate('phone', lang)}: ${user.phone || ''}`,
-          account_label: `${this.i18nService.translate('account', lang)}: ${user.account_number || ''}`,
-          password_label: `${this.i18nService.translate('password', lang)}: ${defaultPassword}`,
-          pin_label: `${this.i18nService.translate('pin', lang)}: ${defaultPin}`,
-          recommend: this.i18nService.translate('welcome_email_recommend', lang),
-          support: this.i18nService.translate('welcome_email_support', lang),
-          footer: this.i18nService.translate('welcome_email_footer', lang),
-          sent_to: this.i18nService.translate('email_sent_to', lang),
-          copyright: `© ${new Date().getFullYear()} F-Pay`,
-          email: user.email,
+          copyright: `© ${new Date().getFullYear()} F-Pay. Tous droits réservés.`,
+          login_url: process.env.FRONTEND_URL || 'https://fpay.com/login',
+          button_text: isMerchantTemplate ? 'Accéder à mon espace' : 'Se connecter',
         };
 
         await this.mailService.sendHtmlEmail(
@@ -310,10 +321,14 @@ export class UserServiceService {
 
     // 10. Retour
     return {
-      message: this.i18nService.translate(isMerchant ? 'merchant_created_success' : 'user_created_success', lang),
+      message: this.i18nService.translate(
+        isMerchant ? 'merchant_created_success' : 'user_created_success',
+        lang
+      ),
       data: this.toResponse(user),
     };
   }
+
   async createUserFromAccount(
     data: CreateUserFromAccountDto,
     ipAddress?: string,

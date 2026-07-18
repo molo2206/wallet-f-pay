@@ -54,8 +54,6 @@
   "kyc_invalid_document_type": "Tipo de documento inválido. Tipos permitidos: {types}",
   "kyc_document_number_required": "El número de documento es requerido",
   "kyc_document_front_required": "La imagen del anverso del documento es requerida",
-  "kyc_upload_front_failed": "Error al subir el anverso del documento. Por favor, intente de nuevo.",
-  "kyc_upload_back_failed": "Error al subir el reverso del documento. Por favor, intente de nuevo.",
   "kyc_already_pending": "Ya hay una solicitud KYC en proceso",
   "kyc_already_verified": "Su KYC ya ha sido verificado",
   "kyc_not_found": "Solicitud KYC no encontrada",
@@ -69,15 +67,5 @@
   "kyc_verified_email_message": "¡Felicitaciones! Su solicitud KYC ha sido verificada con éxito. Ahora tiene acceso a todas las funciones.",
   "kyc_rejected_email_message": "Su solicitud KYC ha sido rechazada. Razón: {reason}. Por favor, vuelva a enviar con documentos válidos.",
   "kyc_email_footer": "Gracias por confiar en F-Pay.",
-  "kyc_submit_failed": "Error al enviar la solicitud KYC",
-  "kyc_stats_error": "Error al recuperar las estadísticas KYC",
-  "kyc_document_type_required": "El tipo de documento es requerido",
-  "kyc_status_error": "Error al recuperar el estado KYC",
-  "kyc_submissions_error": "Error al recuperar las solicitudes KYC",
-  "kyc_verify_error": "Error al verificar KYC",
-  "kyc_id_required": "El ID de la solicitud KYC es requerido",
-  "kyc_updated_success": "Su solicitud KYC ha sido actualizada con éxito",
-  "kyc_submission_retrieved": "Solicitud KYC recuperada con éxito",
-  "kyc_submission_not_found": "Solicitud KYC no encontrada",
-  "kyc_submission_id_required": "El ID de la solicitud KYC es requerido"
+  "kyc_updated_success": "Su solicitud KYC ha sido actualizada con éxito"
 }
