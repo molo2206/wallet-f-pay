@@ -2834,14 +2834,21 @@ export class ApiGatewayController {
 
   @Get('pawapay/countries')
   async getAllCountries(@Query('status') status?: string) {
+    console.log('[API Gateway] get_all_countries - status param:', status);
+
+    // ✅ Si status est fourni, l'ajouter au payload, sinon envoyer un objet vide
+    const payload = status ? { status } : {};
+
+    console.log('[API Gateway] Sending payload to wallet:', payload);
+
     return this.sendWalletMessage(
       'get_all_countries',
-      { status }, // ✅ Passer le status
+      payload,
       'Failed to get countries',
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
-  
+
   @Post('admin/pawapay/networks')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async createNetwork(
