@@ -249,7 +249,6 @@ export class UserServiceService {
         const template = 'welcome-email.html';
         const emailTitle = this.i18nService.translate('welcome_email_title', lang);
 
-        // ✅ Données communes
         const emailData: any = {
           title: emailTitle,
           greeting: this.i18nService.translate(
@@ -273,7 +272,6 @@ export class UserServiceService {
           isMerchant: isMerchant || false,
         };
 
-        // ✅ Ajouter les données marchand seulement si c'est un marchand
         if (isMerchant) {
           emailData.business_name = data.businessName || 'N/A';
           emailData.merchant_code = merchantCode || 'N/A';
