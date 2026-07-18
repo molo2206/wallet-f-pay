@@ -7,7 +7,7 @@
   <title>{{ title }}</title>
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
     * {
       margin: 0;
@@ -16,250 +16,276 @@
     }
 
     body {
-      background: #f0f2f5;
-      font-family: 'Inter', Arial, Helvetica, sans-serif;
-      padding: 30px 15px;
-      color: #1a1a2e;
+      background: #f5f7fb;
+      font-family: 'Poppins', Arial, Helvetica, sans-serif;
+      padding: 40px 15px;
+      color: #24324b;
     }
 
     .container {
-      max-width: 560px;
+      max-width: 620px;
       margin: auto;
       background: #ffffff;
-      border-radius: 16px;
+      border-radius: 24px;
       overflow: hidden;
-      border: 1px solid #e8e8ef;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      border: 1px solid #ececec;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08), 0 5px 15px rgba(0, 0, 0, 0.04);
     }
 
     .header {
-      background: #1a2b8c;
+      background: linear-gradient(135deg, #0127d6 0%, #000b88 100%);
       text-align: center;
-      padding: 32px 24px;
+      padding: 45px 30px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 300px;
+      height: 300px;
+      background: rgba(252, 180, 35, 0.08);
+      border-radius: 50%;
+    }
+
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -40%;
+      left: -10%;
+      width: 200px;
+      height: 200px;
+      background: rgba(252, 180, 35, 0.05);
+      border-radius: 50%;
     }
 
     .logo {
-      width: 130px;
-      margin-bottom: 12px;
+      width: 150px;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
     }
 
     .header-title {
       color: #fcb423;
-      font-size: 22px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      position: relative;
+      z-index: 1;
     }
 
     .header-badge {
       display: inline-block;
-      background: rgba(252, 180, 35, 0.15);
+      background: rgba(252, 180, 35, 0.2);
       color: #fcb423;
       font-size: 11px;
       font-weight: 600;
-      padding: 3px 14px;
+      padding: 4px 14px;
       border-radius: 20px;
-      margin-top: 8px;
-      letter-spacing: 0.5px;
+      margin-top: 10px;
+      letter-spacing: 1px;
       text-transform: uppercase;
+      position: relative;
+      z-index: 1;
     }
 
     .content {
-      padding: 32px 30px;
+      padding: 40px 35px;
     }
 
     .greeting {
-      font-size: 20px;
-      color: #1a2b8c;
-      font-weight: 600;
-      margin-bottom: 6px;
+      font-size: 24px;
+      color: #0127d6;
+      font-weight: 700;
+      margin-bottom: 18px;
     }
 
-    .sub-text {
-      color: #6b7280;
-      font-size: 14px;
-      margin-bottom: 20px;
-    }
-
-    .message {
-      font-size: 14px;
-      color: #374151;
-      line-height: 1.7;
-      margin-bottom: 20px;
-    }
-
-    .merchant-box {
-      background: #f8f9ff;
-      border-radius: 10px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      border: 1px solid #e5e7f0;
-    }
-
-    .merchant-box .label {
-      font-size: 12px;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      font-weight: 600;
-    }
-
-    .merchant-box .value {
+    .content p {
       font-size: 15px;
-      color: #1a2b8c;
-      font-weight: 600;
-      margin-top: 2px;
+      color: #56657d;
+      line-height: 1.8;
+      margin-bottom: 18px;
     }
 
-    .merchant-box .row {
-      margin-top: 6px;
-      font-size: 13px;
-      color: #4b5563;
+    .highlight {
+      margin: 25px 0;
+      background: linear-gradient(135deg, #fff9e9 0%, #fff2ca 100%);
+      border-left: 6px solid #fcb423;
+      border-radius: 18px;
+      padding: 24px 28px;
+      box-shadow: 0 10px 25px rgba(252, 180, 35, 0.15);
     }
 
-    .credentials {
-      background: #faf9f4;
-      border-radius: 10px;
-      padding: 18px 20px;
-      margin-bottom: 20px;
-      border-left: 4px solid #fcb423;
-    }
-
-    .credentials-title {
-      font-size: 14px;
-      color: #1a2b8c;
-      font-weight: 600;
-      margin-bottom: 12px;
+    .highlight-title {
+      font-size: 16px;
+      color: #0127d6;
+      font-weight: 700;
+      margin-bottom: 16px;
     }
 
     .credential {
       display: flex;
       justify-content: space-between;
-      padding: 6px 0;
-      font-size: 14px;
-      border-bottom: 1px dashed #e5e7f0;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px dashed rgba(1, 39, 214, 0.08);
     }
 
     .credential:last-child {
       border-bottom: none;
     }
 
-    .credential .label {
-      color: #6b7280;
-    }
-
-    .credential .value {
-      color: #1a1a2e;
+    .credential-label {
+      font-size: 13px;
+      color: #7b8798;
       font-weight: 500;
     }
 
-    .credential .value.password {
-      color: #dc2626;
-      font-family: monospace;
+    .credential-value {
+      font-size: 15px;
+      color: #24324b;
       font-weight: 600;
-      letter-spacing: 0.5px;
+    }
+
+    .credential-value.password {
+      color: #e53935 !important;
+      font-family: 'Courier New', monospace;
     }
 
     .btn-container {
       text-align: center;
-      margin: 24px 0 10px;
+      margin-top: 35px;
     }
 
     .button {
       display: inline-block;
-      padding: 13px 36px;
+      padding: 16px 40px;
       background: #fcb423;
-      color: #1a2b8c !important;
+      color: #0127d6 !important;
       text-decoration: none;
-      font-weight: 600;
+      font-weight: 700;
       border-radius: 50px;
-      font-size: 14px;
-      box-shadow: 0 4px 12px rgba(252, 180, 35, 0.3);
+      font-size: 15px;
+      box-shadow: 0 12px 30px rgba(252, 180, 35, 0.35);
+      transition: all 0.3s ease;
     }
 
     .button:hover {
-      background: #f5a800;
+      transform: translateY(-2px);
+      box-shadow: 0 16px 40px rgba(252, 180, 35, 0.45);
+    }
+
+    .info-box {
+      background: #f0f4ff;
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin: 20px 0;
+      border: 1px solid rgba(1, 39, 214, 0.08);
+    }
+
+    .info-box .label {
+      font-size: 12px;
+      color: #7b8798;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .info-box .value {
+      font-size: 16px;
+      color: #0127d6;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .info-box .sub-info {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #7b8798;
     }
 
     .footer {
       background: #fafafa;
-      border-top: 1px solid #e8e8ef;
+      border-top: 1px solid #eeeeee;
       text-align: center;
-      padding: 20px;
-      color: #6b7280;
+      padding: 28px;
+      color: #7b8798;
       font-size: 13px;
     }
 
     .footer a {
-      color: #1a2b8c;
+      color: #0127d6;
       text-decoration: none;
-      font-weight: 500;
-    }
-
-    .footer a:hover {
-      color: #fcb423;
+      font-weight: 600;
     }
 
     .email-info {
-      max-width: 560px;
-      margin: 16px auto 0;
+      max-width: 620px;
+      margin: 20px auto 0;
       background: white;
-      border-radius: 10px;
-      padding: 12px;
+      border-radius: 15px;
+      padding: 15px;
       text-align: center;
-      color: #6b7280;
-      font-size: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+      color: #6f7b8f;
+      font-size: 13px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.04);
     }
 
     .email-info a {
-      color: #1a2b8c;
+      color: #0127d6;
       text-decoration: none;
-      font-weight: 500;
+      font-weight: 600;
     }
 
     .copyright {
       text-align: center;
-      margin-top: 12px;
-      color: #1a2b8c;
-      font-size: 12px;
+      margin-top: 15px;
+      color: #0127d6;
+      font-size: 13px;
       font-weight: 500;
     }
 
-    @media only screen and (max-width: 480px) {
+    @media only screen and (max-width: 600px) {
+      .container {
+        border-radius: 15px;
+      }
       .header {
-        padding: 24px 16px;
+        padding: 35px 20px;
       }
-
       .logo {
-        width: 100px;
+        width: 120px;
       }
-
       .header-title {
-        font-size: 18px;
+        font-size: 22px;
       }
-
       .content {
-        padding: 24px 18px;
+        padding: 25px 18px;
       }
-
       .greeting {
-        font-size: 18px;
+        font-size: 20px;
       }
-
+      .button {
+        width: 100%;
+        padding: 15px;
+      }
       .credential {
         flex-direction: column;
         align-items: flex-start;
-        gap: 2px;
+        gap: 4px;
         padding: 8px 0;
       }
-
-      .button {
-        width: 100%;
-        padding: 14px;
+      .credential-label {
+        font-size: 11px;
       }
-
-      .merchant-box {
-        padding: 14px 16px;
+      .credential-value {
+        font-size: 14px;
+      }
+      .highlight {
+        padding: 18px 20px;
       }
     }
   </style>
@@ -267,66 +293,53 @@
 
 <body>
   <div class="container">
-    <!-- Header -->
     <div class="header">
       <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo" />
       <h1 class="header-title">{{ title }}</h1>
       {{#if isMerchant}}
-      <div class="header-badge"> Compte Marchand</div>
+      <div class="header-badge">🏪 Compte Marchand</div>
       {{/if}}
     </div>
 
-    <!-- Content -->
     <div class="content">
       <div class="greeting">{{ greeting }}</div>
-      <div class="sub-text">{{ greeting_sub }}</div>
+      <p>{{ message }}</p>
 
-      <p class="message">{{ message }}</p>
-
-      <!-- Merchant Info -->
       {{#if isMerchant}}
-      <div class="merchant-box">
-        <div class="label"> {{ business_label }}</div>
+      <div class="info-box">
+        <div class="label">{{ business_label }}</div>
         <div class="value">{{ business_name }}</div>
-        <div class="row">{{ merchant_type_label }}: {{ merchant_type }}</div>
-        <div class="row">{{ merchant_code_label }}: {{ merchant_code }}</div>
-        {{#if business_address}}
-        <div class="row">{{ address_label }}: {{ business_address }}</div>
-        {{/if}}
-        {{#if business_category}}
-        <div class="row">{{ category_label }}: {{ business_category }}</div>
-        {{/if}}
+        <div class="sub-info">{{ merchant_type_label }}: {{ merchant_type }}</div>
+        <div class="sub-info">{{ merchant_code_label }}: {{ merchant_code }}</div>
+        <div class="sub-info">{{ address_label }}: {{ business_address }}</div>
+        <div class="sub-info">{{ category_label }}: {{ business_category }}</div>
       </div>
       {{/if}}
 
-      <!-- Credentials -->
-      <div class="credentials">
-        <div class="credentials-title"> {{ credentials_label }}</div>
+      <div class="highlight">
+        <div class="highlight-title">{{ credentials_label }}</div>
 
         <div class="credential">
-          <span class="label">{{ phone_label }}</span>
+          <span class="credential-label">{{ phone_label }}</span>
         </div>
 
         <div class="credential">
-          <span class="label">{{ account_label }}</span>
+          <span class="credential-label">{{ account_label }}</span>
         </div>
 
         <div class="credential">
-          <span class="label">{{ password_label }}</span>
-          <span class="value password">{{ password_value }}</span>
+          <span class="credential-label password">{{ password_label }}</span>
         </div>
       </div>
 
-      <p style="font-size:14px; color:#4b5563; line-height:1.7;">{{ recommend }}</p>
-      <p style="font-size:14px; color:#4b5563; line-height:1.7; margin-top:12px;">{{ support }}</p>
+      <p>{{ recommend }}</p>
+      <p>{{ support }}</p>
 
-      <!-- Button -->
       <div class="btn-container">
         <a href="{{ login_url }}" class="button">{{ button_text }}</a>
       </div>
     </div>
 
-    <!-- Footer -->
     <div class="footer">
       {{ footer }}
       <br />
@@ -334,13 +347,11 @@
     </div>
   </div>
 
-  <!-- Email Info -->
   <div class="email-info">
     {{ sent_to }}
     <a href="mailto:{{ email }}">{{ email }}</a>
   </div>
 
-  <!-- Copyright -->
   <div class="copyright">{{ copyright }}</div>
 </body>
 
