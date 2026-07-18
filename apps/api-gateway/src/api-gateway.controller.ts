@@ -2831,15 +2831,56 @@ export class ApiGatewayController {
       HttpStatus.NOT_FOUND,
     );
   }
-  
+
+  @Get('pawapay/countries/active')
+  async getActiveCountries() {
+    return this.sendWalletMessage(
+      'get_all_countries',
+      { status: 'ACTIVE' },
+      'Failed to get countries',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  @Get('pawapay/countries/inactive')
+  async getInactiveCountries() {
+    return this.sendWalletMessage(
+      'get_all_countries',
+      { status: 'INACTIVE' },
+      'Failed to get countries',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  @Get('pawapay/countries/suspended')
+  async getSuspendedCountries() {
+    return this.sendWalletMessage(
+      'get_all_countries',
+      { status: 'SUSPENDED' },
+      'Failed to get countries',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
+
+  // ✅ Ensuite la route avec paramètre status
   @Get('pawapay/countries/:status')
   async getAllCountries(@Param('status') status?: string) {
     console.log('🔍 [API Gateway] Status from param:', status);
 
-    // ✅ Créer un payload explicite
+    // Valider que le status est valide
+    const validStatuses = ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'all'];
+    if (!validStatuses.includes(status?.toUpperCase() || '')) {
+      return this.sendWalletMessage(
+        'get_all_countries',
+        {},
+        'Failed to get countries',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     const payload: any = {};
-    if (status && status !== 'all') {
-      payload.status = status;
+    if (status && status.toLowerCase() !== 'all') {
+      payload.status = status.toUpperCase();
     }
 
     console.log('🔍 [API Gateway] Sending payload to wallet:', payload);
@@ -2851,7 +2892,6 @@ export class ApiGatewayController {
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
-
   @Post('admin/pawapay/networks')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async createNetwork(
