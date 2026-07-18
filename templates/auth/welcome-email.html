@@ -2,11 +2,14 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Money Transfer Processing</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
 
   <style>
@@ -17,67 +20,70 @@
     }
 
     body {
-      background: #f5f5f5;
+      background: #f4f5f7;
       font-family: 'Inter', sans-serif;
-      color: #111;
+      color: #111827;
     }
 
     .wrapper {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    /* Card */
+
+    .email-card {
       width: 100%;
-      padding: 40px 15px;
+      max-width: 640px;
+      background: #ffffff;
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow:
+        0 6px 18px rgba(0, 0, 0, .05),
+        0 20px 50px rgba(0, 0, 0, .08);
+      border: 1px solid #ececec;
     }
 
-    .email {
-      max-width: 625px;
-      margin: auto;
-      background: #fff;
-    }
-
-    /* ================= Header ================= */
-
-    /* ================= Header ================= */
+    /* Header */
 
     .header {
-      width: 230px;
+      width: 235px;
       height: 92px;
       background: #FFD100;
-      border-bottom-right-radius: 35px;
+      border-bottom-right-radius: 38px;
       display: flex;
       align-items: center;
-      padding: 0 28px;
+      justify-content: center;
+      padding: 0 24px;
     }
 
     .logo {
-      width: 150px;
-      height: auto;
+      width: 145px;
       display: block;
     }
 
-    .logo span {
-      display: block;
-      font-size: 36px;
-      letter-spacing: -4px;
-      margin-bottom: 2px;
-    }
-
-    /* ================= Body ================= */
+    /* Content */
 
     .content {
-      padding: 55px 62px 60px;
+      padding: 60px;
     }
 
     h1 {
-      font-size: 58px;
-      line-height: 1.05;
+      font-size: 54px;
+      line-height: 1.08;
       font-weight: 800;
-      letter-spacing: -1.5px;
-      margin-bottom: 58px;
+      margin-bottom: 55px;
+      letter-spacing: -1px;
+      color: #111;
     }
 
     .greeting {
-      font-size: 34px;
-      margin-bottom: 40px;
-      line-height: 1.5;
+      font-size: 27px;
+      margin-bottom: 30px;
+      color: #222;
     }
 
     .greeting strong {
@@ -85,78 +91,94 @@
     }
 
     .text {
-      font-size: 31px;
-      line-height: 1.6;
-      color: #222;
-      margin-bottom: 55px;
+      font-size: 22px;
+      line-height: 1.8;
+      color: #444;
+      margin-bottom: 45px;
     }
 
     .text strong {
+      color: #111;
       font-weight: 700;
     }
 
     .thanks {
-      font-size: 34px;
-      margin-bottom: 48px;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 40px;
+      color: #111;
     }
+
+    /* Track */
 
     .track {
       display: flex;
       align-items: center;
-      gap: 18px;
-      font-size: 31px;
-      line-height: 1.5;
-    }
-
-    .track a {
-      color: #006FCF;
-      text-decoration: underline;
+      gap: 16px;
     }
 
     .icon {
-      width: 34px;
-      height: 34px;
+      width: 42px;
+      height: 42px;
       border: 3px solid #111;
       border-radius: 50%;
       position: relative;
       flex-shrink: 0;
     }
 
-    .icon:before {
-      content: '';
+    .icon::before {
+      content: "";
       position: absolute;
-      width: 14px;
-      height: 14px;
+      width: 18px;
+      height: 18px;
       border: 3px solid #111;
       border-radius: 50%;
-      left: 7px;
-      top: 7px;
+      left: 8px;
+      top: 8px;
     }
 
-    .icon:after {
-      content: '';
+    .icon::after {
+      content: "";
       position: absolute;
       width: 8px;
       height: 8px;
       background: #111;
       border-radius: 50%;
-      left: 10px;
-      top: 10px;
+      left: 14px;
+      top: 14px;
     }
 
-    @media(max-width:650px) {
+    .track p {
+      font-size: 20px;
+      line-height: 1.7;
+      color: #333;
+    }
 
-      .header {
-        width: 180px;
-        height: 78px;
-      }
+    .track a {
+      color: #0068D9;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    /* Responsive */
+
+    @media (max-width:768px) {
 
       .content {
-        padding: 35px 25px;
+        padding: 40px 30px;
+      }
+
+      .header {
+        width: 200px;
+        height: 80px;
+      }
+
+      .logo {
+        width: 125px;
       }
 
       h1 {
-        font-size: 42px;
+        font-size: 38px;
         margin-bottom: 35px;
       }
 
@@ -165,15 +187,47 @@
       }
 
       .text {
-        font-size: 20px;
+        font-size: 18px;
       }
 
       .thanks {
         font-size: 22px;
       }
 
+      .track p {
+        font-size: 17px;
+      }
+
+    }
+
+    @media (max-width:480px) {
+
+      .content {
+        padding: 30px 22px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      .greeting {
+        font-size: 20px;
+      }
+
+      .text {
+        font-size: 16px;
+      }
+
+      .thanks {
+        font-size: 18px;
+      }
+
       .track {
-        font-size: 19px;
+        align-items: flex-start;
+      }
+
+      .track p {
+        font-size: 15px;
       }
 
     }
@@ -185,10 +239,10 @@
 
   <div class="wrapper">
 
-    <div class="email">
+    <div class="email-card">
 
       <div class="header">
-        <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo" />
+        <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo">
       </div>
 
       <div class="content">
@@ -219,10 +273,10 @@
 
           <div class="icon"></div>
 
-          <div>
+          <p>
             <a href="#">Track your transfer</a>
             with your 10-digit MTCN number.
-          </div>
+          </p>
 
         </div>
 
