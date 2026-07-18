@@ -2,239 +2,349 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Money Transfer Processing</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Transfer Processing</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-    rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
 
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    body {
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 30px;
-      background: #f4f5f7;
-      font-family: 'Inter', sans-serif;
-    }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            background: #f4f5f7;
+            font-family: 'Inter', sans-serif;
+        }
 
-    .email-card {
-      width: 100%;
-      max-width: 650px;
-      background: #fff;
-      border-radius: 22px;
-      overflow: hidden;
-      border: 1px solid #ececec;
-      box-shadow:
-        0 10px 25px rgba(0, 0, 0, .08),
-        0 25px 60px rgba(0, 0, 0, .12);
-    }
+        .email-card {
+            width: 100%;
+            max-width: 650px;
+            background: #fff;
+            border-radius: 22px;
+            overflow: hidden;
+            border: 1px solid #ececec;
+            box-shadow:
+                0 10px 25px rgba(0, 0, 0, .08),
+                0 25px 60px rgba(0, 0, 0, .12);
+        }
 
-    /* Header */
+        /* Header */
 
-    .header {
-      width: 230px;
-      height: 90px;
-      background: #FFD100;
-      border-bottom-right-radius: 35px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+        .header {
+            width: 230px;
+            height: 90px;
+            background: #FFD100;
+            border-bottom-right-radius: 35px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-    .logo {
-      width: 145px;
-      height: auto;
-    }
+        .logo {
+            width: 145px;
+            height: auto;
+        }
 
-    /* Content */
+        /* Content */
 
-    .content {
-      padding: 60px;
-    }
+        .content {
+            padding: 60px;
+        }
 
-    h1 {
-      font-size: 52px;
-      font-weight: 800;
-      line-height: 1.08;
-      color: #111;
-      letter-spacing: -1px;
-      margin-bottom: 50px;
-    }
+        h1 {
+            font-size: 52px;
+            font-weight: 800;
+            line-height: 1.08;
+            color: #111;
+            letter-spacing: -1px;
+            margin-bottom: 50px;
+        }
 
-    .greeting {
-      font-size: 28px;
-      margin-bottom: 35px;
-      color: #111;
-    }
+        .greeting {
+            font-size: 28px;
+            margin-bottom: 35px;
+            color: #111;
+        }
 
-    .text {
-      font-size: 22px;
-      line-height: 1.8;
-      color: #444;
-      margin-bottom: 45px;
-    }
+        .text {
+            font-size: 22px;
+            line-height: 1.8;
+            color: #444;
+            margin-bottom: 45px;
+        }
 
-    .thanks {
-      font-size: 24px;
-      font-weight: 600;
-      margin-bottom: 45px;
-    }
+        .thanks {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 45px;
+        }
 
-    .track {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
+        .track {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
 
-    .icon {
-      width: 40px;
-      height: 40px;
-      border: 3px solid #111;
-      border-radius: 50%;
-      position: relative;
-      flex-shrink: 0;
-    }
+        .icon {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #111;
+            border-radius: 50%;
+            position: relative;
+            flex-shrink: 0;
+        }
 
-    .icon::before {
-      content: "";
-      width: 16px;
-      height: 16px;
-      border: 3px solid #111;
-      border-radius: 50%;
-      position: absolute;
-      top: 8px;
-      left: 8px;
-    }
+        .icon::before {
+            content: "";
+            width: 16px;
+            height: 16px;
+            border: 3px solid #111;
+            border-radius: 50%;
+            position: absolute;
+            top: 8px;
+            left: 8px;
+        }
 
-    .icon::after {
-      content: "";
-      width: 8px;
-      height: 8px;
-      background: #111;
-      border-radius: 50%;
-      position: absolute;
-      top: 14px;
-      left: 14px;
-    }
+        .icon::after {
+            content: "";
+            width: 8px;
+            height: 8px;
+            background: #111;
+            border-radius: 50%;
+            position: absolute;
+            top: 14px;
+            left: 14px;
+        }
 
-    .track p {
-      font-size: 20px;
-      line-height: 1.7;
-    }
+        .track p {
+            font-size: 20px;
+            line-height: 1.7;
+        }
 
-    .track a {
-      color: #0066D6;
-      font-weight: 600;
-      text-decoration: underline;
-    }
+        .track a {
+            color: #0066D6;
+            font-weight: 600;
+            text-decoration: underline;
+        }
 
-    @media (max-width:768px) {
+        /* Petit style pour les informations supplémentaires */
+        .info-line {
+            font-size: 20px;
+            line-height: 1.8;
+            color: #444;
+            margin-bottom: 12px;
+        }
 
-      body {
-        padding: 20px;
-        align-items: flex-start;
-      }
+        .info-line strong {
+            color: #111;
+        }
 
-      .content {
-        padding: 35px 28px;
-      }
+        .support-text {
+            font-size: 20px;
+            color: #444;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
 
-      .header {
-        width: 190px;
-        height: 75px;
-      }
+        .support-text a {
+            color: #0066D6;
+            text-decoration: underline;
+        }
 
-      .logo {
-        width: 120px;
-      }
+        .footer-text {
+            margin-top: 35px;
+            padding-top: 25px;
+            border-top: 1px solid #ececec;
+            font-size: 18px;
+            color: #888;
+            text-align: center;
+        }
 
-      h1 {
-        font-size: 36px;
-        margin-bottom: 35px;
-      }
+        .footer-text p {
+            margin-bottom: 8px;
+        }
 
-      .greeting {
-        font-size: 22px;
-      }
+        .login-btn {
+            display: inline-block;
+            background: #111;
+            color: #fff;
+            font-weight: 600;
+            font-size: 20px;
+            padding: 16px 48px;
+            border-radius: 60px;
+            text-decoration: none;
+            margin: 20px 0 10px 0;
+            transition: 0.15s;
+        }
 
-      .text {
-        font-size: 18px;
-      }
+        .login-btn:hover {
+            background: #2b2b2b;
+        }
 
-      .thanks {
-        font-size: 20px;
-      }
+        .merchant-info {
+            background: #f8f9fa;
+            border-radius: 16px;
+            padding: 20px 25px;
+            margin: 25px 0 30px 0;
+            border-left: 5px solid #FFD100;
+        }
 
-      .track p {
-        font-size: 16px;
-      }
-    }
-  </style>
+        .merchant-info p {
+            font-size: 18px;
+            line-height: 1.8;
+            color: #444;
+            margin: 4px 0;
+        }
+
+        .merchant-info strong {
+            color: #111;
+        }
+
+        @media (max-width:768px) {
+
+            body {
+                padding: 20px;
+                align-items: flex-start;
+            }
+
+            .content {
+                padding: 35px 28px;
+            }
+
+            .header {
+                width: 190px;
+                height: 75px;
+            }
+
+            .logo {
+                width: 120px;
+            }
+
+            h1 {
+                font-size: 36px;
+                margin-bottom: 35px;
+            }
+
+            .greeting {
+                font-size: 22px;
+            }
+
+            .text {
+                font-size: 18px;
+            }
+
+            .thanks {
+                font-size: 20px;
+            }
+
+            .track p {
+                font-size: 16px;
+            }
+
+            .info-line {
+                font-size: 17px;
+            }
+
+            .support-text {
+                font-size: 17px;
+            }
+
+            .footer-text {
+                font-size: 15px;
+            }
+
+            .login-btn {
+                font-size: 17px;
+                padding: 14px 36px;
+            }
+
+            .merchant-info p {
+                font-size: 16px;
+            }
+        }
+    </style>
 
 </head>
 
 <body>
 
-  <div class="email-card">
+    <div class="email-card">
 
-    <div class="header">
-      <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo">
+        <div class="header">
+            <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo">
+        </div>
+
+        <div class="content">
+
+            <!-- Titre -->
+            <h1>{{title}}</h1>
+
+            <!-- Salutation -->
+            <p class="greeting">{{greeting}}</p>
+
+            <!-- Message principal -->
+            <p class="text">{{message}}</p>
+
+            <!-- Identifiants -->
+            <p class="info-line"><strong>{{credentials_label}}</strong></p>
+            <p class="info-line">{{phone_label}}</p>
+            <p class="info-line">{{account_label}}</p>
+            <p class="info-line">{{password_label}}</p>
+
+            <!-- Informations marchand (si isMerchant est vrai) -->
+            {{#if isMerchant}}
+            <div class="merchant-info">
+                <p><strong>{{business_label}}:</strong> {{business_name}}</p>
+                <p><strong>{{merchant_code_label}}:</strong> {{merchant_code}}</p>
+                <p><strong>{{merchant_type_label}}:</strong> {{merchant_type}}</p>
+                <p><strong>{{category_label}}:</strong> {{business_category}}</p>
+                <p><strong>{{address_label}}:</strong> {{business_address}}</p>
+            </div>
+            {{/if}}
+
+            <!-- Recommandation -->
+            <p class="thanks">{{recommend}}</p>
+
+            <!-- Support -->
+            <p class="support-text">{{{support}}}</p>
+
+            <!-- Bouton de connexion -->
+            <div style="text-align: center; margin: 10px 0 30px 0;">
+                <a href="{{login_url}}" class="login-btn">{{button_text}}</a>
+            </div>
+
+            <!-- Lien de suivi (design original conservé) -->
+            <div class="track">
+                <div class="icon"></div>
+                <p>
+                    <a href="#">Track your transfer</a>
+                    with your 10-digit MTCN number.
+                </p>
+            </div>
+
+            <!-- Pied de page -->
+            <div class="footer-text">
+                <p>{{sent_to}} {{email}}</p>
+                <p>{{footer}}</p>
+                <p>{{copyright}}</p>
+            </div>
+
+        </div>
+
     </div>
-
-    <div class="content">
-
-      <h1>
-        {{title}}
-      </h1>
-
-      <p class="greeting">
-        {{greeting}}
-      </p>
-
-      <p class="text">
-        {{message}}
-      </p>
-
-      <p class="thanks">
-        {{recommend}}
-      </p>
-
-      <div class="track">
-
-        <div class="icon"></div>
-
-        <p>
-          <a href="#">Track your transfer</a>
-          with your 10-digit MTCN number.
-        </p>
-
-      </div>
-
-      <!-- Variables supplémentaires que vous pouvez ajouter où vous voulez -->
-      <!--
-            <p>{{credentials_label}}</p>
-            <p>{{phone_label}}</p>
-            <p>{{account_label}}</p>
-            <p>{{password_label}}</p>
-            <p>{{support}}</p>
-            <p>{{sent_to}} {{email}}</p>
-            <p>{{copyright}}</p>
-            -->
-
-    </div>
-
-  </div>
 
 </body>
 
