@@ -2834,12 +2834,20 @@ export class ApiGatewayController {
 
   @Get('pawapay/countries')
   async getAllCountries(@Query('status') status?: string) {
-    console.log('[API Gateway] get_all_countries - status param:', status);
+    console.log('🔍 [API Gateway] ========== DEBUT ==========');
+    console.log('🔍 [API Gateway] Status reçu du query:', status);
+    console.log('🔍 [API Gateway] Type de status:', typeof status);
+    console.log('🔍 [API Gateway] Status est undefined?', status === undefined);
+    console.log('🔍 [API Gateway] Status est null?', status === null);
+    console.log('🔍 [API Gateway] Status est empty?', status === '');
 
-    // ✅ Si status est fourni, l'ajouter au payload, sinon envoyer un objet vide
-    const payload = status ? { status } : {};
+    const payload: any = {};
+    if (status) {
+      payload.status = status;
+    }
 
-    console.log('[API Gateway] Sending payload to wallet:', payload);
+    console.log('🔍 [API Gateway] Payload final:', JSON.stringify(payload));
+    console.log('🔍 [API Gateway] ========== FIN ==========');
 
     return this.sendWalletMessage(
       'get_all_countries',
