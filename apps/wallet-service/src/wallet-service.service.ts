@@ -1067,7 +1067,6 @@ export class WalletServiceService {
       },
     };
   }
-  // adminCashout - CORRIGÉ avec adminId
 
   async adminCashout(
     dto: AdminCashoutDto,
@@ -1140,7 +1139,7 @@ export class WalletServiceService {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.wallet_inactive', lang),
-        statusCode: 403,
+        statusCode: 404,
       });
     }
 
@@ -1290,7 +1289,7 @@ export class WalletServiceService {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
-        statusCode: 403,
+        statusCode: 404,
       });
     }
 
@@ -1315,7 +1314,7 @@ export class WalletServiceService {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.pin_incorrect', lang),
-        statusCode: 403,
+        statusCode: 404,
       });
     }
 

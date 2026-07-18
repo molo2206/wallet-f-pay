@@ -12,18 +12,47 @@ export enum UserStatus {
   SUSPENDED = 'SUSPENDED',
 }
 
+export enum UserMerchantType {
+  RETAIL = 'RETAIL',
+  WHOLESALE = 'WHOLESALE',
+  RESTAURANT = 'RESTAURANT',
+  HOTEL = 'HOTEL',
+  TRANSPORT = 'TRANSPORT',
+  HEALTHCARE = 'HEALTHCARE',
+  EDUCATION = 'EDUCATION',
+  TECHNOLOGY = 'TECHNOLOGY',
+  FINANCIAL = 'FINANCIAL',
+  REAL_ESTATE = 'REAL_ESTATE',
+  CONSTRUCTION = 'CONSTRUCTION',
+  AGRICULTURE = 'AGRICULTURE',
+  MANUFACTURING = 'MANUFACTURING',
+  ENTERTAINMENT = 'ENTERTAINMENT',
+  BEAUTY = 'BEAUTY',
+  FASHION = 'FASHION',
+  SPORTS = 'SPORTS',
+  PHARMACY = 'PHARMACY',
+  SUPERMARKET = 'SUPERMARKET',
+  ELECTRONICS = 'ELECTRONICS',
+  AUTOMOTIVE = 'AUTOMOTIVE',
+  OTHER = 'OTHER',
+}
+
 // Pour créer un utilisateur
 export class CreateUserDto {
   email?: string;
   phone?: string;
-  full_name: string; // requis selon HEAD
+  full_name: string;
   account_number?: string;
   branch?: string;
-  role?: UserRole; // typé avec l'enum
+  role?: UserRole;
   merchantCode?: string;
   lang?: string;
   businessName?: string;
   deviceId?: string;
+  countryCode?: string;
+  merchantType?: UserMerchantType;
+  businessCategory?: string;
+  businessAddress?: string;
 }
 
 // Pour mettre à jour un utilisateur
@@ -38,6 +67,10 @@ export class UpdateUserDto {
   status?: UserStatus;
   lang?: string;
   businessName?: string;
+  countryCode?: string;
+  merchantType?: UserMerchantType;
+  businessCategory?: string;
+  businessAddress?: string;
 }
 
 // Pour la réponse
@@ -48,12 +81,16 @@ export class UserResponseDto {
   full_name: string | null;
   account_number: string | null;
   branch: string | null;
-  role: string; // ou UserRole selon votre usage
-  status: string; // ou UserStatus
+  role: string;
+  status: string;
   deleted: boolean;
   createdAt: Date;
   updatedAt: Date;
   merchantCode?: string | null;
   lang?: string;
-  businessName?: string;
+  businessName?: string | null;
+  countryCode?: string | null;
+  merchantType?: string | null;
+  businessCategory?: string | null;
+  businessAddress?: string | null;
 }

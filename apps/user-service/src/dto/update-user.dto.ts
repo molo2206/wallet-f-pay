@@ -16,6 +16,31 @@ export enum UserStatus {
   SUSPENDED = 'SUSPENDED',
 }
 
+export enum UserMerchantType {
+  RETAIL = 'RETAIL',
+  WHOLESALE = 'WHOLESALE',
+  RESTAURANT = 'RESTAURANT',
+  HOTEL = 'HOTEL',
+  TRANSPORT = 'TRANSPORT',
+  HEALTHCARE = 'HEALTHCARE',
+  EDUCATION = 'EDUCATION',
+  TECHNOLOGY = 'TECHNOLOGY',
+  FINANCIAL = 'FINANCIAL',
+  REAL_ESTATE = 'REAL_ESTATE',
+  CONSTRUCTION = 'CONSTRUCTION',
+  AGRICULTURE = 'AGRICULTURE',
+  MANUFACTURING = 'MANUFACTURING',
+  ENTERTAINMENT = 'ENTERTAINMENT',
+  BEAUTY = 'BEAUTY',
+  FASHION = 'FASHION',
+  SPORTS = 'SPORTS',
+  PHARMACY = 'PHARMACY',
+  SUPERMARKET = 'SUPERMARKET',
+  ELECTRONICS = 'ELECTRONICS',
+  AUTOMOTIVE = 'AUTOMOTIVE',
+  OTHER = 'OTHER',
+}
+
 export class UpdateUserDto {
   @IsOptional()
   @IsEmail()
@@ -27,12 +52,12 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(8) // au moins 8 caractères pour le mot de passe
+  @MinLength(8)
   password?: string;
 
   @IsOptional()
   @IsString()
-  @MinLength(4) // au moins 4 chiffres pour le PIN
+  @MinLength(4)
   @Matches(/^\d+$/, { message: 'PIN must contain only digits' })
   pin?: string;
 
@@ -59,6 +84,23 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   businessName?: string;
+
+  // ✅ Nouveaux champs marchands
+  @IsOptional()
+  @IsEnum(UserMerchantType)
+  merchantType?: UserMerchantType;
+
+  @IsOptional()
+  @IsString()
+  businessCategory?: string;
+
+  @IsOptional()
+  @IsString()
+  businessAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
 
   lang?: string;
 }

@@ -56,6 +56,9 @@ model user {
   kycStatus              user_kycStatus           @default(NOT_SUBMITTED)
   countryCode            String?                  @db.VarChar(11)
   profileImage           String?                  @db.VarChar(500)
+  merchantType           user_merchantType?       @default(RETAIL)
+  businessCategory       String?                  @db.VarChar(100)
+  businessAddress        String?                  @db.Text
   api_key                api_key[]
   audit_log              audit_log[]
   failed_transaction_log failed_transaction_log[]
@@ -618,4 +621,29 @@ enum transaction_paymentMethod {
   BANK_TRANSFERT
   INTERNAL
   EXTERNAL_API
+}
+
+enum user_merchantType {
+  RETAIL
+  WHOLESALE
+  RESTAURANT
+  HOTEL
+  TRANSPORT
+  HEALTHCARE
+  EDUCATION
+  TECHNOLOGY
+  FINANCIAL
+  REAL_ESTATE
+  CONSTRUCTION
+  AGRICULTURE
+  MANUFACTURING
+  ENTERTAINMENT
+  BEAUTY
+  FASHION
+  SPORTS
+  PHARMACY
+  SUPERMARKET
+  ELECTRONICS
+  AUTOMOTIVE
+  OTHER
 }

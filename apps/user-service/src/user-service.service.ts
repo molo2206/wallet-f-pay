@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { ApiResponse } from './interfaces/api-response.interface';
 import { SmsService } from 'apps/auth-service/src/sms/sms.service';
-import { user_passwordStatus, user_role, user_status } from '@prisma/client';
+import { user_merchantType, user_passwordStatus, user_role, user_status, wallet_currency } from '@prisma/client';
 import { MailService } from 'apps/auth-service/src/email/email.service';
 import { CreateUserFromAccountDto } from './dto/create-user-from-account.dto';
 import { I18nService } from '../../../libs/common/src/i18n/i18n.service';
@@ -99,7 +99,6 @@ export class UserServiceService {
     }
 
     // 3. Génération du code marchand si rôle MERCHANT
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     const roleStr = data.role as string | undefined;
     let merchantCode: string | undefined = undefined;
     if (roleStr === 'MERCHANT') {
@@ -122,21 +121,17 @@ export class UserServiceService {
     else if (roleStr === 'ADMIN') roleEnum = user_role.ADMIN;
     else if (roleStr === 'SUPER_ADMIN') roleEnum = user_role.SUPER_ADMIN;
 
-    // 5. Générer un account_number unique s'il n'est pas fourni
-    // let finalAccountNumber = data.account_number;
-    // if (!finalAccountNumber) {
-    //   finalAccountNumber = `AC_${crypto.randomUUID().slice(0, 8)}`;
-    // }
-
-    // 6. Création de l'utilisateur
+    // 5. Création de l'utilisateur
     const defaultPassword = 'Accespay!26';
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
     const user = await this.prisma.user.create({
       data: {
         id: crypto.randomUUID(),
         email: data.email?.toLowerCase(),
         phone: data.phone,
         full_name: data.full_name,
+        account_number: data.account_number || null,
         branch: data.branch,
         password: hashedPassword,
         role: roleEnum,
@@ -145,10 +140,78 @@ export class UserServiceService {
         createdAt: new Date(),
         updatedAt: new Date(),
         passwordStatus: user_passwordStatus.DEFAULT,
-        merchantCode,
+        merchantCode: merchantCode,
         businessName: data.businessName,
+        merchantType: data.merchantType as user_merchantType || null,
+        businessCategory: data.businessCategory || null,
+        businessAddress: data.businessAddress || null,
+        countryCode: data.countryCode || 'CD',
       },
     });
+
+    // 6. Création des wallets basée sur le countryCode
+    let walletsCreated = 0;
+    let currenciesToCreate: string[] = [];
+
+    if (data.countryCode) {
+      try {
+        const networks = await this.prisma.network_provider.findMany({
+          where: {
+            country_provider: {
+              countryCode: data.countryCode
+            }
+          }
+        });
+        const currenciesSet = new Set<string>();
+        for (const network of networks) {
+          if (network.currency && typeof network.currency === 'string') {
+            const currencies = network.currency.split(',').map(c => c.trim());
+            currencies.forEach(c => currenciesSet.add(c));
+          }
+        }
+        currenciesToCreate = Array.from(currenciesSet);
+        if (currenciesToCreate.length === 0) {
+          console.warn(`Aucune devise trouvée pour ${data.countryCode}, utilisation de CDF`);
+          currenciesToCreate.push('CDF');
+        }
+      } catch (err) {
+        console.error('Erreur lecture network_provider:', err);
+        currenciesToCreate.push('CDF');
+      }
+    } else {
+      console.log('Aucun countryCode fourni, création d\'un wallet par défaut en CDF');
+      currenciesToCreate.push('CDF');
+    }
+
+    for (const currency of currenciesToCreate) {
+      try {
+        const existing = await this.prisma.wallet.findFirst({
+          where: { userId: user.id, currency: currency as wallet_currency },
+        });
+        if (!existing) {
+          const randomNum = Math.floor(10000000 + Math.random() * 90000000);
+          const cashCode = `CASH${randomNum}`;
+          await this.prisma.wallet.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: user.id,
+              currency: currency as wallet_currency,
+              balance: 0,
+              isActive: true,
+              cashCode,
+            },
+          });
+          console.log(`✅ Wallet créé pour user ${user.id}, devise ${currency}`);
+          walletsCreated++;
+        } else {
+          console.log(`ℹ️ Wallet ${currency} existe déjà pour user ${user.id}`);
+        }
+      } catch (err) {
+        console.error(`❌ Échec création wallet (${currency}):`, err);
+      }
+    }
+
+    console.log(`📊 ${walletsCreated} wallet(s) créé(s) pour l’utilisateur ${user.id}`);
 
     // 7. SMS de bienvenue
     if (data.phone) {
@@ -211,7 +274,7 @@ export class UserServiceService {
       }
     }
 
-    // 9. Audit – création par admin
+    // 9. Audit
     await this.logAudit(
       user.id,
       'CREATE_USER_COTE_ADMIN',
@@ -989,6 +1052,20 @@ export class UserServiceService {
     if (merchantCode !== existingUser.merchantCode)
       updateData.merchantCode = merchantCode;
 
+    // ✅ Nouveaux champs marchands
+    if (data.merchantType !== undefined) {
+      updateData.merchantType = data.merchantType as user_merchantType || null;
+    }
+    if (data.businessCategory !== undefined) {
+      updateData.businessCategory = data.businessCategory || null;
+    }
+    if (data.businessAddress !== undefined) {
+      updateData.businessAddress = data.businessAddress || null;
+    }
+    if (data.countryCode !== undefined) {
+      updateData.countryCode = data.countryCode || 'CD';
+    }
+
     // Gestion du mot de passe
     if (data.password) {
       updateData.password = await bcrypt.hash(data.password, 10);
@@ -1012,11 +1089,10 @@ export class UserServiceService {
         data: updateData,
       });
 
-      // ✅ AJOUT : Envoyer un SMS de confirmation de mise à jour (si numéro de téléphone présent)
+      // SMS de confirmation
       const phoneToUse = data.phone || existingUser.phone;
       if (phoneToUse) {
         const cleanPhone = phoneToUse.replace(/[^0-9+]/g, '');
-        // let au lieu de const pour pouvoir modifier la variable
         let smsText = this.i18nService.translate('profile_update_sms', lang, {
           full_name: user.full_name,
           account_number: user.account_number,
@@ -1043,7 +1119,6 @@ export class UserServiceService {
         data: this.toResponse(user),
       };
     } catch (error) {
-      // Gestion des erreurs de contrainte unique
       if (error.code === 'P2002') {
         const target = error.meta?.target;
         let field = 'champ';
