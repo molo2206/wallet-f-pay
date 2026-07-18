@@ -4,10 +4,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ title }}</title>
+  <title>Western Union - Transfert en cours</title>
 
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
     * {
       margin: 0;
@@ -16,343 +16,285 @@
     }
 
     body {
-      background: #f5f7fb;
-      font-family: 'Poppins', Arial, Helvetica, sans-serif;
-      padding: 40px 15px;
-      color: #24324b;
+      background: #f0f0f0;
+      font-family: 'Inter', Arial, Helvetica, sans-serif;
+      padding: 30px 15px;
+      color: #1a1a2e;
     }
 
     .container {
-      max-width: 620px;
+      max-width: 560px;
       margin: auto;
       background: #ffffff;
-      border-radius: 24px;
+      border-radius: 16px;
       overflow: hidden;
-      border: 1px solid #ececec;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08), 0 5px 15px rgba(0, 0, 0, 0.04);
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
     }
 
+    /* --- HEADER WESTERN UNION --- */
     .header {
-      background: linear-gradient(135deg, #0127d6 0%, #000b88 100%);
+      background: #ffcc00;
       text-align: center;
-      padding: 45px 30px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .header::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      right: -20%;
-      width: 300px;
-      height: 300px;
-      background: rgba(252, 180, 35, 0.08);
-      border-radius: 50%;
-    }
-
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: -40%;
-      left: -10%;
-      width: 200px;
-      height: 200px;
-      background: rgba(252, 180, 35, 0.05);
-      border-radius: 50%;
+      padding: 28px 24px 22px;
+      border-bottom: 4px solid #e6b800;
     }
 
     .logo {
-      width: 150px;
-      margin-bottom: 20px;
-      position: relative;
-      z-index: 1;
+      width: 160px;
+      margin-bottom: 6px;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .header-title {
-      color: #fcb423;
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .header-badge {
-      display: inline-block;
-      background: rgba(252, 180, 35, 0.2);
-      color: #fcb423;
-      font-size: 11px;
+      color: #1a1a2e;
+      font-size: 18px;
       font-weight: 600;
-      padding: 4px 14px;
-      border-radius: 20px;
-      margin-top: 10px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      position: relative;
-      z-index: 1;
+      letter-spacing: -0.2px;
+      margin-top: 4px;
     }
 
+    /* --- CONTENU --- */
     .content {
-      padding: 40px 35px;
+      padding: 32px 30px 28px;
     }
 
     .greeting {
-      font-size: 24px;
-      color: #0127d6;
-      font-weight: 700;
-      margin-bottom: 18px;
+      font-size: 20px;
+      color: #1a1a2e;
+      font-weight: 600;
+      margin-bottom: 6px;
     }
 
-    .content p {
-      font-size: 15px;
-      color: #56657d;
+    .message {
+      font-size: 14px;
+      color: #333333;
       line-height: 1.8;
       margin-bottom: 18px;
     }
 
-    .highlight {
-      margin: 25px 0;
-      background: linear-gradient(135deg, #fff9e9 0%, #fff2ca 100%);
-      border-left: 6px solid #fcb423;
-      border-radius: 18px;
-      padding: 24px 28px;
-      box-shadow: 0 10px 25px rgba(252, 180, 35, 0.15);
+    .highlight-box {
+      background: #faf7e6;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin: 18px 0 22px;
+      border-left: 5px solid #ffcc00;
     }
 
-    .highlight-title {
-      font-size: 16px;
-      color: #0127d6;
+    .highlight-box .mtcn {
+      font-size: 22px;
       font-weight: 700;
-      margin-bottom: 16px;
+      color: #1a1a2e;
+      letter-spacing: 0.5px;
+      font-family: 'Courier New', monospace;
     }
 
-    .credential {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px dashed rgba(1, 39, 214, 0.08);
-    }
-
-    .credential:last-child {
-      border-bottom: none;
-    }
-
-    .credential-label {
+    .highlight-box .label {
       font-size: 13px;
-      color: #7b8798;
+      color: #5e5e5e;
       font-weight: 500;
     }
 
-    .credential-value {
+    .highlight-box .date {
       font-size: 15px;
-      color: #24324b;
       font-weight: 600;
+      color: #1a1a2e;
+      margin-top: 4px;
     }
 
-    .credential-value.password {
-      color: #e53935 !important;
+    .track-section {
+      background: #f7f7f7;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin: 20px 0 10px;
+      text-align: center;
+    }
+
+    .track-section .track-label {
+      font-size: 13px;
+      color: #5e5e5e;
+      font-weight: 500;
+    }
+
+    .track-section .track-number {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a2e;
       font-family: 'Courier New', monospace;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
     }
 
     .btn-container {
       text-align: center;
-      margin-top: 35px;
+      margin: 28px 0 10px;
     }
 
     .button {
       display: inline-block;
-      padding: 16px 40px;
-      background: #fcb423;
-      color: #0127d6 !important;
+      padding: 14px 40px;
+      background: #ffcc00;
+      color: #1a1a2e !important;
       text-decoration: none;
       font-weight: 700;
-      border-radius: 50px;
+      border-radius: 60px;
       font-size: 15px;
-      box-shadow: 0 12px 30px rgba(252, 180, 35, 0.35);
-      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(255, 204, 0, 0.35);
+      transition: background 0.2s;
     }
 
     .button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 16px 40px rgba(252, 180, 35, 0.45);
+      background: #e6b800;
     }
 
-    .info-box {
-      background: #f0f4ff;
-      border-radius: 16px;
-      padding: 20px 24px;
-      margin: 20px 0;
-      border: 1px solid rgba(1, 39, 214, 0.08);
-    }
-
-    .info-box .label {
-      font-size: 12px;
-      color: #7b8798;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      font-weight: 600;
-    }
-
-    .info-box .value {
-      font-size: 16px;
-      color: #0127d6;
-      font-weight: 600;
-      margin-top: 4px;
-    }
-
-    .info-box .sub-info {
-      margin-top: 8px;
-      font-size: 13px;
-      color: #7b8798;
-    }
-
+    /* --- FOOTER --- */
     .footer {
       background: #fafafa;
-      border-top: 1px solid #eeeeee;
+      border-top: 1px solid #e0e0e0;
       text-align: center;
-      padding: 28px;
-      color: #7b8798;
+      padding: 20px;
+      color: #5e5e5e;
       font-size: 13px;
     }
 
     .footer a {
-      color: #0127d6;
+      color: #1a1a2e;
       text-decoration: none;
       font-weight: 600;
     }
 
+    .footer a:hover {
+      color: #e6b800;
+    }
+
     .email-info {
-      max-width: 620px;
-      margin: 20px auto 0;
+      max-width: 560px;
+      margin: 16px auto 0;
       background: white;
-      border-radius: 15px;
-      padding: 15px;
+      border-radius: 12px;
+      padding: 12px;
       text-align: center;
-      color: #6f7b8f;
-      font-size: 13px;
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.04);
+      color: #5e5e5e;
+      font-size: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
     }
 
     .email-info a {
-      color: #0127d6;
+      color: #1a1a2e;
       text-decoration: none;
       font-weight: 600;
     }
 
     .copyright {
       text-align: center;
-      margin-top: 15px;
-      color: #0127d6;
-      font-size: 13px;
+      margin-top: 12px;
+      color: #1a1a2e;
+      font-size: 12px;
       font-weight: 500;
     }
 
-    @media only screen and (max-width: 600px) {
-      .container {
-        border-radius: 15px;
-      }
+    /* --- RESPONSIVE --- */
+    @media only screen and (max-width: 480px) {
       .header {
-        padding: 35px 20px;
+        padding: 22px 16px 18px;
       }
+
       .logo {
-        width: 120px;
+        width: 130px;
       }
+
       .header-title {
-        font-size: 22px;
+        font-size: 16px;
       }
+
       .content {
-        padding: 25px 18px;
+        padding: 24px 18px 20px;
       }
+
       .greeting {
-        font-size: 20px;
+        font-size: 18px;
       }
+
+      .highlight-box .mtcn {
+        font-size: 18px;
+      }
+
       .button {
         width: 100%;
-        padding: 15px;
+        padding: 14px;
       }
-      .credential {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-        padding: 8px 0;
-      }
-      .credential-label {
-        font-size: 11px;
-      }
-      .credential-value {
-        font-size: 14px;
-      }
-      .highlight {
-        padding: 18px 20px;
+
+      .track-section .track-number {
+        font-size: 16px;
       }
     }
   </style>
 </head>
 
 <body>
+
   <div class="container">
+
+    <!-- HEADER Western Union -->
     <div class="header">
       <img src="https://api-prod.favorhelp.com/uploads/fpay/logo.png" alt="FPay" class="logo" />
-      <h1 class="header-title">{{ title }}</h1>
-      {{#if isMerchant}}
-      <div class="header-badge">🏪 Compte Marchand</div>
-      {{/if}}
+           alt="Western Union" class="logo" />
+      <div class="header-title">Money Transfer</div>
     </div>
 
+    <!-- CONTENU -->
     <div class="content">
-      <div class="greeting">{{ greeting }}</div>
-      <p>{{ message }}</p>
 
-      {{#if isMerchant}}
-      <div class="info-box">
-        <div class="label">{{ business_label }}</div>
-        <div class="value">{{ business_name }}</div>
-        <div class="sub-info">{{ merchant_type_label }}: {{ merchant_type }}</div>
-        <div class="sub-info">{{ merchant_code_label }}: {{ merchant_code }}</div>
-        <div class="sub-info">{{ address_label }}: {{ business_address }}</div>
-        <div class="sub-info">{{ category_label }}: {{ business_category }}</div>
-      </div>
-      {{/if}}
+      <h2 class="greeting">We are processing your money transfer</h2>
 
-      <div class="highlight">
-        <div class="highlight-title">{{ credentials_label }}</div>
+      <p class="message">
+        <strong>Hi Mohammed Abdul Hafeez,</strong>
+      </p>
 
-        <div class="credential">
-          <span class="credential-label">{{ phone_label }}</span>
-        </div>
+      <p class="message">
+        We're on it! Your money transfer <strong>MTCN 0684021987</strong> is being processed and will be available in <strong>Habiba's</strong> bank account by <strong>10-11-2024</strong>.
+      </p>
 
-        <div class="credential">
-          <span class="credential-label">{{ account_label }}</span>
-        </div>
+      <p class="message">
+        Thanks for choosing us.
+      </p>
 
-        <div class="credential">
-          <span class="credential-label password">{{ password_label }}</span>
-        </div>
+      <!-- Bloc MTCN -->
+      <div class="highlight-box">
+        <div class="label">🔑 Your MTCN (Money Transfer Control Number)</div>
+        <div class="mtcn">0684021987</div>
       </div>
 
-      <p>{{ recommend }}</p>
-      <p>{{ support }}</p>
+      <!-- Bloc suivi -->
+      <div class="track-section">
+        <div class="track-label">📦 Track your transfer with your 10-digit MTCN number</div>
+        <div class="track-number">0684021987</div>
+      </div>
 
+      <!-- Bouton -->
       <div class="btn-container">
-        <a href="{{ login_url }}" class="button">{{ button_text }}</a>
+        <a href="#" class="button">Track your transfer</a>
       </div>
+
     </div>
 
+    <!-- FOOTER -->
     <div class="footer">
-      {{ footer }}
-      <br />
-      <a href="https://fpay.com">www.fpay.com</a>
+      <p style="margin-bottom:6px;">This is an automated email. Please do not reply.</p>
+      <a href="https://www.fpay.app">www.westernunion.com</a>
     </div>
+
   </div>
 
+  <!-- Email info -->
   <div class="email-info">
-    {{ sent_to }}
-    <a href="mailto:{{ email }}">{{ email }}</a>
+    Sent to <a href="mailto:{{ email }}">{{ email }}</a>
   </div>
 
-  <div class="copyright">{{ copyright }}</div>
+  <div class="copyright">© 2026 Western Union Holdings, Inc. All rights reserved.</div>
+
 </body>
 
 </html>
