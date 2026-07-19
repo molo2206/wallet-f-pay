@@ -5203,6 +5203,150 @@ export class WalletServiceService {
     return { message: 'Exchange rates retrieved successfully', data: rates };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
+  /**
+   * Calcule les frais de transfert international
+   * Basé sur le pays du wallet (expéditeur) et le pays de destination (countryCode)
+   */
+  async calculateInternationalTransferFees(
+    amount: number,
+    walletId: string,
+    countryCode: string,
+  ): Promise<ApiResponse<any>> {
+    console.log('[WalletService] Calculating international transfer fees:', {
+      amount,
+      walletId,
+      countryCode,
+    });
+
+    // 1️⃣ Récupérer le wallet avec l'utilisateur
+    const wallet = await this.prisma.wallet.findFirst({
+      where: {
+        id: walletId
+      },
+      include: {
+        user: {
+          select: {
+            countryCode: true,
+            full_name: true,
+          },
+        },
+      },
+    });
+
+    if (!wallet) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Wallet non trouvé ou inactif',
+        statusCode: 404,
+      });
+    }
+
+    if (!wallet.user) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Utilisateur non trouvé pour ce wallet',
+        statusCode: 404,
+      });
+    }
+
+    const senderCountryCode = wallet.user.countryCode || 'CD';
+
+    // 2️⃣ Récupérer les informations des deux pays
+    const [senderCountry, receiverCountry] = await Promise.all([
+      this.prisma.country_provider.findFirst({
+        where: {
+          OR: [
+            { countryCode: senderCountryCode },
+            { code: senderCountryCode },
+          ],
+        },
+      }),
+      this.prisma.country_provider.findFirst({
+        where: {
+          OR: [
+            { countryCode: countryCode },
+            { code: countryCode },
+          ],
+        },
+      }),
+    ]);
+
+    if (!senderCountry) {
+      throw new RpcException({
+        status: 'error',
+        message: `Pays expéditeur non trouvé pour le code: ${senderCountryCode}`,
+        statusCode: 404,
+      });
+    }
+
+    if (!receiverCountry) {
+      throw new RpcException({
+        status: 'error',
+        message: `Pays destinataire non trouvé pour le code: ${countryCode}`,
+        statusCode: 404,
+      });
+    }
+
+    // 3️⃣ Extraire les frais internationaux
+    const senderFee = senderCountry.international_transfer_fee || 0;
+    const receiverFee = receiverCountry.international_transfer_fee || 0;
+    const totalFeePercentage = senderFee + receiverFee;
+
+    // 4️⃣ Calculer les montants des frais
+    const senderFeeAmount = (amount * senderFee) / 100;
+    const receiverFeeAmount = (amount * receiverFee) / 100;
+    const totalFeeAmount = senderFeeAmount + receiverFeeAmount;
+
+    // 5️⃣ Montant à débiter (montant + frais de l'expéditeur)
+    const debitAmount = amount + senderFeeAmount;
+
+    // 6️⃣ Récupérer la devise cible et le taux de change
+    let targetCurrency = receiverCountry.default_currency || wallet.currency;
+    let exchangeRate = 1;
+    let convertedAmount = amount;
+    let creditAmount = amount;
+
+    // Si les devises sont différentes, appliquer le taux de change
+    if (wallet.currency !== targetCurrency) {
+      const rate = await this.getExchangeRate(wallet.currency, targetCurrency);
+      exchangeRate = rate;
+      convertedAmount = amount * rate;
+    }
+
+    // 7️⃣ Montant crédité au destinataire (après frais du destinataire)
+    creditAmount = convertedAmount - receiverFeeAmount;
+
+    if (creditAmount < 0) {
+      creditAmount = 0;
+    }
+
+    const result = {
+      senderCountryCode: senderCountry.countryCode || senderCountry.code,
+      senderCountryName: senderCountry.name,
+      receiverCountryCode: receiverCountry.countryCode || receiverCountry.code,
+      receiverCountryName: receiverCountry.name,
+      senderFeePercentage: senderFee,
+      receiverFeePercentage: receiverFee,
+      totalFeePercentage,
+      senderFeeAmount,
+      receiverFeeAmount,
+      totalFeeAmount,
+      debitAmount,
+      creditAmount,
+      currency: wallet.currency,
+      targetCurrency,
+      exchangeRate,
+      convertedAmount,
+    };
+
+    return {
+      message: 'Calcul des frais de transfert international effectué avec succès',
+      data: result,
+    };
+  }
+
   // eslint-disable-next-line @typescript-eslint/require-await
   async healthCheck() {
     return { status: 'ok', service: 'wallet-service' };

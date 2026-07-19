@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { ApiResponse } from './interfaces/api-response.interface';
 import { SmsService } from 'apps/auth-service/src/sms/sms.service';
-import { user_merchantType, user_passwordStatus, user_role, user_status, wallet_currency } from '@prisma/client';
+import { user_merchantType, user_passwordStatus, user_role, user_status, wallet_currency, branch_status } from '@prisma/client';
 import { MailService } from 'apps/auth-service/src/email/email.service';
 import { CreateUserFromAccountDto } from './dto/create-user-from-account.dto';
 import { I18nService } from '../../../libs/common/src/i18n/i18n.service';
@@ -2008,6 +2008,20 @@ export class UserServiceService {
         statusCode: 404,
       });
 
+    // ✅ Vérifier que la branche existe si fournie
+    if (data.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: data.branchId },
+      });
+      if (!branch) {
+        throw new RpcException({
+          status: 'error',
+          message: `Branch with id ${data.branchId} not found`,
+          statusCode: 404,
+        });
+      }
+    }
+
     // 1️⃣ Supprimer TOUTES les assignations existantes de l'utilisateur
     await this.prisma.user_has_resources.deleteMany({
       where: { userId: data.userId },
@@ -2030,6 +2044,7 @@ export class UserServiceService {
         data: {
           userId: data.userId,
           resourceId: item.resourceId,
+          branchId: data.branchId || null, // ✅ Utiliser le branchId du DTO
           canCreate: item.canCreate ?? false,
           canRead: item.canRead ?? false,
           canUpdate: item.canUpdate ?? false,
@@ -2043,14 +2058,30 @@ export class UserServiceService {
 
     return { message: 'Resource assignments processed successfully' };
   }
+
   async getUserResources(userId: string) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const userResources = await this.prisma.user_has_resources.findMany({
       where: { userId },
-      include: { resources: true },
+      include: {
+        resources: true,
+        branch: {
+          include: {
+            country_provider: true,
+          },
+        },
+      },
     });
+
     const data = userResources.map((ur) => ({
       resource: ur.resources,
+      branch: ur.branch ? {
+        id: ur.branch.id,
+        name: ur.branch.name,
+        code: ur.branch.code,
+        address: ur.branch.address,
+        country: ur.branch.country_provider?.name || null,
+        countryCode: ur.branch.country_provider?.countryCode || null,
+      } : null,
       canCreate: ur.canCreate,
       canRead: ur.canRead,
       canUpdate: ur.canUpdate,
@@ -2060,6 +2091,7 @@ export class UserServiceService {
       grantedBy: ur.grantedBy,
       expiresAt: ur.expiresAt,
     }));
+
     return {
       message: 'User resources retrieved successfully',
       data,
@@ -2973,5 +3005,233 @@ export class UserServiceService {
     });
 
     return { apiKey };
+  }
+
+
+  // ========================= BRANCH MANAGEMENT =========================
+
+  async createBranch(data: {
+    name: string;
+    code: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    countryId: string;
+    status?: string;
+  }) {
+    // Vérifier que le pays existe
+    const country = await this.prisma.country_provider.findUnique({
+      where: { id: data.countryId },
+    });
+    if (!country) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Country not found',
+        statusCode: 404,
+      });
+    }
+
+    // Vérifier que le code est unique
+    const existing = await this.prisma.branch.findUnique({
+      where: { code: data.code },
+    });
+    if (existing) {
+      throw new RpcException({
+        status: 'error',
+        message: `Branch with code ${data.code} already exists`,
+        statusCode: 409,
+      });
+    }
+
+    // Dans la méthode createBranch
+    const branch = await this.prisma.branch.create({
+      data: {
+        id: crypto.randomUUID(),
+        name: data.name,
+        code: data.code,
+        address: data.address || null,
+        phone: data.phone || null,
+        email: data.email || null,
+        countryId: data.countryId,
+        status: (data.status || 'ACTIVE') as branch_status, // ✅ Cast vers le type enum
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      include: {
+        country_provider: true,
+      },
+    });
+
+    return {
+      message: 'Branch created successfully',
+      data: branch,
+    };
+  }
+
+  // Dans la méthode updateBranch
+  async updateBranch(id: string, data: {
+    name?: string;
+    code?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    countryId?: string;
+    status?: string;
+  }) {
+    const branch = await this.prisma.branch.findUnique({ where: { id } });
+    if (!branch) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Branch not found',
+        statusCode: 404,
+      });
+    }
+
+    // Si changement de pays, vérifier qu'il existe
+    if (data.countryId) {
+      const country = await this.prisma.country_provider.findUnique({
+        where: { id: data.countryId },
+      });
+      if (!country) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Country not found',
+          statusCode: 404,
+        });
+      }
+    }
+
+    // Si changement de code, vérifier l'unicité
+    if (data.code && data.code !== branch.code) {
+      const existing = await this.prisma.branch.findUnique({
+        where: { code: data.code },
+      });
+      if (existing) {
+        throw new RpcException({
+          status: 'error',
+          message: `Branch with code ${data.code} already exists`,
+          statusCode: 409,
+        });
+      }
+    }
+
+    // ✅ Construire l'objet data explicitement avec les bons types
+    const updateData: any = {
+      updatedAt: new Date(),
+    };
+
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.code !== undefined) updateData.code = data.code;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.countryId !== undefined) updateData.countryId = data.countryId;
+    if (data.status !== undefined) updateData.status = data.status as branch_status;
+
+    const updated = await this.prisma.branch.update({
+      where: { id },
+      data: updateData,
+      include: {
+        country_provider: true,
+      },
+    });
+
+    return {
+      message: 'Branch updated successfully',
+      data: updated,
+    };
+  }
+
+  async getBranch(id: string) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id },
+      include: {
+        country_provider: true,
+        user_has_resources: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                email: true,
+              },
+            },
+            resources: true,
+          },
+        },
+      },
+    });
+
+    if (!branch) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Branch not found',
+        statusCode: 404,
+      });
+    }
+
+    return {
+      message: 'Branch retrieved successfully',
+      data: branch,
+    };
+  }
+
+  async getAllBranches(params: {
+    page?: number;
+    limit?: number;
+    countryId?: string;
+    status?: string;
+  }) {
+    const { page = 1, limit = 10, countryId, status } = params;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (countryId) where.countryId = countryId;
+    if (status) where.status = status;
+
+    const [branches, total] = await Promise.all([
+      this.prisma.branch.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          country_provider: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.branch.count({ where }),
+    ]);
+
+    return {
+      message: 'Branches retrieved successfully',
+      data: {
+        data: branches,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getBranchesByCountry(countryCode: string) {
+    const branches = await this.prisma.branch.findMany({
+      where: {
+        country_provider: {
+          countryCode: countryCode,
+        },
+        status: 'ACTIVE',
+      },
+      include: {
+        country_provider: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return {
+      message: 'Branches retrieved successfully',
+      data: branches,
+    };
   }
 }

@@ -22,7 +22,7 @@ model transaction {
   movement           transaction_movement
   external_reference String?                    @db.Text
   paymentMethod      transaction_paymentMethod? @default(INTERNAL)
-  user               user                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Transaction_userId_fkey")
+  user               user                       @relation(fields: [userId], references: [id], map: "Transaction_userId_fkey")
   wallet             wallet                     @relation(fields: [walletId], references: [id], onDelete: Cascade, map: "Transaction_walletId_fkey")
 
   @@index([userId], map: "Transaction_userId_fkey")
@@ -291,11 +291,14 @@ model user_has_resources {
   canUpdate  Boolean   @default(false)
   canDelete  Boolean   @default(false)
   canManage  Boolean   @default(false)
+  branchId   String?   @db.VarChar(36)
+  branch     branch?   @relation(fields: [branchId], references: [id], onUpdate: Restrict)
   resources  resources @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   user       user      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([resourceId], map: "user_has_resources_resourceId_fkey")
   @@index([userId], map: "user_has_resources_userId_fkey")
+  @@index([branchId], map: "user_has_resources_branchId_fkey")
 }
 
 model app_settings {
@@ -344,18 +347,26 @@ model login_attempt {
 }
 
 model country_provider {
-  id               String                   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  code             String                   @db.VarChar(10)
-  countryCode      String?                  @db.VarChar(100)
-  name             String                   @db.VarChar(100)
-  flag             String?                  @db.Text
-  prefix           String?                  @db.VarChar(10)
-  default_currency String?                  @db.VarChar(255)
-  createdAt        DateTime                 @default(now()) @db.DateTime(0)
-  updatedAt        DateTime                 @default(now()) @db.DateTime(0)
-  status           country_provider_status? @default(ACTIVE)
-  country_currency country_currency[]
-  network_provider network_provider[]
+  id                           String                   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  code                         String                   @db.VarChar(10)
+  countryCode                  String?                  @db.VarChar(100)
+  name                         String                   @db.VarChar(100)
+  flag                         String?                  @db.Text
+  prefix                       String?                  @db.VarChar(10)
+  default_currency             String?                  @db.VarChar(255)
+  createdAt                    DateTime                 @default(now()) @db.DateTime(0)
+  updatedAt                    DateTime                 @default(now()) @db.DateTime(0)
+  status                       country_provider_status? @default(ACTIVE)
+  transfer_percentage          Float?                   @default(0) @db.Float
+  international_transfer_fee   Float?                   @default(0) @db.Float
+  international_deposit_fee    Float?                   @default(0) @db.Float
+  international_withdrawal_fee Float?                   @default(0) @db.Float
+  maintenance_fee              Float?                   @default(0) @db.Float
+  deposit_fee                  Float?                   @default(0) @db.Float
+  withdrawal_fee               Float?                   @default(0) @db.Float
+  branch                       branch[]
+  country_currency             country_currency[]
+  network_provider             network_provider[]
 }
 
 model network_provider {
@@ -394,7 +405,7 @@ model api_key {
   updatedAt   DateTime  @default(now()) @db.DateTime(0)
   lastUsedAt  DateTime? @db.DateTime(0)
   expiresAt   DateTime? @db.DateTime(0)
-  user        user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_api_key_user")
+  user        user      @relation(fields: [userId], references: [id], map: "fk_api_key_user")
 
   @@index([userId], map: "fk_api_key_user")
 }
@@ -415,7 +426,7 @@ model kyc_submission {
   rejectionReason String?               @db.Text
   submittedAt     DateTime?             @db.DateTime(0)
   profileImage    String?               @db.VarChar(500)
-  user            user                  @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_kyc_user")
+  user            user                  @relation(fields: [userId], references: [id], map: "fk_kyc_user")
 
   @@index([userId], map: "fk_kyc_user")
   @@index([documentNumber], map: "idx_kyc_document_number")
@@ -439,7 +450,7 @@ model operation {
   created_at         DateTime                   @default(now()) @db.DateTime(0)
   updated_at         DateTime                   @default(now()) @db.DateTime(0)
   user_id            String                     @db.VarChar(36)
-  user               user                       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_operation_user")
+  user               user                       @relation(fields: [user_id], references: [id], map: "fk_operation_user")
 
   @@index([user_id], map: "fk_operation_user")
 }
@@ -483,6 +494,23 @@ model currency {
   created_at       DateTime?          @default(now()) @db.DateTime(0)
   updated_at       DateTime?          @default(now()) @db.DateTime(0)
   country_currency country_currency[]
+}
+
+model branch {
+  id                 String               @id @db.VarChar(36)
+  name               String               @db.VarChar(255)
+  code               String               @unique(map: "code") @db.VarChar(50)
+  address            String?              @db.Text
+  phone              String?              @db.VarChar(50)
+  email              String?              @db.VarChar(255)
+  countryId          String               @db.VarChar(36)
+  status             branch_status?       @default(ACTIVE)
+  createdAt          DateTime             @default(now()) @db.DateTime(0)
+  updatedAt          DateTime             @default(now()) @db.DateTime(0)
+  country_provider   country_provider     @relation(fields: [countryId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_branch_country")
+  user_has_resources user_has_resources[]
+
+  @@index([countryId], map: "fk_branch_country")
 }
 
 enum wallet_currency {
@@ -650,6 +678,12 @@ enum user_merchantType {
 }
 
 enum country_provider_status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum branch_status {
   ACTIVE
   INACTIVE
   SUSPENDED

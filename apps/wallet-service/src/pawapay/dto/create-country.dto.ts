@@ -5,10 +5,17 @@ export class CreateCountryDto {
   flag?: string;
   prefix?: string;
   default_currency?: string;
+  transfer_percentage?: number;        // ✅ AJOUTÉ
+  international_transfer_fee?: number; // ✅ AJOUTÉ
+  international_deposit_fee?: number;  // ✅ AJOUTÉ
+  international_withdrawal_fee?: number; // ✅ AJOUTÉ
+  maintenance_fee?: number;            // ✅ AJOUTÉ
+  deposit_fee?: number;                // ✅ AJOUTÉ
+  withdrawal_fee?: number;             // ✅ AJOUTÉ
   currencies?: {
     currency_code: string;
-    currency_name?: string;  // ✅ AJOUTER - nom de la devise
-    currency_symbol?: string; // ✅ AJOUTER - symbole de la devise
+    currency_name?: string;
+    currency_symbol?: string;
     is_default?: boolean;
     min_transaction_amount?: number;
     max_transaction_amount?: number;
@@ -17,7 +24,7 @@ export class CreateCountryDto {
   }[];
 }
 
-// apps/wallet-service/src/pawapay/dto/update-country.dto.ts
+// update-country.dto.ts
 export class UpdateCountryDto {
   name?: string;
   code?: string;
@@ -25,10 +32,17 @@ export class UpdateCountryDto {
   flag?: string;
   prefix?: string;
   default_currency?: string;
+  transfer_percentage?: number;        // ✅ AJOUTÉ
+  international_transfer_fee?: number; // ✅ AJOUTÉ
+  international_deposit_fee?: number;  // ✅ AJOUTÉ
+  international_withdrawal_fee?: number; // ✅ AJOUTÉ
+  maintenance_fee?: number;            // ✅ AJOUTÉ
+  deposit_fee?: number;                // ✅ AJOUTÉ
+  withdrawal_fee?: number;             // ✅ AJOUTÉ
   currencies?: {
     currency_code: string;
-    currency_name?: string;   // ✅ AJOUTER
-    currency_symbol?: string; // ✅ AJOUTER
+    currency_name?: string;
+    currency_symbol?: string;
     is_default?: boolean;
     min_transaction_amount?: number;
     max_transaction_amount?: number;
@@ -37,7 +51,7 @@ export class UpdateCountryDto {
   }[];
 }
 
-// apps/wallet-service/src/pawapay/dto/country-response.dto.ts
+// country-response.dto.ts
 export class CountryResponseDto {
   id: string;
   code: string;
@@ -46,7 +60,14 @@ export class CountryResponseDto {
   flag?: string;
   prefix?: string;
   default_currency?: string;
-  status?: string; 
+  status?: string;
+  transfer_percentage?: number;        // ✅ AJOUTÉ
+  international_transfer_fee?: number; // ✅ AJOUTÉ
+  international_deposit_fee?: number;  // ✅ AJOUTÉ
+  international_withdrawal_fee?: number; // ✅ AJOUTÉ
+  maintenance_fee?: number;            // ✅ AJOUTÉ
+  deposit_fee?: number;                // ✅ AJOUTÉ
+  withdrawal_fee?: number;             // ✅ AJOUTÉ
   currencies: {
     currency_code: string;
     currency_name: string;
@@ -61,4 +82,3 @@ export class CountryResponseDto {
   created_at: Date;
   updated_at: Date;
 }
-

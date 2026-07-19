@@ -18,6 +18,8 @@ import {
 import { UpdateResourceDto } from './resources/dto/update-resource.dto';
 import { CreateResourceDto } from './resources/dto/create-resource.dto';
 import { UpsertAppSettingsDto } from './dto/app-settings.dto';
+// ✅ AJOUTER LES IMPORTS DES BRANCHES
+import { CreateBranchDto, UpdateBranchDto, GetBranchesDto } from './dto/branch.dto';
 
 @Controller()
 export class UserServiceController {
@@ -29,7 +31,7 @@ export class UserServiceController {
   async createUser(@Payload() data: CreateUserDto) {
     const lang = data.lang || 'fr';
     console.log('🔍 Langue reçue par create_user :', lang);
-    data.lang = lang; // Injection pour le service
+    data.lang = lang;
     try {
       return await this.userService.createUser(data);
     } catch (error) {
@@ -74,7 +76,7 @@ export class UserServiceController {
     }
   }
 
-  @MessagePattern('update_user_status') // changer en minuscules
+  @MessagePattern('update_user_status')
   async updateUserStatus(
     @Payload()
     data: {
@@ -182,7 +184,7 @@ export class UserServiceController {
     }
   }
 
-  // ==================== REQUÊTES GET (lecture seule, traduction minimale) ====================
+  // ==================== REQUÊTES GET ====================
 
   @MessagePattern('get_user')
   async getUser(@Payload() data: { id: string; lang?: string }) {
@@ -350,7 +352,7 @@ export class UserServiceController {
     }
   }
 
-  // ==================== ASSIGNATION RESSOURCES - UTILISATEURS ====================
+  // ==================== ASSIGNATION RESSOURCES ====================
 
   @MessagePattern('assign_resource_to_user')
   async assignMultipleResourcesToUser(
@@ -435,8 +437,8 @@ export class UserServiceController {
       userId: string;
       documentType: string;
       documentNumber: string;
-      documentFrontUrl: string;  // ✅ Déjà avec "Url"
-      documentBackUrl?: string;  // ✅ Déjà avec "Url"
+      documentFrontUrl: string;
+      documentBackUrl?: string;
       profileImage?: string;
       lang?: string;
     },
@@ -575,7 +577,7 @@ export class UserServiceController {
     @Payload() data: {
       userId: string;
       file: Express.Multer.File;
-      folder: string; // ✅ Dossier obligatoire
+      folder: string;
       lang?: string;
     },
   ) {
@@ -603,6 +605,78 @@ export class UserServiceController {
   async createApiKey(@Payload() data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
     return this.userService.createApiKey(data);
   }
+
+  // ==================== BRANCH MANAGEMENT ====================
+
+  @MessagePattern('create_branch')
+  async createBranch(@Payload() data: CreateBranchDto) {
+    try {
+      return await this.userService.createBranch(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_branch')
+  async updateBranch(@Payload() data: { id: string } & UpdateBranchDto) {
+    const { id, ...updateData } = data;
+    try {
+      return await this.userService.updateBranch(id, updateData);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_branch')
+  async getBranch(@Payload() data: { id: string }) {
+    try {
+      return await this.userService.getBranch(data.id);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_all_branches')
+  async getAllBranches(@Payload() data: GetBranchesDto) {
+    try {
+      return await this.userService.getAllBranches(data);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_branches_by_country')
+  async getBranchesByCountry(@Payload() data: { countryCode: string }) {
+    try {
+      return await this.userService.getBranchesByCountry(data.countryCode);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
   //============================Api-key==========================
 
   @MessagePattern('health_check')

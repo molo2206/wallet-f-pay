@@ -525,8 +525,8 @@ export class WalletServiceController {
   }
 
   @MessagePattern('get_all_countries')
-  async getAllCountries() {
-    return this.pawapayService.getAllCountries();
+  async getAllCountries(@Payload() data: { status?: string }) {
+    return this.pawapayService.getAllCountries(data?.status);
   }
 
   @MessagePattern('create_network')
@@ -622,7 +622,34 @@ export class WalletServiceController {
     }
   }
 
-
+  // ==================== FRAIS DE TRANSFERT INTERNATIONAL ====================
+  @MessagePattern('calculate_international_fees')
+  async calculateInternationalTransferFees(
+    @Payload()
+    data: {
+      amount: number;
+      walletId: string;
+      countryCode: string;
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] calculate_international_fees received:', data);
+    try {
+      return await this.walletService.calculateInternationalTransferFees(
+        data.amount,
+        data.walletId,
+        data.countryCode,
+      );
+    } catch (error) {
+      console.error('[WalletService] calculate_international_fees error:', error);
+      const lang = data?.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
   // ==================== HEALTH CHECK ====================
 
   @MessagePattern('health_check')

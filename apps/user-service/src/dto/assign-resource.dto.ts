@@ -2,6 +2,7 @@
 export class AssignResourceDto {
   userId: string;
   resourceId: string;
+  branchId?: string; // ✅ AJOUTER
   canCreate?: boolean;
   canRead?: boolean;
   canUpdate?: boolean;
@@ -14,6 +15,7 @@ export class AssignResourceDto {
 // DTO pour un item dans l'assignation multiple
 export class AssignResourceItemDto {
   resourceId: string;
+  branchId?: string; // ✅ AJOUTER
   canCreate?: boolean;
   canRead?: boolean;
   canUpdate?: boolean;
@@ -26,5 +28,6 @@ export class AssignResourceItemDto {
 export class AssignMultipleResourcesDto {
   userId: string;
   resources: AssignResourceItemDto[];
+  branchId?: string;
   grantedBy?: string;
 }

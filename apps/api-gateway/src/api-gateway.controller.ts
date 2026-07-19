@@ -2666,6 +2666,7 @@ export class ApiGatewayController {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     if (!dto.grantedBy) dto.grantedBy = currentUser.id;
+
     return this.sendUserMessage(
       'assign_resource_to_user',
       dto,
@@ -2673,6 +2674,7 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
   }
+
 
   @Get('admin/users/:userId/resources')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
@@ -3387,6 +3389,185 @@ export class ApiGatewayController {
     );
   }
 
+  // ==================== BRANCH MANAGEMENT ENDPOINTS ====================
+
+  @Post('admin/branches')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async createBranch(
+    @CurrentUser() currentUser: any,
+    @Body() body: {
+      name: string;
+      code: string;
+      address?: string;
+      phone?: string;
+      email?: string;
+      countryId: string;
+      status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+    },
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.name) {
+      throw new HttpException('Le nom de la branche est requis', HttpStatus.BAD_REQUEST);
+    }
+    if (!body.code) {
+      throw new HttpException('Le code de la branche est requis', HttpStatus.BAD_REQUEST);
+    }
+    if (!body.countryId) {
+      throw new HttpException('L\'ID du pays est requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'create_branch',
+      body,
+      'Échec de la création de la branche',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Patch('admin/branches/:id')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async updateBranch(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+    @Body() body: {
+      name?: string;
+      code?: string;
+      address?: string;
+      phone?: string;
+      email?: string;
+      countryId?: string;
+      status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+    },
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+
+    if (!id) {
+      throw new HttpException('ID de la branche requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'update_branch',
+      { id, ...body },
+      'Échec de la mise à jour de la branche',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Get('admin/branches')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getAllBranches(
+    @CurrentUser() currentUser: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('countryId') countryId?: string,
+    @Query('status') status?: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+
+    return this.sendUserMessage(
+      'get_all_branches',
+      { page: pageNum, limit: limitNum, countryId, status },
+      'Échec de la récupération des branches',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Get('branches/:id')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getBranch(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    if (!id) {
+      throw new HttpException('ID de la branche requis', HttpStatus.BAD_REQUEST);
+    }
+
+    // Vérifier que l'utilisateur a accès à cette branche (optionnel)
+    // Si l'utilisateur n'est pas admin, vérifier s'il a des ressources sur cette branche
+
+    return this.sendUserMessage(
+      'get_branch',
+      { id },
+      'Branche non trouvée',
+      HttpStatus.NOT_FOUND,
+    );
+  }
+
+  @Get('branches/by-country/:countryCode')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getBranchesByCountry(
+    @CurrentUser() currentUser: any,
+    @Param('countryCode') countryCode: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    if (!countryCode) {
+      throw new HttpException('Code pays requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'get_branches_by_country',
+      { countryCode },
+      'Échec de la récupération des branches par pays',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  // Dans api-gateway.controller.ts
+  @Get('wallet/international-fees/pourcentage')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async calculateInternationalFees(
+    @CurrentUser() currentUser: any,
+    @Query('amount') amount: string,
+    @Query('walletId') walletId: string,
+    @Query('countryCode') countryCode: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const parsedAmount = parseFloat(amount);
+
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.amount_positive', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!walletId) {
+      throw new HttpException('walletId est requis', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!countryCode) {
+      throw new HttpException('countryCode est requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendWalletMessage(
+      'calculate_international_fees',
+      { amount: parsedAmount, walletId, countryCode, lang },
+      'Erreur lors du calcul des frais',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  }
   //=====================================================================================================================
   private handleRpcError(
     error: any,

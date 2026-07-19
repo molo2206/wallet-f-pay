@@ -343,7 +343,6 @@ export class PawapayService {
   async createCountry(dto: CreateCountryDto) {
     const { currencies, ...countryData } = dto;
 
-    // 1. Vérifier que le code du pays n'existe pas
     const existing = await this.prisma.country_provider.findFirst({
       where: { code: dto.code },
     });
@@ -355,7 +354,6 @@ export class PawapayService {
       });
     }
 
-    // 2. Créer le pays
     const country = await this.prisma.country_provider.create({
       data: {
         id: crypto.randomUUID(),
@@ -364,15 +362,21 @@ export class PawapayService {
         flag: countryData.flag || null,
         prefix: countryData.prefix || null,
         default_currency: countryData.default_currency || null,
+        transfer_percentage: countryData.transfer_percentage || 0,
+        international_transfer_fee: countryData.international_transfer_fee || 0,
+        international_deposit_fee: countryData.international_deposit_fee || 0,
+        international_withdrawal_fee: countryData.international_withdrawal_fee || 0,
+        maintenance_fee: countryData.maintenance_fee || 0,
+        deposit_fee: countryData.deposit_fee || 0,
+        withdrawal_fee: countryData.withdrawal_fee || 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     });
 
-    // 3. Si des devises sont fournies, les ajouter
+    // Création des devises
     if (currencies && currencies.length > 0) {
       for (const currency of currencies) {
-        // Vérifier si la devise existe, sinon la créer avec les infos fournies
         let currencyRecord = await this.prisma.currency.findUnique({
           where: { code: currency.currency_code },
         });
@@ -408,7 +412,6 @@ export class PawapayService {
       }
     }
 
-    // 4. Retourner le pays avec ses devises
     const result = await this.prisma.country_provider.findUnique({
       where: { id: country.id },
       include: {
@@ -419,17 +422,15 @@ export class PawapayService {
       },
     });
 
-    // ✅ Retour avec message et data
     return {
       message: 'Country created successfully',
-      data: result,
+      data: this.formatCountryResponse(result),
     };
   }
 
   async updateCountry(id: string, dto: UpdateCountryDto) {
     const { currencies, ...countryData } = dto;
 
-    // 1. Vérifier que le pays existe
     const existing = await this.prisma.country_provider.findUnique({
       where: { id },
     });
@@ -441,7 +442,6 @@ export class PawapayService {
       });
     }
 
-    // 2. Mettre à jour le pays
     const country = await this.prisma.country_provider.update({
       where: { id },
       data: {
@@ -450,13 +450,19 @@ export class PawapayService {
         flag: countryData.flag,
         prefix: countryData.prefix,
         default_currency: countryData.default_currency,
+        transfer_percentage: dto.transfer_percentage || 0,
+        international_transfer_fee: dto.international_transfer_fee || 0,
+        international_deposit_fee: dto.international_deposit_fee || 0,
+        international_withdrawal_fee: dto.international_withdrawal_fee || 0,
+        maintenance_fee: dto.maintenance_fee || 0,
+        deposit_fee: dto.deposit_fee || 0,
+        withdrawal_fee: dto.withdrawal_fee || 0,
         updatedAt: new Date(),
       },
     });
 
-    // 3. Si des devises sont fournies, les mettre à jour
+    // Mise à jour des devises
     if (currencies && currencies.length > 0) {
-      // Vérifier/créer les devises avant de les associer
       for (const currency of currencies) {
         let currencyRecord = await this.prisma.currency.findUnique({
           where: { code: currency.currency_code },
@@ -477,12 +483,10 @@ export class PawapayService {
         }
       }
 
-      // Supprimer les anciennes devises
       await this.prisma.country_currency.deleteMany({
         where: { country_id: id },
       });
 
-      // Ajouter les nouvelles devises
       for (const currency of currencies) {
         await this.prisma.country_currency.create({
           data: {
@@ -501,7 +505,6 @@ export class PawapayService {
       }
     }
 
-    // 4. Retourner le pays avec ses devises
     const result = await this.prisma.country_provider.findUnique({
       where: { id: country.id },
       include: {
@@ -512,10 +515,9 @@ export class PawapayService {
       },
     });
 
-    // ✅ Retour avec message et data
     return {
       message: 'Country updated successfully',
-      data: result,
+      data: this.formatCountryResponse(result),
     };
   }
 
@@ -598,12 +600,19 @@ export class PawapayService {
     return {
       id: country.id,
       code: country.code,
-      countryCode: country.countryCode || undefined, // Ajouté pour inclure le code du pays
+      countryCode: country.countryCode || undefined,
       name: country.name,
       flag: country.flag || undefined,
       prefix: country.prefix || undefined,
       default_currency: country.default_currency || undefined,
       status: country.status || 'ACTIVE',
+      transfer_percentage: country.transfer_percentage || 0,
+      international_transfer_fee: country.international_transfer_fee || 0,
+      international_deposit_fee: country.international_deposit_fee || 0,
+      international_withdrawal_fee: country.international_withdrawal_fee || 0,
+      maintenance_fee: country.maintenance_fee || 0,
+      deposit_fee: country.deposit_fee || 0,
+      withdrawal_fee: country.withdrawal_fee || 0,
       currencies: country.country_currency.map(cc => ({
         currency_code: cc.currency_code,
         currency_name: cc.currency.name,
