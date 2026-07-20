@@ -624,29 +624,31 @@ export class WalletServiceController {
 
   // ==================== FRAIS DE TRANSFERT INTERNATIONAL ====================
   @MessagePattern('calculate_international_fees')
-  async calculateInternationalTransferFees(
-    @Payload()
-    data: {
+  async calculateInternationalFees(
+    @Payload() data: {
       amount: number;
       walletId: string;
       countryCode: string;
-      paymentMethod: string;
+      paymentMethod?: 'CASH' | 'MOBILE_MONEY';
       lang?: string;
     },
   ) {
-    console.log('[WalletService] calculate_international_fees received:', data);
+    console.log('🔍 [Wallet Controller] Data reçu:', JSON.stringify(data)); // ✅ AJOUTER LOG
+    console.log('🔍 [Wallet Controller] paymentMethod reçu:', data.paymentMethod); // ✅ AJOUTER LOG
+
+    const lang = data.lang || 'fr';
     try {
       return await this.walletService.calculateInternationalTransferFees(
         data.amount,
         data.walletId,
         data.countryCode,
+        data.paymentMethod || 'CASH', // ✅ Passer le paymentMethod
       );
     } catch (error) {
-      console.error('[WalletService] calculate_international_fees error:', error);
-      const lang = data?.lang || 'fr';
+      console.error('[Wallet Controller] calculate_international_fees error:', error);
       throw new RpcException({
         status: 'error',
-        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        message: error instanceof Error ? error.message : 'Unknown error',
         statusCode: 400,
       });
     }
