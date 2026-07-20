@@ -5213,7 +5213,7 @@ export class WalletServiceService {
     amount: number,
     walletId: string,
     countryCode: string,
-    paymentMethod: 'CASH' | 'MOBILE_MONEY' = 'CASH', // ✅ Ajout du paramètre
+    paymentMethod: 'CASH' | 'MOBILE_MONEY' = 'CASH',
   ): Promise<ApiResponse<any>> {
     console.log('[WalletService] Calculating international transfer fees:', {
       amount,
@@ -5291,28 +5291,24 @@ export class WalletServiceService {
       });
     }
 
-    // 3️⃣ Extraire les frais selon le mode de paiement
+    // 3️⃣ ✅ Seul l'expéditeur supporte les frais, le destinataire ne paie rien
     let senderFee = 0;
-    let receiverFee = 0;
 
     if (paymentMethod === 'CASH') {
       senderFee = senderCountry.cash_percentage || 0;
-      receiverFee = receiverCountry.cash_percentage || 0;
     } else if (paymentMethod === 'MOBILE_MONEY') {
       senderFee = senderCountry.momo_percentage || 0;
-      receiverFee = receiverCountry.momo_percentage || 0;
     } else {
-      // Fallback sur les frais internationaux standard
       senderFee = senderCountry.international_transfer_fee || 0;
-      receiverFee = receiverCountry.international_transfer_fee || 0;
     }
 
-    const totalFeePercentage = senderFee + receiverFee;
+    // ❌ Le destinataire ne paie pas de frais
+    const receiverFee = 0;
 
     // 4️⃣ Calculer les montants des frais
     const senderFeeAmount = (amount * senderFee) / 100;
-    const receiverFeeAmount = (amount * receiverFee) / 100;
-    const totalFeeAmount = senderFeeAmount + receiverFeeAmount;
+    const receiverFeeAmount = 0; // ✅ Le destinataire ne paie rien
+    const totalFeeAmount = senderFeeAmount;
 
     // 5️⃣ Montant à débiter (montant + frais de l'expéditeur)
     const debitAmount = amount + senderFeeAmount;
@@ -5323,31 +5319,26 @@ export class WalletServiceService {
     let convertedAmount = amount;
     let creditAmount = amount;
 
-    // Si les devises sont différentes, appliquer le taux de change
     if (wallet.currency !== targetCurrency) {
       const rate = await this.getExchangeRate(wallet.currency, targetCurrency);
       exchangeRate = rate;
       convertedAmount = amount * rate;
     }
 
-    // 7️⃣ Montant crédité au destinataire (après frais du destinataire)
-    creditAmount = convertedAmount - receiverFeeAmount;
-
-    if (creditAmount < 0) {
-      creditAmount = 0;
-    }
+    // 7️⃣ ✅ Le destinataire reçoit la totalité du montant converti (sans frais)
+    creditAmount = convertedAmount;
 
     const result = {
       senderCountryCode: senderCountry.countryCode || senderCountry.code,
       senderCountryName: senderCountry.name,
       receiverCountryCode: receiverCountry.countryCode || receiverCountry.code,
       receiverCountryName: receiverCountry.name,
-      paymentMethod, // ✅ Ajout du mode de paiement dans le résultat
+      paymentMethod,
       senderFeePercentage: senderFee,
-      receiverFeePercentage: receiverFee,
-      totalFeePercentage,
+      receiverFeePercentage: 0, // ✅ Le destinataire ne paie pas
+      totalFeePercentage: senderFee,
       senderFeeAmount,
-      receiverFeeAmount,
+      receiverFeeAmount: 0,
       totalFeeAmount,
       debitAmount,
       creditAmount,
@@ -5355,7 +5346,6 @@ export class WalletServiceService {
       targetCurrency,
       exchangeRate,
       convertedAmount,
-      // ✅ Ajout des détails des frais par pays avec les pourcentages spécifiques
       feeBreakdown: {
         sender: {
           countryCode: senderCountry.countryCode || senderCountry.code,
@@ -5369,11 +5359,11 @@ export class WalletServiceService {
         receiver: {
           countryCode: receiverCountry.countryCode || receiverCountry.code,
           countryName: receiverCountry.name,
-          cashPercentage: receiverCountry.cash_percentage || 0,
-          momoPercentage: receiverCountry.momo_percentage || 0,
-          internationalTransferFee: receiverCountry.international_transfer_fee || 0,
-          appliedFee: receiverFee,
-          feeAmount: receiverFeeAmount,
+          cashPercentage: 0, // ✅ Le destinataire ne paie pas
+          momoPercentage: 0, // ✅ Le destinataire ne paie pas
+          internationalTransferFee: 0, // ✅ Le destinataire ne paie pas
+          appliedFee: 0,
+          feeAmount: 0,
         },
       },
     };
