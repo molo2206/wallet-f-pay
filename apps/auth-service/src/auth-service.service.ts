@@ -123,9 +123,15 @@ export class AuthServiceService {
     registerLocks.set(key, true);
 
     try {
-      // Vérifier si l'utilisateur existe déjà
+      // ✅ Vérifier si l'utilisateur existe déjà avec le téléphone normalisé
       const existingUser = await this.prisma.user.findFirst({
-        where: { phone: data.phone }
+        where: {
+          OR: [
+            { phone: phone },
+            { phone: data.phone },
+            { phone: phone.replace(/^\+/, '') },
+          ]
+        },
       });
 
       if (existingUser) {
@@ -138,7 +144,6 @@ export class AuthServiceService {
       const otpProvided = data.otpCode && data.otpCode.trim() !== '';
 
       if (!otpProvided) {
-        // Désactiver les anciens OTP
         await this.prisma.otp.updateMany({
           where: {
             email: phone,
@@ -160,7 +165,6 @@ export class AuthServiceService {
           },
         });
 
-        // Envoyer l'OTP par SMS
         try {
           const smsText = this.i18nService.translate('otp_sms', lang, {
             otpCode: newOtpCode,
@@ -170,7 +174,6 @@ export class AuthServiceService {
           console.error('Erreur SMS OTP:', err);
         }
 
-        // Envoyer l'OTP par email si l'adresse est fournie
         const emailTarget = data.email;
         if (emailTarget) {
           try {
@@ -204,7 +207,6 @@ export class AuthServiceService {
         };
       }
 
-      // Vérifier l'OTP saisi
       const otpRecord = await this.prisma.otp.findFirst({
         where: {
           email: phone,
@@ -225,24 +227,16 @@ export class AuthServiceService {
         );
       }
 
-      // ✅ Utiliser le mot de passe fourni (obligatoire)
       const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-      // ✅ Vérification que le hash est bien généré
-      console.log('[AuthService] Password hash generated:', {
-        plainLength: plainPassword.length,
-        hashLength: hashedPassword.length,
-        hashStart: hashedPassword.substring(0, 20),
-      });
-
-      // Créer l'utilisateur avec profileImage
+      // ✅ Créer l'utilisateur avec le téléphone normalisé
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
           account_number: data.account_number || null,
           full_name: data.full_name,
-          phone: data.phone,
+          phone: phone, // ✅ Utiliser la version normalisée
           password: hashedPassword,
           role: 'USER',
           status: 'ACTIVE',
@@ -252,12 +246,6 @@ export class AuthServiceService {
           countryCode: data.countryCode ?? null,
           profileImage: null,
         },
-      });
-
-      // ✅ Vérifier que l'utilisateur a bien un mot de passe stocké
-      console.log('[AuthService] User created with password:', {
-        id: user.id,
-        hasPassword: !!user.password,
       });
 
       // ---------- Création directe des wallets via Prisma ----------
@@ -294,7 +282,6 @@ export class AuthServiceService {
         currenciesToCreate.push('CDF');
       }
 
-      // Création directe via Prisma
       for (const currency of currenciesToCreate) {
         try {
           const existing = await this.prisma.wallet.findFirst({
@@ -325,13 +312,11 @@ export class AuthServiceService {
 
       console.log(`📊 ${walletsCreated} wallet(s) créé(s) pour l’utilisateur ${user.id}`);
 
-      // Marquer l'OTP comme utilisé
       await this.prisma.otp.update({
         where: { id: otpRecord.id },
         data: { isUsed: true },
       });
 
-      // Journal d'audit
       await this.logAudit(
         user.id,
         'REGISTER',
@@ -339,7 +324,6 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // Enregistrer le token FCM
       if (data.fcmToken && data.fcmToken.trim()) {
         await this.prisma.device_tokens.upsert({
           where: { token: data.fcmToken },
@@ -359,7 +343,6 @@ export class AuthServiceService {
         });
       }
 
-      // SMS de bienvenue
       try {
         const welcomeSms = this.i18nService.translate('welcome_sms', lang, {
           full_name: user.full_name,
@@ -372,7 +355,6 @@ export class AuthServiceService {
         console.error('Erreur SMS bienvenue:', err);
       }
 
-      // Email de bienvenue
       if (user.email) {
         try {
           await this.mailService.sendHtmlEmail(
@@ -398,7 +380,6 @@ export class AuthServiceService {
         }
       }
 
-      // Créer une session
       const sessionToken = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
@@ -418,14 +399,12 @@ export class AuthServiceService {
       });
       const sessionId = createdSession.id;
 
-      // Générer le JWT
       const result = this.generateJwt(
         user,
         sessionToken,
         this.i18nService.translate('register_success', lang),
       );
 
-      // ✅ Récupérer les wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -439,7 +418,6 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Récupérer les sessions actives
       const sessions = await this.prisma.sessions.findMany({
         where: {
           user_id: user.id,
@@ -457,7 +435,6 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Récupérer les informations KYC
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -495,7 +472,6 @@ export class AuthServiceService {
         } : null,
       };
 
-      // ✅ RETOUR FINAL - TOUT DANS data
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -538,10 +514,22 @@ export class AuthServiceService {
     const identifier = dto.identifier;
 
     try {
-      // ✅ 1. Récupérer l'utilisateur avec tous les champs nécessaires
+      // ✅ Normaliser l'identifiant si c'est un téléphone
+      let normalizedIdentifier = identifier;
+      if (identifier && /^[0-9+\s\-\.\(\)]+$/.test(identifier)) {
+        normalizedIdentifier = this.normalizePhone(identifier);
+      }
+
+      // ✅ Récupérer l'utilisateur avec toutes les variantes possibles
       const user = await this.prisma.user.findFirst({
         where: {
-          OR: [{ phone: identifier }, { email: identifier.toLowerCase() }],
+          OR: [
+            { phone: normalizedIdentifier },
+            { phone: identifier },
+            { phone: normalizedIdentifier.replace(/^\+/, '') },
+            { email: identifier.toLowerCase() },
+            { email: identifier },
+          ],
         },
         select: {
           id: true,
@@ -585,7 +573,6 @@ export class AuthServiceService {
         });
       }
 
-      // ✅ Vérifier que l'utilisateur a un mot de passe
       if (!user.password) {
         await logFailedLoginAttempt(
           this.prisma,
@@ -601,7 +588,6 @@ export class AuthServiceService {
         });
       }
 
-      // 2. Vérifier si le compte est bloqué temporairement
       if (user.locked_until && user.locked_until > new Date()) {
         const minutesLeft = Math.ceil(
           (user.locked_until.getTime() - Date.now()) / 60000,
@@ -618,7 +604,6 @@ export class AuthServiceService {
         throw new RpcException({ status: 'error', message, statusCode: 403 });
       }
 
-      // 3. Vérifier si le compte est actif
       if (user.status !== user_status.ACTIVE) {
         await logFailedLoginAttempt(
           this.prisma,
@@ -634,7 +619,7 @@ export class AuthServiceService {
         });
       }
 
-      // 4. Vérifier le mot de passe
+      // ✅ Vérifier le mot de passe
       const isValidPassword = await bcrypt.compare(dto.password, user.password);
 
       if (!isValidPassword) {
@@ -671,7 +656,6 @@ export class AuthServiceService {
         });
       }
 
-      // 5. Succès - Réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -681,7 +665,6 @@ export class AuthServiceService {
         },
       });
 
-      // 6. Récupération des ressources (permissions)
       const userResources = await this.prisma.user_has_resources.findMany({
         where: { userId: user.id },
         include: { resources: true },
@@ -701,7 +684,6 @@ export class AuthServiceService {
         expiresAt: ur.expiresAt,
       }));
 
-      // 7. Récupération des wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -715,7 +697,6 @@ export class AuthServiceService {
         },
       });
 
-      // 8. Récupération des informations KYC de l'utilisateur
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -736,7 +717,6 @@ export class AuthServiceService {
         },
       });
 
-      // 9. Formater les informations KYC
       const kyc = {
         status: user.kycStatus,
         submission: kycSubmission ? {
@@ -754,7 +734,6 @@ export class AuthServiceService {
         } : null,
       };
 
-      // 10. Gestion deviceId
       let deviceId = dto.fcmToken;
       if (!deviceId) {
         const fingerprint = `${dto.deviceInfo || ''}|${dto.platform || ''}|${ipAddress || ''}`;
@@ -764,7 +743,6 @@ export class AuthServiceService {
           .digest('hex');
       }
 
-      // 11. Supprimer les anciennes sessions avec le même deviceId
       await this.prisma.sessions.deleteMany({
         where: {
           user_id: user.id,
@@ -773,7 +751,6 @@ export class AuthServiceService {
         },
       });
 
-      // 12. Créer une nouvelle session
       const sessionToken = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
@@ -794,7 +771,6 @@ export class AuthServiceService {
       });
       const sessionId = createdSession.id;
 
-      // 13. Enregistrer le token FCM si présent
       if (dto.fcmToken && dto.fcmToken.trim()) {
         await this.prisma.device_tokens.upsert({
           where: { token: dto.fcmToken },
@@ -814,7 +790,6 @@ export class AuthServiceService {
         });
       }
 
-      // 14. Récupérer les sessions actives
       const sessions = await this.prisma.sessions.findMany({
         where: {
           user_id: user.id,
@@ -832,14 +807,12 @@ export class AuthServiceService {
         },
       });
 
-      // 15. Générer le JWT
       const result = this.generateJwt(
         user,
         sessionToken,
         this.i18nService.translate('login_success', lang),
       );
 
-      // 16. Audit
       await this.logAuditWithDebounce(
         user.id,
         'LOGIN',
@@ -847,7 +820,6 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ 17. Retourner la réponse complète - TOUT DANS data
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
