@@ -467,27 +467,22 @@ export class UserServiceService {
       id: string;
       email: string | null;
       phone: string | null;
+      fcmToken: string | null;
       full_name: string | null;
       account_number: string | null;
-      profileImage: string | null;
       branch: string | null;
       role: string;
-      status: string;
-      deleted: boolean;
-      createdAt: Date;
-      updatedAt: Date;
-      fcmToken: string | null;
       passwordStatus: string | null;
       pinstatus: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
-      merchantType: string | null;
-      businessCategory: string | null;
-      businessAddress: string | null;
-      failed_login_attempts: number;
-      locked_until: Date | null;
+      status: string;
+      deleted: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      profileImage: string | null;
       kycStatus: string;
-      sessionId: string | null;
+      countryCode: string | null;
       sessions: any[];
       resources: any[];
       wallets: any[];
@@ -523,6 +518,7 @@ export class UserServiceService {
         failed_login_attempts: true,
         locked_until: true,
         kycStatus: true,
+        countryCode: true,
       },
     });
 
@@ -533,24 +529,6 @@ export class UserServiceService {
         statusCode: 404,
       });
     }
-
-    // ✅ Récupérer la session active de l'utilisateur
-    const activeSession = await this.prisma.sessions.findFirst({
-      where: {
-        user_id: user.id,
-        is_valid: true,
-        expires_at: { gt: new Date() },
-      },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id: true,
-        device_info: true,
-        ip_address: true,
-        last_activity: true,
-        created_at: true,
-        expires_at: true,
-      },
-    });
 
     // ✅ Récupérer toutes les sessions actives
     const sessions = await this.prisma.sessions.findMany({
@@ -605,7 +583,7 @@ export class UserServiceService {
       },
     });
 
-    // ✅ Récupération des informations KYC de l'utilisateur
+    // ✅ Récupération des informations KYC
     const kycSubmission = await this.prisma.kyc_submission.findFirst({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -626,7 +604,6 @@ export class UserServiceService {
       },
     });
 
-    // ✅ Formater les informations KYC
     const kyc = {
       status: user.kycStatus,
       submission: kycSubmission ? {
@@ -644,34 +621,29 @@ export class UserServiceService {
       } : null,
     };
 
-    // ✅ Retourner TOUT dans data (avec sessionId)
+    // ✅ Retourner les données comme login (sans sessionId dans data)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
         id: user.id,
         email: user.email,
         phone: user.phone,
+        fcmToken: user.fcmToken,
         full_name: user.full_name,
         account_number: user.account_number,
-        profileImage: user.profileImage,
         branch: user.branch,
         role: user.role,
-        status: user.status,
-        deleted: user.deleted ?? false,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        fcmToken: user.fcmToken,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
         merchantCode: user.merchantCode,
         businessName: user.businessName,
-        merchantType: user.merchantType,
-        businessCategory: user.businessCategory,
-        businessAddress: user.businessAddress,
-        failed_login_attempts: user.failed_login_attempts,
-        locked_until: user.locked_until,
-        kycStatus: user.kycStatus,
-        sessionId: activeSession?.id || null,
+        status: user.status,
+        deleted: user.deleted ?? false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        profileImage: user.profileImage,
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+        countryCode: user.countryCode || 'CD',
         sessions: sessions,
         resources: resources,
         wallets: wallets,
@@ -689,26 +661,22 @@ export class UserServiceService {
       id: string;
       email: string | null;
       phone: string | null;
+      fcmToken: string | null;
       full_name: string | null;
       account_number: string | null;
-      profileImage: string | null;
       branch: string | null;
       role: string;
-      status: string;
-      deleted: boolean;
-      createdAt: Date;
-      updatedAt: Date;
-      fcmToken: string | null;
       passwordStatus: string | null;
       pinstatus: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
-      merchantType: string | null;
-      businessCategory: string | null;
-      businessAddress: string | null;
-      failed_login_attempts: number;
-      locked_until: Date | null;
+      status: string;
+      deleted: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      profileImage: string | null;
       kycStatus: string;
+      countryCode: string | null;
       wallets: any[];
       kyc: any;
     };
@@ -717,7 +685,6 @@ export class UserServiceService {
       `[getUserByEmail] Langue utilisée : ${lang} pour l'email ${email}`,
     );
 
-    // ✅ Récupérer l'utilisateur avec tous les champs
     const user = await this.prisma.user.findFirst({
       where: { email: email.toLowerCase() },
       select: {
@@ -744,6 +711,7 @@ export class UserServiceService {
         failed_login_attempts: true,
         locked_until: true,
         kycStatus: true,
+        countryCode: true,
       },
     });
 
@@ -755,7 +723,6 @@ export class UserServiceService {
       });
     }
 
-    // Récupération des wallets de l'utilisateur
     const wallets = await this.prisma.wallet.findMany({
       where: { userId: user.id, isActive: true },
       orderBy: { createdAt: 'asc' },
@@ -769,7 +736,6 @@ export class UserServiceService {
       },
     });
 
-    // ✅ Récupération des informations KYC de l'utilisateur
     const kycSubmission = await this.prisma.kyc_submission.findFirst({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -790,7 +756,6 @@ export class UserServiceService {
       },
     });
 
-    // ✅ Formater les informations KYC
     const kyc = {
       status: user.kycStatus,
       submission: kycSubmission ? {
@@ -808,33 +773,28 @@ export class UserServiceService {
       } : null,
     };
 
-    // ✅ Retourner les données (sans sessions ni resources)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
         id: user.id,
         email: user.email,
         phone: user.phone,
+        fcmToken: user.fcmToken,
         full_name: user.full_name,
         account_number: user.account_number,
-        profileImage: user.profileImage,
         branch: user.branch,
         role: user.role,
-        status: user.status,
-        deleted: user.deleted ?? false,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        fcmToken: user.fcmToken,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
         merchantCode: user.merchantCode,
         businessName: user.businessName,
-        merchantType: user.merchantType,
-        businessCategory: user.businessCategory,
-        businessAddress: user.businessAddress,
-        failed_login_attempts: user.failed_login_attempts,
-        locked_until: user.locked_until,
-        kycStatus: user.kycStatus,
+        status: user.status,
+        deleted: user.deleted ?? false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        profileImage: user.profileImage,
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+        countryCode: user.countryCode || 'CD',
         wallets: wallets,
         kyc: kyc,
       },
@@ -850,26 +810,22 @@ export class UserServiceService {
       id: string;
       email: string | null;
       phone: string | null;
+      fcmToken: string | null;
       full_name: string | null;
       account_number: string | null;
-      profileImage: string | null;
       branch: string | null;
       role: string;
-      status: string;
-      deleted: boolean;
-      createdAt: Date;
-      updatedAt: Date;
-      fcmToken: string | null;
       passwordStatus: string | null;
       pinstatus: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
-      merchantType: string | null;
-      businessCategory: string | null;
-      businessAddress: string | null;
-      failed_login_attempts: number;
-      locked_until: Date | null;
+      status: string;
+      deleted: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+      profileImage: string | null;
       kycStatus: string;
+      countryCode: string | null;
       wallets: any[];
       kyc: any;
     };
@@ -878,7 +834,6 @@ export class UserServiceService {
       `[getUserByPhone] Langue utilisée : ${lang} pour le téléphone ${phone}`,
     );
 
-    // ✅ Récupérer l'utilisateur avec tous les champs
     const user = await this.prisma.user.findFirst({
       where: { phone },
       select: {
@@ -905,6 +860,7 @@ export class UserServiceService {
         failed_login_attempts: true,
         locked_until: true,
         kycStatus: true,
+        countryCode: true,
       },
     });
 
@@ -916,7 +872,6 @@ export class UserServiceService {
       });
     }
 
-    // Récupération des wallets de l'utilisateur
     const wallets = await this.prisma.wallet.findMany({
       where: { userId: user.id, isActive: true },
       orderBy: { createdAt: 'asc' },
@@ -930,7 +885,6 @@ export class UserServiceService {
       },
     });
 
-    // ✅ Récupération des informations KYC de l'utilisateur
     const kycSubmission = await this.prisma.kyc_submission.findFirst({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -951,7 +905,6 @@ export class UserServiceService {
       },
     });
 
-    // ✅ Formater les informations KYC
     const kyc = {
       status: user.kycStatus,
       submission: kycSubmission ? {
@@ -969,33 +922,28 @@ export class UserServiceService {
       } : null,
     };
 
-    // ✅ Retourner les données (sans sessions ni resources)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
         id: user.id,
         email: user.email,
         phone: user.phone,
+        fcmToken: user.fcmToken,
         full_name: user.full_name,
         account_number: user.account_number,
-        profileImage: user.profileImage,
         branch: user.branch,
         role: user.role,
-        status: user.status,
-        deleted: user.deleted ?? false,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        fcmToken: user.fcmToken,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
         merchantCode: user.merchantCode,
         businessName: user.businessName,
-        merchantType: user.merchantType,
-        businessCategory: user.businessCategory,
-        businessAddress: user.businessAddress,
-        failed_login_attempts: user.failed_login_attempts,
-        locked_until: user.locked_until,
-        kycStatus: user.kycStatus,
+        status: user.status,
+        deleted: user.deleted ?? false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        profileImage: user.profileImage,
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+        countryCode: user.countryCode || 'CD',
         wallets: wallets,
         kyc: kyc,
       },
