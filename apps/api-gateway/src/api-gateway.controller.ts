@@ -2912,34 +2912,31 @@ export class ApiGatewayController {
   }
 
   @Get('pawapay/networks/filter/by-country')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getMyNetworksByWallet(
     @CurrentUser() currentUser: any,
-    @Query('countryCode') countryCodeParam?: string,
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
 
-    // 🔍 Si un countryCode est fourni en paramètre, l'utiliser directement
-    let finalCountryCode = 'CD'; // Default
+    let finalCountryCode: string | null = null;
 
-    if (countryCodeParam) {
-      finalCountryCode = countryCodeParam.toUpperCase();
-      console.log('[API Gateway] CountryCode from query param:', finalCountryCode);
+    // 1️⃣ Essayer depuis currentUser
+    if (currentUser?.countryCode) {
+      finalCountryCode = currentUser.countryCode.toUpperCase();
+      console.log('[API Gateway] CountryCode from currentUser:', finalCountryCode);
     } else {
-      // Sinon, récupérer le pays depuis le wallet de l'utilisateur
+      // 2️⃣ Fallback: essayer depuis le wallet
       try {
-        // 1. Récupérer le wallet de l'utilisateur
         const wallet = await this.prisma.wallet.findFirst({
           where: {
             userId: currentUser.id,
             isActive: true,
-            isDefault: true,
           },
           select: { currency: true },
         });
 
         if (wallet) {
-          // 2. Trouver le pays correspondant à la devise
           const country = await this.prisma.country_provider.findFirst({
             where: {
               OR: [
@@ -2955,13 +2952,21 @@ export class ApiGatewayController {
           });
 
           if (country) {
-            finalCountryCode = country.countryCode || country.code || 'CD';
+            finalCountryCode = country.countryCode || country.code;
             console.log('[API Gateway] Country from wallet currency:', finalCountryCode);
           }
         }
       } catch (error) {
         console.error('[API Gateway] Error fetching country from wallet:', error);
       }
+    }
+
+    // ✅ Vérifier si on a trouvé un countryCode
+    if (!finalCountryCode) {
+      throw new HttpException(
+        'Country code not found for this user. Please update your profile or contact support.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     console.log('[API Gateway] getMyNetworksByWallet - finalCountryCode:', finalCountryCode);
@@ -2973,7 +2978,6 @@ export class ApiGatewayController {
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
-
   //============================== Endpoint admin pour générer des clés API ================================================
   @Post('admin/api-keys')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)

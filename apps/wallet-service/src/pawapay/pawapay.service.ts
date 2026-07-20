@@ -812,19 +812,7 @@ export class PawapayService {
 
     console.log('[PawaPay] Networks found:', networks.length);
 
-    // 🗺️ Formater les devises du pays
-    const currencies = country.country_currency?.map(cc => ({
-      code: cc.currency_code,
-      name: cc.currency?.name || cc.currency_code,
-      symbol: cc.currency?.symbol || cc.currency_code,
-      is_default: cc.is_default || false,
-      min_transaction_amount: cc.min_transaction_amount,
-      max_transaction_amount: cc.max_transaction_amount,
-      daily_limit: cc.daily_limit,
-      monthly_limit: cc.monthly_limit,
-    })) || [];
-
-    // 🗺️ Formater les networks
+    // 🗺️ Formater les networks directement
     const formattedNetworks = networks.map(network => ({
       id: network.id,
       name: network.name,
@@ -832,30 +820,20 @@ export class PawapayService {
       currencies: network.currency ? network.currency.split(',') : [],
       pourcentage_deposit: network.pourcentage_deposit || 0,
       pourcentage_payout: network.pourcentage_payout || 0,
+      pourcentage_deposit_intern: network.pourcentage_deposit_intern || 0,
+      pourcentage_payout_intern: network.pourcentage_payout_intern || 0,
       image: network.image,
       countryId: network.countryId,
       createdAt: network.createdAt,
       updatedAt: network.updatedAt,
     }));
 
-    // 📦 Retourner la réponse
+    // 📦 Retourner directement les networks dans data
     return {
       message: networks.length > 0
         ? 'Network providers retrieved successfully'
         : 'No network providers found for this country',
-      data: {
-        country: {
-          id: country.id,
-          code: country.code,
-          countryCode: country.countryCode,
-          name: country.name,
-          flag: country.flag,
-          prefix: country.prefix,
-          default_currency: country.default_currency,
-          currencies: currencies,
-        },
-        networks: formattedNetworks,
-      },
+      data: formattedNetworks,
     };
   }
 
