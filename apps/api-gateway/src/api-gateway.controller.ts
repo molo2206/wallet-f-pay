@@ -3541,6 +3541,7 @@ export class ApiGatewayController {
     @Query('amount') amount: string,
     @Query('walletId') walletId: string,
     @Query('countryCode') countryCode: string,
+    @Query('paymentMethod') paymentMethod?: 'CASH' | 'MOBILE_MONEY',
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
@@ -3561,9 +3562,25 @@ export class ApiGatewayController {
       throw new HttpException('countryCode est requis', HttpStatus.BAD_REQUEST);
     }
 
+    // ✅ Valider le paymentMethod
+    const validMethods = ['CASH', 'MOBILE_MONEY'];
+    const method = paymentMethod || 'CASH';
+    if (!validMethods.includes(method)) {
+      throw new HttpException(
+        'paymentMethod doit être CASH ou MOBILE_MONEY',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     return this.sendWalletMessage(
       'calculate_international_fees',
-      { amount: parsedAmount, walletId, countryCode, lang },
+      {
+        amount: parsedAmount,
+        walletId,
+        countryCode,
+        paymentMethod: method,
+        lang
+      },
       'Erreur lors du calcul des frais',
       HttpStatus.INTERNAL_SERVER_ERROR,
     );

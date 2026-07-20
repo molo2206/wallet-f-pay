@@ -630,6 +630,7 @@ export class WalletServiceController {
       amount: number;
       walletId: string;
       countryCode: string;
+      paymentMethod: string;
       lang?: string;
     },
   ) {

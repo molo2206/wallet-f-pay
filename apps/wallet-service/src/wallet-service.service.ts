@@ -5213,11 +5213,13 @@ export class WalletServiceService {
     amount: number,
     walletId: string,
     countryCode: string,
+    paymentMethod: 'CASH' | 'MOBILE_MONEY' = 'CASH', // ✅ Ajout du paramètre paymentMethod
   ): Promise<ApiResponse<any>> {
     console.log('[WalletService] Calculating international transfer fees:', {
       amount,
       walletId,
       countryCode,
+      paymentMethod,
     });
 
     // 1️⃣ Récupérer le wallet avec l'utilisateur
@@ -5289,9 +5291,22 @@ export class WalletServiceService {
       });
     }
 
-    // 3️⃣ Extraire les frais internationaux
-    const senderFee = senderCountry.international_transfer_fee || 0;
-    const receiverFee = receiverCountry.international_transfer_fee || 0;
+    // 3️⃣ Extraire les frais selon le mode de paiement
+    let senderFee = 0;
+    let receiverFee = 0;
+
+    if (paymentMethod === 'CASH') {
+      senderFee = senderCountry.cash_percentage || 0;
+      receiverFee = receiverCountry.cash_percentage || 0;
+    } else if (paymentMethod === 'MOBILE_MONEY') {
+      senderFee = senderCountry.momo_percentage || 0;
+      receiverFee = receiverCountry.momo_percentage || 0;
+    } else {
+      // Fallback sur les frais internationaux standard
+      senderFee = senderCountry.international_transfer_fee || 0;
+      receiverFee = receiverCountry.international_transfer_fee || 0;
+    }
+
     const totalFeePercentage = senderFee + receiverFee;
 
     // 4️⃣ Calculer les montants des frais
@@ -5327,6 +5342,7 @@ export class WalletServiceService {
       senderCountryName: senderCountry.name,
       receiverCountryCode: receiverCountry.countryCode || receiverCountry.code,
       receiverCountryName: receiverCountry.name,
+      paymentMethod,
       senderFeePercentage: senderFee,
       receiverFeePercentage: receiverFee,
       totalFeePercentage,
@@ -5339,6 +5355,25 @@ export class WalletServiceService {
       targetCurrency,
       exchangeRate,
       convertedAmount,
+      // ✅ Ajout des détails des frais par pays
+      feeBreakdown: {
+        sender: {
+          countryCode: senderCountry.countryCode || senderCountry.code,
+          countryName: senderCountry.name,
+          cashPercentage: senderCountry.cash_percentage || 0,
+          momoPercentage: senderCountry.momo_percentage || 0,
+          appliedFee: senderFee,
+          feeAmount: senderFeeAmount,
+        },
+        receiver: {
+          countryCode: receiverCountry.countryCode || receiverCountry.code,
+          countryName: receiverCountry.name,
+          cashPercentage: receiverCountry.cash_percentage || 0,
+          momoPercentage: receiverCountry.momo_percentage || 0,
+          appliedFee: receiverFee,
+          feeAmount: receiverFeeAmount,
+        },
+      },
     };
 
     return {
