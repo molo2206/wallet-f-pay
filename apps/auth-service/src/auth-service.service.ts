@@ -229,6 +229,13 @@ export class AuthServiceService {
       const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
+      // ✅ Vérification que le hash est bien généré
+      console.log('[AuthService] Password hash generated:', {
+        plainLength: plainPassword.length,
+        hashLength: hashedPassword.length,
+        hashStart: hashedPassword.substring(0, 20),
+      });
+
       // Créer l'utilisateur avec profileImage
       const user = await this.prisma.user.create({
         data: {
@@ -245,6 +252,12 @@ export class AuthServiceService {
           countryCode: data.countryCode ?? null,
           profileImage: null,
         },
+      });
+
+      // ✅ Vérifier que l'utilisateur a bien un mot de passe stocké
+      console.log('[AuthService] User created with password:', {
+        id: user.id,
+        hasPassword: !!user.password,
       });
 
       // ---------- Création directe des wallets via Prisma ----------
@@ -517,7 +530,6 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
-
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
@@ -573,6 +585,22 @@ export class AuthServiceService {
         });
       }
 
+      // ✅ Vérifier que l'utilisateur a un mot de passe
+      if (!user.password) {
+        await logFailedLoginAttempt(
+          this.prisma,
+          user.id,
+          identifier,
+          ipAddress,
+          dto.userAgent,
+        );
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('user_no_password', lang),
+          statusCode: 400,
+        });
+      }
+
       // 2. Vérifier si le compte est bloqué temporairement
       if (user.locked_until && user.locked_until > new Date()) {
         const minutesLeft = Math.ceil(
@@ -606,24 +634,9 @@ export class AuthServiceService {
         });
       }
 
-      // 4. Vérifier que l'utilisateur a un mot de passe
-      if (!user.password) {
-        await logFailedLoginAttempt(
-          this.prisma,
-          user.id,
-          identifier,
-          ipAddress,
-          dto.userAgent,
-        );
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('user_no_password', lang),
-          statusCode: 400,
-        });
-      }
-
-      // 5. Vérifier le mot de passe
+      // 4. Vérifier le mot de passe
       const isValidPassword = await bcrypt.compare(dto.password, user.password);
+
       if (!isValidPassword) {
         const newAttempts = (user.failed_login_attempts || 0) + 1;
         let lockedUntil = user.locked_until;
@@ -658,7 +671,7 @@ export class AuthServiceService {
         });
       }
 
-      // 6. Succès - Réinitialiser les tentatives
+      // 5. Succès - Réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -668,7 +681,7 @@ export class AuthServiceService {
         },
       });
 
-      // 7. Récupération des ressources (permissions)
+      // 6. Récupération des ressources (permissions)
       const userResources = await this.prisma.user_has_resources.findMany({
         where: { userId: user.id },
         include: { resources: true },
@@ -688,7 +701,7 @@ export class AuthServiceService {
         expiresAt: ur.expiresAt,
       }));
 
-      // 8. Récupération des wallets de l'utilisateur
+      // 7. Récupération des wallets de l'utilisateur
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -702,7 +715,7 @@ export class AuthServiceService {
         },
       });
 
-      // 9. Récupération des informations KYC de l'utilisateur
+      // 8. Récupération des informations KYC de l'utilisateur
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -723,7 +736,7 @@ export class AuthServiceService {
         },
       });
 
-      // 10. Formater les informations KYC
+      // 9. Formater les informations KYC
       const kyc = {
         status: user.kycStatus,
         submission: kycSubmission ? {
@@ -741,7 +754,7 @@ export class AuthServiceService {
         } : null,
       };
 
-      // 11. Gestion deviceId
+      // 10. Gestion deviceId
       let deviceId = dto.fcmToken;
       if (!deviceId) {
         const fingerprint = `${dto.deviceInfo || ''}|${dto.platform || ''}|${ipAddress || ''}`;
@@ -751,7 +764,7 @@ export class AuthServiceService {
           .digest('hex');
       }
 
-      // 12. Supprimer les anciennes sessions avec le même deviceId
+      // 11. Supprimer les anciennes sessions avec le même deviceId
       await this.prisma.sessions.deleteMany({
         where: {
           user_id: user.id,
@@ -760,7 +773,7 @@ export class AuthServiceService {
         },
       });
 
-      // 13. Créer une nouvelle session
+      // 12. Créer une nouvelle session
       const sessionToken = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
@@ -781,7 +794,7 @@ export class AuthServiceService {
       });
       const sessionId = createdSession.id;
 
-      // 14. Enregistrer le token FCM si présent
+      // 13. Enregistrer le token FCM si présent
       if (dto.fcmToken && dto.fcmToken.trim()) {
         await this.prisma.device_tokens.upsert({
           where: { token: dto.fcmToken },
@@ -801,7 +814,7 @@ export class AuthServiceService {
         });
       }
 
-      // 15. Récupérer les sessions actives
+      // 14. Récupérer les sessions actives
       const sessions = await this.prisma.sessions.findMany({
         where: {
           user_id: user.id,
@@ -819,14 +832,14 @@ export class AuthServiceService {
         },
       });
 
-      // 16. Générer le JWT
+      // 15. Générer le JWT
       const result = this.generateJwt(
         user,
         sessionToken,
         this.i18nService.translate('login_success', lang),
       );
 
-      // 17. Audit
+      // 16. Audit
       await this.logAuditWithDebounce(
         user.id,
         'LOGIN',
@@ -834,7 +847,7 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ 18. Retourner la réponse complète - TOUT DANS data
+      // ✅ 17. Retourner la réponse complète - TOUT DANS data
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
