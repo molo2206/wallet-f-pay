@@ -5213,7 +5213,7 @@ export class WalletServiceService {
     amount: number,
     walletId: string,
     countryCode: string,
-    paymentMethod: 'CASH' | 'MOBILE_MONEY' = 'CASH', // ✅ Ajout du paramètre paymentMethod
+    paymentMethod: 'CASH' | 'MOBILE_MONEY' = 'CASH', // ✅ Ajout du paramètre
   ): Promise<ApiResponse<any>> {
     console.log('[WalletService] Calculating international transfer fees:', {
       amount,
@@ -5342,7 +5342,7 @@ export class WalletServiceService {
       senderCountryName: senderCountry.name,
       receiverCountryCode: receiverCountry.countryCode || receiverCountry.code,
       receiverCountryName: receiverCountry.name,
-      paymentMethod,
+      paymentMethod, // ✅ Ajout du mode de paiement dans le résultat
       senderFeePercentage: senderFee,
       receiverFeePercentage: receiverFee,
       totalFeePercentage,
@@ -5355,13 +5355,14 @@ export class WalletServiceService {
       targetCurrency,
       exchangeRate,
       convertedAmount,
-      // ✅ Ajout des détails des frais par pays
+      // ✅ Ajout des détails des frais par pays avec les pourcentages spécifiques
       feeBreakdown: {
         sender: {
           countryCode: senderCountry.countryCode || senderCountry.code,
           countryName: senderCountry.name,
           cashPercentage: senderCountry.cash_percentage || 0,
           momoPercentage: senderCountry.momo_percentage || 0,
+          internationalTransferFee: senderCountry.international_transfer_fee || 0,
           appliedFee: senderFee,
           feeAmount: senderFeeAmount,
         },
@@ -5370,6 +5371,7 @@ export class WalletServiceService {
           countryName: receiverCountry.name,
           cashPercentage: receiverCountry.cash_percentage || 0,
           momoPercentage: receiverCountry.momo_percentage || 0,
+          internationalTransferFee: receiverCountry.international_transfer_fee || 0,
           appliedFee: receiverFee,
           feeAmount: receiverFeeAmount,
         },
