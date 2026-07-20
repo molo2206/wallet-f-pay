@@ -369,8 +369,8 @@ export class PawapayService {
         maintenance_fee: countryData.maintenance_fee || 0,
         deposit_fee: countryData.deposit_fee || 0,
         withdrawal_fee: countryData.withdrawal_fee || 0,
-        cash_percentage: countryData.cash_percentage || 0,      // ✅ AJOUTÉ
-        momo_percentage: countryData.momo_percentage || 0,      // ✅ AJOUTÉ
+        cash_percentage: dto.cash_percentage || 0,                   // ✅ Utiliser dto
+        momo_percentage: dto.momo_percentage || 0,                   // ✅ Utiliser dto
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -444,25 +444,32 @@ export class PawapayService {
       });
     }
 
+    // ✅ Construction dynamique des données de mise à jour
+    const updateData: any = {
+      updatedAt: new Date(),
+    };
+
+    // Champs de base
+    if (countryData.code !== undefined) updateData.code = countryData.code;
+    if (countryData.name !== undefined) updateData.name = countryData.name;
+    if (countryData.flag !== undefined) updateData.flag = countryData.flag;
+    if (countryData.prefix !== undefined) updateData.prefix = countryData.prefix;
+    if (countryData.default_currency !== undefined) updateData.default_currency = countryData.default_currency;
+
+    // Champs de frais
+    if (dto.transfer_percentage !== undefined) updateData.transfer_percentage = dto.transfer_percentage;
+    if (dto.international_transfer_fee !== undefined) updateData.international_transfer_fee = dto.international_transfer_fee;
+    if (dto.international_deposit_fee !== undefined) updateData.international_deposit_fee = dto.international_deposit_fee;
+    if (dto.international_withdrawal_fee !== undefined) updateData.international_withdrawal_fee = dto.international_withdrawal_fee;
+    if (dto.maintenance_fee !== undefined) updateData.maintenance_fee = dto.maintenance_fee;
+    if (dto.deposit_fee !== undefined) updateData.deposit_fee = dto.deposit_fee;
+    if (dto.withdrawal_fee !== undefined) updateData.withdrawal_fee = dto.withdrawal_fee;
+    if (dto.cash_percentage !== undefined) updateData.cash_percentage = dto.cash_percentage;
+    if (dto.momo_percentage !== undefined) updateData.momo_percentage = dto.momo_percentage;
+
     const country = await this.prisma.country_provider.update({
       where: { id },
-      data: {
-        code: countryData.code,
-        name: countryData.name,
-        flag: countryData.flag,
-        prefix: countryData.prefix,
-        default_currency: countryData.default_currency,
-        transfer_percentage: dto.transfer_percentage || 0,
-        international_transfer_fee: dto.international_transfer_fee || 0,
-        international_deposit_fee: dto.international_deposit_fee || 0,
-        international_withdrawal_fee: dto.international_withdrawal_fee || 0,
-        maintenance_fee: dto.maintenance_fee || 0,
-        deposit_fee: dto.deposit_fee || 0,
-        withdrawal_fee: dto.withdrawal_fee || 0,
-        cash_percentage: countryData.cash_percentage,    // ✅ AJOUTÉ
-        momo_percentage: countryData.momo_percentage,    // ✅ AJOUTÉ
-        updatedAt: new Date(),
-      },
+      data: updateData,
     });
 
     // Mise à jour des devises
