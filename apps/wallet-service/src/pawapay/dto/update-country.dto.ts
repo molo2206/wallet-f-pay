@@ -13,6 +13,8 @@ export class UpdateCountryDto {
   maintenance_fee?: number;               // ✅ AJOUTER
   deposit_fee?: number;                   // ✅ AJOUTER
   withdrawal_fee?: number;                // ✅ AJOUTER
+  cash_percentage?: number;        // ✅ AJOUTÉ
+  momo_percentage?: number;        // ✅ AJOUTÉ
   currencies?: {
     currency_code: string;
     currency_name?: string;

@@ -14,9 +14,10 @@ import { EncryptionService } from './bank/encryption.service';
 import { PawapayService } from './pawapay/pawapay.service';
 import { PawapayModule } from './pawapay/pawapay.module';
 import { MailModule } from 'apps/auth-service/src/email/email.module'; // ✅ IMPORT
-
+import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
+    ScheduleModule.forRoot(), 
     PrismaModule,
     PawapayModule,
     HttpModule,

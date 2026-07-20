@@ -153,5 +153,19 @@
   "wallet.otp_min_length": "L'OTP doit contenir au moins 4 chiffres",
   "wallet.otp_digits_only": "L'OTP ne doit contenir que des chiffres",
   "wallet.otp_invalid": "Code OTP invalide",
-  "wallet.otp_expired": "Le code OTP a expiré"
+  "wallet.otp_expired": "Le code OTP a expiré",
+
+  "wallet.maintenance_completed": "Frais de maintenance exécutés: {{total}} prélevés sur {{users}} utilisateurs et {{merchants}} marchands",
+  "wallet.maintenance_no_users": "Aucun utilisateur actif trouvé pour la maintenance",
+  "wallet.maintenance_no_fee": "Aucun frais à prélever",
+  "wallet.maintenance_no_wallet": "Aucun portefeuille actif trouvé",
+  "wallet.maintenance_insufficient_balance": "Solde insuffisant: {{balance}} {{currency}}, requis: {{required}} {{currency}}",
+  "wallet.maintenance_fee_debit": "Frais de maintenance mensuels ({{country}}) - {{role}} - {{amount}} {{currency}}",
+  "wallet.maintenance_fee_credit": "Frais de maintenance reçus de {{user}} ({{country}}) - {{amount}} {{currency}}",
+  "wallet.maintenance_sms": "Bonjour {{full_name}}, des frais de maintenance de {{amount}} {{currency}} ont été prélevés sur votre compte. Merci de votre confiance.",
+  "wallet.maintenance_stats": "Statistiques de maintenance: {{total}} prélevés sur {{users}} utilisateurs et {{merchants}} marchands",
+  "wallet.maintenance_notification_title": "Frais de maintenance mensuels",
+  "wallet.maintenance_notification_body": "Des frais de maintenance de {{amount}} {{currency}} ont été prélevés sur votre compte ({{country}}).",
+  "wallet.cash_percentage": "Frais Cash: {{percentage}}%",
+  "wallet.momo_percentage": "Frais Mobile Money: {{percentage}}%"
 }

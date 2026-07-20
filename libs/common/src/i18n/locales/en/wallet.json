@@ -153,5 +153,18 @@
   "wallet.otp_min_length": "OTP must contain at least 4 digits",
   "wallet.otp_digits_only": "OTP must contain only digits",
   "wallet.otp_invalid": "Invalid OTP code",
-  "wallet.otp_expired": "OTP code has expired"
+  "wallet.otp_expired": "OTP code has expired",
+  "wallet.maintenance_completed": "Maintenance fees completed: {{total}} collected from {{users}} users and {{merchants}} merchants",
+  "wallet.maintenance_no_users": "No active users found for maintenance",
+  "wallet.maintenance_no_fee": "No fees to collect",
+  "wallet.maintenance_no_wallet": "No active wallet found",
+  "wallet.maintenance_insufficient_balance": "Insufficient balance: {{balance}} {{currency}}, required: {{required}} {{currency}}",
+  "wallet.maintenance_fee_debit": "Monthly maintenance fee ({{country}}) - {{role}} - {{amount}} {{currency}}",
+  "wallet.maintenance_fee_credit": "Maintenance fee received from {{user}} ({{country}}) - {{amount}} {{currency}}",
+  "wallet.maintenance_sms": "Hello {{full_name}}, a maintenance fee of {{amount}} {{currency}} has been deducted from your account. Thank you for your trust.",
+  "wallet.maintenance_stats": "Maintenance statistics: {{total}} collected from {{users}} users and {{merchants}} merchants",
+  "wallet.maintenance_notification_title": "Monthly maintenance fee",
+  "wallet.maintenance_notification_body": "A maintenance fee of {{amount}} {{currency}} has been deducted from your account ({{country}}).",
+  "wallet.cash_percentage": "Cash fee: {{percentage}}%",
+  "wallet.momo_percentage": "Mobile Money fee: {{percentage}}%"
 }

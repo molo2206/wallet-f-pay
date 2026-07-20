@@ -68,6 +68,8 @@ export class CountryResponseDto {
   maintenance_fee?: number;            // ✅ AJOUTÉ
   deposit_fee?: number;                // ✅ AJOUTÉ
   withdrawal_fee?: number;             // ✅ AJOUTÉ
+  cash_percentage?: number;        // ✅ AJOUTÉ
+  momo_percentage?: number;        // ✅ AJOUTÉ
   currencies: {
     currency_code: string;
     currency_name: string;

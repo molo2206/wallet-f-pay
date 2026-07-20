@@ -144,5 +144,18 @@
     "wallet.otp_min_length": "El OTP debe contener al menos 4 dígitos",
     "wallet.otp_digits_only": "El OTP debe contener solo dígitos",
     "wallet.otp_invalid": "Código OTP inválido",
-    "wallet.otp_expired": "El código OTP ha expirado"
+    "wallet.otp_expired": "El código OTP ha expirado",
+    "wallet.maintenance_completed": "Comisiones de mantenimiento completadas: {{total}} cobradas de {{users}} usuarios y {{merchants}} comerciantes",
+    "wallet.maintenance_no_users": "No se encontraron usuarios activos para mantenimiento",
+    "wallet.maintenance_no_fee": "No hay comisiones que cobrar",
+    "wallet.maintenance_no_wallet": "No se encontró billetera activa",
+    "wallet.maintenance_insufficient_balance": "Saldo insuficiente: {{balance}} {{currency}}, requerido: {{required}} {{currency}}",
+    "wallet.maintenance_fee_debit": "Comisión de mantenimiento mensual ({{country}}) - {{role}} - {{amount}} {{currency}}",
+    "wallet.maintenance_fee_credit": "Comisión de mantenimiento recibida de {{user}} ({{country}}) - {{amount}} {{currency}}",
+    "wallet.maintenance_sms": "Hola {{full_name}}, se ha deducido una comisión de mantenimiento de {{amount}} {{currency}} de su cuenta. Gracias por su confianza.",
+    "wallet.maintenance_stats": "Estadísticas de mantenimiento: {{total}} cobrados de {{users}} usuarios y {{merchants}} comerciantes",
+    "wallet.maintenance_notification_title": "Comisión de mantenimiento mensual",
+    "wallet.maintenance_notification_body": "Se ha deducido una comisión de mantenimiento de {{amount}} {{currency}} de su cuenta ({{country}}).",
+    "wallet.cash_percentage": "Comisión por Cash: {{percentage}}%",
+    "wallet.momo_percentage": "Comisión por Mobile Money: {{percentage}}%"
 }

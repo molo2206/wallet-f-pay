@@ -153,5 +153,18 @@
   "wallet.otp_min_length": "OTP lazima iwe na angalau tarakimu 4",
   "wallet.otp_digits_only": "OTP lazima iwe na tarakimu tu",
   "wallet.otp_invalid": "Nambari ya OTP si sahihi",
-  "wallet.otp_expired": "Nambari ya OTP imeisha muda wake"
+  "wallet.otp_expired": "Nambari ya OTP imeisha muda wake",
+  "wallet.maintenance_completed": "Ada za matengenezo zimekamilika: {{total}} zimekusanywa kutoka kwa {{users}} watumiaji na {{merchants}} wafanyabiashara",
+  "wallet.maintenance_no_users": "Hakuna watumiaji wanaofanya kazi waliopatikana kwa matengenezo",
+  "wallet.maintenance_no_fee": "Hakuna ada za kukusanya",
+  "wallet.maintenance_no_wallet": "Hakuna pochi inayofanya kazi iliyopatikana",
+  "wallet.maintenance_insufficient_balance": "Salio halitoshi: {{balance}} {{currency}}, inahitajika: {{required}} {{currency}}",
+  "wallet.maintenance_fee_debit": "Ada ya matengenezo ya mwezi ({{country}}) - {{role}} - {{amount}} {{currency}}",
+  "wallet.maintenance_fee_credit": "Ada ya matengenezo imepokelewa kutoka {{user}} ({{country}}) - {{amount}} {{currency}}",
+  "wallet.maintenance_sms": "Habari {{full_name}}, ada ya matengenezo ya {{amount}} {{currency}} imetolewa kutoka akaunti yako. Asante kwa imani yako.",
+  "wallet.maintenance_stats": "Takwimu za matengenezo: {{total}} zimekusanywa kutoka kwa {{users}} watumiaji na {{merchants}} wafanyabiashara",
+  "wallet.maintenance_notification_title": "Ada ya matengenezo ya mwezi",
+  "wallet.maintenance_notification_body": "Ada ya matengenezo ya {{amount}} {{currency}} imetolewa kutoka akaunti yako ({{country}}).",
+  "wallet.cash_percentage": "Ada ya Cash: {{percentage}}%",
+  "wallet.momo_percentage": "Ada ya Mobile Money: {{percentage}}%"
 }

@@ -152,5 +152,18 @@
     "wallet.otp_min_length": "يجب أن يحتوي OTP على 4 أرقام على الأقل",
     "wallet.otp_digits_only": "يجب أن يحتوي OTP على أرقام فقط",
     "wallet.otp_invalid": "رمز OTP غير صالح",
-    "wallet.otp_expired": "انتهت صلاحية رمز OTP"
+    "wallet.otp_expired": "انتهت صلاحية رمز OTP",
+    "wallet.maintenance_completed": "اكتملت رسوم الصيانة: تم تحصيل {{total}} من {{users}} مستخدم و {{merchants}} تاجر",
+    "wallet.maintenance_no_users": "لم يتم العثور على مستخدمين نشطين للصيانة",
+    "wallet.maintenance_no_fee": "لا توجد رسوم للتحصيل",
+    "wallet.maintenance_no_wallet": "لم يتم العثور على محفظة نشطة",
+    "wallet.maintenance_insufficient_balance": "الرصيد غير كافٍ: {{balance}} {{currency}}، المطلوب: {{required}} {{currency}}",
+    "wallet.maintenance_fee_debit": "رسوم صيانة شهرية ({{country}}) - {{role}} - {{amount}} {{currency}}",
+    "wallet.maintenance_fee_credit": "تم استلام رسوم الصيانة من {{user}} ({{country}}) - {{amount}} {{currency}}",
+    "wallet.maintenance_sms": "مرحباً {{full_name}}، تم خصم رسوم صيانة بقيمة {{amount}} {{currency}} من حسابك. شكراً لثقتكم.",
+    "wallet.maintenance_stats": "إحصائيات الصيانة: تم تحصيل {{total}} من {{users}} مستخدم و {{merchants}} تاجر",
+    "wallet.maintenance_notification_title": "رسوم الصيانة الشهرية",
+    "wallet.maintenance_notification_body": "تم خصم رسوم صيانة بقيمة {{amount}} {{currency}} من حسابك ({{country}}).",
+    "wallet.cash_percentage": "رسوم الدفع النقدي: {{percentage}}%",
+    "wallet.momo_percentage": "رسوم الدفع عبر الهاتف المحمول: {{percentage}}%"
 }

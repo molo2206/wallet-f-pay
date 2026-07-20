@@ -347,26 +347,29 @@ model login_attempt {
 }
 
 model country_provider {
-  id                           String                   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
-  code                         String                   @db.VarChar(10)
-  countryCode                  String?                  @db.VarChar(100)
-  name                         String                   @db.VarChar(100)
-  flag                         String?                  @db.Text
-  prefix                       String?                  @db.VarChar(10)
-  default_currency             String?                  @db.VarChar(255)
-  createdAt                    DateTime                 @default(now()) @db.DateTime(0)
-  updatedAt                    DateTime                 @default(now()) @db.DateTime(0)
-  status                       country_provider_status? @default(ACTIVE)
-  transfer_percentage          Float?                   @default(0) @db.Float
-  international_transfer_fee   Float?                   @default(0) @db.Float
-  international_deposit_fee    Float?                   @default(0) @db.Float
-  international_withdrawal_fee Float?                   @default(0) @db.Float
-  maintenance_fee              Float?                   @default(0) @db.Float
-  deposit_fee                  Float?                   @default(0) @db.Float
-  withdrawal_fee               Float?                   @default(0) @db.Float
-  branch                       branch[]
-  country_currency             country_currency[]
-  network_provider             network_provider[]
+  id                              String                   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  code                            String                   @db.VarChar(10)
+  countryCode                     String?                  @db.VarChar(100)
+  name                            String                   @db.VarChar(100)
+  flag                            String?                  @db.Text
+  prefix                          String?                  @db.VarChar(10)
+  default_currency                String?                  @db.VarChar(255)
+  createdAt                       DateTime                 @default(now()) @db.DateTime(0)
+  updatedAt                       DateTime                 @default(now()) @db.DateTime(0)
+  status                          country_provider_status? @default(ACTIVE)
+  transfer_percentage             Float?                   @default(0) @db.Float
+  international_transfer_fee      Float?                   @default(0) @db.Float
+  international_deposit_fee       Float?                   @default(0) @db.Float
+  international_withdrawal_fee    Float?                   @default(0) @db.Float
+  maintenance_fee                 Float?                   @default(0) @db.Float
+  deposit_fee                     Float?                   @default(0) @db.Float
+  withdrawal_fee                  Float?                   @default(0) @db.Float
+  merchant_maintenance_multiplier Float?                   @default(2) @db.Float
+  cash_percentage                 Float?                   @default(0) @db.Float
+  momo_percentage                 Float?                   @default(0) @db.Float
+  branch                          branch[]
+  country_currency                country_currency[]
+  network_provider                network_provider[]
 }
 
 model network_provider {

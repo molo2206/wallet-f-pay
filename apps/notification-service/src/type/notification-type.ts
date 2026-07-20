@@ -17,4 +17,5 @@ export enum NotificationType {
   PAYMENT_RECEIVED = 'payment_received',
   WALLET_CREDITED = 'wallet_credited',
   WALLET_DEBITED = 'wallet_debited',
+  MAINTENANCE_FEE = 'maintenance_fee',
 }

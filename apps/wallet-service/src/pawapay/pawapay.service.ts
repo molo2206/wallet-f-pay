@@ -369,6 +369,8 @@ export class PawapayService {
         maintenance_fee: countryData.maintenance_fee || 0,
         deposit_fee: countryData.deposit_fee || 0,
         withdrawal_fee: countryData.withdrawal_fee || 0,
+        cash_percentage: countryData.cash_percentage || 0,      // ✅ AJOUTÉ
+        momo_percentage: countryData.momo_percentage || 0,      // ✅ AJOUTÉ
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -457,6 +459,8 @@ export class PawapayService {
         maintenance_fee: dto.maintenance_fee || 0,
         deposit_fee: dto.deposit_fee || 0,
         withdrawal_fee: dto.withdrawal_fee || 0,
+        cash_percentage: countryData.cash_percentage,    // ✅ AJOUTÉ
+        momo_percentage: countryData.momo_percentage,    // ✅ AJOUTÉ
         updatedAt: new Date(),
       },
     });
@@ -613,6 +617,8 @@ export class PawapayService {
       maintenance_fee: country.maintenance_fee || 0,
       deposit_fee: country.deposit_fee || 0,
       withdrawal_fee: country.withdrawal_fee || 0,
+      cash_percentage: country.cash_percentage || 0,      // ✅ AJOUTÉ
+      momo_percentage: country.momo_percentage || 0,      // ✅ AJOUTÉ
       currencies: country.country_currency.map(cc => ({
         currency_code: cc.currency_code,
         currency_name: cc.currency.name,
