@@ -154,7 +154,6 @@
   "wallet.otp_digits_only": "L'OTP ne doit contenir que des chiffres",
   "wallet.otp_invalid": "Code OTP invalide",
   "wallet.otp_expired": "Le code OTP a expiré",
-
   "wallet.maintenance_completed": "Frais de maintenance exécutés: {{total}} prélevés sur {{users}} utilisateurs et {{merchants}} marchands",
   "wallet.maintenance_no_users": "Aucun utilisateur actif trouvé pour la maintenance",
   "wallet.maintenance_no_fee": "Aucun frais à prélever",
@@ -167,5 +166,21 @@
   "wallet.maintenance_notification_title": "Frais de maintenance mensuels",
   "wallet.maintenance_notification_body": "Des frais de maintenance de {{amount}} {{currency}} ont été prélevés sur votre compte ({{country}}).",
   "wallet.cash_percentage": "Frais Cash: {{percentage}}%",
-  "wallet.momo_percentage": "Frais Mobile Money: {{percentage}}%"
+  "wallet.momo_percentage": "Frais Mobile Money: {{percentage}}%",
+  "wallet.transfer_international_pending": "Votre transfert international de {{amount}} {{currency}} est en attente de validation. Vous serez notifié une fois approuvé.",
+  "wallet.transfer_validated_success": "Transfert international validé avec succès.",
+  "wallet.transfer_pending_notification": "Votre transfert international est en attente de validation par un administrateur.",
+  "wallet.admin_validation_required": "Ce transfert international nécessite une validation administrative.",
+  "wallet.transfer_confirmed": "Votre transfert international de {{amount}} {{currency}} a été confirmé et le destinataire a été notifié.",
+  "wallet.transfer_received_international": "Vous avez reçu {{amount}} {{currency}} de {{fromName}} (transfert international confirmé).",
+  "wallet.transfer_pending_sms": "Bonjour {{full_name}}, votre transfert international de {{amount}} {{currency}} est en attente de validation. Vous recevrez une confirmation une fois approuvé.",
+  "wallet.transfer_confirmed_sms": "Bonjour {{full_name}}, votre transfert international de {{amount}} {{currency}} a été validé. Le destinataire a été notifié.",
+  "wallet.transfer_received_confirmed_sms": "Bonjour {{full_name}}, vous avez reçu {{amount}} {{currency}} de {{fromName}} (transfert international confirmé). Solde: {{balance}} {{currency}}.",
+  "wallet.transfer_international_otp_sent": "Un code de validation a été envoyé à l'expéditeur pour confirmer le transfert international.",
+  "notifications.transfer_pending.title": "Transfert international en attente",
+  "notifications.transfer_pending.body": "Votre transfert de {{amount}} {{currency}} est en attente de validation par un administrateur.",
+  "notifications.transfer_confirmed.title": "Transfert international confirmé",
+  "notifications.transfer_confirmed.body": "Votre transfert de {{amount}} {{currency}} a été validé avec succès. Le destinataire a été notifié.",
+  "wallet.transaction_id_required": "L'ID de la transaction est requis",
+  "wallet.transfer_validation_failed": "Échec de la validation du transfert international"
 }

@@ -157,5 +157,21 @@
     "wallet.maintenance_notification_title": "Comisión de mantenimiento mensual",
     "wallet.maintenance_notification_body": "Se ha deducido una comisión de mantenimiento de {{amount}} {{currency}} de su cuenta ({{country}}).",
     "wallet.cash_percentage": "Comisión por Cash: {{percentage}}%",
-    "wallet.momo_percentage": "Comisión por Mobile Money: {{percentage}}%"
+    "wallet.momo_percentage": "Comisión por Mobile Money: {{percentage}}%",
+    "wallet.transfer_international_pending": "Su transferencia internacional de {{amount}} {{currency}} está pendiente de validación. Será notificado una vez aprobada.",
+    "wallet.transfer_validated_success": "Transferencia internacional validada con éxito.",
+    "wallet.transfer_pending_notification": "Su transferencia internacional está pendiente de validación por un administrador.",
+    "wallet.admin_validation_required": "Esta transferencia internacional requiere validación administrativa.",
+    "wallet.transfer_confirmed": "Su transferencia internacional de {{amount}} {{currency}} ha sido confirmada y el destinatario ha sido notificado.",
+    "wallet.transfer_received_international": "Ha recibido {{amount}} {{currency}} de {{fromName}} (transferencia internacional confirmada).",
+    "wallet.transfer_pending_sms": "Hola {{full_name}}, su transferencia internacional de {{amount}} {{currency}} está pendiente de validación. Recibirá una confirmación una vez aprobada.",
+    "wallet.transfer_confirmed_sms": "Hola {{full_name}}, su transferencia internacional de {{amount}} {{currency}} ha sido validada. El destinatario ha sido notificado.",
+    "wallet.transfer_received_confirmed_sms": "Hola {{full_name}}, ha recibido {{amount}} {{currency}} de {{fromName}} (transferencia internacional confirmada). Saldo: {{balance}} {{currency}}.",
+    "wallet.transfer_international_otp_sent": "Se ha enviado un código de validación al remitente para confirmar la transferencia internacional.",
+    "notifications.transfer_pending.title": "Transferencia internacional pendiente",
+    "notifications.transfer_pending.body": "Su transferencia de {{amount}} {{currency}} está pendiente de validación por un administrador.",
+    "notifications.transfer_confirmed.title": "Transferencia internacional confirmada",
+    "notifications.transfer_confirmed.body": "Su transferencia de {{amount}} {{currency}} ha sido validada con éxito. El destinatario ha sido notificado.",
+    "wallet.transaction_id_required": "El ID de la transacción es requerido",
+    "wallet.transfer_validation_failed": "Falló la validación de la transferencia internacional"
 }

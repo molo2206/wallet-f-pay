@@ -165,5 +165,21 @@
     "wallet.maintenance_notification_title": "رسوم الصيانة الشهرية",
     "wallet.maintenance_notification_body": "تم خصم رسوم صيانة بقيمة {{amount}} {{currency}} من حسابك ({{country}}).",
     "wallet.cash_percentage": "رسوم الدفع النقدي: {{percentage}}%",
-    "wallet.momo_percentage": "رسوم الدفع عبر الهاتف المحمول: {{percentage}}%"
+    "wallet.momo_percentage": "رسوم الدفع عبر الهاتف المحمول: {{percentage}}%",
+    "wallet.transfer_international_pending": "تحويلك الدولي بمبلغ {{amount}} {{currency}} قيد الانتظار للتحقق. سيتم إعلامك بمجرد الموافقة عليه.",
+    "wallet.transfer_validated_success": "تم التحقق من التحويل الدولي بنجاح.",
+    "wallet.transfer_pending_notification": "تحويلك الدولي قيد الانتظار للتحقق من قبل المسؤول.",
+    "wallet.admin_validation_required": "هذا التحويل الدولي يتطلب تحققًا إداريًا.",
+    "wallet.transfer_confirmed": "تم تأكيد تحويلك الدولي بمبلغ {{amount}} {{currency}} وتم إعلام المستلم.",
+    "wallet.transfer_received_international": "لقد استلمت {{amount}} {{currency}} من {{fromName}} (تم تأكيد التحويل الدولي).",
+    "wallet.transfer_pending_sms": "مرحباً {{full_name}}، تحويلك الدولي بمبلغ {{amount}} {{currency}} قيد الانتظار للتحقق. ستتلقى تأكيدًا بمجرد الموافقة عليه.",
+    "wallet.transfer_confirmed_sms": "مرحباً {{full_name}}، تم التحقق من تحويلك الدولي بمبلغ {{amount}} {{currency}}. تم إعلام المستلم.",
+    "wallet.transfer_received_confirmed_sms": "مرحباً {{full_name}}، لقد استلمت {{amount}} {{currency}} من {{fromName}} (تم تأكيد التحويل الدولي). الرصيد: {{balance}} {{currency}}.",
+    "wallet.transfer_international_otp_sent": "تم إرسال رمز التحقق إلى المرسل لتأكيد التحويل الدولي.",
+    "notifications.transfer_pending.title": "تحويل دولي قيد الانتظار",
+    "notifications.transfer_pending.body": "تحويلك بمبلغ {{amount}} {{currency}} قيد الانتظار للتحقق من قبل المسؤول.",
+    "notifications.transfer_confirmed.title": "تم تأكيد التحويل الدولي",
+    "notifications.transfer_confirmed.body": "تم التحقق من تحويلك بمبلغ {{amount}} {{currency}} بنجاح. تم إعلام المستلم.",
+    "wallet.transaction_id_required": "معرف المعاملة مطلوب",
+    "wallet.transfer_validation_failed": "فشل التحقق من التحويل الدولي"
 }

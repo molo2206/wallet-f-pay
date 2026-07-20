@@ -166,5 +166,21 @@
   "wallet.maintenance_notification_title": "Ada ya matengenezo ya mwezi",
   "wallet.maintenance_notification_body": "Ada ya matengenezo ya {{amount}} {{currency}} imetolewa kutoka akaunti yako ({{country}}).",
   "wallet.cash_percentage": "Ada ya Cash: {{percentage}}%",
-  "wallet.momo_percentage": "Ada ya Mobile Money: {{percentage}}%"
+  "wallet.momo_percentage": "Ada ya Mobile Money: {{percentage}}%",
+  "wallet.transfer_international_pending": "Uhamisho wako wa kimataifa wa {{amount}} {{currency}} unasubiri uthibitisho. Utajulishwa mara baada ya kuidhinishwa.",
+  "wallet.transfer_validated_success": "Uhamisho wa kimataifa umethibitishwa kwa mafanikio.",
+  "wallet.transfer_pending_notification": "Uhamisho wako wa kimataifa unasubiri uthibitisho na msimamizi.",
+  "wallet.admin_validation_required": "Uhamisho huu wa kimataifa unahitaji uthibitisho wa kiutawala.",
+  "wallet.transfer_confirmed": "Uhamisho wako wa kimataifa wa {{amount}} {{currency}} umethibitishwa na mpokeaji amearifiwa.",
+  "wallet.transfer_received_international": "Umepokea {{amount}} {{currency}} kutoka {{fromName}} (uhamisho wa kimataifa umethibitishwa).",
+  "wallet.transfer_pending_sms": "Habari {{full_name}}, uhamisho wako wa kimataifa wa {{amount}} {{currency}} unasubiri uthibitisho. Utapata uthibitisho mara baada ya kuidhinishwa.",
+  "wallet.transfer_confirmed_sms": "Habari {{full_name}}, uhamisho wako wa kimataifa wa {{amount}} {{currency}} umeidhinishwa. Mpokeaji amearifiwa.",
+  "wallet.transfer_received_confirmed_sms": "Habari {{full_name}}, umepokea {{amount}} {{currency}} kutoka {{fromName}} (uhamisho wa kimataifa umethibitishwa). Salio: {{balance}} {{currency}}.",
+  "wallet.transfer_international_otp_sent": "Msimbo wa uthibitisho umetumwa kwa mtumaji kuthibitisha uhamisho wa kimataifa.",
+  "notifications.transfer_pending.title": "Uhamisho wa kimataifa unasubiri",
+  "notifications.transfer_pending.body": "Uhamisho wako wa {{amount}} {{currency}} unasubiri uthibitisho na msimamizi.",
+  "notifications.transfer_confirmed.title": "Uhamisho wa kimataifa umethibitishwa",
+  "notifications.transfer_confirmed.body": "Uhamisho wako wa {{amount}} {{currency}} umethibitishwa kwa mafanikio. Mpokeaji amearifiwa.",
+  "wallet.transaction_id_required": "Kitambulisho cha miamala kinahitajika",
+  "wallet.transfer_validation_failed": "Uthibitisho wa uhamisho wa kimataifa umeshindwa"
 }

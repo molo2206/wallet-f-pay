@@ -1982,6 +1982,7 @@ export class WalletServiceService {
     );
 
     // ========== SMS AUX DEUX PARTIES ==========
+    // ✅ CORRECTION : Les transferts internationaux n'envoient PAS de SMS au destinataire
     if (result.fromUser.phone) {
       try {
         const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
@@ -1998,7 +1999,8 @@ export class WalletServiceService {
       }
     }
 
-    if (result.toUser.phone) {
+    // ✅ SMS au destinataire UNIQUEMENT si ce n'est pas un transfert international
+    if (!result.isInternational && result.toUser.phone) {
       try {
         const cleanPhone = result.toUser.phone.replace(/[^0-9+]/g, '');
         const smsText = this.i18nService.translate('wallet.transfer_receiver_sms', lang, {
@@ -2012,26 +2014,34 @@ export class WalletServiceService {
       } catch (err) {
         console.error('[AdminSend] Erreur envoi SMS:', err);
       }
+    } else if (result.isInternational) {
+      console.log('[AdminSend] 🌍 Transfert international admin en attente - Pas de SMS au destinataire');
     }
 
     // ========== NOTIFICATIONS PUSH ==========
+    // ✅ CORRECTION : Les transferts internationaux n'envoient PAS de notification push au destinataire
     try {
-      await Promise.all([
-        notifyTransaction(
-          this.smsService, this.notificationHelper, this.i18nService,
-          this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
-          result.senderTx, result.fromUser, result.fromWallet,
-          result.isInternational ? 'send_pending' : 'send_sent',
-          { name: result.toUser.full_name ?? undefined, phone: result.toUser.phone ?? undefined }
-        ),
-        notifyTransaction(
+      // Notification à l'expéditeur
+      await notifyTransaction(
+        this.smsService, this.notificationHelper, this.i18nService,
+        this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
+        result.senderTx, result.fromUser, result.fromWallet,
+        result.isInternational ? 'send_pending' : 'send_sent',
+        { name: result.toUser.full_name ?? undefined, phone: result.toUser.phone ?? undefined }
+      );
+
+      // ✅ Notification au destinataire UNIQUEMENT si ce n'est pas international
+      if (!result.isInternational) {
+        await notifyTransaction(
           this.smsService, this.notificationHelper, this.i18nService,
           this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
           result.receiverTx, result.toUser, result.toWallet,
-          result.isInternational ? 'receive_pending' : 'send_received',
+          'send_received',
           { name: result.fromUser.full_name ?? undefined, phone: result.fromUser.phone ?? undefined }
-        ),
-      ]);
+        );
+      } else {
+        console.log('[AdminSend] 🌍 Transfert international admin en attente - Pas de notification push au destinataire');
+      }
     } catch (err) {
       console.error('[Notifications] adminSend error:', err);
     }
@@ -3932,10 +3942,47 @@ export class WalletServiceService {
       { timeout: 60000, maxWait: 60000 },
     );
 
-    // Notifications
+    // ========== NOTIFICATIONS ==========
+    // ✅ CORRECTION : Les transferts internationaux n'envoient PAS de notification au destinataire
     try {
-      await Promise.all([
-        notifyTransaction(
+      if (!result.isInternational) {
+        // 🔵 Transfert national - Notifier les deux parties
+        await Promise.all([
+          notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.senderTx,
+            result.fromUser,
+            result.fromWallet,
+            'send_sent',
+            {
+              name: result.toUser.full_name ?? undefined,
+              phone: result.toUser.phone ?? undefined,
+            },
+          ),
+          notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.receiverTx,
+            result.toUser,
+            result.toWallet,
+            'send_received',
+            {
+              name: result.fromUser.full_name ?? undefined,
+              phone: result.fromUser.phone ?? undefined,
+            },
+          ),
+        ]);
+      } else {
+        await notifyTransaction(
           this.smsService,
           this.notificationHelper,
           this.i18nService,
@@ -3945,29 +3992,14 @@ export class WalletServiceService {
           result.senderTx,
           result.fromUser,
           result.fromWallet,
-          result.isInternational ? 'send_pending' : 'send_sent',
+          'send_pending',
           {
             name: result.toUser.full_name ?? undefined,
             phone: result.toUser.phone ?? undefined,
           },
-        ),
-        notifyTransaction(
-          this.smsService,
-          this.notificationHelper,
-          this.i18nService,
-          this.shouldSendSms.bind(this),
-          this.shouldSendPush.bind(this),
-          this.getUserLanguage.bind(this),
-          result.receiverTx,
-          result.toUser,
-          result.toWallet,
-          result.isInternational ? 'receive_pending' : 'send_received',
-          {
-            name: result.fromUser.full_name ?? undefined,
-            phone: result.fromUser.phone ?? undefined,
-          },
-        ),
-      ]);
+        );
+        console.log('[WalletService] 🌍 Transfert international en attente - Pas de notification au destinataire');
+      }
     } catch (err) {
       console.error('[Notifications] Send notification error:', err);
     }
@@ -4375,6 +4407,253 @@ export class WalletServiceService {
     };
   }
 
+  async validateInternationalTransfer(
+    transactionId: string,
+    adminId: string,
+    adminPin: string,
+    lang: string = 'fr',
+    ipAddress?: string,
+  ): Promise<ApiResponse<{ transaction: any; fromWallet: WalletResponseDto; toWallet: WalletResponseDto }>> {
+    console.log('[WalletService] Validate international transfer:', { transactionId, adminId, lang });
+
+    // 1️⃣ Vérifier l'admin
+    const admin = await this.prisma.user.findFirst({
+      where: { id: adminId, role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
+      select: {
+        id: true,
+        full_name: true,
+        pin: true,
+        status: true,
+        failed_pin_attempts: true,
+        pin_locked_until: true,
+      },
+    });
+
+    if (!admin) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('admin.not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // 2️⃣ Vérifier le PIN de l'admin
+    if (!admin.pin) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('admin.no_pin_set', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
+      const minutesLeft = Math.ceil(
+        (admin.pin_locked_until.getTime() - Date.now()) / 60000,
+      );
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('admin.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+        statusCode: 403,
+      });
+    }
+
+    const hashedPin = crypto.createHash('sha256').update(adminPin).digest('hex');
+    if (admin.pin !== hashedPin) {
+      const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+      if (newAttempts >= 5) {
+        await this.prisma.user.update({
+          where: { id: admin.id },
+          data: { failed_pin_attempts: newAttempts, status: user_status.BLOCKED },
+        });
+      }
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('admin.pin_incorrect', lang),
+        statusCode: 401,
+      });
+    }
+
+    await this.prisma.user.update({
+      where: { id: admin.id },
+      data: { failed_pin_attempts: 0, pin_locked_until: null },
+    });
+
+    // 3️⃣ Récupérer la transaction en attente
+    const transaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        status: 'PENDING',
+        type: 'TRANSFER',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            countryCode: true,
+          },
+        },
+        wallet: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                countryCode: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!transaction) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.transaction_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // 4️⃣ Vérifier que c'est bien un transfert international en attente
+    const isInternational = transaction.description?.includes('Taux:');
+    if (!isInternational) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Cette transaction n\'est pas un transfert international en attente',
+        statusCode: 400,
+      });
+    }
+
+    // 5️⃣ Récupérer la transaction réceptrice
+    const receiverTransaction = await this.prisma.transaction.findFirst({
+      where: {
+        reference: transaction.reference,
+        movement: 'CREDIT',
+        type: 'DEPOSIT',
+        status: 'PENDING',
+      },
+      include: {
+        wallet: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                countryCode: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!receiverTransaction) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Transaction réceptrice non trouvée',
+        statusCode: 404,
+      });
+    }
+
+    // 6️⃣ Valider la transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updatedSender = await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'SUCCESS',
+          updatedAt: new Date(),
+          description: transaction.description + ' (Validé par admin)',
+        },
+      });
+
+      const updatedReceiver = await tx.transaction.update({
+        where: { id: receiverTransaction.id },
+        data: {
+          status: 'SUCCESS',
+          updatedAt: new Date(),
+          description: receiverTransaction.description + ' (Validé par admin)',
+        },
+      });
+
+      await tx.audit_log.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: admin.id,
+          action: 'validateInternationalTransfer',
+          details: JSON.stringify({
+            transactionId: transaction.id,
+            reference: transaction.reference,
+            amount: transaction.amount,
+            senderId: transaction.userId,
+            receiverId: receiverTransaction.userId,
+          }),
+          ipAddress: ipAddress || null,
+          createdAt: new Date(),
+        },
+      });
+
+      return { senderTx: updatedSender, receiverTx: updatedReceiver };
+    });
+
+    // 7️⃣ 🔔 NOTIFICATIONS APRÈS VALIDATION
+    const sender = transaction.user;
+    const senderWallet = transaction.wallet;
+    const receiver = receiverTransaction.wallet.user;
+    const receiverWallet = receiverTransaction.wallet;
+
+    try {
+      // Notification à l'expéditeur (confirmation)
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.senderTx,
+        sender,
+        senderWallet,
+        'send_confirmed',
+        {
+          name: receiver.full_name ?? undefined,
+          phone: receiver.phone ?? undefined,
+        },
+      );
+
+      // ✅ Notification au destinataire (MAINTENANT SEULEMENT)
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.receiverTx,
+        receiver,
+        receiverWallet,
+        'send_received',
+        {
+          name: sender.full_name ?? undefined,
+          phone: sender.phone ?? undefined,
+        },
+      );
+    } catch (err) {
+      console.error('[Notifications] Validation notification error:', err);
+    }
+
+    return {
+      message: this.i18nService.translate('wallet.transfer_validated_success', lang),
+      data: {
+        transaction: result.senderTx,
+        fromWallet: this.toResponse(senderWallet),
+        toWallet: this.toResponse(receiverWallet),
+      },
+    };
+  }
   // ==================== ADMIN OPERATIONS (sans PIN) ====================
   async getMerchantByCode(
     merchantCode: string,

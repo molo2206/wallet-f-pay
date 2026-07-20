@@ -166,5 +166,21 @@
   "wallet.maintenance_notification_title": "Monthly maintenance fee",
   "wallet.maintenance_notification_body": "A maintenance fee of {{amount}} {{currency}} has been deducted from your account ({{country}}).",
   "wallet.cash_percentage": "Cash fee: {{percentage}}%",
-  "wallet.momo_percentage": "Mobile Money fee: {{percentage}}%"
+  "wallet.momo_percentage": "Mobile Money fee: {{percentage}}%",
+  "wallet.transfer_international_pending": "Your international transfer of {{amount}} {{currency}} is pending validation. You will be notified once approved.",
+  "wallet.transfer_validated_success": "International transfer validated successfully.",
+  "wallet.transfer_pending_notification": "Your international transfer is pending validation by an administrator.",
+  "wallet.admin_validation_required": "This international transfer requires administrative validation.",
+  "wallet.transfer_confirmed": "Your international transfer of {{amount}} {{currency}} has been confirmed and the recipient has been notified.",
+  "wallet.transfer_received_international": "You have received {{amount}} {{currency}} from {{fromName}} (international transfer confirmed).",
+  "wallet.transfer_pending_sms": "Hello {{full_name}}, your international transfer of {{amount}} {{currency}} is pending validation. You will receive confirmation once approved.",
+  "wallet.transfer_confirmed_sms": "Hello {{full_name}}, your international transfer of {{amount}} {{currency}} has been validated. The recipient has been notified.",
+  "wallet.transfer_received_confirmed_sms": "Hello {{full_name}}, you have received {{amount}} {{currency}} from {{fromName}} (international transfer confirmed). Balance: {{balance}} {{currency}}.",
+  "wallet.transfer_international_otp_sent": "A validation code has been sent to the sender to confirm the international transfer.",
+  "notifications.transfer_pending.title": "International transfer pending",
+  "notifications.transfer_pending.body": "Your transfer of {{amount}} {{currency}} is pending validation by an administrator.",
+  "notifications.transfer_confirmed.title": "International transfer confirmed",
+  "notifications.transfer_confirmed.body": "Your transfer of {{amount}} {{currency}} has been validated successfully. The recipient has been notified.",
+  "wallet.transaction_id_required": "Transaction ID is required",
+  "wallet.transfer_validation_failed": "International transfer validation failed"
 }

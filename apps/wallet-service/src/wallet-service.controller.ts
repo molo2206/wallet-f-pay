@@ -653,6 +653,43 @@ export class WalletServiceController {
       });
     }
   }
+
+  // ==================== VALIDATION TRANSFERT INTERNATIONAL ====================
+  @MessagePattern('validate_international_transfer')
+  async validateInternationalTransfer(
+    @Payload()
+    data: {
+      transactionId: string;
+      adminId: string;
+      adminPin: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] validate_international_transfer received:', {
+      transactionId: data.transactionId,
+      adminId: data.adminId,
+      lang: data.lang,
+    });
+
+    try {
+      return await this.walletService.validateInternationalTransfer(
+        data.transactionId,
+        data.adminId,
+        data.adminPin,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] validate_international_transfer error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
   // ==================== HEALTH CHECK ====================
 
   @MessagePattern('health_check')

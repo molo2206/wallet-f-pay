@@ -3585,6 +3585,74 @@ export class ApiGatewayController {
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
+
+  // apps/api-gateway/src/api-gateway.controller.ts
+
+  // ==================== VALIDATION TRANSFERT INTERNATIONAL ====================
+
+  /**
+   * Valide un transfert international en attente (Admin uniquement)
+   */
+  @Post('admin/wallet/validate-transfer')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async validateInternationalTransfer(
+    @CurrentUser() currentUser: any,
+    @Body() body: {
+      transactionId: string;
+      pin: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    // ✅ Vérification des droits admin
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.transactionId) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.transaction_id_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.pin || body.pin.length < 4) {
+      throw new HttpException(
+        this.i18nService.translate('admin.pin_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!/^\d+$/.test(body.pin)) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_digits_only', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] validate_international_transfer:', {
+      transactionId: body.transactionId,
+      adminId: currentUser.id,
+      lang,
+    });
+
+    return this.sendWalletMessage(
+      'validate_international_transfer',
+      {
+        transactionId: body.transactionId,
+        adminId: currentUser.id,
+        adminPin: body.pin,
+        lang,
+        ipAddress,
+      },
+      this.i18nService.translate('wallet.transfer_validation_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      120000,
+    );
+  }
   //=====================================================================================================================
   private handleRpcError(
     error: any,

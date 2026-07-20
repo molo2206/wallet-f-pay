@@ -19,7 +19,7 @@ export async function notifyTransaction(
   user: any,
   wallet: any,
   type: string,
-  counterparty?: { name?: string; phone?: string; accountNumber?: string },
+  counterparty?: { name?: string; phone?: string; accountNumber?: string; status?: string },
 ) {
   let userLang = 'fr';
   try {
@@ -39,6 +39,7 @@ export async function notifyTransaction(
       currency: wallet.currency || 'CDF',
       balance: wallet.balance,
     };
+
     switch (type) {
       case 'topup':
         smsKey = 'wallet.top_up_sms';
@@ -55,6 +56,20 @@ export async function notifyTransaction(
         smsKey = 'wallet.transfer_receiver_sms';
         params.fromPhone = counterparty?.phone;
         params.fromName = counterparty?.name;
+        break;
+      case 'send_pending':
+        // ✅ Nouveau type: transfert international en attente
+        smsKey = 'wallet.transfer_pending_sms';
+        params.toPhone = counterparty?.phone;
+        params.toName = counterparty?.name;
+        params.status = 'PENDING';
+        break;
+      case 'send_confirmed':
+        // ✅ Nouveau type: transfert international confirmé
+        smsKey = 'wallet.transfer_confirmed_sms';
+        params.toPhone = counterparty?.phone;
+        params.toName = counterparty?.name;
+        params.status = 'COMPLETED';
         break;
       case 'pay_sent':
         smsKey = 'wallet.payment_payer_sms';
@@ -83,17 +98,49 @@ export async function notifyTransaction(
       operationType: type,
       status: transaction.status,
     };
-    if (type === 'send_sent' || type === 'send_received') {
-      pushType = NotificationType.TRANSFER;
-      pushData.direction = type === 'send_sent' ? 'sent' : 'received';
-      pushData.toName = counterparty?.name;
-      pushData.fromName = counterparty?.name;
-    }
-    if (type === 'pay_sent' || type === 'pay_received') {
-      pushType = NotificationType.PAYMENT;
-      pushData.direction = type === 'pay_sent' ? 'sent' : 'received';
-      pushData.merchantName = counterparty?.name;
-      pushData.customerName = counterparty?.name;
+
+    switch (type) {
+      case 'send_sent':
+        pushType = NotificationType.TRANSFER;
+        pushData.direction = 'sent';
+        pushData.toName = counterparty?.name;
+        pushData.status = transaction.status;
+        break;
+      case 'send_received':
+        pushType = NotificationType.TRANSFER;
+        pushData.direction = 'received';
+        pushData.fromName = counterparty?.name;
+        pushData.status = transaction.status;
+        break;
+      case 'send_pending':
+        // ✅ Nouveau type: transfert international en attente
+        pushType = NotificationType.TRANSFER_PENDING;
+        pushData.direction = 'sent';
+        pushData.toName = counterparty?.name;
+        pushData.status = 'PENDING';
+        pushData.messageKey = 'wallet.transfer_pending_push';
+        break;
+      case 'send_confirmed':
+        // ✅ Nouveau type: transfert international confirmé
+        pushType = NotificationType.TRANSFER_CONFIRMED;
+        pushData.direction = 'sent';
+        pushData.toName = counterparty?.name;
+        pushData.status = 'COMPLETED';
+        pushData.messageKey = 'wallet.transfer_confirmed_push';
+        break;
+      case 'pay_sent':
+        pushType = NotificationType.PAYMENT;
+        pushData.direction = 'sent';
+        pushData.merchantName = counterparty?.name;
+        break;
+      case 'pay_received':
+        pushType = NotificationType.PAYMENT;
+        pushData.direction = 'received';
+        pushData.customerName = counterparty?.name;
+        break;
+      default:
+        // Pour topup, cashout, etc.
+        break;
     }
 
     await notificationHelper.notify(

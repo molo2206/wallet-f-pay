@@ -43,7 +43,6 @@ export class NotificationHelper {
   }
 
   private mapTypeToString(type: NotificationType): string {
-    // Conversion simple : retourne le nom de l'enum en majuscule
     return String(type).toUpperCase();
   }
 
@@ -54,7 +53,22 @@ export class NotificationHelper {
   ) {
     let titleKey: string, bodyKey: string;
 
+    // ✅ Vérifier si c'est un transfert international en attente
+    const isPending = data?.isPending === true || data?.status === 'PENDING';
+    const isConfirmed = data?.isConfirmed === true || data?.status === 'COMPLETED';
+
     switch (type) {
+      // ✅ NOUVEAUX CAS POUR TRANSFERTS INTERNATIONAUX
+      case NotificationType.TRANSFER_PENDING:
+        titleKey = 'notifications.transfer_pending.title';
+        bodyKey = 'notifications.transfer_pending.body';
+        break;
+
+      case NotificationType.TRANSFER_CONFIRMED:
+        titleKey = 'notifications.transfer_confirmed.title';
+        bodyKey = 'notifications.transfer_confirmed.body';
+        break;
+
       case NotificationType.TRANSACTION:
         if (data?.operationType === 'topup') {
           titleKey = 'notifications.top_up_success.title';
@@ -69,7 +83,18 @@ export class NotificationHelper {
         break;
 
       case NotificationType.TRANSFER:
-        if (data?.direction === 'sent') {
+        // ✅ Gestion des transferts internationaux en attente
+        if (isPending) {
+          titleKey = 'notifications.transfer_pending.title';
+          bodyKey = 'notifications.transfer_pending.body';
+        }
+        // ✅ Gestion des transferts internationaux confirmés
+        else if (isConfirmed) {
+          titleKey = 'notifications.transfer_confirmed.title';
+          bodyKey = 'notifications.transfer_confirmed.body';
+        }
+        // Transferts nationaux normaux
+        else if (data?.direction === 'sent') {
           titleKey = 'notifications.transfer_sent.title';
           bodyKey = 'notifications.transfer_sent.body';
         } else if (data?.direction === 'received') {
@@ -98,34 +123,42 @@ export class NotificationHelper {
         titleKey = 'notifications.top_up_success.title';
         bodyKey = 'notifications.top_up_success.body';
         break;
+
       case NotificationType.CASHOUT_SUCCESS:
         titleKey = 'notifications.cashout_success.title';
         bodyKey = 'notifications.cashout_success.body';
         break;
+
       case NotificationType.TRANSFER_SENT:
         titleKey = 'notifications.transfer_sent.title';
         bodyKey = 'notifications.transfer_sent.body';
         break;
+
       case NotificationType.TRANSFER_RECEIVED:
         titleKey = 'notifications.transfer_received.title';
         bodyKey = 'notifications.transfer_received.body';
         break;
+
       case NotificationType.PAYMENT_SENT:
         titleKey = 'notifications.payment_sent.title';
         bodyKey = 'notifications.payment_sent.body';
         break;
+
       case NotificationType.PAYMENT_RECEIVED:
         titleKey = 'notifications.payment_received.title';
         bodyKey = 'notifications.payment_received.body';
         break;
+
       case NotificationType.WALLET_CREDITED:
         titleKey = 'notifications.wallet_credited.title';
         bodyKey = 'notifications.wallet_credited.body';
         break;
+
       case NotificationType.WALLET_DEBITED:
         titleKey = 'notifications.wallet_debited.title';
         bodyKey = 'notifications.wallet_debited.body';
         break;
+
       default:
         titleKey = 'notifications.default.title';
         bodyKey = 'notifications.default.body';
@@ -143,7 +176,10 @@ export class NotificationHelper {
       merchantPhone: data?.merchantPhone,
       customerName: data?.customerName,
       customerAccount: data?.customerAccount,
+      status: data?.status,
+      balance: data?.balance,
     });
+
     return { title, body };
   }
 }
