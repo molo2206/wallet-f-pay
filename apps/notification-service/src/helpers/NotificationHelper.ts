@@ -43,6 +43,7 @@ export class NotificationHelper {
   }
 
   private mapTypeToString(type: NotificationType): string {
+    // Conversion simple : retourne le nom de l'enum en majuscule
     return String(type).toUpperCase();
   }
 
@@ -53,22 +54,20 @@ export class NotificationHelper {
   ) {
     let titleKey: string, bodyKey: string;
 
-    // ✅ Vérifier si c'est un transfert international en attente
-    const isPending = data?.isPending === true || data?.status === 'PENDING';
-    const isConfirmed = data?.isConfirmed === true || data?.status === 'COMPLETED';
-
     switch (type) {
-      // ✅ NOUVEAUX CAS POUR TRANSFERTS INTERNATIONAUX
-      case NotificationType.TRANSFER_PENDING:
-        titleKey = 'notifications.transfer_pending.title';
-        bodyKey = 'notifications.transfer_pending.body';
+      // ✅ KYC REMINDER (Utilisé par CommunicationCronService)
+      case NotificationType.REMINDER:
+        titleKey = data?.title || 'notifications.reminder.title';
+        bodyKey = data?.message || 'notifications.reminder.body';
         break;
 
-      case NotificationType.TRANSFER_CONFIRMED:
-        titleKey = 'notifications.transfer_confirmed.title';
-        bodyKey = 'notifications.transfer_confirmed.body';
+      // ✅ WALLET (Utilisé par CommunicationCronService pour solde faible)
+      case NotificationType.WALLET:
+        titleKey = data?.title || 'notifications.wallet.title';
+        bodyKey = data?.message || 'notifications.wallet.body';
         break;
 
+      // ✅ TRANSACTION (Utilisé par CommunicationCronService)
       case NotificationType.TRANSACTION:
         if (data?.operationType === 'topup') {
           titleKey = 'notifications.top_up_success.title';
@@ -77,35 +76,123 @@ export class NotificationHelper {
           titleKey = 'notifications.cashout_success.title';
           bodyKey = 'notifications.cashout_success.body';
         } else {
-          titleKey = 'notifications.transaction.title';
-          bodyKey = 'notifications.transaction.body';
+          // Pour les rappels de transactions en attente
+          titleKey = data?.title || 'notifications.transaction.title';
+          bodyKey = data?.message || 'notifications.transaction.body';
         }
         break;
 
+      // ✅ PROMOTION (Utilisé par CommunicationCronService)
+      case NotificationType.PROMOTION:
+        titleKey = data?.title || 'notifications.promotion.title';
+        bodyKey = data?.message || 'notifications.promotion.body';
+        break;
+
+      // ✅ TRANSFER (Utilisé par CommunicationCronService)
       case NotificationType.TRANSFER:
-        // ✅ Gestion des transferts internationaux en attente
-        if (isPending) {
+        if (data?.isPending || data?.status === 'PENDING') {
           titleKey = 'notifications.transfer_pending.title';
           bodyKey = 'notifications.transfer_pending.body';
-        }
-        // ✅ Gestion des transferts internationaux confirmés
-        else if (isConfirmed) {
+        } else if (data?.isConfirmed || data?.status === 'COMPLETED') {
           titleKey = 'notifications.transfer_confirmed.title';
           bodyKey = 'notifications.transfer_confirmed.body';
-        }
-        // Transferts nationaux normaux
-        else if (data?.direction === 'sent') {
+        } else if (data?.direction === 'sent') {
           titleKey = 'notifications.transfer_sent.title';
           bodyKey = 'notifications.transfer_sent.body';
         } else if (data?.direction === 'received') {
           titleKey = 'notifications.transfer_received.title';
           bodyKey = 'notifications.transfer_received.body';
         } else {
-          titleKey = 'notifications.transfer.title';
-          bodyKey = 'notifications.transfer.body';
+          titleKey = data?.title || 'notifications.transfer.title';
+          bodyKey = data?.message || 'notifications.transfer.body';
         }
         break;
 
+      // ✅ WELCOME (Utilisé par CommunicationCronService)
+      case NotificationType.WELCOME:
+        titleKey = data?.title || 'notifications.welcome.title';
+        bodyKey = data?.message || 'notifications.welcome.body';
+        break;
+
+      // ✅ TRANSFER PENDING
+      case NotificationType.TRANSFER_PENDING:
+        titleKey = 'notifications.transfer_pending.title';
+        bodyKey = 'notifications.transfer_pending.body';
+        break;
+
+      // ✅ TRANSFER CONFIRMED
+      case NotificationType.TRANSFER_CONFIRMED:
+        titleKey = 'notifications.transfer_confirmed.title';
+        bodyKey = 'notifications.transfer_confirmed.body';
+        break;
+
+      // ✅ KYC VERIFIED
+      case NotificationType.KYC_VERIFIED:
+        titleKey = 'notifications.kyc_verified.title';
+        bodyKey = 'notifications.kyc_verified.body';
+        break;
+
+      // ✅ KYC REJECTED
+      case NotificationType.KYC_REJECTED:
+        titleKey = 'notifications.kyc_rejected.title';
+        bodyKey = 'notifications.kyc_rejected.body';
+        break;
+
+      // ✅ MAINTENANCE FEE
+      case NotificationType.MAINTENANCE_FEE:
+        titleKey = 'notifications.maintenance_fee.title';
+        bodyKey = 'notifications.maintenance_fee.body';
+        break;
+
+      // ✅ TOP UP SUCCESS
+      case NotificationType.TOP_UP_SUCCESS:
+        titleKey = 'notifications.top_up_success.title';
+        bodyKey = 'notifications.top_up_success.body';
+        break;
+
+      // ✅ CASHOUT SUCCESS
+      case NotificationType.CASHOUT_SUCCESS:
+        titleKey = 'notifications.cashout_success.title';
+        bodyKey = 'notifications.cashout_success.body';
+        break;
+
+      // ✅ TRANSFER SENT
+      case NotificationType.TRANSFER_SENT:
+        titleKey = 'notifications.transfer_sent.title';
+        bodyKey = 'notifications.transfer_sent.body';
+        break;
+
+      // ✅ TRANSFER RECEIVED
+      case NotificationType.TRANSFER_RECEIVED:
+        titleKey = 'notifications.transfer_received.title';
+        bodyKey = 'notifications.transfer_received.body';
+        break;
+
+      // ✅ PAYMENT SENT
+      case NotificationType.PAYMENT_SENT:
+        titleKey = 'notifications.payment_sent.title';
+        bodyKey = 'notifications.payment_sent.body';
+        break;
+
+      // ✅ PAYMENT RECEIVED
+      case NotificationType.PAYMENT_RECEIVED:
+        titleKey = 'notifications.payment_received.title';
+        bodyKey = 'notifications.payment_received.body';
+        break;
+
+      // ✅ WALLET CREDITED
+      case NotificationType.WALLET_CREDITED:
+        titleKey = 'notifications.wallet_credited.title';
+        bodyKey = 'notifications.wallet_credited.body';
+        break;
+
+      // ✅ WALLET DEBITED
+      case NotificationType.WALLET_DEBITED:
+        titleKey = 'notifications.wallet_debited.title';
+        bodyKey = 'notifications.wallet_debited.body';
+        break;
+
+      // ✅ PAYMENT
       case NotificationType.PAYMENT:
         if (data?.direction === 'sent') {
           titleKey = 'notifications.payment_sent.title';
@@ -114,49 +201,93 @@ export class NotificationHelper {
           titleKey = 'notifications.payment_received.title';
           bodyKey = 'notifications.payment_received.body';
         } else {
-          titleKey = 'notifications.payment.title';
-          bodyKey = 'notifications.payment.body';
+          titleKey = data?.title || 'notifications.payment.title';
+          bodyKey = data?.message || 'notifications.payment.body';
         }
         break;
 
-      case NotificationType.TOP_UP_SUCCESS:
-        titleKey = 'notifications.top_up_success.title';
-        bodyKey = 'notifications.top_up_success.body';
+      // ✅ ANNOUNCEMENT
+      case NotificationType.ANNOUNCEMENT:
+        titleKey = data?.title || 'notifications.announcement.title';
+        bodyKey = data?.message || 'notifications.announcement.body';
         break;
 
-      case NotificationType.CASHOUT_SUCCESS:
-        titleKey = 'notifications.cashout_success.title';
-        bodyKey = 'notifications.cashout_success.body';
+      // ✅ SURVEY
+      case NotificationType.SURVEY:
+        titleKey = data?.title || 'notifications.survey.title';
+        bodyKey = data?.message || 'notifications.survey.body';
         break;
 
-      case NotificationType.TRANSFER_SENT:
-        titleKey = 'notifications.transfer_sent.title';
-        bodyKey = 'notifications.transfer_sent.body';
+      // ✅ TIP
+      case NotificationType.TIP:
+        titleKey = data?.title || 'notifications.tip.title';
+        bodyKey = data?.message || 'notifications.tip.body';
         break;
 
-      case NotificationType.TRANSFER_RECEIVED:
-        titleKey = 'notifications.transfer_received.title';
-        bodyKey = 'notifications.transfer_received.body';
+      // ✅ UPDATE
+      case NotificationType.UPDATE:
+        titleKey = data?.title || 'notifications.update.title';
+        bodyKey = data?.message || 'notifications.update.body';
         break;
 
-      case NotificationType.PAYMENT_SENT:
-        titleKey = 'notifications.payment_sent.title';
-        bodyKey = 'notifications.payment_sent.body';
+      // ✅ ALERT
+      case NotificationType.ALERT:
+        titleKey = data?.title || 'notifications.alert.title';
+        bodyKey = data?.message || 'notifications.alert.body';
         break;
 
-      case NotificationType.PAYMENT_RECEIVED:
-        titleKey = 'notifications.payment_received.title';
-        bodyKey = 'notifications.payment_received.body';
+      // ✅ FEEDBACK_REQUEST
+      case NotificationType.FEEDBACK_REQUEST:
+        titleKey = 'notifications.feedback_request.title';
+        bodyKey = 'notifications.feedback_request.body';
         break;
 
-      case NotificationType.WALLET_CREDITED:
-        titleKey = 'notifications.wallet_credited.title';
-        bodyKey = 'notifications.wallet_credited.body';
+      // ✅ BIRTHDAY
+      case NotificationType.BIRTHDAY:
+        titleKey = 'notifications.birthday.title';
+        bodyKey = 'notifications.birthday.body';
         break;
 
-      case NotificationType.WALLET_DEBITED:
-        titleKey = 'notifications.wallet_debited.title';
-        bodyKey = 'notifications.wallet_debited.body';
+      // ✅ ONBOARDING
+      case NotificationType.ONBOARDING:
+        titleKey = 'notifications.onboarding.title';
+        bodyKey = 'notifications.onboarding.body';
+        break;
+
+      // ✅ SECURITY_ALERT
+      case NotificationType.SECURITY_ALERT:
+        titleKey = 'notifications.security_alert.title';
+        bodyKey = 'notifications.security_alert.body';
+        break;
+
+      // ✅ SUSPICIOUS_ACTIVITY
+      case NotificationType.SUSPICIOUS_ACTIVITY:
+        titleKey = 'notifications.suspicious_activity.title';
+        bodyKey = 'notifications.suspicious_activity.body';
+        break;
+
+      // ✅ MAINTENANCE_SCHEDULED
+      case NotificationType.MAINTENANCE_SCHEDULED:
+        titleKey = 'notifications.maintenance_scheduled.title';
+        bodyKey = 'notifications.maintenance_scheduled.body';
+        break;
+
+      // ✅ SECURITY
+      case NotificationType.SECURITY:
+        titleKey = 'notifications.security.title';
+        bodyKey = 'notifications.security.body';
+        break;
+
+      // ✅ PROMO
+      case NotificationType.PROMO:
+        titleKey = 'notifications.promo.title';
+        bodyKey = 'notifications.promo.body';
+        break;
+
+      // ✅ SYSTEM
+      case NotificationType.SYSTEM:
+        titleKey = 'notifications.system.title';
+        bodyKey = 'notifications.system.body';
         break;
 
       default:
@@ -164,8 +295,8 @@ export class NotificationHelper {
         bodyKey = 'notifications.default.body';
     }
 
-    const title = this.i18nService.translate(titleKey, lang);
-    const body = this.i18nService.translate(bodyKey, lang, {
+    const title = data?.title || this.i18nService.translate(titleKey, lang);
+    const body = data?.message || this.i18nService.translate(bodyKey, lang, {
       amount: data?.amount,
       currency: data?.currency || 'CDF',
       toName: data?.toName,
@@ -178,6 +309,8 @@ export class NotificationHelper {
       customerAccount: data?.customerAccount,
       status: data?.status,
       balance: data?.balance,
+      name: data?.name,
+      count: data?.count,
     });
 
     return { title, body };

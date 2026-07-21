@@ -3,7 +3,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { I18nService } from '@app/common';
-import { SmsService } from 'apps/auth-service/src/sms/sms.service';
 import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
 import { NotificationType } from 'apps/notification-service/src/type/notification-type';
 import * as crypto from 'crypto';
@@ -135,12 +134,10 @@ export class CommunicationCronService {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly smsService: SmsService,
         private readonly notificationHelper: NotificationHelper,
         private readonly i18nService: I18nService,
     ) { }
 
-    // ==================== RAPPEL KYC (9h) ====================
     // ==================== RAPPEL KYC (12h) ====================
     @Cron('0 12 * * *')
     async remindKyc() {
@@ -168,7 +165,6 @@ export class CommunicationCronService {
                 const title = this.t('cron.kyc_reminder.title', lang);
                 const body = this.t('cron.kyc_reminder.body', lang, { name: user.full_name || 'Cher client' });
 
-                // ✅ Passer les bonnes données
                 await this.notificationHelper.notify(
                     user.id,
                     NotificationType.REMINDER,
@@ -182,13 +178,6 @@ export class CommunicationCronService {
                     lang,
                 );
 
-                if (user.phone) {
-                    await this.smsService.sendSms(
-                        user.phone.replace(/[^0-9+]/g, ''),
-                        body
-                    );
-                }
-
                 sentCount++;
             }
 
@@ -199,6 +188,7 @@ export class CommunicationCronService {
             this.isRunning = false;
         }
     }
+
     // ==================== PROMOTION TRANSFERT BENIN (10h lundi) ====================
     @Cron('0 10 * * 1')
     async promoteBeninTransfer() {
@@ -246,7 +236,7 @@ export class CommunicationCronService {
     }
 
     // ==================== RAPPEL SOLDE FAIBLE (18h) ====================
-    @Cron('0 18 * * *')
+    @Cron('0 15 * * *')
     async remindLowBalance() {
         if (this.isRunning) return;
         this.isRunning = true;
@@ -280,7 +270,6 @@ export class CommunicationCronService {
                     currency: mainWallet.currency || 'CDF',
                 });
 
-                // ✅ Passer les bonnes données
                 await this.notificationHelper.notify(
                     user.id,
                     NotificationType.WALLET,
@@ -305,6 +294,7 @@ export class CommunicationCronService {
             this.isRunning = false;
         }
     }
+
     // ==================== RAPPEL TRANSACTIONS EN ATTENTE (14h) ====================
     @Cron('0 14 * * *')
     async remindPendingTransactions() {
@@ -343,7 +333,6 @@ export class CommunicationCronService {
                 const settings = user.user_settings && user.user_settings.length > 0 ? user.user_settings[0] : null;
                 const lang = settings?.language || 'fr';
 
-                // ✅ Calculer le montant total et la devise
                 const totalAmount = txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
                 const currency = txs[0]?.currency || 'CDF';
 
@@ -361,7 +350,6 @@ export class CommunicationCronService {
 
                 const title = this.t('cron.transaction_reminder.title', lang);
 
-                // ✅ Passer les bonnes données
                 await this.notificationHelper.notify(
                     userId,
                     NotificationType.TRANSACTION,
@@ -387,7 +375,8 @@ export class CommunicationCronService {
             this.isRunning = false;
         }
     }
-    // ==================== BIENVENUE NOUVEAUX UTILISATEURS ====================
+
+    // ==================== BIENVENUE NOUVEAUX UTILISATEURS (8h) ====================
     @Cron('0 8 * * *')
     async welcomeNewUsers() {
         if (this.isRunning) return;
