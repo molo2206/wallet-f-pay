@@ -5658,6 +5658,8 @@ export class WalletServiceService {
   /**
    * Récupère le dashboard d'un wallet
    */
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async getWalletDashboard(
     userId: string,
     walletId?: string,
@@ -5678,6 +5680,8 @@ export class WalletServiceService {
       },
     });
 
+    console.log('[WalletService] All wallets found:', allWallets.length);
+
     if (!allWallets || allWallets.length === 0) {
       throw new RpcException({
         status: 'error',
@@ -5689,10 +5693,18 @@ export class WalletServiceService {
     // 2️⃣ Récupérer le wallet (premier si non spécifié)
     let wallet;
     if (walletId) {
-      wallet = await this.prisma.wallet.findFirst({
-        where: { id: walletId, userId, isActive: true },
-      });
+      // Vérifier d'abord dans la liste des wallets de l'utilisateur
+      wallet = allWallets.find(w => w.id === walletId);
+
       if (!wallet) {
+        // Si pas trouvé, essayer une recherche directe
+        wallet = await this.prisma.wallet.findFirst({
+          where: { id: walletId, userId, isActive: true },
+        });
+      }
+
+      if (!wallet) {
+        console.log('[WalletService] Wallet not found for user:', { walletId, userId });
         throw new RpcException({
           status: 'error',
           message: this.i18nService.translate('wallet.wallet_not_found', lang),
@@ -5702,6 +5714,8 @@ export class WalletServiceService {
     } else {
       wallet = allWallets[0]; // Premier wallet
     }
+
+    console.log('[WalletService] Selected wallet:', { id: wallet.id, currency: wallet.currency, balance: wallet.balance });
 
     // 3️⃣ Définir la période (mois en cours par défaut)
     const now = new Date();
@@ -5733,6 +5747,8 @@ export class WalletServiceService {
       },
       orderBy: { createdAt: 'asc' },
     });
+
+    console.log('[WalletService] Transactions found:', transactions.length);
 
     // 5️⃣ Calculer les statistiques globales
     let totalSent = 0;
@@ -5891,7 +5907,7 @@ export class WalletServiceService {
     return {
       message: this.i18nService.translate('wallet.dashboard_retrieved', lang),
       data: {
-        wallets: formattedWallets, // ✅ Liste de tous les wallets
+        wallets: formattedWallets,
         walletId: wallet.id,
         currency: wallet.currency,
         balance: wallet.balance,
