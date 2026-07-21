@@ -3449,8 +3449,6 @@ export class WalletServiceService {
 
   // apps/wallet-service/src/wallet-service.service.ts
 
-  // apps/wallet-service/src/wallet-service.service.ts
-
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3721,7 +3719,7 @@ export class WalletServiceService {
         let convertedAmount = amount;
 
         if (isInternational) {
-          // ✅ Récupérer la devise par défaut du pays du destinataire
+          // ✅ Récupérer le pays du destinataire avec sa devise par défaut
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3729,22 +3727,26 @@ export class WalletServiceService {
                 { code: receiverCountryCode },
               ]
             },
-            include: {
+            select: {
+              default_currency: true,
               country_currency: {
-                include: { currency: true },
                 where: { is_default: true },
                 take: 1,
+                select: { currency_code: true },
               }
             },
           });
 
-          // ✅ METTRE À JOUR targetCurrency avec la devise du pays du destinataire
-          if (receiverCountry?.country_currency && receiverCountry.country_currency.length > 0) {
+          // ✅ DÉTERMINER LA DEVISES CIBLE (PRIORITÉ À default_currency)
+          if (receiverCountry?.default_currency) {
+            targetCurrency = receiverCountry.default_currency;
+            console.log(`[WalletService] Devise du destinataire (default_currency): ${targetCurrency}`);
+          } else if (receiverCountry?.country_currency && receiverCountry.country_currency.length > 0) {
             const currencyCode = receiverCountry.country_currency[0].currency_code;
             const validCurrencies: string[] = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
             if (validCurrencies.includes(currencyCode)) {
-              targetCurrency = currencyCode; // ✅ XOF pour le Bénin
-              console.log(`[WalletService] Devise du destinataire: ${targetCurrency}`);
+              targetCurrency = currencyCode;
+              console.log(`[WalletService] Devise du destinataire (country_currency): ${targetCurrency}`);
             } else {
               console.warn(`[WalletService] Devise ${currencyCode} non supportée, utilisation de ${fromWallet.currency}`);
               targetCurrency = fromWallet.currency;
@@ -3810,16 +3812,16 @@ export class WalletServiceService {
           convertedAmount = amount;
         }
 
-        // 6. ✅ Récupérer le wallet du destinataire dans la devise TARGET (NE PAS CRÉER)
+        // 6. ✅ Récupérer le wallet du destinataire dans la devise TARGET
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
-            currency: targetCurrency as any, // ✅ XOF (devise du destinataire)
+            currency: targetCurrency as any,
             isActive: true,
           },
         });
 
-        // ❌ NE PAS CRÉER DE WALLET AUTOMATIQUEMENT
+        // ❌ NE PAS CRÉER DE WALLET
         if (!toWallet) {
           const availableWallets = await tx.wallet.findMany({
             where: {
@@ -3858,13 +3860,11 @@ export class WalletServiceService {
         }
 
         // 8. Mettre à jour les soldes
-        // ✅ Expéditeur : DÉBIT du montant d'origine + frais
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
         });
 
-        // ✅ Destinataire : CRÉDIT du montant CONVERTI
         const updatedTo = await tx.wallet.update({
           where: { id: toWallet.id },
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
@@ -3910,10 +3910,8 @@ export class WalletServiceService {
         // 10. Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
 
-        // ✅ Déterminer le statut de la transaction
         const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
-        // ✅ Transaction expéditeur (DEBIT) - Montant d'origine + frais
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3929,7 +3927,6 @@ export class WalletServiceService {
           },
         });
 
-        // ✅ Transaction destinataire (CREDIT) - Montant CONVERTI
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3941,7 +3938,7 @@ export class WalletServiceService {
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
-            currency: targetCurrency, // ✅ XOF (devise du destinataire)
+            currency: targetCurrency,
           },
         });
 
@@ -3970,7 +3967,6 @@ export class WalletServiceService {
     // ========== NOTIFICATIONS ==========
     try {
       if (!result.isInternational) {
-        // 🔵 Transfert national - Notifier les deux parties
         await Promise.all([
           notifyTransaction(
             this.smsService,
@@ -4006,7 +4002,6 @@ export class WalletServiceService {
           ),
         ]);
       } else {
-        // 🌍 Transfert international - Notifier SEULEMENT l'expéditeur
         await notifyTransaction(
           this.smsService,
           this.notificationHelper,
