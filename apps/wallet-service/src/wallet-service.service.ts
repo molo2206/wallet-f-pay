@@ -3449,6 +3449,8 @@ export class WalletServiceService {
 
   // apps/wallet-service/src/wallet-service.service.ts
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3713,13 +3715,37 @@ export class WalletServiceService {
           debitAmount,
         });
 
-        // 5. Déterminer la devise du destinataire (CORRIGÉ)
-        let targetCurrency: string = fromWallet.currency;
-        let exchangeRate = 1;
-        let convertedAmount = amount;
+        // 5. ✅ STRATÉGIE A : Utiliser le premier wallet actif du destinataire
+        // Récupérer tous les wallets actifs du destinataire
+        const receiverWallets = await tx.wallet.findMany({
+          where: {
+            userId: toUser.id,
+            isActive: true,
+          },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            currency: true,
+            balance: true,
+          },
+        });
+
+        if (!receiverWallets || receiverWallets.length === 0) {
+          throw new RpcException({
+            status: 'error',
+            message: 'Le destinataire ne possède aucun wallet actif',
+            statusCode: 404,
+          });
+        }
+
+        console.log('[WalletService] Wallets du destinataire:', receiverWallets.map(w => w.currency));
+
+        // ✅ INITIALISER LES VARIABLES AVEC DES VALEURS PAR DÉFAUT
+        let targetCurrency: string = receiverWallets[0].currency;
+        let targetWallet: any = receiverWallets[0];
 
         if (isInternational) {
-          // ✅ Récupérer le pays du destinataire avec sa devise par défaut
+          // 🔍 Essayer de trouver la devise par défaut du pays du destinataire
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3737,116 +3763,94 @@ export class WalletServiceService {
             },
           });
 
-          // ✅ DÉTERMINER LA DEVISES CIBLE (PRIORITÉ À default_currency)
+          let preferredCurrency: string | null = null;
           if (receiverCountry?.default_currency) {
-            targetCurrency = receiverCountry.default_currency;
-            console.log(`[WalletService] Devise du destinataire (default_currency): ${targetCurrency}`);
+            preferredCurrency = receiverCountry.default_currency;
           } else if (receiverCountry?.country_currency && receiverCountry.country_currency.length > 0) {
-            const currencyCode = receiverCountry.country_currency[0].currency_code;
-            const validCurrencies: string[] = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
-            if (validCurrencies.includes(currencyCode)) {
-              targetCurrency = currencyCode;
-              console.log(`[WalletService] Devise du destinataire (country_currency): ${targetCurrency}`);
-            } else {
-              console.warn(`[WalletService] Devise ${currencyCode} non supportée, utilisation de ${fromWallet.currency}`);
-              targetCurrency = fromWallet.currency;
-            }
-          } else {
-            console.log('[WalletService] Aucune devise trouvée pour le pays, utilisation de la devise source');
-            targetCurrency = fromWallet.currency;
+            preferredCurrency = receiverCountry.country_currency[0].currency_code;
           }
 
-          // ✅ Calcul du taux de change
-          if (fromWallet.currency !== targetCurrency) {
-            let rateRecord = await tx.exchange_rate.findFirst({
+          console.log('[WalletService] Devise préférée du destinataire:', preferredCurrency);
+
+          // ✅ Chercher le wallet du destinataire dans la devise préférée
+          if (preferredCurrency) {
+            const foundWallet = receiverWallets.find(w => w.currency === preferredCurrency);
+            if (foundWallet) {
+              targetWallet = foundWallet;
+              targetCurrency = preferredCurrency;
+              console.log(`[WalletService] ✅ Wallet trouvé en ${targetCurrency} (devise préférée)`);
+            }
+          }
+
+          // ✅ Si pas de wallet dans la devise préférée, utiliser le premier wallet actif
+          if (!targetWallet || targetWallet.currency !== targetCurrency) {
+            targetWallet = receiverWallets[0];
+            targetCurrency = targetWallet.currency;
+            console.log(`[WalletService] ⚠️ Aucun wallet en devise préférée, utilisation du premier wallet: ${targetCurrency}`);
+          }
+        } else {
+          // 🔵 Transfert national : utiliser le premier wallet actif du destinataire
+          targetWallet = receiverWallets[0];
+          targetCurrency = targetWallet.currency;
+          console.log(`[WalletService] 🔵 Transfert national, utilisation du premier wallet: ${targetCurrency}`);
+        }
+
+        console.log('[WalletService] Wallet cible du destinataire:', {
+          id: targetWallet.id,
+          currency: targetCurrency,
+          balance: targetWallet.balance,
+        });
+
+        // 6. Calculer le taux de change et convertir si nécessaire
+        let exchangeRate = 1;
+        let convertedAmount = amount;
+
+        if (fromWallet.currency !== targetCurrency) {
+          let rateRecord = await tx.exchange_rate.findFirst({
+            where: {
+              from_currency: fromWallet.currency,
+              to_currency: targetCurrency,
+            }
+          });
+
+          if (!rateRecord) {
+            const fromToUsd = await tx.exchange_rate.findFirst({
               where: {
                 from_currency: fromWallet.currency,
+                to_currency: 'USD',
+              }
+            });
+
+            const usdToTarget = await tx.exchange_rate.findFirst({
+              where: {
+                from_currency: 'USD',
                 to_currency: targetCurrency,
               }
             });
 
-            if (!rateRecord) {
-              const fromToUsd = await tx.exchange_rate.findFirst({
-                where: {
-                  from_currency: fromWallet.currency,
-                  to_currency: 'USD',
-                }
-              });
-
-              const usdToTarget = await tx.exchange_rate.findFirst({
-                where: {
-                  from_currency: 'USD',
-                  to_currency: targetCurrency,
-                }
-              });
-
-              if (fromToUsd && usdToTarget) {
-                exchangeRate = fromToUsd.rate * usdToTarget.rate;
-              } else {
-                throw new RpcException({
-                  status: 'error',
-                  message: this.i18nService.translate('wallet.exchange_rate_not_found', lang, {
-                    from: fromWallet.currency,
-                    to: targetCurrency,
-                  }),
-                  statusCode: 404,
-                });
-              }
+            if (fromToUsd && usdToTarget) {
+              exchangeRate = fromToUsd.rate * usdToTarget.rate;
             } else {
-              exchangeRate = rateRecord.rate;
+              throw new RpcException({
+                status: 'error',
+                message: this.i18nService.translate('wallet.exchange_rate_not_found', lang, {
+                  from: fromWallet.currency,
+                  to: targetCurrency,
+                }),
+                statusCode: 404,
+              });
             }
-
-            // ✅ CONVERSION AUTOMATIQUE
-            convertedAmount = amount * exchangeRate;
-            console.log('[WalletService] Conversion automatique:', {
-              from: fromWallet.currency,
-              to: targetCurrency,
-              amount,
-              rate: exchangeRate,
-              convertedAmount,
-            });
+          } else {
+            exchangeRate = rateRecord.rate;
           }
-        } else {
-          targetCurrency = fromWallet.currency;
-          exchangeRate = 1;
-          convertedAmount = amount;
-        }
 
-        // 6. ✅ Récupérer le wallet du destinataire dans la devise TARGET
-        let toWallet = await tx.wallet.findFirst({
-          where: {
-            userId: toUser.id,
-            currency: targetCurrency as any,
-            isActive: true,
-          },
-        });
-
-        // ❌ NE PAS CRÉER DE WALLET
-        if (!toWallet) {
-          const availableWallets = await tx.wallet.findMany({
-            where: {
-              userId: toUser.id,
-              isActive: true,
-            },
-            select: {
-              currency: true,
-            },
-          });
-
-          const availableCurrencies = availableWallets.map(w => w.currency).join(', ');
-
-          throw new RpcException({
-            status: 'error',
-            message: `Le destinataire ne possède pas de wallet en ${targetCurrency}. Devises disponibles: ${availableCurrencies || 'Aucune'}`,
-            statusCode: 404,
-          });
-        }
-
-        if (!toWallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403,
+          convertedAmount = amount * exchangeRate;
+          console.log('[WalletService] Conversion automatique:', {
+            from: fromWallet.currency,
+            to: targetCurrency,
+            amount,
+            rate: exchangeRate,
+            convertedAmount,
           });
         }
 
@@ -3866,7 +3870,7 @@ export class WalletServiceService {
         });
 
         const updatedTo = await tx.wallet.update({
-          where: { id: toWallet.id },
+          where: { id: targetWallet.id },
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
 
@@ -3887,7 +3891,7 @@ export class WalletServiceService {
           senderDescription += ` (frais ${internationalFeePercentage}%: ${fee} ${fromWallet.currency})`;
         }
 
-        if (isInternational) {
+        if (isInternational && fromWallet.currency !== targetCurrency) {
           senderDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
           if (countryCode) {
             senderDescription += ` - Pays: ${countryCode}`;
@@ -3900,7 +3904,7 @@ export class WalletServiceService {
           receiverDescription = `${description} (de: ${fromUserDisplay})`;
         }
 
-        if (isInternational) {
+        if (isInternational && fromWallet.currency !== targetCurrency) {
           receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
           if (countryCode) {
             receiverDescription += ` - Pays: ${countryCode}`;
@@ -3931,7 +3935,7 @@ export class WalletServiceService {
           data: {
             id: crypto.randomUUID(),
             userId: toUser.id,
-            walletId: toWallet.id,
+            walletId: targetWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
             status: transactionStatus,

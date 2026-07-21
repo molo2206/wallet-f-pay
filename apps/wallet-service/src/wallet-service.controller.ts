@@ -401,8 +401,17 @@ export class WalletServiceController {
   }
 
   @MessagePattern('send')
-  async send(@Payload() data: SendDto & { lang?: string }, ipAddress: string) {
-    console.log('[WalletService] send received:', { from: data.fromWalletId, to: data.toPhone, amount: data.amount, countryCode: data.countryCode, lang: data.lang });
+  async send(@Payload() data: SendDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send received:', {
+      from: data.fromWalletId,
+      to: data.toPhone,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
     try {
       return await this.walletService.send(data, data.lang || 'fr', ipAddress);
     } catch (error) {
