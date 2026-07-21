@@ -3444,6 +3444,8 @@ export class WalletServiceService {
     };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3714,6 +3716,7 @@ export class WalletServiceService {
         let convertedAmount = amount;
 
         if (isInternational) {
+          // ✅ Récupérer la devise par défaut du pays du destinataire
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3744,6 +3747,7 @@ export class WalletServiceService {
             targetCurrency = fromWallet.currency;
           }
 
+          // ✅ Calculer le taux de change
           if (fromWallet.currency !== targetCurrency) {
             let rateRecord = await tx.exchange_rate.findFirst({
               where: {
@@ -3798,6 +3802,7 @@ export class WalletServiceService {
         }
 
         // 6. Récupérer ou créer le wallet du destinataire
+        // ✅ Utiliser la devise TARGET du destinataire (pas la devise de l'expéditeur)
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
@@ -3897,7 +3902,7 @@ export class WalletServiceService {
             walletId: fromWallet.id,
             amount: debitAmount,
             type: 'TRANSFER',
-            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
+            status: transactionStatus,
             reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
@@ -3912,11 +3917,11 @@ export class WalletServiceService {
             walletId: toWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
+            status: transactionStatus,
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
-            currency: targetCurrency,
+            currency: targetCurrency, // ✅ Devise du destinataire
           },
         });
 
@@ -3943,10 +3948,8 @@ export class WalletServiceService {
     );
 
     // ========== NOTIFICATIONS ==========
-    // ✅ CORRECTION : Les transferts internationaux n'envoient PAS de notification au destinataire
     try {
       if (!result.isInternational) {
-        // 🔵 Transfert national - Notifier les deux parties
         await Promise.all([
           notifyTransaction(
             this.smsService,
