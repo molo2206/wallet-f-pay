@@ -26,6 +26,8 @@ import * as crypto from 'crypto';
 import * as jwt from 'jsonwebtoken';
 import type { Multer } from 'multer';
 import { uploadFile } from 'apps/wallet-service/src/utilils/uploadFile.utils';
+import { NotificationType } from 'apps/notification-service/src/type/notification-type';
+import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
 
 
 @Injectable()
@@ -35,6 +37,7 @@ export class UserServiceService {
     private readonly smsService: SmsService,
     private readonly mailService: MailService,
     private readonly i18nService: I18nService,
+    private readonly notificationHelper: NotificationHelper,
   ) { }
 
   private normalizePhone(phone: string): string {
@@ -2657,6 +2660,7 @@ export class UserServiceService {
       data: formattedData,
     };
   }
+
   async verifyKyc(
     kycId: string,
     data: {
@@ -2679,7 +2683,7 @@ export class UserServiceService {
         documentNumber: true,
         documentFront: true,
         documentBack: true,
-        profileImage: true, // ✅ AJOUTER profileImage ici
+        profileImage: true,
         status: true,
         adminNotes: true,
         rejectionReason: true,
@@ -2728,7 +2732,7 @@ export class UserServiceService {
       });
     }
 
-    // 4. ✅ Récupérer profileImage du KYC (maintenant disponible)
+    // 4. ✅ Récupérer profileImage du KYC
     const profileImageUrl = kyc.profileImage || null;
     console.log(`[verifyKyc] 📷 ProfileImage du KYC: ${profileImageUrl}`);
 
@@ -2774,29 +2778,42 @@ export class UserServiceService {
       null,
     );
 
-    // 9. Notification par SMS
-    if (kyc.user.phone) {
-      try {
-        const cleanPhone = kyc.user.phone.replace(/[^0-9+]/g, '');
-        const userFullName = kyc.user.full_name || 'Cher client';
+    // 9. ✅ NOTIFICATION PUSH au lieu de SMS
+    try {
+      const userFullName = kyc.user.full_name || 'Cher client';
 
-        const smsText = data.status === 'VERIFIED'
-          ? this.i18nService.translate('kyc_verified_sms', lang, {
-            full_name: userFullName,
-          })
-          : this.i18nService.translate('kyc_rejected_sms', lang, {
-            full_name: userFullName,
-            reason: data.rejectionReason || 'Document non conforme',
-          });
+      const notificationType = data.status === 'VERIFIED'
+        ? NotificationType.KYC_VERIFIED
+        : NotificationType.KYC_REJECTED;
 
-        await this.smsService.sendSms(cleanPhone, smsText);
-        console.log(`[verifyKyc] ✅ SMS envoyé à ${cleanPhone}`);
-      } catch (err) {
-        console.error('[KYC] Erreur envoi SMS:', err);
-      }
+      const notificationData = data.status === 'VERIFIED'
+        ? {
+          name: userFullName,
+          status: 'VERIFIED',
+          messageKey: 'kyc_verified_push',
+        }
+        : {
+          name: userFullName,
+          status: 'REJECTED',
+          reason: data.rejectionReason || 'Document non conforme',
+          messageKey: 'kyc_rejected_push',
+        };
+
+      await this.notificationHelper.notify(
+        kyc.userId,
+        notificationType,
+        notificationData,
+        'KYC',
+        kycId,
+        lang,
+      );
+
+      console.log(`[verifyKyc] ✅ Notification push envoyée à l'utilisateur ${kyc.userId}`);
+    } catch (err) {
+      console.error('[KYC] Erreur envoi notification push:', err);
     }
 
-    // 10. Email de notification
+    // 10. Email de notification (optionnel - à garder ou supprimer)
     if (kyc.user.email) {
       try {
         const userFullName = kyc.user.full_name || 'Cher client';

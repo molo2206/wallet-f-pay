@@ -67,5 +67,9 @@
   "kyc_verified_email_message": "تهانينا! تم التحقق من طلب KYC الخاص بك بنجاح. لديك الآن إمكانية الوصول إلى جميع الميزات.",
   "kyc_rejected_email_message": "تم رفض طلب KYC الخاص بك. السبب: {{reason}}. يرجى إعادة التقديم بمستندات صالحة.",
   "kyc_email_footer": "شكراً لثقتكم في F-Pay.",
-  "kyc_updated_success": "تم تحديث طلب KYC الخاص بك بنجاح"
+  "kyc_updated_success": "تم تحديث طلب KYC الخاص بك بنجاح",
+  "kyc_verified_push": "تم التحقق من طلب KYC الخاص بك بنجاح!",
+  "kyc_rejected_push": "تم رفض طلب KYC الخاص بك. السبب: {{reason}}",
+  "kyc_verified_push_title": "تم التحقق من KYC",
+  "kyc_rejected_push_title": "تم رفض KYC"
 }

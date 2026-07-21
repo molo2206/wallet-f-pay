@@ -10,9 +10,32 @@ export enum NotificationType {
   SYSTEM = 'system',
   WALLET = 'wallet',
 
-  // ✅ NOUVEAUX TYPES POUR TRANSFERTS INTERNATIONAUX
+  // ✅ TRANSFERTS INTERNATIONAUX
   TRANSFER_PENDING = 'transfer_pending',
   TRANSFER_CONFIRMED = 'transfer_confirmed',
+
+  // ✅ KYC
+  KYC_VERIFIED = 'kyc_verified',
+  KYC_REJECTED = 'kyc_rejected',
+
+  // ✅ MAINTENANCE
+  MAINTENANCE_FEE = 'maintenance_fee',
+
+  // ✅ NOUVEAUX TYPES DE COMMUNICATION AVEC LES UTILISATEURS
+  ANNOUNCEMENT = 'announcement',           // Annonce générale
+  PROMOTION = 'promotion',                  // Offre promotionnelle
+  SURVEY = 'survey',                        // Sondage/Questionnaire
+  TIP = 'tip',                              // Astuce/Conseil
+  UPDATE = 'update',                        // Mise à jour système
+  ALERT = 'alert',                          // Alerte importante
+  REMINDER = 'reminder',                    // Rappel
+  FEEDBACK_REQUEST = 'feedback_request',    // Demande d'avis
+  BIRTHDAY = 'birthday',                    // Anniversaire
+  WELCOME = 'welcome',                      // Message de bienvenue
+  ONBOARDING = 'onboarding',                // Guide d'utilisation
+  SECURITY_ALERT = 'security_alert',        // Alerte de sécurité
+  SUSPICIOUS_ACTIVITY = 'suspicious_activity', // Activité suspecte
+  MAINTENANCE_SCHEDULED = 'maintenance_scheduled', // Maintenance planifiée
 
   // Anciens types (conservés pour compatibilité)
   TOP_UP_SUCCESS = 'topup_success',
@@ -23,5 +46,4 @@ export enum NotificationType {
   PAYMENT_RECEIVED = 'payment_received',
   WALLET_CREDITED = 'wallet_credited',
   WALLET_DEBITED = 'wallet_debited',
-  MAINTENANCE_FEE = 'maintenance_fee',
 }

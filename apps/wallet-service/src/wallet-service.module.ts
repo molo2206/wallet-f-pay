@@ -15,6 +15,8 @@ import { PawapayService } from './pawapay/pawapay.service';
 import { PawapayModule } from './pawapay/pawapay.module';
 import { MailModule } from 'apps/auth-service/src/email/email.module'; // ✅ IMPORT
 import { ScheduleModule } from '@nestjs/schedule';
+import { MaintenanceService } from './cron/maintenance.cron';
+import { CommunicationCronService } from './cron/communication-cron.service';
 @Module({
   imports: [
     ScheduleModule.forRoot(), 
@@ -45,6 +47,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     BankService,
     EncryptionService,
     PawapayService,
+    MaintenanceService,
+    CommunicationCronService
   ],
   exports: [WalletServiceService, BankService, EncryptionService],
 })

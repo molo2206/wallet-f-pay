@@ -1000,7 +1000,7 @@ export class WalletServiceService {
             type: 'DEPOSIT',
             status: 'SUCCESS',
             reference: reference,
-            description: `Alimentation admin (cash)`,
+            description: `Votre portefeuille a été rechargé avec succès auprès du guichet en espèces.`,
             movement: 'CREDIT',
             currency: wallet.currency,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),

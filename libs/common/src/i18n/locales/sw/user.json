@@ -67,5 +67,9 @@
   "kyc_verified_email_message": "Hongera! Ombi lako la KYC limeidhinishwa kwa mafanikio. Sasa unapata huduma zote.",
   "kyc_rejected_email_message": "Ombi lako la KYC limekataliwa. Sababu: {{reason}}. Tafadhali wasilisha tena na hati halali.",
   "kyc_email_footer": "Asante kwa kuamini F-Pay.",
-  "kyc_updated_success": "Ombi lako la KYC limebadilishwa kwa mafanikio"
+  "kyc_updated_success": "Ombi lako la KYC limebadilishwa kwa mafanikio",
+  "kyc_verified_push": "Ombi lako la KYC limethibitishwa kwa mafanikio!",
+  "kyc_rejected_push": "Ombi lako la KYC limekataliwa. Sababu: {{reason}}",
+  "kyc_verified_push_title": "KYC Imethibitishwa",
+  "kyc_rejected_push_title": "KYC Imekataliwa"
 }

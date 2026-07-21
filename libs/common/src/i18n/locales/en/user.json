@@ -67,5 +67,9 @@
   "kyc_verified_email_message": "Congratulations! Your KYC request has been verified successfully. You now have access to all features.",
   "kyc_rejected_email_message": "Your KYC request has been rejected. Reason: {{reason}}. Please submit again with valid documents.",
   "kyc_email_footer": "Thank you for trusting F-Pay.",
-  "kyc_updated_success": "Your KYC request has been updated successfully"
+  "kyc_updated_success": "Your KYC request has been updated successfully",
+  "kyc_verified_push": "Your KYC request has been verified successfully!",
+  "kyc_rejected_push": "Your KYC request has been rejected. Reason: {{reason}}",
+  "kyc_verified_push_title": "KYC Verified",
+  "kyc_rejected_push_title": "KYC Rejected"
 }
