@@ -284,6 +284,37 @@ export class WalletServiceService {
     console.warn(`[WalletService] Taux de change non trouvé pour ${from} -> ${to}, utilisation de 1`);
     return 1;
   }
+
+  private async getSystemFeeWallet(currency: string, tx?: any): Promise<any> {
+    const systemUserId = 'system-fee-account';
+
+    // ✅ Vérifier si le wallet système existe
+    let systemWallet = await (tx || this.prisma).wallet.findFirst({
+      where: {
+        userId: systemUserId,
+        currency: currency as wallet_currency,
+        isActive: true,
+      },
+    });
+
+    // ✅ Créer le wallet système s'il n'existe pas
+    if (!systemWallet) {
+      systemWallet = await (tx || this.prisma).wallet.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: systemUserId,
+          currency: currency as wallet_currency,
+          balance: 0,
+          isActive: true,
+          cashCode: `SYS_${currency}_${Math.floor(10000 + Math.random() * 90000)}`,
+        },
+      });
+      console.log(`[WalletService] 💰 Wallet système créé automatiquement en ${currency}`);
+    }
+
+    return systemWallet;
+  }
+
   private mapPaymentMethod(paymentMethod?: string): TransactionPaymentMethod {
     // Si aucune valeur n'est fournie, retourner INTERNAL
     if (!paymentMethod) {
@@ -3447,8 +3478,6 @@ export class WalletServiceService {
     };
   }
 
-  // apps/wallet-service/src/wallet-service.service.ts
-
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3682,27 +3711,41 @@ export class WalletServiceService {
         let internationalFeePercentage = 0;
         let fee = 0;
         let debitAmount = amount;
+        let netAmount = amount;
+        let feeCurrency = fromWallet.currency;
 
         if (isInternational) {
           const fees = await this.getInternationalFeesByCountry(senderCountryCode, tx);
           internationalFeePercentage = fees.depositFee || 0;
 
           if (internationalFeePercentage > 0) {
-            fee = (amount * internationalFeePercentage) / 100;
-            debitAmount = amount + fee;
+            // ✅ Le front envoie le montant AVEC les frais inclus
+            // ✅ Montant brut = net + (net × pourcentage)
+            // ✅ net = brut / (1 + pourcentage)
+            const percentageDecimal = internationalFeePercentage / 100;
+            netAmount = amount / (1 + percentageDecimal);
+            fee = amount - netAmount;
+            debitAmount = amount;
+            feeCurrency = fromWallet.currency;
+
             console.log('[WalletService] Frais internationaux appliqués:', {
               percentage: internationalFeePercentage,
+              brutAmount: amount,
+              netAmount,
               fee,
-              debitAmount,
+              feeCurrency,
             });
           } else {
             console.log('[WalletService] Aucun frais international configuré pour', senderCountryCode);
+            netAmount = amount;
+            fee = 0;
           }
         } else {
           console.log('[WalletService] ✅ Même pays - Pas de frais');
           internationalFeePercentage = 0;
           fee = 0;
           debitAmount = amount;
+          netAmount = amount;
         }
 
         console.log('[WalletService] Fee calculation:', {
@@ -3711,10 +3754,10 @@ export class WalletServiceService {
           feePercentage: internationalFeePercentage,
           fee,
           debitAmount,
+          netAmount,
         });
 
-        // 5. ✅ STRATÉGIE A : Utiliser le premier wallet actif du destinataire
-        // Récupérer tous les wallets actifs du destinataire
+        // 5. Récupérer les wallets du destinataire
         const receiverWallets = await tx.wallet.findMany({
           where: {
             userId: toUser.id,
@@ -3738,12 +3781,10 @@ export class WalletServiceService {
 
         console.log('[WalletService] Wallets du destinataire:', receiverWallets.map(w => w.currency));
 
-        // ✅ INITIALISER AVEC LE PREMIER WALLET DU DESTINATAIRE
         let targetCurrency: string = receiverWallets[0].currency;
         let targetWallet: any = receiverWallets[0];
 
         if (isInternational) {
-          // 🔍 Essayer de trouver la devise par défaut du pays du destinataire
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3770,7 +3811,6 @@ export class WalletServiceService {
 
           console.log('[WalletService] Devise préférée du destinataire:', preferredCurrency);
 
-          // ✅ Chercher le wallet du destinataire dans la devise préférée
           if (preferredCurrency) {
             const foundWallet = receiverWallets.find(w => w.currency === preferredCurrency);
             if (foundWallet) {
@@ -3780,14 +3820,12 @@ export class WalletServiceService {
             }
           }
 
-          // ✅ Si pas de wallet dans la devise préférée, utiliser le premier wallet actif
           if (!targetWallet || targetWallet.currency !== targetCurrency) {
             targetWallet = receiverWallets[0];
             targetCurrency = targetWallet.currency;
             console.log(`[WalletService] ⚠️ Aucun wallet en devise préférée, utilisation du premier wallet: ${targetCurrency}`);
           }
         } else {
-          // 🔵 Transfert national : utiliser le premier wallet actif du destinataire
           targetWallet = receiverWallets[0];
           targetCurrency = targetWallet.currency;
           console.log(`[WalletService] 🔵 Transfert national, utilisation du premier wallet: ${targetCurrency}`);
@@ -3799,54 +3837,83 @@ export class WalletServiceService {
           balance: targetWallet.balance,
         });
 
-        // 6. Calculer le taux de change et convertir si nécessaire
+        // 6. Calculer le taux de change et convertir le NET (DYNAMIQUE)
         let exchangeRate = 1;
-        let convertedAmount = amount;
+        let convertedAmount = netAmount;
 
         if (fromWallet.currency !== targetCurrency) {
-          let rateRecord = await tx.exchange_rate.findFirst({
+          // ✅ Récupérer tous les taux nécessaires en une seule requête
+          const rates = await tx.exchange_rate.findMany({
             where: {
-              from_currency: fromWallet.currency,
-              to_currency: targetCurrency,
-            }
+              OR: [
+                { from_currency: fromWallet.currency, to_currency: targetCurrency },
+                { from_currency: targetCurrency, to_currency: fromWallet.currency },
+                { from_currency: fromWallet.currency },
+                { to_currency: targetCurrency },
+              ],
+            },
           });
 
-          if (!rateRecord) {
-            const fromToUsd = await tx.exchange_rate.findFirst({
-              where: {
-                from_currency: fromWallet.currency,
-                to_currency: 'USD',
-              }
-            });
+          // Créer un map pour un accès rapide
+          const rateMap = new Map<string, number>();
+          rates.forEach(r => {
+            rateMap.set(`${r.from_currency}-${r.to_currency}`, r.rate);
+          });
 
-            const usdToTarget = await tx.exchange_rate.findFirst({
-              where: {
-                from_currency: 'USD',
-                to_currency: targetCurrency,
-              }
-            });
-
-            if (fromToUsd && usdToTarget) {
-              exchangeRate = fromToUsd.rate * usdToTarget.rate;
-            } else {
-              throw new RpcException({
-                status: 'error',
-                message: this.i18nService.translate('wallet.exchange_rate_not_found', lang, {
-                  from: fromWallet.currency,
-                  to: targetCurrency,
-                }),
-                statusCode: 404,
-              });
-            }
+          // ✅ 1. Chercher un taux direct
+          const directKey = `${fromWallet.currency}-${targetCurrency}`;
+          if (rateMap.has(directKey)) {
+            exchangeRate = rateMap.get(directKey)!;
+            console.log(`[WalletService] Taux direct ${fromWallet.currency} → ${targetCurrency}: ${exchangeRate}`);
           } else {
-            exchangeRate = rateRecord.rate;
+            // ✅ 2. Chercher un taux inverse
+            const inverseKey = `${targetCurrency}-${fromWallet.currency}`;
+            if (rateMap.has(inverseKey)) {
+              const inverseRate = rateMap.get(inverseKey)!;
+              if (inverseRate > 0) {
+                exchangeRate = 1 / inverseRate;
+                console.log(`[WalletService] Taux inverse ${targetCurrency} → ${fromWallet.currency}: ${inverseRate} → ${exchangeRate}`);
+              }
+            } else {
+              // ✅ 3. Chercher via les devises disponibles
+              const availableCurrencies = await tx.currency.findMany({
+                select: { code: true },
+              });
+
+              let found = false;
+              for (const currency of availableCurrencies) {
+                if (currency.code === fromWallet.currency || currency.code === targetCurrency) continue;
+
+                const fromKey = `${fromWallet.currency}-${currency.code}`;
+                const toKey = `${currency.code}-${targetCurrency}`;
+
+                if (rateMap.has(fromKey) && rateMap.has(toKey)) {
+                  exchangeRate = rateMap.get(fromKey)! * rateMap.get(toKey)!;
+                  found = true;
+                  console.log(`[WalletService] Taux via ${currency.code}: ${fromWallet.currency} → ${currency.code} (${rateMap.get(fromKey)}) × ${currency.code} → ${targetCurrency} (${rateMap.get(toKey)}) = ${exchangeRate}`);
+                  break;
+                }
+              }
+
+              if (!found) {
+                throw new RpcException({
+                  status: 'error',
+                  message: this.i18nService.translate('wallet.exchange_rate_not_found', lang, {
+                    from: fromWallet.currency,
+                    to: targetCurrency,
+                  }),
+                  statusCode: 404,
+                });
+              }
+            }
           }
 
-          convertedAmount = amount * exchangeRate;
-          console.log('[WalletService] Conversion automatique:', {
+          // ✅ Conversion du montant NET
+          convertedAmount = netAmount * exchangeRate;
+          console.log('[WalletService] Conversion du montant net:', {
             from: fromWallet.currency,
             to: targetCurrency,
-            amount,
+            netAmount,
             rate: exchangeRate,
             convertedAmount,
           });
@@ -3871,6 +3938,50 @@ export class WalletServiceService {
           where: { id: targetWallet.id },
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
+
+        // 8.5 ✅ COLLECTER LES FRAIS DANS LE WALLET SYSTÈME
+        let systemTransaction: any = null;
+        let systemWallet: any = null;
+
+        if (fee > 0 && isInternational) {
+          try {
+            // ✅ Récupérer ou créer le wallet système pour les frais
+            systemWallet = await this.getSystemFeeWallet(feeCurrency, tx);
+
+            // ✅ Vérifier que systemWallet existe avant de continuer
+            if (systemWallet && systemWallet.id) {
+              // ✅ Créditer le wallet système avec les frais
+              await tx.wallet.update({
+                where: { id: systemWallet.id },
+                data: { balance: { increment: fee }, updatedAt: new Date() },
+              });
+
+              // ✅ Créer une transaction pour les frais
+              const feeReference = await this.generateTransactionReference('', tx);
+              const reference = await this.generateTransactionReference('', tx);
+              systemTransaction = await tx.transaction.create({
+                data: {
+                  id: crypto.randomUUID(),
+                  userId: systemWallet.userId,
+                  walletId: systemWallet.id,
+                  amount: fee,
+                  type: 'DEPOSIT',
+                  status: 'SUCCESS',
+                  reference: feeReference,
+                  description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id}`,
+                  movement: 'CREDIT',
+                  currency: feeCurrency,
+                  paymentMethod: 'INTERNAL',
+                  external_reference: reference,
+                },
+              });
+
+              console.log(`[WalletService] ✅ Frais collectés: ${fee} ${feeCurrency} dans le wallet système (${systemWallet.id})`);
+            }
+          } catch (err) {
+            console.error('[WalletService] ❌ Erreur lors de la collecte des frais:', err);
+          }
+        }
 
         // 9. Construire les descriptions
         let senderDescription = description;
@@ -3912,9 +4023,6 @@ export class WalletServiceService {
         // 10. Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
 
-        // ✅ Déterminer le statut de la transaction
-        // - Si international : PENDING (en attente de validation)
-        // - Si national : SUCCESS (immédiat)
         const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
         console.log('[WalletService] Transaction status:', {
@@ -3924,7 +4032,7 @@ export class WalletServiceService {
           receiverStatus: transactionStatus,
         });
 
-        // ✅ Transaction expéditeur (DEBIT) - toujours SUCCESS
+        // ✅ Transaction expéditeur (DEBIT)
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3932,7 +4040,7 @@ export class WalletServiceService {
             walletId: fromWallet.id,
             amount: debitAmount,
             type: 'TRANSFER',
-            status: 'SUCCESS', // ✅ Débit immédiat
+            status: 'SUCCESS',
             reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
@@ -3940,7 +4048,7 @@ export class WalletServiceService {
           },
         });
 
-        // ✅ Transaction destinataire (CREDIT) - PENDING si international
+        // ✅ Transaction destinataire (CREDIT)
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3948,7 +4056,7 @@ export class WalletServiceService {
             walletId: targetWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: 'PENDING', // ✅ PENDING si international, SUCCESS sinon
+            status: transactionStatus,
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
@@ -3972,7 +4080,10 @@ export class WalletServiceService {
           fee,
           internationalFeePercentage,
           debitAmount,
+          netAmount,
           receiverCountryCode,
+          systemTransaction: systemTransaction ?? null,
+          systemWallet: systemWallet ?? null,
         };
       },
       { timeout: 60000, maxWait: 60000 },
@@ -3981,7 +4092,6 @@ export class WalletServiceService {
     // ========== NOTIFICATIONS ==========
     try {
       if (!result.isInternational) {
-        // 🔵 Transfert national - Notifier les deux parties
         await Promise.all([
           notifyTransaction(
             this.smsService,
@@ -4017,7 +4127,6 @@ export class WalletServiceService {
           ),
         ]);
       } else {
-        // 🌍 Transfert international - Notifier SEULEMENT l'expéditeur
         await notifyTransaction(
           this.smsService,
           this.notificationHelper,
@@ -4051,6 +4160,7 @@ export class WalletServiceService {
           fee: result.fee,
           feePercentage: result.internationalFeePercentage,
           debitAmount: result.debitAmount,
+          netAmount: result.netAmount,
           fromCurrency: result.fromWallet.currency,
           countryCode: result.receiverCountryCode,
         }
