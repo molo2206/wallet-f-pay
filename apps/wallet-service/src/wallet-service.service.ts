@@ -3449,8 +3449,6 @@ export class WalletServiceService {
 
   // apps/wallet-service/src/wallet-service.service.ts
 
-  // apps/wallet-service/src/wallet-service.service.ts
-
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3740,7 +3738,7 @@ export class WalletServiceService {
 
         console.log('[WalletService] Wallets du destinataire:', receiverWallets.map(w => w.currency));
 
-        // ✅ INITIALISER LES VARIABLES AVEC DES VALEURS PAR DÉFAUT
+        // ✅ INITIALISER AVEC LE PREMIER WALLET DU DESTINATAIRE
         let targetCurrency: string = receiverWallets[0].currency;
         let targetWallet: any = receiverWallets[0];
 
@@ -3914,8 +3912,19 @@ export class WalletServiceService {
         // 10. Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
 
+        // ✅ Déterminer le statut de la transaction
+        // - Si international : PENDING (en attente de validation)
+        // - Si national : SUCCESS (immédiat)
         const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
+        console.log('[WalletService] Transaction status:', {
+          isInternational,
+          transactionStatus,
+          senderStatus: 'SUCCESS',
+          receiverStatus: transactionStatus,
+        });
+
+        // ✅ Transaction expéditeur (DEBIT) - toujours SUCCESS
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3923,7 +3932,7 @@ export class WalletServiceService {
             walletId: fromWallet.id,
             amount: debitAmount,
             type: 'TRANSFER',
-            status: transactionStatus,
+            status: 'SUCCESS', // ✅ Débit immédiat
             reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
@@ -3931,6 +3940,7 @@ export class WalletServiceService {
           },
         });
 
+        // ✅ Transaction destinataire (CREDIT) - PENDING si international
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3938,7 +3948,7 @@ export class WalletServiceService {
             walletId: targetWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: transactionStatus,
+            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
@@ -3971,6 +3981,7 @@ export class WalletServiceService {
     // ========== NOTIFICATIONS ==========
     try {
       if (!result.isInternational) {
+        // 🔵 Transfert national - Notifier les deux parties
         await Promise.all([
           notifyTransaction(
             this.smsService,
@@ -4006,6 +4017,7 @@ export class WalletServiceService {
           ),
         ]);
       } else {
+        // 🌍 Transfert international - Notifier SEULEMENT l'expéditeur
         await notifyTransaction(
           this.smsService,
           this.notificationHelper,
