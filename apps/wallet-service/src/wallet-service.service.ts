@@ -5658,8 +5658,6 @@ export class WalletServiceService {
   /**
    * Récupère le dashboard d'un wallet
    */
-  // apps/wallet-service/src/wallet-service.service.ts
-
   async getWalletDashboard(
     userId: string,
     walletId?: string,
@@ -5669,20 +5667,42 @@ export class WalletServiceService {
   ): Promise<ApiResponse<any>> {
     console.log('[WalletService] Get wallet dashboard:', { userId, walletId, startDate, endDate, lang });
 
+    // 🔍 Vérifier que userId est valide
+    if (!userId) {
+      console.error('[WalletService] userId is missing');
+      throw new RpcException({
+        status: 'error',
+        message: 'userId is required',
+        statusCode: 400,
+      });
+    }
+
     // 1️⃣ Récupérer tous les wallets de l'utilisateur
     const allWallets = await this.prisma.wallet.findMany({
-      where: { userId, isActive: true },
+      where: {
+        userId: userId,
+        isActive: true,
+      },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
         currency: true,
         balance: true,
+        isActive: true,
       },
     });
 
-    console.log('[WalletService] All wallets found:', allWallets.length);
+    console.log('[WalletService] All active wallets found:', allWallets.length);
+    console.log('[WalletService] Wallets:', JSON.stringify(allWallets.map(w => ({ id: w.id, currency: w.currency, balance: w.balance })), null, 2));
 
     if (!allWallets || allWallets.length === 0) {
+      // 🔍 Vérifier si l'utilisateur existe
+      const user = await this.prisma.user.findFirst({
+        where: { id: userId },
+        select: { id: true, full_name: true, phone: true },
+      });
+      console.log('[WalletService] User found:', user);
+
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.no_wallet_found', lang),
@@ -5693,13 +5713,15 @@ export class WalletServiceService {
     // 2️⃣ Récupérer le wallet (premier si non spécifié)
     let wallet;
     if (walletId) {
-      // Vérifier d'abord dans la liste des wallets de l'utilisateur
       wallet = allWallets.find(w => w.id === walletId);
-
       if (!wallet) {
-        // Si pas trouvé, essayer une recherche directe
+        // Essayer une recherche directe si pas trouvé dans la liste
         wallet = await this.prisma.wallet.findFirst({
-          where: { id: walletId, userId, isActive: true },
+          where: {
+            id: walletId,
+            userId: userId,
+            isActive: true,
+          },
         });
       }
 
@@ -5712,10 +5734,23 @@ export class WalletServiceService {
         });
       }
     } else {
-      wallet = allWallets[0]; // Premier wallet
+      wallet = allWallets[0]; // Premier wallet actif
     }
 
-    console.log('[WalletService] Selected wallet:', { id: wallet.id, currency: wallet.currency, balance: wallet.balance });
+    if (!wallet) {
+      throw new RpcException({
+        status: 'error',
+        message: 'No wallet selected',
+        statusCode: 404,
+      });
+    }
+
+    console.log('[WalletService] Selected wallet:', {
+      id: wallet.id,
+      currency: wallet.currency,
+      balance: wallet.balance,
+      isActive: wallet.isActive,
+    });
 
     // 3️⃣ Définir la période (mois en cours par défaut)
     const now = new Date();
