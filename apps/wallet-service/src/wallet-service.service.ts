@@ -3449,6 +3449,8 @@ export class WalletServiceService {
 
   // apps/wallet-service/src/wallet-service.service.ts
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3713,7 +3715,7 @@ export class WalletServiceService {
           debitAmount,
         });
 
-        // 5. Déterminer la devise du destinataire (DYNAMIQUE)
+        // 5. Déterminer la devise du destinataire (CORRIGÉ)
         let targetCurrency: string = fromWallet.currency;
         let exchangeRate = 1;
         let convertedAmount = amount;
@@ -3736,11 +3738,13 @@ export class WalletServiceService {
             },
           });
 
+          // ✅ METTRE À JOUR targetCurrency avec la devise du pays du destinataire
           if (receiverCountry?.country_currency && receiverCountry.country_currency.length > 0) {
             const currencyCode = receiverCountry.country_currency[0].currency_code;
             const validCurrencies: string[] = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
             if (validCurrencies.includes(currencyCode)) {
-              targetCurrency = currencyCode;
+              targetCurrency = currencyCode; // ✅ XOF pour le Bénin
+              console.log(`[WalletService] Devise du destinataire: ${targetCurrency}`);
             } else {
               console.warn(`[WalletService] Devise ${currencyCode} non supportée, utilisation de ${fromWallet.currency}`);
               targetCurrency = fromWallet.currency;
@@ -3790,7 +3794,7 @@ export class WalletServiceService {
               exchangeRate = rateRecord.rate;
             }
 
-            // ✅ CONVERSION AUTOMATIQUE - Montant converti pour le destinataire
+            // ✅ CONVERSION AUTOMATIQUE
             convertedAmount = amount * exchangeRate;
             console.log('[WalletService] Conversion automatique:', {
               from: fromWallet.currency,
@@ -3806,19 +3810,17 @@ export class WalletServiceService {
           convertedAmount = amount;
         }
 
-        // 6. ✅ RÉCUPÉRER LE WALLET DU DESTINATAIRE (NE PAS CRÉER)
-        // ✅ Si le destinataire n'a pas de wallet dans la devise cible, erreur
+        // 6. ✅ Récupérer le wallet du destinataire dans la devise TARGET (NE PAS CRÉER)
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
-            currency: targetCurrency as any,
+            currency: targetCurrency as any, // ✅ XOF (devise du destinataire)
             isActive: true,
           },
         });
 
         // ❌ NE PAS CRÉER DE WALLET AUTOMATIQUEMENT
         if (!toWallet) {
-          // Récupérer les wallets disponibles du destinataire
           const availableWallets = await tx.wallet.findMany({
             where: {
               userId: toUser.id,
@@ -3939,7 +3941,7 @@ export class WalletServiceService {
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
-            currency: targetCurrency,
+            currency: targetCurrency, // ✅ XOF (devise du destinataire)
           },
         });
 
