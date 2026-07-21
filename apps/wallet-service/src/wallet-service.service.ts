@@ -5653,11 +5653,7 @@ export class WalletServiceService {
     };
   }
 
-  // apps/wallet-service/src/wallet-service.service.ts
-
-  /**
-   * Récupère le dashboard d'un wallet
-   */
+  
   async getWalletDashboard(
     userId: string,
     walletId?: string,
@@ -5876,7 +5872,7 @@ export class WalletServiceService {
       }
     }
 
-    // 1️⃣1️⃣ Statistiques internationales - DYNAMIQUE
+    // 1️⃣1️⃣ Statistiques internationales - DYNAMIQUE (CORRIGÉ)
     let totalInternationalSent = 0;
     let totalInternationalReceived = 0;
     let totalFees = 0;
@@ -5886,7 +5882,7 @@ export class WalletServiceService {
 
     for (const tx of transactions) {
       let isInternational = false;
-      let detectedCountryCode = null;
+      let detectedCountryCode: string | null = null;
 
       // ✅ 1. Détection par devise (si différente de la devise locale)
       if (tx.type === 'TRANSFER' && tx.currency && tx.currency !== localCurrency) {
@@ -5899,7 +5895,7 @@ export class WalletServiceService {
           }
         } else if (foreignCurrencies.has(tx.currency)) {
           isInternational = true;
-          detectedCountryCode = tx.currency;
+          detectedCountryCode = 'INT';
         }
       }
 
@@ -5937,18 +5933,24 @@ export class WalletServiceService {
         }
       }
 
-      // ❌ Si ce n'est pas international, ignorer
+      // ❌ Si ce n'est pas international ou pas de pays détecté, ignorer
       if (!isInternational || !detectedCountryCode) continue;
 
       // ❌ Si le pays détecté est le même que le pays de l'utilisateur, ignorer
       if (localCountries.has(detectedCountryCode)) continue;
 
-      // Récupérer le nom du pays
-      let countryName = detectedCountryCode;
+      // ✅ Récupérer le nom du pays
+      let countryName: string = detectedCountryCode;
       if (countryByCountryCode.has(detectedCountryCode)) {
-        countryName = countryByCountryCode.get(detectedCountryCode)!.name;
+        const country = countryByCountryCode.get(detectedCountryCode);
+        if (country) {
+          countryName = country.name;
+        }
       } else if (countryByCode.has(detectedCountryCode)) {
-        countryName = countryByCode.get(detectedCountryCode)!.name;
+        const country = countryByCode.get(detectedCountryCode);
+        if (country) {
+          countryName = country.name;
+        }
       }
 
       if (!countryMap.has(detectedCountryCode)) {
@@ -6076,12 +6078,7 @@ export class WalletServiceService {
       },
     };
   }
-
-  // apps/wallet-service/src/wallet-service.service.ts
-
-  /**
-   * Récupère le nom du pays à partir du code
-   */
+ 
   private async getCountryName(countryCode: string): Promise<string> {
     try {
       const country = await this.prisma.country_provider.findFirst({
@@ -6104,7 +6101,6 @@ export class WalletServiceService {
    */
   private async getCountryByCurrency(currency: string): Promise<any> {
     try {
-      // 1. Chercher par pays avec cette devise par défaut
       let country = await this.prisma.country_provider.findFirst({
         where: { default_currency: currency },
         select: {
@@ -6115,7 +6111,6 @@ export class WalletServiceService {
         },
       });
 
-      // 2. Si non trouvé, chercher dans country_currency
       if (!country) {
         const countryCurrency = await this.prisma.country_currency.findFirst({
           where: { currency_code: currency },
@@ -6147,10 +6142,8 @@ export class WalletServiceService {
    */
   private async extractCountryCodeFromPhone(phone: string): Promise<string | null> {
     try {
-      // Nettoyer le numéro
       const clean = phone.replace(/[^0-9+]/g, '');
 
-      // Récupérer tous les pays avec leurs préfixes
       const countries = await this.prisma.country_provider.findMany({
         select: {
           code: true,
@@ -6162,7 +6155,6 @@ export class WalletServiceService {
         },
       });
 
-      // Créer un map trié par longueur de préfixe (descendant)
       const prefixMap: { prefix: string; code: string }[] = [];
       for (const country of countries) {
         if (country.prefix) {
@@ -6174,16 +6166,13 @@ export class WalletServiceService {
         }
       }
 
-      // Trier par longueur de préfixe (descendant)
       prefixMap.sort((a, b) => b.prefix.length - a.prefix.length);
 
-      // Si le numéro commence par +, enlever le +
       let number = clean;
       if (number.startsWith('+')) {
         number = number.substring(1);
       }
 
-      // Chercher le préfixe correspondant
       for (const { prefix, code } of prefixMap) {
         if (number.startsWith(prefix)) {
           return code;
@@ -6221,7 +6210,6 @@ export class WalletServiceService {
     const monthMap = new Map<string, { month: string; transactions: number; amount: number }>();
     const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jui', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-    // Initialiser les 6 derniers mois
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -6330,7 +6318,6 @@ export class WalletServiceService {
     if (first === 0) return 0;
     return Math.round(((last - first) / first) * 100);
   }
-  // eslint-disable-next-line @typescript-eslint/require-await
   async healthCheck() {
     return { status: 'ok', service: 'wallet-service' };
   }
