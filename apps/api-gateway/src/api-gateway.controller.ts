@@ -1614,6 +1614,33 @@ export class ApiGatewayController {
     return response;
   }
 
+  // apps/api-gateway/src/api-gateway.controller.ts
+
+  @Get('wallet/dashboard')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getWalletDashboard(
+    @CurrentUser() currentUser: any,
+    @Query('walletId') walletId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    return this.sendWalletMessage(
+      'get_wallet_dashboard',
+      {
+        userId: currentUser.id,
+        walletId,
+        startDate,
+        endDate,
+        lang,
+      },
+      'Failed to get dashboard',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
   // ==================== PIN ENDPOINTS ====================
 
   @Post('users/me/pin')

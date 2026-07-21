@@ -5653,6 +5653,430 @@ export class WalletServiceService {
     };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
+  /**
+   * Récupère le dashboard d'un wallet
+   */
+  async getWalletDashboard(
+    userId: string,
+    walletId?: string,
+    startDate?: string,
+    endDate?: string,
+    lang: string = 'fr',
+  ): Promise<ApiResponse<any>> {
+    console.log('[WalletService] Get wallet dashboard:', { userId, walletId, startDate, endDate, lang });
+
+    // 1️⃣ Récupérer tous les wallets de l'utilisateur
+    const allWallets = await this.prisma.wallet.findMany({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        currency: true,
+        balance: true,
+      },
+    });
+
+    if (!allWallets || allWallets.length === 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.no_wallet_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // 2️⃣ Récupérer le wallet (premier si non spécifié)
+    let wallet;
+    if (walletId) {
+      wallet = await this.prisma.wallet.findFirst({
+        where: { id: walletId, userId, isActive: true },
+      });
+      if (!wallet) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_not_found', lang),
+          statusCode: 404,
+        });
+      }
+    } else {
+      wallet = allWallets[0]; // Premier wallet
+    }
+
+    // 3️⃣ Définir la période (mois en cours par défaut)
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+
+    if (startDate && endDate) {
+      start = new Date(startDate);
+      end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      // Mois en cours
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    console.log('[WalletService] Period:', { start, end });
+
+    // 4️⃣ Récupérer toutes les transactions du wallet sur la période
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        walletId: wallet.id,
+        status: 'SUCCESS',
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // 5️⃣ Calculer les statistiques globales
+    let totalSent = 0;
+    let totalReceived = 0;
+    let sentCount = 0;
+    let receivedCount = 0;
+    let successCount = 0;
+
+    for (const tx of transactions) {
+      if (tx.movement === 'DEBIT') {
+        totalSent += tx.amount;
+        sentCount++;
+      } else if (tx.movement === 'CREDIT') {
+        totalReceived += tx.amount;
+        receivedCount++;
+      }
+      if (tx.status === 'SUCCESS') {
+        successCount++;
+      }
+    }
+
+    const totalTransactions = transactions.length;
+    const successRate = totalTransactions > 0 ? Math.round((successCount / totalTransactions) * 100) : 0;
+
+    // 6️⃣ Calculer la moyenne quotidienne
+    const daysDiff = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    const averageDaily = totalTransactions > 0 ? Math.round((totalSent + totalReceived) / daysDiff) : 0;
+
+    // 7️⃣ Trouver la plus grande transaction
+    let largestAmount = 0;
+    for (const tx of transactions) {
+      if (tx.amount > largestAmount) {
+        largestAmount = tx.amount;
+      }
+    }
+
+    // 8️⃣ Statistiques internationales
+    const internationalTransactions = transactions.filter(tx =>
+      tx.description?.includes('Taux:') || tx.description?.includes('international')
+    );
+
+    let totalInternationalSent = 0;
+    let totalInternationalReceived = 0;
+    let totalFees = 0;
+    let feeCount = 0;
+
+    const countryMap = new Map<string, { code: string; name: string; count: number; amount: number }>();
+
+    for (const tx of internationalTransactions) {
+      if (tx.movement === 'DEBIT') {
+        totalInternationalSent += tx.amount;
+      } else {
+        totalInternationalReceived += tx.amount;
+      }
+
+      // Extraire le pays de la description
+      const countryMatch = tx.description?.match(/Pays:\s*([A-Z]{2})/i);
+      const countryCode = countryMatch ? countryMatch[1] : 'CD';
+      const countryName = await this.getCountryName(countryCode);
+
+      if (!countryMap.has(countryCode)) {
+        countryMap.set(countryCode, {
+          code: countryCode,
+          name: countryName,
+          count: 0,
+          amount: 0,
+        });
+      }
+      const countryData = countryMap.get(countryCode)!;
+      countryData.count += 1;
+      countryData.amount += tx.amount;
+
+      // Extraire les frais
+      const feeMatch = tx.description?.match(/frais\s+([\d.]+)\s*%/i);
+      if (feeMatch) {
+        const fee = parseFloat(feeMatch[1]);
+        totalFees += fee;
+        feeCount++;
+      }
+    }
+
+    const averageFee = feeCount > 0 ? Math.round((totalFees / feeCount) * 10) / 10 : 0;
+
+    // 9️⃣ Catégories (Transferts, Paiements, Recharges, Retraits)
+    const categories = [
+      {
+        name: 'Transferts',
+        count: 0,
+        amount: 0,
+        percentage: 0,
+        color: '#4F46E5', // Indigo
+      },
+      {
+        name: 'Paiements',
+        count: 0,
+        amount: 0,
+        percentage: 0,
+        color: '#F97316', // Orange
+      },
+      {
+        name: 'Recharges',
+        count: 0,
+        amount: 0,
+        percentage: 0,
+        color: '#10B981', // Émeraude
+      },
+      {
+        name: 'Retraits',
+        count: 0,
+        amount: 0,
+        percentage: 0,
+        color: '#EF4444', // Rouge
+      },
+    ];
+
+    for (const tx of transactions) {
+      if (tx.type === 'TRANSFER') {
+        categories[0].count++;
+        categories[0].amount += tx.amount;
+      } else if (tx.type === 'PAYMENT') {
+        categories[1].count++;
+        categories[1].amount += tx.amount;
+      } else if (tx.type === 'DEPOSIT') {
+        categories[2].count++;
+        categories[2].amount += tx.amount;
+      } else if (tx.type === 'WITHDRAW') {
+        categories[3].count++;
+        categories[3].amount += tx.amount;
+      }
+    }
+
+    const totalAmount = categories.reduce((sum, cat) => sum + cat.amount, 0);
+    for (const cat of categories) {
+      cat.percentage = totalAmount > 0 ? Math.round((cat.amount / totalAmount) * 100) : 0;
+    }
+
+    // 🔟 Activité mensuelle (pour l'évolution)
+    const monthlyActivity = await this.getMonthlyActivity(wallet.id, userId);
+
+    // 1️⃣1️⃣ Évolution du solde sur la période
+    const evolutionData = await this.getBalanceEvolution(wallet.id, start, end, lang);
+
+    // 1️⃣2️⃣ Données internationales formatées
+    const countries = Array.from(countryMap.values())
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    // 1️⃣3️⃣ Formater la liste des wallets
+    const formattedWallets = allWallets.map(w => ({
+      id: w.id,
+      currency: w.currency,
+      balance: w.balance,
+    }));
+
+    // 1️⃣4️⃣ Réponse
+    return {
+      message: this.i18nService.translate('wallet.dashboard_retrieved', lang),
+      data: {
+        wallets: formattedWallets, // ✅ Liste de tous les wallets
+        walletId: wallet.id,
+        currency: wallet.currency,
+        balance: wallet.balance,
+        transactions: {
+          total: totalTransactions,
+          sent: sentCount,
+          received: receivedCount,
+          sentAmount: totalSent,
+          receivedAmount: totalReceived,
+          successRate: successRate,
+          averageDaily: averageDaily,
+          largestAmount: largestAmount,
+        },
+        international: {
+          totalSent: totalInternationalSent,
+          totalReceived: totalInternationalReceived,
+          totalFees: totalFees,
+          averageFee: averageFee,
+          countries: countries,
+        },
+        categories: categories,
+        monthlyActivity: monthlyActivity,
+        evolution: {
+          percentageChange: this.calculatePercentageChange(evolutionData),
+          data: evolutionData,
+        },
+      },
+    };
+  }
+
+  /**
+   * Récupère le nom du pays à partir du code
+   */
+  private async getCountryName(countryCode: string): Promise<string> {
+    const country = await this.prisma.country_provider.findFirst({
+      where: {
+        OR: [
+          { countryCode: countryCode },
+          { code: countryCode },
+        ],
+      },
+      select: { name: true },
+    });
+    return country?.name || countryCode;
+  }
+
+  /**
+   * Récupère l'activité mensuelle
+   */
+  private async getMonthlyActivity(walletId: string, userId: string): Promise<any[]> {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    end.setHours(23, 59, 59, 999);
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        walletId: walletId,
+        userId: userId,
+        status: 'SUCCESS',
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+    });
+
+    const monthMap = new Map<string, { month: string; transactions: number; amount: number }>();
+    const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jui', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+    // Initialiser les 6 derniers mois
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthMap.set(key, {
+        month: monthNames[d.getMonth()],
+        transactions: 0,
+        amount: 0,
+      });
+    }
+
+    for (const tx of transactions) {
+      const d = new Date(tx.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthMap.has(key)) {
+        const data = monthMap.get(key)!;
+        data.transactions += 1;
+        data.amount += tx.amount;
+      }
+    }
+
+    return Array.from(monthMap.values());
+  }
+
+  /**
+   * Récupère l'évolution du solde sur la période
+   */
+  private async getBalanceEvolution(
+    walletId: string,
+    startDate: Date,
+    endDate: Date,
+    lang: string,
+  ): Promise<any[]> {
+    // Récupérer toutes les transactions sur la période
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        walletId: walletId,
+        status: 'SUCCESS',
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Récupérer le solde avant la période
+    const previousTransactions = await this.prisma.transaction.findMany({
+      where: {
+        walletId: walletId,
+        status: 'SUCCESS',
+        createdAt: {
+          lt: startDate,
+        },
+      },
+    });
+
+    let balance = 0;
+    for (const tx of previousTransactions) {
+      if (tx.movement === 'CREDIT') {
+        balance += tx.amount;
+      } else {
+        balance -= tx.amount;
+      }
+    }
+
+    // Générer les points de données (journalier)
+    const data: any[] = [];
+    const currentDate = new Date(startDate);
+
+    // Créer une map des transactions par jour
+    const dailyMap = new Map<string, { credit: number; debit: number }>();
+    for (const tx of transactions) {
+      const dateKey = tx.createdAt.toISOString().split('T')[0];
+      if (!dailyMap.has(dateKey)) {
+        dailyMap.set(dateKey, { credit: 0, debit: 0 });
+      }
+      const daily = dailyMap.get(dateKey)!;
+      if (tx.movement === 'CREDIT') {
+        daily.credit += tx.amount;
+      } else {
+        daily.debit += tx.amount;
+      }
+    }
+
+    // Parcourir chaque jour
+    while (currentDate <= endDate) {
+      const dateKey = currentDate.toISOString().split('T')[0];
+      const daily = dailyMap.get(dateKey);
+
+      if (daily) {
+        balance += daily.credit - daily.debit;
+      }
+
+      data.push({
+        date: dateKey,
+        balance: Math.round(balance * 100) / 100,
+      });
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return data;
+  }
+
+  /**
+   * Calcule le pourcentage de changement
+   */
+  private calculatePercentageChange(data: any[]): number {
+    if (data.length < 2) return 0;
+    const first = data[0]?.balance || 0;
+    const last = data[data.length - 1]?.balance || 0;
+    if (first === 0) return 0;
+    return Math.round(((last - first) / first) * 100);
+  }
   // eslint-disable-next-line @typescript-eslint/require-await
   async healthCheck() {
     return { status: 'ok', service: 'wallet-service' };

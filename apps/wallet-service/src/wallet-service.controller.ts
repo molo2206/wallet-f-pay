@@ -604,6 +604,37 @@ export class WalletServiceController {
     }
   }
 
+  @MessagePattern('get_wallet_dashboard')
+  async getWalletDashboard(
+    @Payload()
+    data: {
+      userId: string;
+      walletId?: string;
+      startDate?: string;
+      endDate?: string;
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] get_wallet_dashboard received:', data);
+    try {
+      return await this.walletService.getWalletDashboard(
+        data.userId,
+        data.walletId,
+        data.startDate,
+        data.endDate,
+        data.lang || 'fr',
+      );
+    } catch (error) {
+      console.error('[WalletService] get_wallet_dashboard error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   // ==================== EXCHANGE RATES ====================
 
   @MessagePattern('get_exchange_rates_for_user')
