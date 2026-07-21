@@ -3448,6 +3448,8 @@ export class WalletServiceService {
 
   // apps/wallet-service/src/wallet-service.service.ts
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3712,7 +3714,7 @@ export class WalletServiceService {
           debitAmount,
         });
 
-        // 5. Récupérer la devise du destinataire (DYNAMIQUE)
+        // 5. Déterminer la devise du destinataire (DYNAMIQUE)
         let targetCurrency: string = fromWallet.currency;
         let exchangeRate = 1;
         let convertedAmount = amount;
@@ -3759,7 +3761,6 @@ export class WalletServiceService {
             });
 
             if (!rateRecord) {
-              // Via USD
               const fromToUsd = await tx.exchange_rate.findFirst({
                 where: {
                   from_currency: fromWallet.currency,
@@ -3804,7 +3805,7 @@ export class WalletServiceService {
           convertedAmount = amount;
         }
 
-        // 6. Récupérer le wallet du destinataire dans la devise TARGET (DYNAMIQUE)
+        // 6. Récupérer le wallet du destinataire dans la devise TARGET
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
@@ -3813,7 +3814,7 @@ export class WalletServiceService {
           },
         });
 
-        // ✅ Vérifier que le wallet existe
+        // ✅ Si le wallet du destinataire n'existe pas dans la devise target, erreur
         if (!toWallet) {
           const availableWallets = await tx.wallet.findMany({
             where: {
@@ -3851,18 +3852,27 @@ export class WalletServiceService {
           });
         }
 
-        // 8. Mettre à jour les soldes
+        // 8. Mettre à jour le solde de l'expéditeur (DEBIT)
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
         });
 
-        const updatedTo = await tx.wallet.update({
-          where: { id: toWallet.id },
-          data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
-        });
+        // 9. Mettre à jour le solde du destinataire (CREDIT en PENDING)
+        // ✅ Pour les internationaux, on ne crédite pas immédiatement
+        let updatedTo;
+        if (isInternational) {
+          // ⏳ En attente de validation
+          updatedTo = toWallet; // Pas de modification du solde
+        } else {
+          // ✅ National - Crédit immédiat
+          updatedTo = await tx.wallet.update({
+            where: { id: toWallet.id },
+            data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
+          });
+        }
 
-        // 9. Construire les descriptions
+        // 10. Construire les descriptions
         let senderDescription = description;
         let receiverDescription = description;
 
@@ -3884,6 +3894,7 @@ export class WalletServiceService {
           if (countryCode) {
             senderDescription += ` - Pays: ${countryCode}`;
           }
+          senderDescription += ` - En attente de validation`;
         }
 
         if (!receiverDescription) {
@@ -3897,14 +3908,13 @@ export class WalletServiceService {
           if (countryCode) {
             receiverDescription += ` - Pays: ${countryCode}`;
           }
+          receiverDescription += ` - En attente de validation`;
         }
 
-        // 10. Créer les transactions
+        // 11. Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
 
-        // ✅ Déterminer le statut de la transaction
-        const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
-
+        // ✅ Transaction expéditeur (DEBIT) - toujours SUCCESS
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3912,13 +3922,16 @@ export class WalletServiceService {
             walletId: fromWallet.id,
             amount: debitAmount,
             type: 'TRANSFER',
-            status: transactionStatus,
+            status: 'SUCCESS', // ✅ L'expéditeur est débité immédiatement
             reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
           },
         });
+
+        // ✅ Transaction destinataire (CREDIT) - PENDING si international
+        const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
         const receiverTx = await tx.transaction.create({
           data: {
@@ -3927,11 +3940,11 @@ export class WalletServiceService {
             walletId: toWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: transactionStatus,
+            status: transactionStatus, // ✅ PENDING si international
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
-            currency: targetCurrency, // ✅ Devise du destinataire
+            currency: targetCurrency,
           },
         });
 
