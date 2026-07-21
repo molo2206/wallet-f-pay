@@ -1616,7 +1616,7 @@ export class ApiGatewayController {
 
   // apps/api-gateway/src/api-gateway.controller.ts
 
-  @Get('wallet/dashboard')
+  @Get('wallet/dashboard/by-currentUser')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getWalletDashboard(
     @CurrentUser() currentUser: any,
