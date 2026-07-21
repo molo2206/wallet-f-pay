@@ -5654,6 +5654,12 @@ export class WalletServiceService {
   }
 
   // apps/wallet-service/src/wallet-service.service.ts
+  // apps/wallet-service/src/wallet-service.service.ts
+
+  /**
+   * Récupère le dashboard d'un wallet
+   */
+  // apps/wallet-service/src/wallet-service.service.ts
 
   /**
    * Récupère le dashboard d'un wallet
@@ -5669,7 +5675,6 @@ export class WalletServiceService {
 
     // 🔍 Vérifier que userId est valide
     if (!userId) {
-      console.error('[WalletService] userId is missing');
       throw new RpcException({
         status: 'error',
         message: 'userId is required',
@@ -5693,16 +5698,8 @@ export class WalletServiceService {
     });
 
     console.log('[WalletService] All active wallets found:', allWallets.length);
-    console.log('[WalletService] Wallets:', JSON.stringify(allWallets.map(w => ({ id: w.id, currency: w.currency, balance: w.balance })), null, 2));
 
     if (!allWallets || allWallets.length === 0) {
-      // 🔍 Vérifier si l'utilisateur existe
-      const user = await this.prisma.user.findFirst({
-        where: { id: userId },
-        select: { id: true, full_name: true, phone: true },
-      });
-      console.log('[WalletService] User found:', user);
-
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.no_wallet_found', lang),
@@ -5715,7 +5712,6 @@ export class WalletServiceService {
     if (walletId) {
       wallet = allWallets.find(w => w.id === walletId);
       if (!wallet) {
-        // Essayer une recherche directe si pas trouvé dans la liste
         wallet = await this.prisma.wallet.findFirst({
           where: {
             id: walletId,
@@ -5726,7 +5722,6 @@ export class WalletServiceService {
       }
 
       if (!wallet) {
-        console.log('[WalletService] Wallet not found for user:', { walletId, userId });
         throw new RpcException({
           status: 'error',
           message: this.i18nService.translate('wallet.wallet_not_found', lang),
@@ -5734,22 +5729,13 @@ export class WalletServiceService {
         });
       }
     } else {
-      wallet = allWallets[0]; // Premier wallet actif
-    }
-
-    if (!wallet) {
-      throw new RpcException({
-        status: 'error',
-        message: 'No wallet selected',
-        statusCode: 404,
-      });
+      wallet = allWallets[0];
     }
 
     console.log('[WalletService] Selected wallet:', {
       id: wallet.id,
       currency: wallet.currency,
       balance: wallet.balance,
-      isActive: wallet.isActive,
     });
 
     // 3️⃣ Définir la période (mois en cours par défaut)
@@ -5762,7 +5748,6 @@ export class WalletServiceService {
       end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
     } else {
-      // Mois en cours
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       end.setHours(23, 59, 59, 999);
@@ -5820,11 +5805,18 @@ export class WalletServiceService {
       }
     }
 
-    // 8️⃣ Statistiques internationales
-    const internationalTransactions = transactions.filter(tx =>
-      tx.description?.includes('Taux:') || tx.description?.includes('international')
-    );
+    // 8️⃣ Récupérer le pays de l'utilisateur
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+      select: { countryCode: true },
+    });
+    const userCountryCode = user?.countryCode || 'CD';
+    const localCurrency = wallet.currency;
 
+    console.log('[WalletService] User country code:', userCountryCode);
+    console.log('[WalletService] Local currency:', localCurrency);
+
+    // 9️⃣ Statistiques internationales - CORRIGÉ
     let totalInternationalSent = 0;
     let totalInternationalReceived = 0;
     let totalFees = 0;
@@ -5832,29 +5824,79 @@ export class WalletServiceService {
 
     const countryMap = new Map<string, { code: string; name: string; count: number; amount: number }>();
 
-    for (const tx of internationalTransactions) {
-      if (tx.movement === 'DEBIT') {
-        totalInternationalSent += tx.amount;
-      } else {
-        totalInternationalReceived += tx.amount;
+    for (const tx of transactions) {
+      // ✅ Détection d'un transfert international
+      // 1. Si la devise est différente de la devise locale ET que c'est un TRANSFER
+      // 2. OU si la description contient un pays étranger différent de CD
+      // 3. OU si la description contient "Taux:" avec un pays différent de CD
+
+      let isInternational = false;
+      let detectedCountryCode = null;
+
+      // Vérifier par devise
+      if (tx.type === 'TRANSFER' && tx.currency && tx.currency !== localCurrency) {
+        isInternational = true;
+        // Essayer de déduire le pays depuis la devise
+        const countryByCurrency = await this.getCountryByCurrency(tx.currency);
+        detectedCountryCode = countryByCurrency?.countryCode || tx.currency;
       }
 
-      // Extraire le pays de la description
+      // Vérifier par pays dans la description
       const countryMatch = tx.description?.match(/Pays:\s*([A-Z]{2})/i);
-      const countryCode = countryMatch ? countryMatch[1] : 'CD';
-      const countryName = await this.getCountryName(countryCode);
+      if (countryMatch) {
+        const countryCode = countryMatch[1].toUpperCase();
+        if (countryCode !== userCountryCode) {
+          isInternational = true;
+          detectedCountryCode = countryCode;
+        }
+      }
 
-      if (!countryMap.has(countryCode)) {
-        countryMap.set(countryCode, {
-          code: countryCode,
+      // Vérifier par indicatif téléphonique
+      const phoneMatch = tx.description?.match(/\((\+?\d{10,15})\)/);
+      if (phoneMatch && !isInternational) {
+        const phone = phoneMatch[1];
+        // Si le téléphone ne commence pas par 243 (RDC), c'est international
+        if (!phone.startsWith('243') && !phone.startsWith('+243')) {
+          isInternational = true;
+          // Extraire l'indicatif pays
+          const countryCode = this.extractCountryCodeFromPhone(phone);
+          detectedCountryCode = countryCode || 'IN';
+        }
+      }
+
+      if (!isInternational) continue;
+
+      // Si on a détecté un pays, l'utiliser
+      let finalCountryCode = detectedCountryCode || userCountryCode;
+
+      // Si le pays détecté est CD ou non trouvé, essayer de déduire par devise
+      if (finalCountryCode === userCountryCode && tx.currency !== localCurrency) {
+        const countryByCurrency = await this.getCountryByCurrency(tx.currency);
+        finalCountryCode = countryByCurrency?.countryCode || tx.currency;
+      }
+
+      // Ignorer si le pays est le même que l'utilisateur
+      if (finalCountryCode === userCountryCode) continue;
+
+      const countryName = await this.getCountryName(finalCountryCode);
+
+      if (!countryMap.has(finalCountryCode)) {
+        countryMap.set(finalCountryCode, {
+          code: finalCountryCode,
           name: countryName,
           count: 0,
           amount: 0,
         });
       }
-      const countryData = countryMap.get(countryCode)!;
+      const countryData = countryMap.get(finalCountryCode)!;
       countryData.count += 1;
       countryData.amount += tx.amount;
+
+      if (tx.movement === 'DEBIT') {
+        totalInternationalSent += tx.amount;
+      } else {
+        totalInternationalReceived += tx.amount;
+      }
 
       // Extraire les frais
       const feeMatch = tx.description?.match(/frais\s+([\d.]+)\s*%/i);
@@ -5867,35 +5909,28 @@ export class WalletServiceService {
 
     const averageFee = feeCount > 0 ? Math.round((totalFees / feeCount) * 10) / 10 : 0;
 
-    // 9️⃣ Catégories (Transferts, Paiements, Recharges, Retraits)
+    // 🔟 Catégories (Transferts, Paiements, Recharges)
     const categories = [
       {
         name: 'Transferts',
         count: 0,
         amount: 0,
         percentage: 0,
-        color: '#4F46E5', // Indigo
+        color: '#3B82F6', // Bleu
       },
       {
         name: 'Paiements',
         count: 0,
         amount: 0,
         percentage: 0,
-        color: '#F97316', // Orange
+        color: '#F59E0B', // Orange
       },
       {
         name: 'Recharges',
         count: 0,
         amount: 0,
         percentage: 0,
-        color: '#10B981', // Émeraude
-      },
-      {
-        name: 'Retraits',
-        count: 0,
-        amount: 0,
-        percentage: 0,
-        color: '#EF4444', // Rouge
+        color: '#22C55E', // Vert
       },
     ];
 
@@ -5909,9 +5944,6 @@ export class WalletServiceService {
       } else if (tx.type === 'DEPOSIT') {
         categories[2].count++;
         categories[2].amount += tx.amount;
-      } else if (tx.type === 'WITHDRAW') {
-        categories[3].count++;
-        categories[3].amount += tx.amount;
       }
     }
 
@@ -5920,25 +5952,25 @@ export class WalletServiceService {
       cat.percentage = totalAmount > 0 ? Math.round((cat.amount / totalAmount) * 100) : 0;
     }
 
-    // 🔟 Activité mensuelle (pour l'évolution)
+    // 1️⃣1️⃣ Activité mensuelle (6 derniers mois)
     const monthlyActivity = await this.getMonthlyActivity(wallet.id, userId);
 
-    // 1️⃣1️⃣ Évolution du solde sur la période
-    const evolutionData = await this.getBalanceEvolution(wallet.id, start, end, lang);
+    // 1️⃣2️⃣ Évolution du solde sur la période
+    const evolutionData = await this.getBalanceEvolution(wallet.id, start, end);
 
-    // 1️⃣2️⃣ Données internationales formatées
+    // 1️⃣3️⃣ Données internationales formatées
     const countries = Array.from(countryMap.values())
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
 
-    // 1️⃣3️⃣ Formater la liste des wallets
+    // 1️⃣4️⃣ Formater la liste des wallets
     const formattedWallets = allWallets.map(w => ({
       id: w.id,
       currency: w.currency,
       balance: w.balance,
     }));
 
-    // 1️⃣4️⃣ Réponse
+    // 1️⃣5️⃣ Réponse
     return {
       message: this.i18nService.translate('wallet.dashboard_retrieved', lang),
       data: {
@@ -5972,25 +6004,136 @@ export class WalletServiceService {
       },
     };
   }
+  // apps/wallet-service/src/wallet-service.service.ts
 
   /**
    * Récupère le nom du pays à partir du code
    */
   private async getCountryName(countryCode: string): Promise<string> {
-    const country = await this.prisma.country_provider.findFirst({
-      where: {
-        OR: [
-          { countryCode: countryCode },
-          { code: countryCode },
-        ],
-      },
-      select: { name: true },
-    });
-    return country?.name || countryCode;
+    try {
+      const country = await this.prisma.country_provider.findFirst({
+        where: {
+          OR: [
+            { countryCode: countryCode },
+            { code: countryCode },
+          ],
+        },
+        select: { name: true },
+      });
+      return country?.name || countryCode;
+    } catch (error) {
+      return countryCode;
+    }
   }
 
   /**
-   * Récupère l'activité mensuelle
+   * Récupère le pays par devise
+   */
+  private async getCountryByCurrency(currency: string): Promise<any> {
+    try {
+      const country = await this.prisma.country_provider.findFirst({
+        where: {
+          OR: [
+            { default_currency: currency },
+            {
+              country_currency: {
+                some: { currency_code: currency }
+              }
+            }
+          ]
+        },
+        select: {
+          countryCode: true,
+          code: true,
+          name: true,
+        },
+      });
+      return country;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Extrait le code pays d'un numéro de téléphone
+   */
+  private extractCountryCodeFromPhone(phone: string): string | null {
+    // Nettoyer le numéro
+    const clean = phone.replace(/[^0-9+]/g, '');
+
+    // Liste des indicatifs pays (simplifiée)
+    const countryCodes: Record<string, string> = {
+      '229': 'BJ', // Bénin
+      '225': 'CI', // Côte d'Ivoire
+      '228': 'TG', // Togo
+      '226': 'BF', // Burkina Faso
+      '227': 'NE', // Niger
+      '234': 'NG', // Nigeria
+      '233': 'GH', // Ghana
+      '221': 'SN', // Sénégal
+      '223': 'ML', // Mali
+      '224': 'GN', // Guinée
+      '231': 'LR', // Libéria
+      '232': 'SL', // Sierra Leone
+      '235': 'TD', // Tchad
+      '236': 'CF', // République Centrafricaine
+      '237': 'CM', // Cameroun
+      '238': 'CV', // Cap-Vert
+      '239': 'ST', // São Tomé
+      '240': 'GQ', // Guinée Équatoriale
+      '241': 'GA', // Gabon
+      '242': 'CG', // Congo-Brazzaville
+      '243': 'CD', // RDC
+      '244': 'AO', // Angola
+      '245': 'GW', // Guinée-Bissau
+      '246': 'IO', // Territoire britannique de l'océan Indien
+      '248': 'SC', // Seychelles
+      '249': 'SD', // Soudan
+      '250': 'RW', // Rwanda
+      '251': 'ET', // Éthiopie
+      '252': 'SO', // Somalie
+      '253': 'DJ', // Djibouti
+      '254': 'KE', // Kenya
+      '255': 'TZ', // Tanzanie
+      '256': 'UG', // Ouganda
+      '257': 'BI', // Burundi
+      '258': 'MZ', // Mozambique
+      '260': 'ZM', // Zambie
+      '261': 'MG', // Madagascar
+      '262': 'RE', // Réunion
+      '263': 'ZW', // Zimbabwe
+      '264': 'NA', // Namibie
+      '265': 'MW', // Malawi
+      '266': 'LS', // Lesotho
+      '267': 'BW', // Botswana
+      '268': 'SZ', // Eswatini
+      '269': 'KM', // Comores
+      '290': 'SH', // Sainte-Hélène
+      '291': 'ER', // Érythrée
+      '297': 'AW', // Aruba
+      '298': 'FO', // Îles Féroé
+      '299': 'GL', // Groenland
+    };
+
+    // Si le numéro commence par +, enlever le +
+    let number = clean;
+    if (number.startsWith('+')) {
+      number = number.substring(1);
+    }
+
+    // Essayer de trouver l'indicatif (1 à 4 chiffres)
+    for (let i = 1; i <= 4; i++) {
+      const prefix = number.substring(0, i);
+      if (countryCodes[prefix]) {
+        return countryCodes[prefix];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Récupère l'activité mensuelle (6 derniers mois)
    */
   private async getMonthlyActivity(walletId: string, userId: string): Promise<any[]> {
     const now = new Date();
@@ -6044,9 +6187,7 @@ export class WalletServiceService {
     walletId: string,
     startDate: Date,
     endDate: Date,
-    lang: string,
   ): Promise<any[]> {
-    // Récupérer toutes les transactions sur la période
     const transactions = await this.prisma.transaction.findMany({
       where: {
         walletId: walletId,
@@ -6059,7 +6200,6 @@ export class WalletServiceService {
       orderBy: { createdAt: 'asc' },
     });
 
-    // Récupérer le solde avant la période
     const previousTransactions = await this.prisma.transaction.findMany({
       where: {
         walletId: walletId,
@@ -6079,11 +6219,9 @@ export class WalletServiceService {
       }
     }
 
-    // Générer les points de données (journalier)
     const data: any[] = [];
     const currentDate = new Date(startDate);
 
-    // Créer une map des transactions par jour
     const dailyMap = new Map<string, { credit: number; debit: number }>();
     for (const tx of transactions) {
       const dateKey = tx.createdAt.toISOString().split('T')[0];
@@ -6098,7 +6236,6 @@ export class WalletServiceService {
       }
     }
 
-    // Parcourir chaque jour
     while (currentDate <= endDate) {
       const dateKey = currentDate.toISOString().split('T')[0];
       const daily = dailyMap.get(dateKey);
@@ -6128,6 +6265,7 @@ export class WalletServiceService {
     if (first === 0) return 0;
     return Math.round(((last - first) / first) * 100);
   }
+
   // eslint-disable-next-line @typescript-eslint/require-await
   async healthCheck() {
     return { status: 'ok', service: 'wallet-service' };
