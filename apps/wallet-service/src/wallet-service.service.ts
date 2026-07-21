@@ -2407,7 +2407,10 @@ export class WalletServiceService {
     endDate?: Date,
   ) {
     const skip = (page - 1) * limit;
-    const where: any = { userId };
+    const where: any = {
+      userId,
+      status: 'SUCCESS',
+    };
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = startDate;
