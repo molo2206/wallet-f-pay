@@ -4480,12 +4480,12 @@ export class WalletServiceService {
       data: { failed_pin_attempts: 0, pin_locked_until: null },
     });
 
-    // 3️⃣ Récupérer la transaction (PENDING ou SUCCESS)
+    // 3️⃣ Récupérer la transaction (sans filtre de statut pour déboguer)
+    console.log('[WalletService] Searching for transaction:', transactionId);
+
     const transaction = await this.prisma.transaction.findFirst({
       where: {
         id: transactionId,
-        type: 'TRANSFER',
-        status: { in: ['PENDING', 'SUCCESS'] },
       },
       include: {
         user: {
@@ -4511,6 +4511,8 @@ export class WalletServiceService {
       },
     });
 
+    console.log('[WalletService] Transaction found:', transaction ? transaction.id : 'NOT FOUND');
+
     if (!transaction) {
       throw new RpcException({
         status: 'error',
@@ -4522,7 +4524,11 @@ export class WalletServiceService {
     // 4️⃣ Vérifier que c'est bien un transfert international
     const isInternational = transaction.description?.includes('Taux:') ||
       transaction.description?.includes('international') ||
-      transaction.description?.match(/Pays:\s*([A-Z]{2})/i);
+      transaction.description?.match(/Pays:\s*([A-Z]{2})/i) ||
+      transaction.description?.match(/\(\+?\d{10,15}\)/); // Numéro étranger
+
+    console.log('[WalletService] Is international:', isInternational);
+
     if (!isInternational) {
       throw new RpcException({
         status: 'error',
@@ -4532,12 +4538,13 @@ export class WalletServiceService {
     }
 
     // 5️⃣ Récupérer la transaction réceptrice
+    console.log('[WalletService] Searching for receiver transaction with reference:', transaction.reference);
+
     const receiverTransaction = await this.prisma.transaction.findFirst({
       where: {
         reference: transaction.reference,
         movement: 'CREDIT',
         type: 'DEPOSIT',
-        status: { in: ['PENDING', 'SUCCESS'] },
       },
       include: {
         wallet: {
@@ -4555,6 +4562,8 @@ export class WalletServiceService {
       },
     });
 
+    console.log('[WalletService] Receiver transaction found:', receiverTransaction ? receiverTransaction.id : 'NOT FOUND');
+
     if (!receiverTransaction) {
       throw new RpcException({
         status: 'error',
@@ -4565,7 +4574,6 @@ export class WalletServiceService {
 
     // 6️⃣ Si la transaction est déjà SUCCESS, retourner sans modification
     if (transaction.status === 'SUCCESS' && receiverTransaction.status === 'SUCCESS') {
-      // Audit log pour tracer que l'admin a consulté une transaction déjà validée
       await this.prisma.audit_log.create({
         data: {
           id: crypto.randomUUID(),
@@ -4652,7 +4660,6 @@ export class WalletServiceService {
     const receiverWallet = receiverTransaction.wallet;
 
     try {
-      // Notification à l'expéditeur (confirmation)
       await notifyTransaction(
         this.smsService,
         this.notificationHelper,
@@ -4670,7 +4677,6 @@ export class WalletServiceService {
         },
       );
 
-      // ✅ Notification au destinataire
       await notifyTransaction(
         this.smsService,
         this.notificationHelper,
