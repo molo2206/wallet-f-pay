@@ -5653,7 +5653,12 @@ export class WalletServiceService {
     };
   }
 
-  
+
+  // apps/wallet-service/src/wallet-service.service.ts
+
+  /**
+   * Récupère le dashboard d'un wallet
+   */
   async getWalletDashboard(
     userId: string,
     walletId?: string,
@@ -6078,7 +6083,7 @@ export class WalletServiceService {
       },
     };
   }
- 
+
   private async getCountryName(countryCode: string): Promise<string> {
     try {
       const country = await this.prisma.country_provider.findFirst({

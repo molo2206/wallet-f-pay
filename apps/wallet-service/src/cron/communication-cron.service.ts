@@ -141,6 +141,7 @@ export class CommunicationCronService {
     ) { }
 
     // ==================== RAPPEL KYC (9h) ====================
+    // ==================== RAPPEL KYC (12h) ====================
     @Cron('0 12 * * *')
     async remindKyc() {
         if (this.isRunning) return;
@@ -167,10 +168,15 @@ export class CommunicationCronService {
                 const title = this.t('cron.kyc_reminder.title', lang);
                 const body = this.t('cron.kyc_reminder.body', lang, { name: user.full_name || 'Cher client' });
 
+                // ✅ Passer les bonnes données
                 await this.notificationHelper.notify(
                     user.id,
                     NotificationType.REMINDER,
-                    { title, message: body },
+                    {
+                        title,
+                        message: body,
+                        name: user.full_name || 'Cher client',
+                    },
                     'KYC',
                     crypto.randomUUID(),
                     lang,
@@ -193,7 +199,6 @@ export class CommunicationCronService {
             this.isRunning = false;
         }
     }
-
     // ==================== PROMOTION TRANSFERT BENIN (10h lundi) ====================
     @Cron('0 10 * * 1')
     async promoteBeninTransfer() {
@@ -271,14 +276,20 @@ export class CommunicationCronService {
 
                 const title = this.t('cron.low_balance.title', lang);
                 const body = this.t('cron.low_balance.body', lang, {
-                    balance: mainWallet.balance,
-                    currency: mainWallet.currency,
+                    balance: mainWallet.balance || 0,
+                    currency: mainWallet.currency || 'CDF',
                 });
 
+                // ✅ Passer les bonnes données
                 await this.notificationHelper.notify(
                     user.id,
                     NotificationType.WALLET,
-                    { title, message: body },
+                    {
+                        title,
+                        message: body,
+                        balance: mainWallet.balance || 0,
+                        currency: mainWallet.currency || 'CDF',
+                    },
                     'WALLET',
                     mainWallet.id,
                     lang,
@@ -294,7 +305,6 @@ export class CommunicationCronService {
             this.isRunning = false;
         }
     }
-
     // ==================== RAPPEL TRANSACTIONS EN ATTENTE (14h) ====================
     @Cron('0 14 * * *')
     async remindPendingTransactions() {
@@ -333,11 +343,15 @@ export class CommunicationCronService {
                 const settings = user.user_settings && user.user_settings.length > 0 ? user.user_settings[0] : null;
                 const lang = settings?.language || 'fr';
 
+                // ✅ Calculer le montant total et la devise
+                const totalAmount = txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+                const currency = txs[0]?.currency || 'CDF';
+
                 let body = '';
                 if (txs.length === 1) {
                     body = this.t('cron.transaction_reminder.body_single', lang, {
-                        amount: txs[0].amount,
-                        currency: txs[0].currency || 'CDF',
+                        amount: txs[0].amount || 0,
+                        currency: currency,
                     });
                 } else {
                     body = this.t('cron.transaction_reminder.body_multiple', lang, {
@@ -346,10 +360,18 @@ export class CommunicationCronService {
                 }
 
                 const title = this.t('cron.transaction_reminder.title', lang);
+
+                // ✅ Passer les bonnes données
                 await this.notificationHelper.notify(
                     userId,
                     NotificationType.TRANSACTION,
-                    { title, message: body },
+                    {
+                        title,
+                        message: body,
+                        amount: totalAmount,
+                        currency: currency,
+                        count: txs.length,
+                    },
                     'TRANSACTION',
                     txs[0].id,
                     lang,
@@ -365,7 +387,6 @@ export class CommunicationCronService {
             this.isRunning = false;
         }
     }
-
     // ==================== BIENVENUE NOUVEAUX UTILISATEURS ====================
     @Cron('0 8 * * *')
     async welcomeNewUsers() {
