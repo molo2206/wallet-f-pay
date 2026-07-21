@@ -3948,7 +3948,7 @@ export class WalletServiceService {
             walletId: targetWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
+            status: 'PENDING', // ✅ PENDING si international, SUCCESS sinon
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
