@@ -3624,7 +3624,7 @@ export class ApiGatewayController {
   /**
    * Valide un transfert international en attente (Admin uniquement)
    */
-  @Post('admin/wallet/validate-transfer/valid')
+  @Post('admin/wallet/validate-transfer')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async validateInternationalTransfer(
     @CurrentUser() currentUser: any,

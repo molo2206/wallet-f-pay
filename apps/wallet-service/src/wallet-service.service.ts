@@ -4407,6 +4407,8 @@ export class WalletServiceService {
     };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async validateInternationalTransfer(
     transactionId: string,
     adminId: string,
@@ -4478,12 +4480,12 @@ export class WalletServiceService {
       data: { failed_pin_attempts: 0, pin_locked_until: null },
     });
 
-    // 3️⃣ Récupérer la transaction en attente
+    // 3️⃣ Récupérer la transaction (PENDING ou SUCCESS)
     const transaction = await this.prisma.transaction.findFirst({
       where: {
         id: transactionId,
-        status: 'PENDING',
         type: 'TRANSFER',
+        status: { in: ['PENDING', 'SUCCESS'] },
       },
       include: {
         user: {
@@ -4517,12 +4519,14 @@ export class WalletServiceService {
       });
     }
 
-    // 4️⃣ Vérifier que c'est bien un transfert international en attente
-    const isInternational = transaction.description?.includes('Taux:');
+    // 4️⃣ Vérifier que c'est bien un transfert international
+    const isInternational = transaction.description?.includes('Taux:') ||
+      transaction.description?.includes('international') ||
+      transaction.description?.match(/Pays:\s*([A-Z]{2})/i);
     if (!isInternational) {
       throw new RpcException({
         status: 'error',
-        message: 'Cette transaction n\'est pas un transfert international en attente',
+        message: 'Cette transaction n\'est pas un transfert international',
         statusCode: 400,
       });
     }
@@ -4533,7 +4537,7 @@ export class WalletServiceService {
         reference: transaction.reference,
         movement: 'CREDIT',
         type: 'DEPOSIT',
-        status: 'PENDING',
+        status: { in: ['PENDING', 'SUCCESS'] },
       },
       include: {
         wallet: {
@@ -4559,25 +4563,66 @@ export class WalletServiceService {
       });
     }
 
-    // 6️⃣ Valider la transaction
-    const result = await this.prisma.$transaction(async (tx) => {
-      const updatedSender = await tx.transaction.update({
-        where: { id: transaction.id },
+    // 6️⃣ Si la transaction est déjà SUCCESS, retourner sans modification
+    if (transaction.status === 'SUCCESS' && receiverTransaction.status === 'SUCCESS') {
+      // Audit log pour tracer que l'admin a consulté une transaction déjà validée
+      await this.prisma.audit_log.create({
         data: {
-          status: 'SUCCESS',
-          updatedAt: new Date(),
-          description: transaction.description + ' (Validé par admin)',
+          id: crypto.randomUUID(),
+          userId: admin.id,
+          action: 'validateInternationalTransfer_ALREADY_VALIDATED',
+          details: JSON.stringify({
+            transactionId: transaction.id,
+            reference: transaction.reference,
+            amount: transaction.amount,
+            senderId: transaction.userId,
+            receiverId: receiverTransaction.userId,
+            status: 'ALREADY_VALIDATED',
+          }),
+          ipAddress: ipAddress || null,
+          createdAt: new Date(),
         },
       });
 
-      const updatedReceiver = await tx.transaction.update({
-        where: { id: receiverTransaction.id },
+      return {
+        message: 'Cette transaction a déjà été validée',
         data: {
-          status: 'SUCCESS',
-          updatedAt: new Date(),
-          description: receiverTransaction.description + ' (Validé par admin)',
+          transaction: transaction,
+          fromWallet: this.toResponse(transaction.wallet),
+          toWallet: this.toResponse(receiverTransaction.wallet),
         },
-      });
+      };
+    }
+
+    // 7️⃣ Valider la transaction (seulement si PENDING)
+    const result = await this.prisma.$transaction(async (tx) => {
+      let updatedSender;
+      if (transaction.status === 'PENDING') {
+        updatedSender = await tx.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: 'SUCCESS',
+            updatedAt: new Date(),
+            description: transaction.description + ' (Validé par admin)',
+          },
+        });
+      } else {
+        updatedSender = transaction;
+      }
+
+      let updatedReceiver;
+      if (receiverTransaction.status === 'PENDING') {
+        updatedReceiver = await tx.transaction.update({
+          where: { id: receiverTransaction.id },
+          data: {
+            status: 'SUCCESS',
+            updatedAt: new Date(),
+            description: receiverTransaction.description + ' (Validé par admin)',
+          },
+        });
+      } else {
+        updatedReceiver = receiverTransaction;
+      }
 
       await tx.audit_log.create({
         data: {
@@ -4590,6 +4635,7 @@ export class WalletServiceService {
             amount: transaction.amount,
             senderId: transaction.userId,
             receiverId: receiverTransaction.userId,
+            previousStatus: transaction.status,
           }),
           ipAddress: ipAddress || null,
           createdAt: new Date(),
@@ -4599,7 +4645,7 @@ export class WalletServiceService {
       return { senderTx: updatedSender, receiverTx: updatedReceiver };
     });
 
-    // 7️⃣ 🔔 NOTIFICATIONS APRÈS VALIDATION
+    // 8️⃣ 🔔 NOTIFICATIONS APRÈS VALIDATION
     const sender = transaction.user;
     const senderWallet = transaction.wallet;
     const receiver = receiverTransaction.wallet.user;
@@ -4624,7 +4670,7 @@ export class WalletServiceService {
         },
       );
 
-      // ✅ Notification au destinataire (MAINTENANT SEULEMENT)
+      // ✅ Notification au destinataire
       await notifyTransaction(
         this.smsService,
         this.notificationHelper,
