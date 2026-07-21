@@ -3447,6 +3447,8 @@ export class WalletServiceService {
     };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3711,12 +3713,13 @@ export class WalletServiceService {
           debitAmount,
         });
 
-        // 5. Récupérer la devise du destinataire
+        // 5. Déterminer la devise du destinataire (DYNAMIQUE)
         let targetCurrency: string = fromWallet.currency;
         let exchangeRate = 1;
         let convertedAmount = amount;
 
         if (isInternational) {
+          // ✅ Récupérer la devise par défaut du pays du destinataire
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3747,6 +3750,7 @@ export class WalletServiceService {
             targetCurrency = fromWallet.currency;
           }
 
+          // ✅ Calcul du taux de change
           if (fromWallet.currency !== targetCurrency) {
             let rateRecord = await tx.exchange_rate.findFirst({
               where: {
@@ -3786,10 +3790,12 @@ export class WalletServiceService {
               exchangeRate = rateRecord.rate;
             }
 
+            // ✅ CONVERSION AUTOMATIQUE - Montant converti pour le destinataire
             convertedAmount = amount * exchangeRate;
-            console.log('[WalletService] Exchange rate:', {
+            console.log('[WalletService] Conversion automatique:', {
               from: fromWallet.currency,
               to: targetCurrency,
+              amount,
               rate: exchangeRate,
               convertedAmount,
             });
@@ -3800,7 +3806,8 @@ export class WalletServiceService {
           convertedAmount = amount;
         }
 
-        // 6. Récupérer ou créer le wallet du destinataire
+        // 6. ✅ RÉCUPÉRER LE WALLET DU DESTINATAIRE (NE PAS CRÉER)
+        // ✅ Si le destinataire n'a pas de wallet dans la devise cible, erreur
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
@@ -3809,17 +3816,26 @@ export class WalletServiceService {
           },
         });
 
+        // ❌ NE PAS CRÉER DE WALLET AUTOMATIQUEMENT
         if (!toWallet) {
-          toWallet = await tx.wallet.create({
-            data: {
-              id: crypto.randomUUID(),
+          // Récupérer les wallets disponibles du destinataire
+          const availableWallets = await tx.wallet.findMany({
+            where: {
               userId: toUser.id,
-              currency: targetCurrency as any,
-              balance: 0,
               isActive: true,
             },
+            select: {
+              currency: true,
+            },
           });
-          console.log(`[WalletService] 💰 Nouveau wallet créé en ${targetCurrency} pour l'utilisateur ${toUser.id}`);
+
+          const availableCurrencies = availableWallets.map(w => w.currency).join(', ');
+
+          throw new RpcException({
+            status: 'error',
+            message: `Le destinataire ne possède pas de wallet en ${targetCurrency}. Devises disponibles: ${availableCurrencies || 'Aucune'}`,
+            statusCode: 404,
+          });
         }
 
         if (!toWallet.isActive) {
@@ -3830,7 +3846,7 @@ export class WalletServiceService {
           });
         }
 
-        // 7. Vérifier le solde
+        // 7. Vérifier le solde de l'expéditeur
         if (fromWallet.balance < debitAmount) {
           throw new RpcException({
             status: 'error',
@@ -3840,11 +3856,13 @@ export class WalletServiceService {
         }
 
         // 8. Mettre à jour les soldes
+        // ✅ Expéditeur : DÉBIT du montant d'origine + frais
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
         });
 
+        // ✅ Destinataire : CRÉDIT du montant CONVERTI
         const updatedTo = await tx.wallet.update({
           where: { id: toWallet.id },
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
@@ -3893,6 +3911,7 @@ export class WalletServiceService {
         // ✅ Déterminer le statut de la transaction
         const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
+        // ✅ Transaction expéditeur (DEBIT) - Montant d'origine + frais
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3900,7 +3919,7 @@ export class WalletServiceService {
             walletId: fromWallet.id,
             amount: debitAmount,
             type: 'TRANSFER',
-            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
+            status: transactionStatus,
             reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
@@ -3908,6 +3927,7 @@ export class WalletServiceService {
           },
         });
 
+        // ✅ Transaction destinataire (CREDIT) - Montant CONVERTI
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3915,7 +3935,7 @@ export class WalletServiceService {
             walletId: toWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: transactionStatus, // ✅ PENDING si international, SUCCESS sinon
+            status: transactionStatus,
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
@@ -3945,10 +3965,47 @@ export class WalletServiceService {
       { timeout: 60000, maxWait: 60000 },
     );
 
-    // Notifications
+    // ========== NOTIFICATIONS ==========
     try {
-      await Promise.all([
-        notifyTransaction(
+      if (!result.isInternational) {
+        // 🔵 Transfert national - Notifier les deux parties
+        await Promise.all([
+          notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.senderTx,
+            result.fromUser,
+            result.fromWallet,
+            'send_sent',
+            {
+              name: result.toUser.full_name ?? undefined,
+              phone: result.toUser.phone ?? undefined,
+            },
+          ),
+          notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.receiverTx,
+            result.toUser,
+            result.toWallet,
+            'send_received',
+            {
+              name: result.fromUser.full_name ?? undefined,
+              phone: result.fromUser.phone ?? undefined,
+            },
+          ),
+        ]);
+      } else {
+        // 🌍 Transfert international - Notifier SEULEMENT l'expéditeur
+        await notifyTransaction(
           this.smsService,
           this.notificationHelper,
           this.i18nService,
@@ -3958,29 +4015,14 @@ export class WalletServiceService {
           result.senderTx,
           result.fromUser,
           result.fromWallet,
-          result.isInternational ? 'send_pending' : 'send_sent',
+          'send_pending',
           {
             name: result.toUser.full_name ?? undefined,
             phone: result.toUser.phone ?? undefined,
           },
-        ),
-        notifyTransaction(
-          this.smsService,
-          this.notificationHelper,
-          this.i18nService,
-          this.shouldSendSms.bind(this),
-          this.shouldSendPush.bind(this),
-          this.getUserLanguage.bind(this),
-          result.receiverTx,
-          result.toUser,
-          result.toWallet,
-          result.isInternational ? 'receive_pending' : 'send_received',
-          {
-            name: result.fromUser.full_name ?? undefined,
-            phone: result.fromUser.phone ?? undefined,
-          },
-        ),
-      ]);
+        );
+        console.log('[WalletService] 🌍 Transfert international en attente - Pas de notification au destinataire');
+      }
     } catch (err) {
       console.error('[Notifications] Send notification error:', err);
     }
