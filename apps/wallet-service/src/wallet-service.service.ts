@@ -3446,6 +3446,8 @@ export class WalletServiceService {
 
   // apps/wallet-service/src/wallet-service.service.ts
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3710,7 +3712,7 @@ export class WalletServiceService {
           debitAmount,
         });
 
-        // 5. Récupérer la devise du destinataire
+        // 5. Récupérer la devise du destinataire (DYNAMIQUE)
         let targetCurrency: string = fromWallet.currency;
         let exchangeRate = 1;
         let convertedAmount = amount;
@@ -3747,7 +3749,7 @@ export class WalletServiceService {
             targetCurrency = fromWallet.currency;
           }
 
-          // ✅ Calculer le taux de change
+          // ✅ Calculer le taux de change (DYNAMIQUE)
           if (fromWallet.currency !== targetCurrency) {
             let rateRecord = await tx.exchange_rate.findFirst({
               where: {
@@ -3757,6 +3759,7 @@ export class WalletServiceService {
             });
 
             if (!rateRecord) {
+              // Via USD
               const fromToUsd = await tx.exchange_rate.findFirst({
                 where: {
                   from_currency: fromWallet.currency,
@@ -3801,8 +3804,7 @@ export class WalletServiceService {
           convertedAmount = amount;
         }
 
-        // 6. Récupérer ou créer le wallet du destinataire
-        // ✅ Utiliser la devise TARGET du destinataire (pas la devise de l'expéditeur)
+        // 6. Récupérer le wallet du destinataire dans la devise TARGET (DYNAMIQUE)
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
@@ -3811,17 +3813,25 @@ export class WalletServiceService {
           },
         });
 
+        // ✅ Vérifier que le wallet existe
         if (!toWallet) {
-          toWallet = await tx.wallet.create({
-            data: {
-              id: crypto.randomUUID(),
+          const availableWallets = await tx.wallet.findMany({
+            where: {
               userId: toUser.id,
-              currency: targetCurrency as any,
-              balance: 0,
               isActive: true,
             },
+            select: {
+              currency: true,
+            },
           });
-          console.log(`[WalletService] 💰 Nouveau wallet créé en ${targetCurrency} pour l'utilisateur ${toUser.id}`);
+
+          const availableCurrencies = availableWallets.map(w => w.currency).join(', ');
+
+          throw new RpcException({
+            status: 'error',
+            message: `Le destinataire ne possède pas de wallet en ${targetCurrency}. Devises disponibles: ${availableCurrencies || 'Aucune'}`,
+            statusCode: 404,
+          });
         }
 
         if (!toWallet.isActive) {
@@ -3832,7 +3842,7 @@ export class WalletServiceService {
           });
         }
 
-        // 7. Vérifier le solde
+        // 7. Vérifier le solde de l'expéditeur
         if (fromWallet.balance < debitAmount) {
           throw new RpcException({
             status: 'error',
@@ -3950,6 +3960,7 @@ export class WalletServiceService {
     // ========== NOTIFICATIONS ==========
     try {
       if (!result.isInternational) {
+        // 🔵 Transfert national - Notifier les deux parties
         await Promise.all([
           notifyTransaction(
             this.smsService,
@@ -3985,6 +3996,7 @@ export class WalletServiceService {
           ),
         ]);
       } else {
+        // 🌍 Transfert international - Notifier SEULEMENT l'expéditeur
         await notifyTransaction(
           this.smsService,
           this.notificationHelper,
