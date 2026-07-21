@@ -3453,6 +3453,8 @@ export class WalletServiceService {
 
   // apps/wallet-service/src/wallet-service.service.ts
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3586,13 +3588,12 @@ export class WalletServiceService {
           });
         }
 
-        // 3. Déterminer les pays
+        // 3. Déterminer les pays (pour KYC et frais)
         const senderCountryCode = fromUser.countryCode || 'CD';
         let receiverCountryCode = toUser.countryCode || 'CD';
 
         if (countryCode) {
           receiverCountryCode = countryCode.toUpperCase();
-          console.log('[WalletService] 📌 CountryCode fourni par le client:', countryCode);
         }
 
         const isInternational = senderCountryCode !== receiverCountryCode;
@@ -3602,7 +3603,6 @@ export class WalletServiceService {
           receiverCountry: receiverCountryCode,
           isInternational,
           fromCurrency: fromWallet.currency,
-          countryCodeProvided: countryCode || 'Non fourni',
         });
 
         // ✅ VÉRIFICATION KYC POUR LES TRANSFERTS INTERNATIONAUX
@@ -3610,11 +3610,6 @@ export class WalletServiceService {
           const kycStatus = fromUser.kycStatus || 'NOT_SUBMITTED';
 
           if (kycStatus !== 'VERIFIED') {
-            console.error('[WalletService] ❌ KYC non vérifié pour transfert international:', {
-              userId: fromUser.id,
-              kycStatus: kycStatus,
-            });
-
             let errorMessage = '';
             switch (kycStatus) {
               case 'NOT_SUBMITTED':
@@ -3629,15 +3624,12 @@ export class WalletServiceService {
               default:
                 errorMessage = this.i18nService.translate('wallet.kyc_required_for_international_transfer', lang);
             }
-
             throw new RpcException({
               status: 'error',
               message: errorMessage,
               statusCode: 403,
             });
           }
-
-          console.log('[WalletService] ✅ KYC vérifié pour transfert international');
         }
 
         // Vérifier le PIN
@@ -3682,7 +3674,7 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0 },
         });
 
-        // 4. Récupérer les frais internationaux dynamiques
+        // 4. Récupérer les frais internationaux
         let internationalFeePercentage = 0;
         let fee = 0;
         let debitAmount = amount;
@@ -3694,36 +3686,16 @@ export class WalletServiceService {
           if (internationalFeePercentage > 0) {
             fee = (amount * internationalFeePercentage) / 100;
             debitAmount = amount + fee;
-            console.log('[WalletService] Frais internationaux appliqués:', {
-              percentage: internationalFeePercentage,
-              fee,
-              debitAmount,
-            });
-          } else {
-            console.log('[WalletService] Aucun frais international configuré pour', senderCountryCode);
           }
-        } else {
-          console.log('[WalletService] ✅ Même pays - Pas de frais');
-          internationalFeePercentage = 0;
-          fee = 0;
-          debitAmount = amount;
         }
 
-        console.log('[WalletService] Fee calculation:', {
-          isInternational,
-          amount,
-          feePercentage: internationalFeePercentage,
-          fee,
-          debitAmount,
-        });
-
-        // 5. Déterminer la devise du destinataire (DYNAMIQUE)
+        // 5. Déterminer la devise du destinataire
         let targetCurrency: string = fromWallet.currency;
         let exchangeRate = 1;
         let convertedAmount = amount;
 
+        // ✅ Si international, récupérer la devise du pays du destinataire
         if (isInternational) {
-          // ✅ Récupérer la devise par défaut du pays du destinataire
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3746,15 +3718,13 @@ export class WalletServiceService {
             if (validCurrencies.includes(currencyCode)) {
               targetCurrency = currencyCode;
             } else {
-              console.warn(`[WalletService] Devise ${currencyCode} non supportée, utilisation de ${fromWallet.currency}`);
               targetCurrency = fromWallet.currency;
             }
           } else {
-            console.log('[WalletService] Aucune devise trouvée pour le pays, utilisation de la devise source');
             targetCurrency = fromWallet.currency;
           }
 
-          // ✅ Calculer le taux de change (DYNAMIQUE)
+          // ✅ Calcul du taux de change
           if (fromWallet.currency !== targetCurrency) {
             let rateRecord = await tx.exchange_rate.findFirst({
               where: {
@@ -3794,10 +3764,12 @@ export class WalletServiceService {
               exchangeRate = rateRecord.rate;
             }
 
+            // ✅ CONVERSION AUTOMATIQUE
             convertedAmount = amount * exchangeRate;
-            console.log('[WalletService] Exchange rate:', {
+            console.log('[WalletService] Conversion automatique:', {
               from: fromWallet.currency,
               to: targetCurrency,
+              amount,
               rate: exchangeRate,
               convertedAmount,
             });
@@ -3817,25 +3789,18 @@ export class WalletServiceService {
           },
         });
 
-        // ✅ Si le wallet du destinataire n'existe pas dans la devise target, erreur
+        // ✅ Si le wallet n'existe pas, le créer automatiquement
         if (!toWallet) {
-          const availableWallets = await tx.wallet.findMany({
-            where: {
+          toWallet = await tx.wallet.create({
+            data: {
+              id: crypto.randomUUID(),
               userId: toUser.id,
+              currency: targetCurrency as any,
+              balance: 0,
               isActive: true,
             },
-            select: {
-              currency: true,
-            },
           });
-
-          const availableCurrencies = availableWallets.map(w => w.currency).join(', ');
-
-          throw new RpcException({
-            status: 'error',
-            message: `Le destinataire ne possède pas de wallet en ${targetCurrency}. Devises disponibles: ${availableCurrencies || 'Aucune'}`,
-            statusCode: 404,
-          });
+          console.log(`[WalletService] 💰 Wallet créé automatiquement en ${targetCurrency} pour l'utilisateur ${toUser.id}`);
         }
 
         if (!toWallet.isActive) {
@@ -3855,69 +3820,43 @@ export class WalletServiceService {
           });
         }
 
-        // 8. Mettre à jour le solde de l'expéditeur (DEBIT)
+        // 8. Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
         });
 
-        // 9. Mettre à jour le solde du destinataire (CREDIT en PENDING)
-        // ✅ Pour les internationaux, on ne crédite pas immédiatement
-        let updatedTo;
-        if (isInternational) {
-          // ⏳ En attente de validation
-          updatedTo = toWallet; // Pas de modification du solde
-        } else {
-          // ✅ National - Crédit immédiat
-          updatedTo = await tx.wallet.update({
-            where: { id: toWallet.id },
-            data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
-          });
-        }
+        const updatedTo = await tx.wallet.update({
+          where: { id: toWallet.id },
+          data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
+        });
 
-        // 10. Construire les descriptions
-        let senderDescription = description;
-        let receiverDescription = description;
-
+        // 9. Construire les descriptions
         const toUserDisplay = toUser.full_name ? `${toUser.full_name} (${toUser.phone})` : toUser.phone;
         const fromUserDisplay = fromUser.full_name ? `${fromUser.full_name} (${fromUser.phone})` : fromUser.phone;
 
-        if (!senderDescription) {
-          senderDescription = `Transfert vers ${toUserDisplay}`;
-        } else {
-          senderDescription = `${senderDescription} (vers: ${toUserDisplay})`;
-        }
-
+        let senderDescription = description || `Transfert vers ${toUserDisplay}`;
         if (fee > 0) {
           senderDescription += ` (frais ${internationalFeePercentage}%: ${fee} ${fromWallet.currency})`;
         }
-
-        if (isInternational) {
+        if (isInternational && fromWallet.currency !== targetCurrency) {
           senderDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
           if (countryCode) {
             senderDescription += ` - Pays: ${countryCode}`;
           }
-          senderDescription += ` - En attente de validation`;
         }
 
-        if (!receiverDescription) {
-          receiverDescription = `Reçu de ${fromUserDisplay}`;
-        } else {
-          receiverDescription = `${description} (de: ${fromUserDisplay})`;
-        }
-
-        if (isInternational) {
+        let receiverDescription = description || `Reçu de ${fromUserDisplay}`;
+        if (isInternational && fromWallet.currency !== targetCurrency) {
           receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
           if (countryCode) {
             receiverDescription += ` - Pays: ${countryCode}`;
           }
-          receiverDescription += ` - En attente de validation`;
         }
 
-        // 11. Créer les transactions
+        // 10. Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
 
-        // ✅ Transaction expéditeur (DEBIT) - toujours SUCCESS
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3925,16 +3864,13 @@ export class WalletServiceService {
             walletId: fromWallet.id,
             amount: debitAmount,
             type: 'TRANSFER',
-            status: 'SUCCESS', // ✅ L'expéditeur est débité immédiatement
+            status: 'SUCCESS',
             reference: reference,
             description: senderDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
           },
         });
-
-        // ✅ Transaction destinataire (CREDIT) - PENDING si international
-        const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
         const receiverTx = await tx.transaction.create({
           data: {
@@ -3943,7 +3879,7 @@ export class WalletServiceService {
             walletId: toWallet.id,
             amount: convertedAmount,
             type: 'DEPOSIT',
-            status: transactionStatus, // ✅ PENDING si international
+            status: isInternational ? 'PENDING' : 'SUCCESS',
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
@@ -3976,7 +3912,6 @@ export class WalletServiceService {
     // ========== NOTIFICATIONS ==========
     try {
       if (!result.isInternational) {
-        // 🔵 Transfert national - Notifier les deux parties
         await Promise.all([
           notifyTransaction(
             this.smsService,
@@ -4012,7 +3947,6 @@ export class WalletServiceService {
           ),
         ]);
       } else {
-        // 🌍 Transfert international - Notifier SEULEMENT l'expéditeur
         await notifyTransaction(
           this.smsService,
           this.notificationHelper,
