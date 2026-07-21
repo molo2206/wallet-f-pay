@@ -3478,6 +3478,8 @@ export class WalletServiceService {
     };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3939,11 +3941,14 @@ export class WalletServiceService {
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
 
-        // 8.5 ✅ COLLECTER LES FRAIS DANS LE WALLET SYSTÈME
+        // 8.5 ✅ COLLECTER LES FRAIS DANS LE WALLET SYSTÈME (CORRIGÉ)
         let systemTransaction: any = null;
         let systemWallet: any = null;
 
-        if (fee > 0 && isInternational) {
+        // ✅ Vérifier que les frais sont valides
+        const feeAmount = fee || 0;
+
+        if (feeAmount > 0 && isInternational) {
           try {
             // ✅ Récupérer ou créer le wallet système pour les frais
             systemWallet = await this.getSystemFeeWallet(feeCurrency, tx);
@@ -3953,18 +3958,19 @@ export class WalletServiceService {
               // ✅ Créditer le wallet système avec les frais
               await tx.wallet.update({
                 where: { id: systemWallet.id },
-                data: { balance: { increment: fee }, updatedAt: new Date() },
+                data: { balance: { increment: feeAmount }, updatedAt: new Date() },
               });
 
               // ✅ Créer une transaction pour les frais
               const feeReference = await this.generateTransactionReference('', tx);
               const reference = await this.generateTransactionReference('', tx);
+              
               systemTransaction = await tx.transaction.create({
                 data: {
                   id: crypto.randomUUID(),
                   userId: systemWallet.userId,
                   walletId: systemWallet.id,
-                  amount: fee,
+                  amount: feeAmount,
                   type: 'DEPOSIT',
                   status: 'SUCCESS',
                   reference: feeReference,
@@ -3976,7 +3982,7 @@ export class WalletServiceService {
                 },
               });
 
-              console.log(`[WalletService] ✅ Frais collectés: ${fee} ${feeCurrency} dans le wallet système (${systemWallet.id})`);
+              console.log(`[WalletService] ✅ Frais collectés: ${feeAmount} ${feeCurrency} dans le wallet système (${systemWallet.id})`);
             }
           } catch (err) {
             console.error('[WalletService] ❌ Erreur lors de la collecte des frais:', err);
@@ -3996,8 +4002,8 @@ export class WalletServiceService {
           senderDescription = `${senderDescription} (vers: ${toUserDisplay})`;
         }
 
-        if (fee > 0) {
-          senderDescription += ` (frais ${internationalFeePercentage}%: ${fee} ${fromWallet.currency})`;
+        if (feeAmount > 0) {
+          senderDescription += ` (frais ${internationalFeePercentage}%: ${feeAmount} ${fromWallet.currency})`;
         }
 
         if (isInternational && fromWallet.currency !== targetCurrency) {
@@ -4077,7 +4083,7 @@ export class WalletServiceService {
           exchangeRate,
           convertedAmount,
           targetCurrency,
-          fee,
+          fee: feeAmount,
           internationalFeePercentage,
           debitAmount,
           netAmount,
