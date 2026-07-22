@@ -3939,7 +3939,7 @@ export class WalletServiceService {
         });
 
         // ✅ CREDIT DESTINATAIRE - Seulement pour les transferts nationaux
-        let updatedTo = null;
+        let updatedTo: any = null; // ✅ Type any pour accepter null ou l'objet wallet
         if (!isInternational) {
           // Transfert national : créditer immédiatement
           updatedTo = await tx.wallet.update({
