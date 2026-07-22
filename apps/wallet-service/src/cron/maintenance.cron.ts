@@ -77,6 +77,13 @@ export class MaintenanceService {
             es: (p: any) => `Hola ${p.full_name}, se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency} de su cuenta. Gracias por su confianza.`,
             ar: (p: any) => `مرحباً ${p.full_name}، تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency} من حسابك. شكراً لثقتك.`
         },
+        'wallet.maintenance.sms_debt': {
+            fr: (p: any) => `Bonjour ${p.full_name}, des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés sur votre compte. Votre solde est débiteur de ${p.debt} ${p.currency}. Veuillez régulariser.`,
+            en: (p: any) => `Hello ${p.full_name}, a maintenance fee of ${p.amount} ${p.currency} has been deducted. Your balance is overdrawn by ${p.debt} ${p.currency}. Please regularize.`,
+            sw: (p: any) => `Habari ${p.full_name}, ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa. Salio yako ni deni la ${p.debt} ${p.currency}. Tafadhali lipa.`,
+            es: (p: any) => `Hola ${p.full_name}, se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency}. Su saldo es deudor de ${p.debt} ${p.currency}. Por favor regularice.`,
+            ar: (p: any) => `مرحباً ${p.full_name}، تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency}. رصيدك مدين بمبلغ ${p.debt} ${p.currency}. يرجى التسوية.`
+        },
         'wallet.maintenance.notification_title': {
             fr: 'Frais de maintenance mensuels',
             en: 'Monthly maintenance fee',
@@ -84,12 +91,26 @@ export class MaintenanceService {
             es: 'Comisión de mantenimiento mensual',
             ar: 'رسوم الصيانة الشهرية'
         },
+        'wallet.maintenance.notification_title_debt': {
+            fr: '⚠️ Dette de maintenance',
+            en: '⚠️ Maintenance debt',
+            sw: '⚠️ Deni la matengenezo',
+            es: '⚠️ Deuda de mantenimiento',
+            ar: '⚠️ دين الصيانة'
+        },
         'wallet.maintenance.notification_body': {
             fr: (p: any) => `Des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés sur votre compte (${p.country}).`,
             en: (p: any) => `A maintenance fee of ${p.amount} ${p.currency} has been deducted from your account (${p.country}).`,
             sw: (p: any) => `Ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa kwenye akaunti yako (${p.country}).`,
             es: (p: any) => `Se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency} de su cuenta (${p.country}).`,
             ar: (p: any) => `تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency} من حسابك (${p.country}).`
+        },
+        'wallet.maintenance.notification_body_debt': {
+            fr: (p: any) => `Des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés. Votre solde est débiteur de ${p.debt} ${p.currency} (${p.country}).`,
+            en: (p: any) => `A maintenance fee of ${p.amount} ${p.currency} has been deducted. Your balance is overdrawn by ${p.debt} ${p.currency} (${p.country}).`,
+            sw: (p: any) => `Ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa. Salio yako ni deni la ${p.debt} ${p.currency} (${p.country}).`,
+            es: (p: any) => `Se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency}. Su saldo es deudor de ${p.debt} ${p.currency} (${p.country}).`,
+            ar: (p: any) => `تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency}. رصيدك مدين بمبلغ ${p.debt} ${p.currency} (${p.country}).`
         },
         'wallet.maintenance.selection_reason': {
             fr: (p: any) => `Wallet sélectionné: ${p.currency} - Raison: ${p.reason}`,
@@ -118,14 +139,10 @@ export class MaintenanceService {
         private readonly notificationHelper: NotificationHelper,
         private readonly i18nService: I18nService,
     ) {
-        // ✅ Log au démarrage pour confirmer que le service est chargé
         this.logger.log('🚀 MaintenanceService initialized');
         this.logger.log(`📅 Current time: ${new Date().toISOString()}`);
     }
 
-    /**
-     * Récupère le taux de change entre deux devises (DYNAMIQUE)
-     */
     private async getExchangeRate(from: string, to: string): Promise<number> {
         if (from === to) return 1;
 
@@ -191,9 +208,6 @@ export class MaintenanceService {
         return 1;
     }
 
-    /**
-     * Récupère le pays d'un utilisateur (DYNAMIQUE)
-     */
     private async getUserCountry(user: any): Promise<any> {
         const countryCode = user.countryCode || 'CD';
 
@@ -218,9 +232,6 @@ export class MaintenanceService {
         return country;
     }
 
-    /**
-     * Compte le nombre de transactions pour un wallet donné (DYNAMIQUE)
-     */
     private async getWalletTransactionCount(walletId: string): Promise<number> {
         const count = await this.prisma.transaction.count({
             where: {
@@ -231,10 +242,6 @@ export class MaintenanceService {
         return count;
     }
 
-    /**
-     * Sélectionne le meilleur wallet pour la maintenance (DYNAMIQUE)
-     * Priorité: 1. USD, 2. Plus grand solde, 3. Plus de transactions
-     */
     private async selectBestWalletForMaintenance(
         user: any,
         wallets: any[],
@@ -246,7 +253,6 @@ export class MaintenanceService {
         originalCurrency: string;
         selectionReason: string;
     }> {
-        // ✅ 1. Priorité au wallet USD
         const usdWallet = wallets.find(w => w.currency === 'USD');
         if (usdWallet && usdWallet.balance >= feeUSD) {
             return {
@@ -258,7 +264,6 @@ export class MaintenanceService {
             };
         }
 
-        // ✅ 2. Chercher le wallet avec le plus grand solde en USD (converti)
         let bestWallet: any = null;
         let bestBalanceInUSD = 0;
         let bestRate = 1;
@@ -285,7 +290,6 @@ export class MaintenanceService {
             };
         }
 
-        // ✅ 3. Si aucun wallet n'a assez de solde, chercher le wallet avec le plus de transactions
         let walletWithMostTransactions: any = null;
         let maxTransactions = 0;
         let rateForMostTransactions = 1;
@@ -314,7 +318,6 @@ export class MaintenanceService {
             };
         }
 
-        // ✅ 4. Fallback: premier wallet actif
         const fallbackWallet = wallets[0];
         const rate = await this.getExchangeRate(fallbackWallet.currency, 'USD');
         return {
@@ -326,9 +329,6 @@ export class MaintenanceService {
         };
     }
 
-    /**
-     * Exécute les frais de maintenance mensuels
-     */
     @Cron('*/5 * * * *')
     async runMonthlyMaintenance(lang: string = 'fr'): Promise<{
         message: string;
@@ -361,16 +361,19 @@ export class MaintenanceService {
                 systemTransactionId?: string;
                 error?: string;
                 selectedWalletReason?: string;
+                isDebt?: boolean;
+                debtAmount?: number;
             }[];
             summary: {
                 usersDebited: number;
                 merchantsDebited: number;
                 totalDebited: number;
                 failed: number;
+                totalDebt: number;
+                usersWithDebt: number;
             };
         };
     }> {
-        // ✅ LOG: Démarrage du cron
         this.logger.log('🚀 MAINTENANCE CRON STARTED at: ' + new Date().toISOString());
 
         if (this.isRunning) {
@@ -388,6 +391,8 @@ export class MaintenanceService {
                         merchantsDebited: 0,
                         totalDebited: 0,
                         failed: 0,
+                        totalDebt: 0,
+                        usersWithDebt: 0,
                     },
                 },
             };
@@ -398,8 +403,6 @@ export class MaintenanceService {
         const startTime = Date.now();
 
         try {
-            // ✅ LOG: Vérification des utilisateurs par statut
-            this.logger.log('📊 Checking user status distribution...');
             const userCounts = await this.prisma.user.groupBy({
                 by: ['status'],
                 where: { deleted: false },
@@ -407,8 +410,6 @@ export class MaintenanceService {
             });
             this.logger.log('📊 User status counts:', JSON.stringify(userCounts, null, 2));
 
-            // ✅ LOG: Vérification des pays avec frais de maintenance
-            this.logger.log('📊 Checking countries with maintenance fees...');
             const countriesWithFees = await this.prisma.country_provider.findMany({
                 where: {
                     status: 'ACTIVE',
@@ -423,7 +424,6 @@ export class MaintenanceService {
             });
             this.logger.log('📊 Countries with maintenance fees:', JSON.stringify(countriesWithFees, null, 2));
 
-            // ✅ Récupérer les utilisateurs éligibles
             const users = await this.prisma.user.findMany({
                 where: {
                     status: 'ACTIVE',
@@ -454,27 +454,20 @@ export class MaintenanceService {
                             merchantsDebited: 0,
                             totalDebited: 0,
                             failed: 0,
+                            totalDebt: 0,
+                            usersWithDebt: 0,
                         },
                     },
                 };
-            }
-
-            // ✅ LOG: Détail des utilisateurs trouvés
-            for (const user of users) {
-                this.logger.log(`🔍 User ${user.id}: ${user.full_name || 'No name'}, role: ${user.role}, country: ${user.countryCode || 'CD'}, wallets: ${user.wallets?.length || 0}`);
-                if (user.wallets && user.wallets.length > 0) {
-                    for (const wallet of user.wallets) {
-                        this.logger.log(`   💳 Wallet: ${wallet.currency}, balance: ${wallet.balance}, active: ${wallet.isActive}`);
-                    }
-                } else {
-                    this.logger.log(`   ⚠️ No active wallets found for user ${user.id}`);
-                }
             }
 
             let totalCollected = 0;
             let usersDebited = 0;
             let merchantsDebited = 0;
             let failedCount = 0;
+            let totalDebt = 0;
+            let usersWithDebt = 0;
+
             const details: {
                 userId: string;
                 name: string | null;
@@ -492,6 +485,8 @@ export class MaintenanceService {
                 systemTransactionId?: string;
                 error?: string;
                 selectedWalletReason?: string;
+                isDebt?: boolean;
+                debtAmount?: number;
             }[] = [];
             const countryStats = new Map();
 
@@ -501,7 +496,7 @@ export class MaintenanceService {
                     const result = await this.processUserMaintenance(user, lang);
                     details.push(result);
 
-                    this.logger.log(`📊 Result for user ${user.id}: success=${result.success}, collected=${result.collected}, amount=${result.amount || 0}`);
+                    this.logger.log(`📊 Result for user ${user.id}: success=${result.success}, collected=${result.collected}, amount=${result.amount || 0}, isDebt=${result.isDebt || false}`);
 
                     const countryCode = user.countryCode || 'CD';
                     if (!countryStats.has(countryCode)) {
@@ -513,6 +508,7 @@ export class MaintenanceService {
                             users: 0,
                             merchants: 0,
                             collected: 0,
+                            debts: 0,
                         });
                     }
 
@@ -527,7 +523,14 @@ export class MaintenanceService {
                             usersDebited++;
                             stats.users++;
                         }
-                        this.logger.log(`✅ User ${user.id} debited: ${result.amount} ${result.currency || 'USD'}`);
+
+                        if (result.isDebt && result.debtAmount) {
+                            totalDebt += result.debtAmount;
+                            usersWithDebt++;
+                            stats.debts += result.debtAmount;
+                        }
+
+                        this.logger.log(`✅ User ${user.id} debited: ${result.amount} ${result.currency || 'USD'}${result.isDebt ? ` (dette: ${result.debtAmount})` : ''}`);
                     } else if (!result.success) {
                         failedCount++;
                         this.logger.warn(`❌ User ${user.id} failed: ${result.reason || 'Unknown reason'}`);
@@ -548,7 +551,7 @@ export class MaintenanceService {
 
             const executionTime = (Date.now() - startTime) / 1000;
 
-            this.logger.log(`📊 MAINTENANCE SUMMARY: Total collected: ${totalCollected} USD, Users: ${usersDebited}, Merchants: ${merchantsDebited}, Failed: ${failedCount}`);
+            this.logger.log(`📊 MAINTENANCE SUMMARY: Total collected: ${totalCollected} USD, Users: ${usersDebited}, Merchants: ${merchantsDebited}, Failed: ${failedCount}, Total Debt: ${totalDebt}, Users with debt: ${usersWithDebt}`);
 
             await this.prisma.audit_log.create({
                 data: {
@@ -562,6 +565,8 @@ export class MaintenanceService {
                         merchantsDebited,
                         failedCount,
                         executionTime,
+                        totalDebt,
+                        usersWithDebt,
                         byCountry: Array.from(countryStats.values()),
                         date: new Date(),
                     }),
@@ -588,6 +593,8 @@ export class MaintenanceService {
                         merchantsDebited,
                         totalDebited: usersDebited + merchantsDebited,
                         failed: failedCount,
+                        totalDebt,
+                        usersWithDebt,
                     },
                 },
             };
@@ -596,9 +603,6 @@ export class MaintenanceService {
         }
     }
 
-    /**
-     * Traite les frais de maintenance pour un utilisateur individuel (DYNAMIQUE)
-     */
     private async processUserMaintenance(
         user: any,
         lang: string,
@@ -620,6 +624,8 @@ export class MaintenanceService {
         systemTransactionId?: string;
         error?: string;
         selectedWalletReason?: string;
+        isDebt?: boolean;
+        debtAmount?: number;
     }> {
         const isMerchant = user.role === 'MERCHANT';
         const country = await this.getUserCountry(user);
@@ -649,6 +655,8 @@ export class MaintenanceService {
                 collected: false,
                 amount: 0,
                 reason: this.t('wallet.maintenance.no_fee', lang),
+                isDebt: false,
+                debtAmount: 0,
             };
         }
 
@@ -663,6 +671,8 @@ export class MaintenanceService {
                 collected: false,
                 amount: finalFeeUSD,
                 reason: this.t('wallet.maintenance.no_wallet', lang),
+                isDebt: false,
+                debtAmount: 0,
             };
         }
 
@@ -673,7 +683,242 @@ export class MaintenanceService {
         this.logger.log(`💳 User ${user.id}: Wallet sélectionné: ${selectedWallet.currency} (balance: ${selectedWallet.balance}) - Frais: ${feeInWalletCurrency} ${selectedWallet.currency} - Raison: ${selectionReason}`);
 
         if (selectedWallet.balance < feeInWalletCurrency) {
-            this.logger.warn(`⚠️ User ${user.id}: Insufficient balance in ${selectedWallet.currency}: ${selectedWallet.balance} < ${feeInWalletCurrency}`);
+            this.logger.log(`⚠️ User ${user.id}: Balance insufficient (${selectedWallet.balance} < ${feeInWalletCurrency}), creating debt`);
+            return await this.processDebtMaintenance(
+                user,
+                selectedWallet,
+                selectedWallet.balance,
+                feeInWalletCurrency,
+                finalFeeUSD,
+                country,
+                isMerchant,
+                conversionRate,
+                originalCurrency,
+                selectionReason,
+                lang,
+                baseFeeUSD
+            );
+        }
+
+        return await this.processFullMaintenance(
+            user,
+            selectedWallet,
+            feeInWalletCurrency,
+            finalFeeUSD,
+            country,
+            isMerchant,
+            conversionRate,
+            originalCurrency,
+            selectionReason,
+            lang,
+            baseFeeUSD
+        );
+    }
+
+    private async processDebtMaintenance(
+        user: any,
+        selectedWallet: any,
+        currentBalance: number,
+        feeInWalletCurrency: number,
+        finalFeeUSD: number,
+        country: any,
+        isMerchant: boolean,
+        conversionRate: number,
+        originalCurrency: string,
+        selectionReason: string,
+        lang: string,
+        baseFeeUSD: number,
+    ): Promise<any> {
+        const systemUserId = process.env.SYSTEM_USER_ID || 'e68a3267-5a2d-4309-92c5-a426c3df7188';
+
+        const collectedAmount = currentBalance;
+        const debtAmount = feeInWalletCurrency - currentBalance;
+
+        this.logger.log(`💸 User ${user.id}: Debt creation - Collected: ${collectedAmount} ${selectedWallet.currency}, Debt: ${debtAmount} ${selectedWallet.currency}`);
+
+        try {
+            // ✅ Déclarer les types explicitement
+            let userTransaction: any = null;
+            let debtTransaction: any = null;
+
+            const result = await this.prisma.$transaction(async (tx) => {
+                const updatedWallet = await tx.wallet.update({
+                    where: { id: selectedWallet.id },
+                    data: {
+                        balance: -debtAmount,
+                        updatedAt: new Date(),
+                    },
+                });
+
+                this.logger.log(`✅ User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency} (dette: ${debtAmount})`);
+
+                if (collectedAmount > 0) {
+                    userTransaction = await tx.transaction.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            userId: user.id,
+                            walletId: selectedWallet.id,
+                            amount: collectedAmount,
+                            type: 'WITHDRAW',
+                            status: 'SUCCESS',
+                            reference: await this.generateMaintenanceReference(tx),
+                            description: `Frais de maintenance (${collectedAmount} ${selectedWallet.currency} prélevés) - ${country.name || user.countryCode || 'CD'}`,
+                            movement: 'DEBIT',
+                            currency: selectedWallet.currency,
+                            paymentMethod: 'INTERNAL',
+                        },
+                    });
+                    this.logger.log(`📝 User ${user.id}: Collection transaction created: ${userTransaction.id}`);
+                }
+
+                if (debtAmount > 0) {
+                    debtTransaction = await tx.transaction.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            userId: user.id,
+                            walletId: selectedWallet.id,
+                            amount: debtAmount,
+                            type: 'WITHDRAW',
+                            status: 'PENDING',
+                            reference: await this.generateMaintenanceReference(tx),
+                            description: `Dette de maintenance (${debtAmount} ${selectedWallet.currency}) - ${country.name || user.countryCode || 'CD'}`,
+                            movement: 'DEBIT',
+                            currency: selectedWallet.currency,
+                            paymentMethod: 'INTERNAL',
+                        },
+                    });
+                    this.logger.log(`📝 User ${user.id}: Debt transaction created: ${debtTransaction.id}`);
+                }
+
+                let systemWallet = await tx.wallet.findFirst({
+                    where: {
+                        userId: systemUserId,
+                        currency: 'USD',
+                        isActive: true,
+                    },
+                });
+
+                if (!systemWallet) {
+                    this.logger.warn(`⚠️ System wallet USD not found for user ${systemUserId}, creating one...`);
+                    systemWallet = await tx.wallet.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            userId: systemUserId,
+                            currency: 'USD',
+                            balance: 0,
+                            isActive: true,
+                            cashCode: `MAINT${Math.floor(10000000 + Math.random() * 90000000)}`,
+                        },
+                    });
+                    this.logger.log(`✅ System wallet created: ${systemWallet.id}`);
+                }
+
+                const systemAmount = finalFeeUSD;
+
+                this.logger.log(`💰 Crediting system wallet ${systemWallet.id} with ${systemAmount} USD (full amount including debt)`);
+
+                const updatedSystemWallet = await tx.wallet.update({
+                    where: { id: systemWallet.id },
+                    data: {
+                        balance: { increment: systemAmount },
+                        updatedAt: new Date(),
+                    },
+                });
+
+                this.logger.log(`✅ System wallet updated, new balance: ${updatedSystemWallet.balance} USD`);
+
+                const systemTransaction = await tx.transaction.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: systemUserId,
+                        walletId: systemWallet.id,
+                        amount: systemAmount,
+                        type: 'DEPOSIT',
+                        status: 'SUCCESS',
+                        reference: await this.generateMaintenanceReference(tx),
+                        description: `Frais de maintenance reçus de ${user.full_name || user.id} (${feeInWalletCurrency} ${selectedWallet.currency} = ${systemAmount} USD) - ${country.name || user.countryCode || 'CD'}${debtAmount > 0 ? ` (dette: ${debtAmount} ${selectedWallet.currency})` : ''}`,
+                        movement: 'CREDIT',
+                        currency: 'USD',
+                        paymentMethod: 'INTERNAL',
+                    },
+                });
+
+                this.logger.log(`📝 System transaction created: ${systemTransaction.id}`);
+
+                await tx.user.update({
+                    where: { id: user.id },
+                    data: {
+                        last_maintenance_date: new Date(),
+                    },
+                });
+
+                await tx.audit_log.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: user.id,
+                        action: debtAmount > 0 ? 'MAINTENANCE_FEE_WITH_DEBT' : 'MAINTENANCE_FEE',
+                        details: JSON.stringify({
+                            collectedAmount: collectedAmount,
+                            debtAmount: debtAmount,
+                            totalAmount: feeInWalletCurrency,
+                            currency: selectedWallet.currency,
+                            systemAmount: systemAmount,
+                            systemCurrency: 'USD',
+                            walletId: selectedWallet.id,
+                            systemWalletId: systemWallet.id,
+                            role: user.role,
+                            country: country.name || user.countryCode || 'CD',
+                            baseFee: baseFeeUSD,
+                            finalFee: finalFeeUSD,
+                            isMerchant,
+                            conversionRate,
+                            originalCurrency,
+                            selectionReason: selectionReason,
+                            hasDebt: debtAmount > 0,
+                            walletBalance: currentBalance,
+                            newBalance: -debtAmount,
+                        }),
+                        createdAt: new Date(),
+                    },
+                });
+
+                return {
+                    updatedWallet,
+                    userTransaction,
+                    debtTransaction,
+                    systemWallet: updatedSystemWallet,
+                    systemTransaction,
+                    collectedAmount,
+                    debtAmount,
+                };
+            }, { timeout: 30000 });
+
+            this.logger.log(`✅ User ${user.id}: Debt maintenance completed successfully`);
+
+            await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang, debtAmount > 0, debtAmount);
+
+            return {
+                userId: user.id,
+                name: user.full_name,
+                role: user.role,
+                country: country.name || user.countryCode || 'CD',
+                success: true,
+                collected: true,
+                amount: collectedAmount,
+                currency: selectedWallet.currency,
+                walletId: selectedWallet.id,
+                newBalance: result.updatedWallet.balance,
+                transactionId: result.userTransaction?.id ?? null,
+                debtTransactionId: result.debtTransaction?.id ?? null,
+                systemTransactionId: result.systemTransaction.id,
+                selectedWalletReason: debtAmount > 0
+                    ? `Dette créée: ${debtAmount} ${selectedWallet.currency} (solde: ${currentBalance}, prélevé: ${collectedAmount})`
+                    : `Prélèvement complet de ${feeInWalletCurrency} ${selectedWallet.currency}`,
+                isDebt: debtAmount > 0,
+                debtAmount: debtAmount,
+            };
+        } catch (error: any) {
+            this.logger.error(`❌ Error processing debt maintenance for user ${user.id}:`, error);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -681,21 +926,28 @@ export class MaintenanceService {
                 country: country.name || user.countryCode || 'CD',
                 success: false,
                 collected: false,
-                amount: finalFeeUSD,
-                reason: this.t('wallet.maintenance.insufficient_balance', lang, {
-                    balance: selectedWallet.balance,
-                    required: feeInWalletCurrency,
-                    currency: selectedWallet.currency,
-                }),
-                walletId: selectedWallet.id,
-                balance: selectedWallet.balance,
-                required: feeInWalletCurrency,
-                selectedWalletReason: selectionReason,
+                amount: 0,
+                error: error.message || 'Debt transaction failed',
+                isDebt: false,
+                debtAmount: 0,
             };
         }
+    }
 
+    private async processFullMaintenance(
+        user: any,
+        selectedWallet: any,
+        feeInWalletCurrency: number,
+        finalFeeUSD: number,
+        country: any,
+        isMerchant: boolean,
+        conversionRate: number,
+        originalCurrency: string,
+        selectionReason: string,
+        lang: string,
+        baseFeeUSD: number,
+    ): Promise<any> {
         const systemUserId = process.env.SYSTEM_USER_ID || 'e68a3267-5a2d-4309-92c5-a426c3df7188';
-        this.logger.log(`🏦 User ${user.id}: Using system user ${systemUserId}`);
 
         try {
             const result = await this.prisma.$transaction(async (tx) => {
@@ -837,9 +1089,9 @@ export class MaintenanceService {
                 };
             }, { timeout: 30000 });
 
-            this.logger.log(`✅ User ${user.id}: Maintenance completed successfully`);
+            this.logger.log(`✅ User ${user.id}: Full maintenance completed successfully`);
 
-            await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang);
+            await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang, false, 0);
 
             return {
                 userId: user.id,
@@ -855,9 +1107,11 @@ export class MaintenanceService {
                 transactionId: result.userTransaction.id,
                 systemTransactionId: result.systemTransaction.id,
                 selectedWalletReason: selectionReason,
+                isDebt: false,
+                debtAmount: 0,
             };
         } catch (error: any) {
-            this.logger.error(`❌ Error processing user ${user.id}:`, error);
+            this.logger.error(`❌ Error processing full maintenance for user ${user.id}:`, error);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -867,13 +1121,12 @@ export class MaintenanceService {
                 collected: false,
                 amount: finalFeeUSD,
                 error: error.message || 'Transaction failed',
+                isDebt: false,
+                debtAmount: 0,
             };
         }
     }
 
-    /**
-     * Génère une référence unique
-     */
     private async generateMaintenanceReference(tx: any): Promise<string> {
         const date = new Date();
         const year = date.getFullYear();
@@ -892,23 +1145,34 @@ export class MaintenanceService {
         return ref;
     }
 
-    /**
-     * Envoie les notifications à l'utilisateur
-     */
     private async sendMaintenanceNotifications(
         user: any,
         amount: number,
         currency: string,
         lang: string,
+        hasDebt: boolean = false,
+        debtAmount: number = 0,
     ): Promise<void> {
         if (user.phone) {
             try {
                 const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
-                const smsText = this.t('wallet.maintenance.sms', lang, {
-                    full_name: user.full_name || '',
-                    amount: amount,
-                    currency: currency,
-                });
+                let smsText: string;
+
+                if (hasDebt && debtAmount > 0) {
+                    smsText = this.t('wallet.maintenance.sms_debt', lang, {
+                        full_name: user.full_name || '',
+                        amount: amount,
+                        currency: currency,
+                        debt: debtAmount,
+                    });
+                } else {
+                    smsText = this.t('wallet.maintenance.sms', lang, {
+                        full_name: user.full_name || '',
+                        amount: amount,
+                        currency: currency,
+                    });
+                }
+
                 await this.smsService.sendSms(cleanPhone, smsText);
                 this.logger.log(`📱 SMS sent to ${cleanPhone}`);
             } catch (err) {
@@ -917,12 +1181,22 @@ export class MaintenanceService {
         }
 
         try {
-            const title = this.t('wallet.maintenance.notification_title', lang);
-            const body = this.t('wallet.maintenance.notification_body', lang, {
+            let titleKey = 'wallet.maintenance.notification_title';
+            let bodyKey = 'wallet.maintenance.notification_body';
+            const params: any = {
                 amount: amount,
                 currency: currency,
                 country: user.countryCode || 'CD',
-            });
+            };
+
+            if (hasDebt && debtAmount > 0) {
+                titleKey = 'wallet.maintenance.notification_title_debt';
+                bodyKey = 'wallet.maintenance.notification_body_debt';
+                params.debt = debtAmount;
+            }
+
+            const title = this.t(titleKey, lang);
+            const body = this.t(bodyKey, lang, params);
 
             await this.notificationHelper.notify(
                 user.id,
@@ -932,6 +1206,8 @@ export class MaintenanceService {
                     message: body,
                     amount: amount,
                     currency: currency,
+                    debt: debtAmount,
+                    hasDebt: hasDebt,
                     role: user.role === 'MERCHANT' ? 'Marchand' : 'Utilisateur',
                     country: user.countryCode || 'CD',
                 },
@@ -945,9 +1221,6 @@ export class MaintenanceService {
         }
     }
 
-    /**
-     * Récupère la dernière date de maintenance
-     */
     async getLastMaintenanceDate(): Promise<Date | null> {
         const lastAudit = await this.prisma.audit_log.findFirst({
             where: {
@@ -964,9 +1237,6 @@ export class MaintenanceService {
         return lastAudit?.createdAt || null;
     }
 
-    /**
-     * Vérifie si la maintenance a déjà été exécutée ce mois
-     */
     async isMaintenanceDoneThisMonth(): Promise<boolean> {
         const now = new Date();
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -986,9 +1256,6 @@ export class MaintenanceService {
         return !!lastAudit;
     }
 
-    /**
-     * Récupère les statistiques de maintenance
-     */
     async getMaintenanceStats(lang: string = 'fr'): Promise<any> {
         const now = new Date();
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -996,11 +1263,22 @@ export class MaintenanceService {
 
         const systemUserId = process.env.SYSTEM_USER_ID || 'e68a3267-5a2d-4309-92c5-a426c3df7188';
 
-        const [maintenanceTransactions, totalUsers, totalMerchants, systemWallets, countries] = await Promise.all([
+        const [maintenanceTransactions, debtTransactions, totalUsers, totalMerchants, systemWallets, countries] = await Promise.all([
             this.prisma.transaction.findMany({
                 where: {
                     type: 'WITHDRAW',
                     description: { contains: 'Frais de maintenance' },
+                    createdAt: {
+                        gte: firstDayOfMonth,
+                        lte: lastDayOfMonth,
+                    },
+                },
+            }),
+            this.prisma.transaction.findMany({
+                where: {
+                    type: 'WITHDRAW',
+                    status: 'PENDING',
+                    description: { contains: 'Dette de maintenance' },
                     createdAt: {
                         gte: firstDayOfMonth,
                         lte: lastDayOfMonth,
@@ -1032,6 +1310,11 @@ export class MaintenanceService {
             0,
         );
 
+        const totalDebt = debtTransactions.reduce(
+            (sum, t) => sum + t.amount,
+            0,
+        );
+
         const systemBalance = systemWallets.reduce(
             (sum, w) => sum + w.balance,
             0,
@@ -1052,6 +1335,8 @@ export class MaintenanceService {
                 totalMerchants,
                 maintenanceTransactions: maintenanceTransactions.length,
                 totalCollected,
+                totalDebt,
+                debtTransactions: debtTransactions.length,
                 averagePerUser: totalUsers > 0 ? totalCollected / totalUsers : 0,
                 systemBalance,
                 systemWallets,
