@@ -3707,7 +3707,7 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0 },
         });
 
-        // 4. Récupérer les frais internationaux dynamiques
+        // 4. Récupérer les frais internationaux dynamiques du PAYS DE L'EXPÉDITEUR
         let internationalFeePercentage = 0;
         let fee = 0;
         let debitAmount = amount;
@@ -3715,8 +3715,47 @@ export class WalletServiceService {
         let feeCurrency = fromWallet.currency;
 
         if (isInternational) {
-          const fees = await this.getInternationalFeesByCountry(senderCountryCode, tx);
-          internationalFeePercentage = fees.depositFee || 0;
+          // ✅ Récupérer les frais du pays de l'expéditeur
+          const senderCountry = await tx.country_provider.findFirst({
+            where: {
+              OR: [
+                { countryCode: senderCountryCode },
+                { code: senderCountryCode },
+              ]
+            },
+            select: {
+              international_transfer_fee: true,
+              cash_percentage: true,
+              momo_percentage: true,
+              deposit_fee: true,
+              withdrawal_fee: true,
+              maintenance_fee: true,
+            },
+          });
+
+          if (!senderCountry) {
+            console.error('[WalletService] ❌ Pays expéditeur non trouvé:', senderCountryCode);
+            throw new RpcException({
+              status: 'error',
+              message: `Pays expéditeur ${senderCountryCode} non trouvé`,
+              statusCode: 404,
+            });
+          }
+
+          // ✅ Utiliser international_transfer_fee du pays expéditeur
+          // Fallback: si international_transfer_fee est 0, utiliser cash_percentage ou momo_percentage
+          internationalFeePercentage = senderCountry.international_transfer_fee ||
+            senderCountry.cash_percentage ||
+            senderCountry.momo_percentage ||
+            0;
+
+          console.log('[WalletService] Frais du pays expéditeur:', {
+            senderCountryCode,
+            international_transfer_fee: senderCountry.international_transfer_fee,
+            cash_percentage: senderCountry.cash_percentage,
+            momo_percentage: senderCountry.momo_percentage,
+            internationalFeePercentage,
+          });
 
           if (internationalFeePercentage > 0) {
             const percentageDecimal = internationalFeePercentage / 100;
@@ -3733,13 +3772,14 @@ export class WalletServiceService {
 
             feeCurrency = fromWallet.currency;
 
-            console.log('[WalletService] Frais internationaux:', {
+            console.log('[WalletService] Frais internationaux appliqués:', {
               percentage: internationalFeePercentage,
               brutAmount: amount,
               netAmount,
               fee,
               debitAmount,
               feeCurrency,
+              senderCountry: senderCountryCode,
             });
           } else {
             console.log('[WalletService] Aucun frais international configuré pour', senderCountryCode);
@@ -3762,6 +3802,7 @@ export class WalletServiceService {
           fee,
           debitAmount,
           netAmount,
+          senderCountryCode,
         });
 
         // 5. Récupérer les wallets du destinataire
@@ -3849,7 +3890,6 @@ export class WalletServiceService {
         let convertedAmount = netAmount;
 
         if (fromWallet.currency !== targetCurrency) {
-          // ✅ Méthode : passer par USD comme devise pivot pour des taux cohérents
           exchangeRate = await this.getExchangeRateViaPivot(
             fromWallet.currency,
             targetCurrency,
@@ -3893,7 +3933,7 @@ export class WalletServiceService {
           updatedTo = targetWallet;
         }
 
-        // 8.5 COLLECTER LES FRAIS DANS LE WALLET SYSTÈME (DYNAMIQUE)
+        // 8.5 COLLECTER LES FRAIS DANS LE WALLET SYSTÈME
         let systemTransaction: any = null;
         let systemWallet: any = null;
         let systemUser: any = null;
@@ -3911,6 +3951,7 @@ export class WalletServiceService {
           amount,
           isInternational,
           internationalFeePercentage,
+          senderCountryCode,
         });
 
         if (feeAmount > 0 && isInternational) {
@@ -3990,7 +4031,7 @@ export class WalletServiceService {
                   type: 'DEPOSIT',
                   status: 'SUCCESS',
                   reference: feeReference,
-                  description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetCurrency}`,
+                  description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetCurrency} | Pays: ${senderCountryCode}`,
                   movement: 'CREDIT',
                   currency: feeCurrency,
                   paymentMethod: 'INTERNAL',
@@ -4106,6 +4147,7 @@ export class WalletServiceService {
           debitAmount,
           netAmount,
           receiverCountryCode,
+          senderCountryCode,
           systemTransaction: systemTransaction ?? null,
           systemWallet: systemWallet ?? null,
           systemUser: systemUser ?? null,
@@ -4199,19 +4241,17 @@ export class WalletServiceService {
 
   /**
    * ✅ Méthode pour calculer le taux de change via USD comme devise pivot
-   * Cela garantit des taux cohérents pour toutes les paires de devises
    */
   private async getExchangeRateViaPivot(
     fromCurrency: string,
     toCurrency: string,
-    tx: Prisma.TransactionClient,
+    tx: any,
   ): Promise<number> {
-    // Si les devises sont identiques
     if (fromCurrency === toCurrency) {
       return 1;
     }
 
-    // Si c'est USD vers une autre devise
+    // Cas USD vers autre devise
     if (fromCurrency === 'USD') {
       const rate = await tx.exchange_rate.findFirst({
         where: {
@@ -4226,7 +4266,7 @@ export class WalletServiceService {
       throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
     }
 
-    // Si c'est une autre devise vers USD
+    // Cas autre devise vers USD
     if (toCurrency === 'USD') {
       const rate = await tx.exchange_rate.findFirst({
         where: {
@@ -4238,7 +4278,6 @@ export class WalletServiceService {
         console.log(`[ExchangeRate] ${fromCurrency} → USD: ${rate.rate}`);
         return rate.rate;
       }
-      // Chercher l'inverse
       const inverseRate = await tx.exchange_rate.findFirst({
         where: {
           from_currency: 'USD',
@@ -4254,7 +4293,6 @@ export class WalletServiceService {
     }
 
     // ✅ Cas général : passer par USD comme pivot
-    // Taux de la devise source vers USD
     let rateFromToUsd: number | null = null;
     const fromToUsd = await tx.exchange_rate.findFirst({
       where: {
@@ -4265,7 +4303,6 @@ export class WalletServiceService {
     if (fromToUsd) {
       rateFromToUsd = fromToUsd.rate;
     } else {
-      // Chercher l'inverse
       const usdToFrom = await tx.exchange_rate.findFirst({
         where: {
           from_currency: 'USD',
@@ -4281,7 +4318,6 @@ export class WalletServiceService {
       throw new Error(`Taux de change ${fromCurrency} → USD non trouvé`);
     }
 
-    // Taux de USD vers la devise cible
     let rateUsdToTarget: number | null = null;
     const usdToTarget = await tx.exchange_rate.findFirst({
       where: {
@@ -4292,7 +4328,6 @@ export class WalletServiceService {
     if (usdToTarget) {
       rateUsdToTarget = usdToTarget.rate;
     } else {
-      // Chercher l'inverse
       const targetToUsd = await tx.exchange_rate.findFirst({
         where: {
           from_currency: toCurrency,
@@ -4308,11 +4343,12 @@ export class WalletServiceService {
       throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
     }
 
-    // ✅ Taux final = (source → USD) × (USD → cible)
     const finalRate = rateFromToUsd * rateUsdToTarget;
     console.log(`[ExchangeRate] ${fromCurrency} → ${toCurrency} (via USD): ${finalRate} (${rateFromToUsd} × ${rateUsdToTarget})`);
     return finalRate;
   }
+
+ 
 
   async pay(
     dto: PayDto,
