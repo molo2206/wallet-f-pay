@@ -92,11 +92,11 @@ export class MaintenanceService {
             ar: 'رسوم الصيانة الشهرية'
         },
         'wallet.maintenance.notification_title_debt': {
-            fr: '⚠️ Dette de maintenance',
-            en: '⚠️ Maintenance debt',
-            sw: '⚠️ Deni la matengenezo',
-            es: '⚠️ Deuda de mantenimiento',
-            ar: '⚠️ دين الصيانة'
+            fr: 'Dette de maintenance',
+            en: 'Maintenance debt',
+            sw: 'Deni la matengenezo',
+            es: 'Deuda de mantenimiento',
+            ar: 'دين الصيانة'
         },
         'wallet.maintenance.notification_body': {
             fr: (p: any) => `Des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés sur votre compte (${p.country}).`,
@@ -139,8 +139,8 @@ export class MaintenanceService {
         private readonly notificationHelper: NotificationHelper,
         private readonly i18nService: I18nService,
     ) {
-        this.logger.log('🚀 MaintenanceService initialized');
-        this.logger.log(`📅 Current time: ${new Date().toISOString()}`);
+        this.logger.log('MaintenanceService initialized');
+        this.logger.log(`Current time: ${new Date().toISOString()}`);
     }
 
     private async getExchangeRate(from: string, to: string): Promise<number> {
@@ -329,6 +329,7 @@ export class MaintenanceService {
         };
     }
 
+    // @Cron('0 0 1 * *')
     @Cron('*/5 * * * *')
     async runMonthlyMaintenance(lang: string = 'fr'): Promise<{
         message: string;
@@ -374,7 +375,7 @@ export class MaintenanceService {
             };
         };
     }> {
-        this.logger.log('🚀 MAINTENANCE CRON STARTED at: ' + new Date().toISOString());
+        this.logger.log('MAINTENANCE CRON STARTED at: ' + new Date().toISOString());
 
         if (this.isRunning) {
             this.logger.warn('runMonthlyMaintenance already running, skipping');
@@ -408,7 +409,7 @@ export class MaintenanceService {
                 where: { deleted: false },
                 _count: true,
             });
-            this.logger.log('📊 User status counts:', JSON.stringify(userCounts, null, 2));
+            this.logger.log('User status counts:', JSON.stringify(userCounts, null, 2));
 
             const countriesWithFees = await this.prisma.country_provider.findMany({
                 where: {
@@ -422,7 +423,7 @@ export class MaintenanceService {
                     merchant_maintenance_multiplier: true,
                 },
             });
-            this.logger.log('📊 Countries with maintenance fees:', JSON.stringify(countriesWithFees, null, 2));
+            this.logger.log('Countries with maintenance fees:', JSON.stringify(countriesWithFees, null, 2));
 
             const users = await this.prisma.user.findMany({
                 where: {
@@ -437,10 +438,10 @@ export class MaintenanceService {
                 },
             });
 
-            this.logger.log(`👥 Found ${users.length} active users eligible for maintenance`);
+            this.logger.log(`Found ${users.length} active users eligible for maintenance`);
 
             if (users.length === 0) {
-                this.logger.warn('⚠️ No active users found for maintenance');
+                this.logger.warn('No active users found for maintenance');
                 return {
                     message: this.t('wallet.maintenance.no_users', lang),
                     data: {
@@ -492,11 +493,11 @@ export class MaintenanceService {
 
             for (const user of users) {
                 try {
-                    this.logger.log(`🔄 Processing user ${user.id} (${user.full_name || 'No name'})...`);
+                    this.logger.log(`Processing user ${user.id} (${user.full_name || 'No name'})...`);
                     const result = await this.processUserMaintenance(user, lang);
                     details.push(result);
 
-                    this.logger.log(`📊 Result for user ${user.id}: success=${result.success}, collected=${result.collected}, amount=${result.amount || 0}, isDebt=${result.isDebt || false}`);
+                    this.logger.log(`Result for user ${user.id}: success=${result.success}, collected=${result.collected}, amount=${result.amount || 0}, isDebt=${result.isDebt || false}`);
 
                     const countryCode = user.countryCode || 'CD';
                     if (!countryStats.has(countryCode)) {
@@ -530,13 +531,13 @@ export class MaintenanceService {
                             stats.debts += result.debtAmount;
                         }
 
-                        this.logger.log(`✅ User ${user.id} debited: ${result.amount} ${result.currency || 'USD'}${result.isDebt ? ` (dette: ${result.debtAmount})` : ''}`);
+                        this.logger.log(`User ${user.id} debited: ${result.amount} ${result.currency || 'USD'}${result.isDebt ? ` (dette: ${result.debtAmount})` : ''}`);
                     } else if (!result.success) {
                         failedCount++;
-                        this.logger.warn(`❌ User ${user.id} failed: ${result.reason || 'Unknown reason'}`);
+                        this.logger.warn(`User ${user.id} failed: ${result.reason || 'Unknown reason'}`);
                     }
                 } catch (error: any) {
-                    this.logger.error(`❌ Error for user ${user.id}:`, error);
+                    this.logger.error(`Error for user ${user.id}:`, error);
                     failedCount++;
                     details.push({
                         userId: user.id,
@@ -551,7 +552,7 @@ export class MaintenanceService {
 
             const executionTime = (Date.now() - startTime) / 1000;
 
-            this.logger.log(`📊 MAINTENANCE SUMMARY: Total collected: ${totalCollected} USD, Users: ${usersDebited}, Merchants: ${merchantsDebited}, Failed: ${failedCount}, Total Debt: ${totalDebt}, Users with debt: ${usersWithDebt}`);
+            this.logger.log(`MAINTENANCE SUMMARY: Total collected: ${totalCollected} USD, Users: ${usersDebited}, Merchants: ${merchantsDebited}, Failed: ${failedCount}, Total Debt: ${totalDebt}, Users with debt: ${usersWithDebt}`);
 
             await this.prisma.audit_log.create({
                 data: {
@@ -642,10 +643,10 @@ export class MaintenanceService {
             finalFeeUSD = user.maintenance_fee;
         }
 
-        this.logger.log(`💰 User ${user.id} - ${user.role}: baseFeeUSD=${baseFeeUSD}, finalFeeUSD=${finalFeeUSD}, country=${country.name || 'Unknown'}`);
+        this.logger.log(`User ${user.id} - ${user.role}: baseFeeUSD=${baseFeeUSD}, finalFeeUSD=${finalFeeUSD}, country=${country.name || 'Unknown'}`);
 
         if (finalFeeUSD <= 0) {
-            this.logger.log(`⏭️ User ${user.id}: No fee to collect (finalFeeUSD=${finalFeeUSD})`);
+            this.logger.log(`User ${user.id}: No fee to collect (finalFeeUSD=${finalFeeUSD})`);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -661,7 +662,7 @@ export class MaintenanceService {
         }
 
         if (!user.wallets || user.wallets.length === 0) {
-            this.logger.warn(`⚠️ User ${user.id}: No active wallets found`);
+            this.logger.warn(`User ${user.id}: No active wallets found`);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -676,14 +677,14 @@ export class MaintenanceService {
             };
         }
 
-        this.logger.log(`🔍 User ${user.id}: Selecting best wallet for fee ${finalFeeUSD} USD`);
+        this.logger.log(`User ${user.id}: Selecting best wallet for fee ${finalFeeUSD} USD`);
         const selection = await this.selectBestWalletForMaintenance(user, user.wallets, finalFeeUSD);
         const { wallet: selectedWallet, feeInWalletCurrency, conversionRate, originalCurrency, selectionReason } = selection;
 
-        this.logger.log(`💳 User ${user.id}: Wallet sélectionné: ${selectedWallet.currency} (balance: ${selectedWallet.balance}) - Frais: ${feeInWalletCurrency} ${selectedWallet.currency} - Raison: ${selectionReason}`);
+        this.logger.log(`User ${user.id}: Wallet selected: ${selectedWallet.currency} (balance: ${selectedWallet.balance}) - Fee: ${feeInWalletCurrency} ${selectedWallet.currency} - Reason: ${selectionReason}`);
 
         if (selectedWallet.balance < feeInWalletCurrency) {
-            this.logger.log(`⚠️ User ${user.id}: Balance insufficient (${selectedWallet.balance} < ${feeInWalletCurrency}), creating debt`);
+            this.logger.log(`User ${user.id}: Balance insufficient (${selectedWallet.balance} < ${feeInWalletCurrency}), creating debt`);
             return await this.processDebtMaintenance(
                 user,
                 selectedWallet,
@@ -731,27 +732,36 @@ export class MaintenanceService {
     ): Promise<any> {
         const systemUserId = process.env.SYSTEM_USER_ID || 'e68a3267-5a2d-4309-92c5-a426c3df7188';
 
-        const collectedAmount = currentBalance;
-        const debtAmount = feeInWalletCurrency - currentBalance;
+        // ✅ Calcul du montant collecté et de la dette
+        // Si solde > 0, on collecte tout le solde disponible
+        // Si solde <= 0, on ne collecte rien
+        const collectedAmount = currentBalance > 0 ? currentBalance : 0;
 
-        this.logger.log(`💸 User ${user.id}: Debt creation - Collected: ${collectedAmount} ${selectedWallet.currency}, Debt: ${debtAmount} ${selectedWallet.currency}`);
+        // ✅ Dette = Frais - Montant collecté
+        // Si solde négatif, la dette = frais + |solde| (car solde négatif)
+        const debtAmount = feeInWalletCurrency - (currentBalance > 0 ? currentBalance : 0);
+
+        this.logger.log(`💸 User ${user.id}: Debt calculation - Balance: ${currentBalance}, Fee: ${feeInWalletCurrency}, Collected: ${collectedAmount}, Debt: ${debtAmount}`);
 
         try {
-            // ✅ Déclarer les types explicitement
             let userTransaction: any = null;
             let debtTransaction: any = null;
 
             const result = await this.prisma.$transaction(async (tx) => {
+                // ✅ Nouveau solde = solde actuel - frais
+                const newBalance = currentBalance - feeInWalletCurrency;
+
                 const updatedWallet = await tx.wallet.update({
                     where: { id: selectedWallet.id },
                     data: {
-                        balance: -debtAmount,
+                        balance: newBalance,
                         updatedAt: new Date(),
                     },
                 });
 
-                this.logger.log(`✅ User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency} (dette: ${debtAmount})`);
+                this.logger.log(`✅ User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency}`);
 
+                // ✅ Si solde > 0, on crée une transaction de prélèvement
                 if (collectedAmount > 0) {
                     userTransaction = await tx.transaction.create({
                         data: {
@@ -771,6 +781,7 @@ export class MaintenanceService {
                     this.logger.log(`📝 User ${user.id}: Collection transaction created: ${userTransaction.id}`);
                 }
 
+                // ✅ Si dette > 0, on crée une transaction de dette
                 if (debtAmount > 0) {
                     debtTransaction = await tx.transaction.create({
                         data: {
@@ -790,6 +801,7 @@ export class MaintenanceService {
                     this.logger.log(`📝 User ${user.id}: Debt transaction created: ${debtTransaction.id}`);
                 }
 
+                // ✅ Créditer le wallet système (toujours le montant total des frais)
                 let systemWallet = await tx.wallet.findFirst({
                     where: {
                         userId: systemUserId,
@@ -815,17 +827,13 @@ export class MaintenanceService {
 
                 const systemAmount = finalFeeUSD;
 
-                this.logger.log(`💰 Crediting system wallet ${systemWallet.id} with ${systemAmount} USD (full amount including debt)`);
-
-                const updatedSystemWallet = await tx.wallet.update({
+                await tx.wallet.update({
                     where: { id: systemWallet.id },
                     data: {
                         balance: { increment: systemAmount },
                         updatedAt: new Date(),
                     },
                 });
-
-                this.logger.log(`✅ System wallet updated, new balance: ${updatedSystemWallet.balance} USD`);
 
                 const systemTransaction = await tx.transaction.create({
                     data: {
@@ -842,8 +850,6 @@ export class MaintenanceService {
                         paymentMethod: 'INTERNAL',
                     },
                 });
-
-                this.logger.log(`📝 System transaction created: ${systemTransaction.id}`);
 
                 await tx.user.update({
                     where: { id: user.id },
@@ -876,7 +882,7 @@ export class MaintenanceService {
                             selectionReason: selectionReason,
                             hasDebt: debtAmount > 0,
                             walletBalance: currentBalance,
-                            newBalance: -debtAmount,
+                            newBalance: currentBalance - feeInWalletCurrency,
                         }),
                         createdAt: new Date(),
                     },
@@ -886,15 +892,14 @@ export class MaintenanceService {
                     updatedWallet,
                     userTransaction,
                     debtTransaction,
-                    systemWallet: updatedSystemWallet,
+                    systemWallet,
                     systemTransaction,
                     collectedAmount,
                     debtAmount,
                 };
             }, { timeout: 30000 });
 
-            this.logger.log(`✅ User ${user.id}: Debt maintenance completed successfully`);
-
+            // Envoyer notification
             await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang, debtAmount > 0, debtAmount);
 
             return {
@@ -951,7 +956,7 @@ export class MaintenanceService {
 
         try {
             const result = await this.prisma.$transaction(async (tx) => {
-                this.logger.log(`💸 User ${user.id}: Debiting ${feeInWalletCurrency} ${selectedWallet.currency} from wallet ${selectedWallet.id}`);
+                this.logger.log(`User ${user.id}: Debiting ${feeInWalletCurrency} ${selectedWallet.currency} from wallet ${selectedWallet.id}`);
 
                 const updatedWallet = await tx.wallet.update({
                     where: { id: selectedWallet.id },
@@ -961,7 +966,7 @@ export class MaintenanceService {
                     },
                 });
 
-                this.logger.log(`✅ User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency}`);
+                this.logger.log(`User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency}`);
 
                 const userTransaction = await tx.transaction.create({
                     data: {
@@ -984,7 +989,7 @@ export class MaintenanceService {
                     },
                 });
 
-                this.logger.log(`📝 User ${user.id}: Transaction created: ${userTransaction.id}`);
+                this.logger.log(`User ${user.id}: Transaction created: ${userTransaction.id}`);
 
                 let systemWallet = await tx.wallet.findFirst({
                     where: {
@@ -995,7 +1000,7 @@ export class MaintenanceService {
                 });
 
                 if (!systemWallet) {
-                    this.logger.warn(`⚠️ System wallet USD not found for user ${systemUserId}, creating one...`);
+                    this.logger.warn(`System wallet USD not found for user ${systemUserId}, creating one...`);
                     systemWallet = await tx.wallet.create({
                         data: {
                             id: crypto.randomUUID(),
@@ -1006,12 +1011,12 @@ export class MaintenanceService {
                             cashCode: `MAINT${Math.floor(10000000 + Math.random() * 90000000)}`,
                         },
                     });
-                    this.logger.log(`✅ System wallet created: ${systemWallet.id}`);
+                    this.logger.log(`System wallet created: ${systemWallet.id}`);
                 }
 
                 const systemAmount = finalFeeUSD;
 
-                this.logger.log(`💰 Crediting system wallet ${systemWallet.id} with ${systemAmount} USD`);
+                this.logger.log(`Crediting system wallet ${systemWallet.id} with ${systemAmount} USD`);
 
                 const updatedSystemWallet = await tx.wallet.update({
                     where: { id: systemWallet.id },
@@ -1021,7 +1026,7 @@ export class MaintenanceService {
                     },
                 });
 
-                this.logger.log(`✅ System wallet updated, new balance: ${updatedSystemWallet.balance} USD`);
+                this.logger.log(`System wallet updated, new balance: ${updatedSystemWallet.balance} USD`);
 
                 const systemTransaction = await tx.transaction.create({
                     data: {
@@ -1044,7 +1049,7 @@ export class MaintenanceService {
                     },
                 });
 
-                this.logger.log(`📝 System transaction created: ${systemTransaction.id}`);
+                this.logger.log(`System transaction created: ${systemTransaction.id}`);
 
                 await tx.user.update({
                     where: { id: user.id },
@@ -1089,7 +1094,7 @@ export class MaintenanceService {
                 };
             }, { timeout: 30000 });
 
-            this.logger.log(`✅ User ${user.id}: Full maintenance completed successfully`);
+            this.logger.log(`User ${user.id}: Full maintenance completed successfully`);
 
             await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang, false, 0);
 
@@ -1111,7 +1116,7 @@ export class MaintenanceService {
                 debtAmount: 0,
             };
         } catch (error: any) {
-            this.logger.error(`❌ Error processing full maintenance for user ${user.id}:`, error);
+            this.logger.error(`Error processing full maintenance for user ${user.id}:`, error);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -1174,9 +1179,9 @@ export class MaintenanceService {
                 }
 
                 await this.smsService.sendSms(cleanPhone, smsText);
-                this.logger.log(`📱 SMS sent to ${cleanPhone}`);
+                this.logger.log(`SMS sent to ${cleanPhone}`);
             } catch (err) {
-                this.logger.error('❌ SMS error:', err);
+                this.logger.error('SMS error:', err);
             }
         }
 
@@ -1215,9 +1220,9 @@ export class MaintenanceService {
                 crypto.randomUUID(),
                 lang,
             );
-            this.logger.log(`🔔 Push notification sent to user ${user.id}`);
+            this.logger.log(`Push notification sent to user ${user.id}`);
         } catch (err) {
-            this.logger.error('❌ Push notification error:', err);
+            this.logger.error('Push notification error:', err);
         }
     }
 
