@@ -329,8 +329,8 @@ export class MaintenanceService {
         };
     }
 
-    // @Cron('0 0 1 * *')
-    @Cron('*/5 * * * *')
+    @Cron('0 0 1 * *')
+    // @Cron('*/5 * * * *')
     async runMonthlyMaintenance(lang: string = 'fr'): Promise<{
         message: string;
         data: {
