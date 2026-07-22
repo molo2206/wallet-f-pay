@@ -3477,6 +3477,7 @@ export class WalletServiceService {
       },
     };
   }
+
   async send(
     dto: SendDto,
     lang: string = 'fr',
@@ -3718,21 +3719,21 @@ export class WalletServiceService {
           internationalFeePercentage = fees.depositFee || 0;
 
           if (internationalFeePercentage > 0) {
-            // ✅ CORRECTION: Le front envoie le montant BRUT (avec frais inclus)
             const percentageDecimal = internationalFeePercentage / 100;
 
-            // ✅ Calcul du NET = BRUT / (1 + pourcentage)
+            // ✅ Le front envoie le montant BRUT (avec frais inclus)
+            // NET = BRUT / (1 + pourcentage)
             netAmount = amount / (1 + percentageDecimal);
 
-            // ✅ Calcul des frais
+            // ✅ Frais = BRUT - NET
             fee = amount - netAmount;
 
-            // ✅ Montant débité = montant brut envoyé par le front
+            // ✅ Montant débité = BRUT
             debitAmount = amount;
 
             feeCurrency = fromWallet.currency;
 
-            console.log('[WalletService] Frais internationaux (BRUT depuis front - CORRIGÉ):', {
+            console.log('[WalletService] Frais internationaux:', {
               percentage: internationalFeePercentage,
               brutAmount: amount,
               netAmount,
@@ -3754,7 +3755,7 @@ export class WalletServiceService {
           netAmount = amount;
         }
 
-        console.log('[WalletService] Fee calculation (CORRIGÉ):', {
+        console.log('[WalletService] Fee calculation:', {
           isInternational,
           amount,
           feePercentage: internationalFeePercentage,
@@ -3843,74 +3844,20 @@ export class WalletServiceService {
           balance: targetWallet.balance,
         });
 
-        // 6. Calculer le taux de change et convertir le NET
+        // 6. Calculer le taux de change dynamique via USD (pivot)
         let exchangeRate = 1;
         let convertedAmount = netAmount;
 
         if (fromWallet.currency !== targetCurrency) {
-          const rates = await tx.exchange_rate.findMany({
-            where: {
-              OR: [
-                { from_currency: fromWallet.currency, to_currency: targetCurrency },
-                { from_currency: targetCurrency, to_currency: fromWallet.currency },
-                { from_currency: fromWallet.currency },
-                { to_currency: targetCurrency },
-              ],
-            },
-          });
-
-          const rateMap = new Map<string, number>();
-          rates.forEach(r => {
-            rateMap.set(`${r.from_currency}-${r.to_currency}`, r.rate);
-          });
-
-          const directKey = `${fromWallet.currency}-${targetCurrency}`;
-          if (rateMap.has(directKey)) {
-            exchangeRate = rateMap.get(directKey)!;
-            console.log(`[WalletService] Taux direct ${fromWallet.currency} → ${targetCurrency}: ${exchangeRate}`);
-          } else {
-            const inverseKey = `${targetCurrency}-${fromWallet.currency}`;
-            if (rateMap.has(inverseKey)) {
-              const inverseRate = rateMap.get(inverseKey)!;
-              if (inverseRate > 0) {
-                exchangeRate = 1 / inverseRate;
-                console.log(`[WalletService] Taux inverse ${targetCurrency} → ${fromWallet.currency}: ${inverseRate} → ${exchangeRate}`);
-              }
-            } else {
-              const availableCurrencies = await tx.currency.findMany({
-                select: { code: true },
-              });
-
-              let found = false;
-              for (const currency of availableCurrencies) {
-                if (currency.code === fromWallet.currency || currency.code === targetCurrency) continue;
-
-                const fromKey = `${fromWallet.currency}-${currency.code}`;
-                const toKey = `${currency.code}-${targetCurrency}`;
-
-                if (rateMap.has(fromKey) && rateMap.has(toKey)) {
-                  exchangeRate = rateMap.get(fromKey)! * rateMap.get(toKey)!;
-                  found = true;
-                  console.log(`[WalletService] Taux via ${currency.code}: ${fromWallet.currency} → ${currency.code} (${rateMap.get(fromKey)}) × ${currency.code} → ${targetCurrency} (${rateMap.get(toKey)}) = ${exchangeRate}`);
-                  break;
-                }
-              }
-
-              if (!found) {
-                throw new RpcException({
-                  status: 'error',
-                  message: this.i18nService.translate('wallet.exchange_rate_not_found', lang, {
-                    from: fromWallet.currency,
-                    to: targetCurrency,
-                  }),
-                  statusCode: 404,
-                });
-              }
-            }
-          }
+          // ✅ Méthode : passer par USD comme devise pivot pour des taux cohérents
+          exchangeRate = await this.getExchangeRateViaPivot(
+            fromWallet.currency,
+            targetCurrency,
+            tx,
+          );
 
           convertedAmount = netAmount * exchangeRate;
-          console.log('[WalletService] Conversion du montant net (CORRIGÉ):', {
+          console.log('[WalletService] Conversion du montant net (via pivot USD):', {
             from: fromWallet.currency,
             to: targetCurrency,
             netAmount,
@@ -3946,15 +3893,29 @@ export class WalletServiceService {
           updatedTo = targetWallet;
         }
 
-        // 8.5 COLLECTER LES FRAIS DANS LE WALLET SYSTÈME
+        // 8.5 COLLECTER LES FRAIS DANS LE WALLET SYSTÈME (DYNAMIQUE)
         let systemTransaction: any = null;
         let systemWallet: any = null;
         let systemUser: any = null;
 
         const feeAmount = fee || 0;
 
+        console.log('[WalletService] 🔍 DEBUG - Fee collection:', {
+          feeAmount,
+          feeCurrency,
+          fromWalletCurrency: fromWallet.currency,
+          targetCurrency,
+          exchangeRate,
+          netAmount,
+          convertedAmount,
+          amount,
+          isInternational,
+          internationalFeePercentage,
+        });
+
         if (feeAmount > 0 && isInternational) {
           try {
+            // ✅ Récupérer l'utilisateur système
             systemUser = await tx.user.findFirst({
               where: {
                 email: 'system@fpay.com',
@@ -3975,6 +3936,7 @@ export class WalletServiceService {
               });
             }
 
+            // ✅ Chercher le wallet système dans la devise des frais
             systemWallet = await tx.wallet.findFirst({
               where: {
                 userId: systemUser.id,
@@ -3992,13 +3954,28 @@ export class WalletServiceService {
               });
             }
 
+            console.log('[WalletService] 🔍 DEBUG - System wallet found:', {
+              systemWalletId: systemWallet.id,
+              systemWalletCurrency: systemWallet.currency,
+              systemWalletBalance: systemWallet.balance,
+              feeAmountToCredit: feeAmount,
+            });
+
             if (systemWallet && systemWallet.id) {
-              await tx.wallet.update({
+              // ✅ Créditer le wallet système avec les frais
+              const updatedSystemWallet = await tx.wallet.update({
                 where: { id: systemWallet.id },
                 data: {
                   balance: { increment: feeAmount },
                   updatedAt: new Date()
                 },
+              });
+
+              console.log('[WalletService] 🔍 DEBUG - System wallet updated:', {
+                balanceBefore: systemWallet.balance,
+                balanceAfter: updatedSystemWallet.balance,
+                feeAmount: feeAmount,
+                currency: feeCurrency,
               });
 
               const feeReference = await this.generateTransactionReference('FEE', tx);
@@ -4013,7 +3990,7 @@ export class WalletServiceService {
                   type: 'DEPOSIT',
                   status: 'SUCCESS',
                   reference: feeReference,
-                  description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id}`,
+                  description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetCurrency}`,
                   movement: 'CREDIT',
                   currency: feeCurrency,
                   paymentMethod: 'INTERNAL',
@@ -4219,7 +4196,124 @@ export class WalletServiceService {
       },
     };
   }
-  
+
+  /**
+   * ✅ Méthode pour calculer le taux de change via USD comme devise pivot
+   * Cela garantit des taux cohérents pour toutes les paires de devises
+   */
+  private async getExchangeRateViaPivot(
+    fromCurrency: string,
+    toCurrency: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    // Si les devises sont identiques
+    if (fromCurrency === toCurrency) {
+      return 1;
+    }
+
+    // Si c'est USD vers une autre devise
+    if (fromCurrency === 'USD') {
+      const rate = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: 'USD',
+          to_currency: toCurrency,
+        },
+      });
+      if (rate) {
+        console.log(`[ExchangeRate] USD → ${toCurrency}: ${rate.rate}`);
+        return rate.rate;
+      }
+      throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
+    }
+
+    // Si c'est une autre devise vers USD
+    if (toCurrency === 'USD') {
+      const rate = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: fromCurrency,
+          to_currency: 'USD',
+        },
+      });
+      if (rate) {
+        console.log(`[ExchangeRate] ${fromCurrency} → USD: ${rate.rate}`);
+        return rate.rate;
+      }
+      // Chercher l'inverse
+      const inverseRate = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: 'USD',
+          to_currency: fromCurrency,
+        },
+      });
+      if (inverseRate && inverseRate.rate > 0) {
+        const result = 1 / inverseRate.rate;
+        console.log(`[ExchangeRate] ${fromCurrency} → USD (via inverse): ${result}`);
+        return result;
+      }
+      throw new Error(`Taux de change ${fromCurrency} → USD non trouvé`);
+    }
+
+    // ✅ Cas général : passer par USD comme pivot
+    // Taux de la devise source vers USD
+    let rateFromToUsd: number | null = null;
+    const fromToUsd = await tx.exchange_rate.findFirst({
+      where: {
+        from_currency: fromCurrency,
+        to_currency: 'USD',
+      },
+    });
+    if (fromToUsd) {
+      rateFromToUsd = fromToUsd.rate;
+    } else {
+      // Chercher l'inverse
+      const usdToFrom = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: 'USD',
+          to_currency: fromCurrency,
+        },
+      });
+      if (usdToFrom && usdToFrom.rate > 0) {
+        rateFromToUsd = 1 / usdToFrom.rate;
+      }
+    }
+
+    if (!rateFromToUsd) {
+      throw new Error(`Taux de change ${fromCurrency} → USD non trouvé`);
+    }
+
+    // Taux de USD vers la devise cible
+    let rateUsdToTarget: number | null = null;
+    const usdToTarget = await tx.exchange_rate.findFirst({
+      where: {
+        from_currency: 'USD',
+        to_currency: toCurrency,
+      },
+    });
+    if (usdToTarget) {
+      rateUsdToTarget = usdToTarget.rate;
+    } else {
+      // Chercher l'inverse
+      const targetToUsd = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: toCurrency,
+          to_currency: 'USD',
+        },
+      });
+      if (targetToUsd && targetToUsd.rate > 0) {
+        rateUsdToTarget = 1 / targetToUsd.rate;
+      }
+    }
+
+    if (!rateUsdToTarget) {
+      throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
+    }
+
+    // ✅ Taux final = (source → USD) × (USD → cible)
+    const finalRate = rateFromToUsd * rateUsdToTarget;
+    console.log(`[ExchangeRate] ${fromCurrency} → ${toCurrency} (via USD): ${finalRate} (${rateFromToUsd} × ${rateUsdToTarget})`);
+    return finalRate;
+  }
+
   async pay(
     dto: PayDto,
     lang: string = 'fr',
