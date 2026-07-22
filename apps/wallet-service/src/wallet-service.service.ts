@@ -3718,19 +3718,26 @@ export class WalletServiceService {
           internationalFeePercentage = fees.depositFee || 0;
 
           if (internationalFeePercentage > 0) {
+            // ✅ CORRECTION: Le front envoie le montant BRUT (avec frais inclus)
             const percentageDecimal = internationalFeePercentage / 100;
-            const grossAmount = amount / (1 - percentageDecimal);
-            fee = grossAmount - amount;
-            debitAmount = grossAmount;
-            netAmount = amount;
+
+            // ✅ Calcul du NET = BRUT / (1 + pourcentage)
+            netAmount = amount / (1 + percentageDecimal);
+
+            // ✅ Calcul des frais
+            fee = amount - netAmount;
+
+            // ✅ Montant débité = montant brut envoyé par le front
+            debitAmount = amount;
+
             feeCurrency = fromWallet.currency;
 
-            console.log('[WalletService] Frais internationaux appliqués:', {
+            console.log('[WalletService] Frais internationaux (BRUT depuis front - CORRIGÉ):', {
               percentage: internationalFeePercentage,
-              requestedNet: amount,
-              grossAmount,
-              fee,
+              brutAmount: amount,
               netAmount,
+              fee,
+              debitAmount,
               feeCurrency,
             });
           } else {
@@ -3747,7 +3754,7 @@ export class WalletServiceService {
           netAmount = amount;
         }
 
-        console.log('[WalletService] Fee calculation:', {
+        console.log('[WalletService] Fee calculation (CORRIGÉ):', {
           isInternational,
           amount,
           feePercentage: internationalFeePercentage,
@@ -3903,7 +3910,7 @@ export class WalletServiceService {
           }
 
           convertedAmount = netAmount * exchangeRate;
-          console.log('[WalletService] Conversion du montant net:', {
+          console.log('[WalletService] Conversion du montant net (CORRIGÉ):', {
             from: fromWallet.currency,
             to: targetCurrency,
             netAmount,
@@ -4212,6 +4219,7 @@ export class WalletServiceService {
       },
     };
   }
+  
   async pay(
     dto: PayDto,
     lang: string = 'fr',
