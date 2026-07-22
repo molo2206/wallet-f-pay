@@ -329,8 +329,8 @@ export class MaintenanceService {
         };
     }
 
-     @Cron('0 0 1 * *')
-    // @Cron('*/5 * * * *')
+    // @Cron('0 0 1 * *')
+    @Cron('*/5 * * * *')
     async runMonthlyMaintenance(lang: string = 'fr'): Promise<{
         message: string;
         data: {
@@ -732,23 +732,16 @@ export class MaintenanceService {
     ): Promise<any> {
         const systemUserId = process.env.SYSTEM_USER_ID || 'e68a3267-5a2d-4309-92c5-a426c3df7188';
 
-        // ✅ Calcul du montant collecté et de la dette
-        // Si solde > 0, on collecte tout le solde disponible
-        // Si solde <= 0, on ne collecte rien
         const collectedAmount = currentBalance > 0 ? currentBalance : 0;
-
-        // ✅ Dette = Frais - Montant collecté
-        // Si solde négatif, la dette = frais + |solde| (car solde négatif)
         const debtAmount = feeInWalletCurrency - (currentBalance > 0 ? currentBalance : 0);
 
-        this.logger.log(`💸 User ${user.id}: Debt calculation - Balance: ${currentBalance}, Fee: ${feeInWalletCurrency}, Collected: ${collectedAmount}, Debt: ${debtAmount}`);
+        this.logger.log(`User ${user.id}: Debt calculation - Balance: ${currentBalance}, Fee: ${feeInWalletCurrency}, Collected: ${collectedAmount}, Debt: ${debtAmount}`);
 
         try {
             let userTransaction: any = null;
             let debtTransaction: any = null;
 
             const result = await this.prisma.$transaction(async (tx) => {
-                // ✅ Nouveau solde = solde actuel - frais
                 const newBalance = currentBalance - feeInWalletCurrency;
 
                 const updatedWallet = await tx.wallet.update({
@@ -759,9 +752,8 @@ export class MaintenanceService {
                     },
                 });
 
-                this.logger.log(`✅ User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency}`);
+                this.logger.log(`User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency}`);
 
-                // ✅ Si solde > 0, on crée une transaction de prélèvement
                 if (collectedAmount > 0) {
                     userTransaction = await tx.transaction.create({
                         data: {
@@ -778,10 +770,9 @@ export class MaintenanceService {
                             paymentMethod: 'INTERNAL',
                         },
                     });
-                    this.logger.log(`📝 User ${user.id}: Collection transaction created: ${userTransaction.id}`);
+                    this.logger.log(`User ${user.id}: Collection transaction created: ${userTransaction.id}`);
                 }
 
-                // ✅ Si dette > 0, on crée une transaction de dette
                 if (debtAmount > 0) {
                     debtTransaction = await tx.transaction.create({
                         data: {
@@ -798,10 +789,9 @@ export class MaintenanceService {
                             paymentMethod: 'INTERNAL',
                         },
                     });
-                    this.logger.log(`📝 User ${user.id}: Debt transaction created: ${debtTransaction.id}`);
+                    this.logger.log(`User ${user.id}: Debt transaction created: ${debtTransaction.id}`);
                 }
 
-                // ✅ Créditer le wallet système (toujours le montant total des frais)
                 let systemWallet = await tx.wallet.findFirst({
                     where: {
                         userId: systemUserId,
@@ -811,7 +801,7 @@ export class MaintenanceService {
                 });
 
                 if (!systemWallet) {
-                    this.logger.warn(`⚠️ System wallet USD not found for user ${systemUserId}, creating one...`);
+                    this.logger.warn(`System wallet USD not found for user ${systemUserId}, creating one...`);
                     systemWallet = await tx.wallet.create({
                         data: {
                             id: crypto.randomUUID(),
@@ -822,7 +812,7 @@ export class MaintenanceService {
                             cashCode: `MAINT${Math.floor(10000000 + Math.random() * 90000000)}`,
                         },
                     });
-                    this.logger.log(`✅ System wallet created: ${systemWallet.id}`);
+                    this.logger.log(`System wallet created: ${systemWallet.id}`);
                 }
 
                 const systemAmount = finalFeeUSD;
@@ -899,7 +889,7 @@ export class MaintenanceService {
                 };
             }, { timeout: 30000 });
 
-            // Envoyer notification
+            // Envoyer notification (PUSH uniquement)
             await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang, debtAmount > 0, debtAmount);
 
             return {
@@ -923,7 +913,7 @@ export class MaintenanceService {
                 debtAmount: debtAmount,
             };
         } catch (error: any) {
-            this.logger.error(`❌ Error processing debt maintenance for user ${user.id}:`, error);
+            this.logger.error(`Error processing debt maintenance for user ${user.id}:`, error);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -1096,6 +1086,7 @@ export class MaintenanceService {
 
             this.logger.log(`User ${user.id}: Full maintenance completed successfully`);
 
+            // Envoyer notification (PUSH uniquement)
             await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang, false, 0);
 
             return {
@@ -1150,6 +1141,9 @@ export class MaintenanceService {
         return ref;
     }
 
+    /**
+     * Envoie les notifications à l'utilisateur (PUSH uniquement, SMS commenté)
+     */
     private async sendMaintenanceNotifications(
         user: any,
         amount: number,
@@ -1158,6 +1152,8 @@ export class MaintenanceService {
         hasDebt: boolean = false,
         debtAmount: number = 0,
     ): Promise<void> {
+        // ❌ SMS DÉSACTIVÉ - Commenté pour ne pas envoyer de SMS
+        /*
         if (user.phone) {
             try {
                 const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
@@ -1184,7 +1180,9 @@ export class MaintenanceService {
                 this.logger.error('SMS error:', err);
             }
         }
+        */
 
+        // ✅ PUSH UNIQUEMENT
         try {
             let titleKey = 'wallet.maintenance.notification_title';
             let bodyKey = 'wallet.maintenance.notification_body';
