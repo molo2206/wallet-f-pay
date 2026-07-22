@@ -1152,36 +1152,6 @@ export class MaintenanceService {
         hasDebt: boolean = false,
         debtAmount: number = 0,
     ): Promise<void> {
-        // ❌ SMS DÉSACTIVÉ - Commenté pour ne pas envoyer de SMS
-        /*
-        if (user.phone) {
-            try {
-                const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
-                let smsText: string;
-
-                if (hasDebt && debtAmount > 0) {
-                    smsText = this.t('wallet.maintenance.sms_debt', lang, {
-                        full_name: user.full_name || '',
-                        amount: amount,
-                        currency: currency,
-                        debt: debtAmount,
-                    });
-                } else {
-                    smsText = this.t('wallet.maintenance.sms', lang, {
-                        full_name: user.full_name || '',
-                        amount: amount,
-                        currency: currency,
-                    });
-                }
-
-                await this.smsService.sendSms(cleanPhone, smsText);
-                this.logger.log(`SMS sent to ${cleanPhone}`);
-            } catch (err) {
-                this.logger.error('SMS error:', err);
-            }
-        }
-        */
-
         // ✅ PUSH UNIQUEMENT
         try {
             let titleKey = 'wallet.maintenance.notification_title';
