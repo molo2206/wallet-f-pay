@@ -4348,8 +4348,6 @@ export class WalletServiceService {
     return finalRate;
   }
 
- 
-
   async pay(
     dto: PayDto,
     lang: string = 'fr',
@@ -4802,7 +4800,7 @@ export class WalletServiceService {
       data: { failed_pin_attempts: 0, pin_locked_until: null },
     });
 
-    // 3️⃣ Récupérer la transaction (sans filtre de statut pour déboguer)
+    // 3️⃣ Récupérer la transaction
     console.log('[WalletService] Searching for transaction:', transactionId);
 
     const transaction = await this.prisma.transaction.findFirst({
@@ -4924,7 +4922,7 @@ export class WalletServiceService {
       };
     }
 
-    // 7️⃣ Valider la transaction (seulement si PENDING)
+    // 7️⃣ Valider la transaction
     const result = await this.prisma.$transaction(async (tx) => {
       let updatedSender;
       if (transaction.status === 'PENDING') {
@@ -4984,7 +4982,7 @@ export class WalletServiceService {
       return { senderTx: updatedSender, receiverTx: updatedReceiver, wallet: updatedWallet };
     });
 
-    // 8️⃣ 🔔 NOTIFICATIONS APRÈS VALIDATION
+    // 8️⃣ 🔔 NOTIFICATIONS APRÈS VALIDATION (MÊME STRATÉGIE QUE send())
     const sender = transaction.user;
     const senderWallet = transaction.wallet;
     const receiver = receiverTransaction.wallet.user;
@@ -4992,22 +4990,6 @@ export class WalletServiceService {
 
     // ✅ NOTIFICATION À L'EXPÉDITEUR (confirmation que sa transaction a été validée)
     try {
-      // 📱 SMS à l'expéditeur
-      if (sender.phone) {
-        const cleanPhone = sender.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.transfer_confirmed', lang, {
-          full_name: sender.full_name || 'Cher client',
-          amount: transaction.amount,
-          currency: transaction.currency || 'USDT',
-          receiverName: receiver.full_name || 'Destinataire',
-          receiverPhone: receiver.phone || '',
-          reference: transaction.reference,
-        });
-        await this.smsService.sendSms(cleanPhone, smsText);
-        console.log(`[validateInternationalTransfer] ✅ SMS envoyé à l'expéditeur ${cleanPhone}`);
-      }
-
-      // 🔔 PUSH à l'expéditeur via notifyTransaction
       await notifyTransaction(
         this.smsService,
         this.notificationHelper,
@@ -5024,48 +5006,13 @@ export class WalletServiceService {
           phone: receiver.phone ?? undefined,
         },
       );
-
-      // 🔔 PUSH supplémentaire via NotificationHelper (garantie)
-      await this.notificationHelper.notify(
-        sender.id,
-        NotificationType.TRANSFER_CONFIRMED,
-        {
-          amount: transaction.amount,
-          currency: transaction.currency || 'USDT',
-          receiverName: receiver.full_name || 'Destinataire',
-          receiverPhone: receiver.phone || '',
-          reference: transaction.reference,
-          status: 'VALIDÉ',
-          date: new Date().toLocaleString(),
-        },
-        'TRANSACTION',
-        transaction.id,
-        lang,
-      );
-
-      console.log(`[validateInternationalTransfer] ✅ PUSH envoyé à l'expéditeur ${sender.id}`);
+      console.log(`[validateInternationalTransfer] ✅ Notification envoyée à l'expéditeur ${sender.id}`);
     } catch (err) {
       console.error('[Notifications] Error sending to sender:', err);
     }
 
     // ✅ NOTIFICATION AU DESTINATAIRE (réception des fonds)
     try {
-      // 📱 SMS au destinataire
-      if (receiver.phone) {
-        const cleanPhone = receiver.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.transfer_receiver_sms', lang, {
-          full_name: receiver.full_name || 'Cher client',
-          amount: receiverTransaction.amount,
-          currency: receiverTransaction.currency || 'CDF',
-          fromName: sender.full_name || 'Expéditeur',
-          balance: result.wallet.balance || 0,
-          reference: receiverTransaction.reference,
-        });
-        await this.smsService.sendSms(cleanPhone, smsText);
-        console.log(`[validateInternationalTransfer] ✅ SMS envoyé au destinataire ${cleanPhone}`);
-      }
-
-      // 🔔 PUSH au destinataire via notifyTransaction
       await notifyTransaction(
         this.smsService,
         this.notificationHelper,
@@ -5082,25 +5029,7 @@ export class WalletServiceService {
           phone: sender.phone ?? undefined,
         },
       );
-
-      // 🔔 PUSH supplémentaire via NotificationHelper (garantie)
-      await this.notificationHelper.notify(
-        receiver.id,
-        NotificationType.TRANSFER_RECEIVED,
-        {
-          amount: receiverTransaction.amount,
-          currency: receiverTransaction.currency || 'CDF',
-          fromName: sender.full_name || 'Expéditeur',
-          balance: result.wallet.balance || 0,
-          reference: receiverTransaction.reference,
-          date: new Date().toLocaleString(),
-        },
-        'TRANSACTION',
-        receiverTransaction.id,
-        lang,
-      );
-
-      console.log(`[validateInternationalTransfer] ✅ PUSH envoyé au destinataire ${receiver.id}`);
+      console.log(`[validateInternationalTransfer] ✅ Notification envoyée au destinataire ${receiver.id}`);
     } catch (err) {
       console.error('[Notifications] Error sending to receiver:', err);
     }
