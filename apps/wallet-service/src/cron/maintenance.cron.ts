@@ -117,7 +117,11 @@ export class MaintenanceService {
         private readonly smsService: SmsService,
         private readonly notificationHelper: NotificationHelper,
         private readonly i18nService: I18nService,
-    ) { }
+    ) {
+        // ✅ Log au démarrage pour confirmer que le service est chargé
+        this.logger.log('🚀 MaintenanceService initialized');
+        this.logger.log(`📅 Current time: ${new Date().toISOString()}`);
+    }
 
     /**
      * Récupère le taux de change entre deux devises (DYNAMIQUE)
@@ -325,7 +329,6 @@ export class MaintenanceService {
     /**
      * Exécute les frais de maintenance mensuels
      */
-    // @Cron('0 0 1 * *')
     @Cron('*/5 * * * *')
     async runMonthlyMaintenance(lang: string = 'fr'): Promise<{
         message: string;
@@ -367,6 +370,9 @@ export class MaintenanceService {
             };
         };
     }> {
+        // ✅ LOG: Démarrage du cron
+        this.logger.log('🚀 MAINTENANCE CRON STARTED at: ' + new Date().toISOString());
+
         if (this.isRunning) {
             this.logger.warn('runMonthlyMaintenance already running, skipping');
             return {
@@ -392,6 +398,32 @@ export class MaintenanceService {
         const startTime = Date.now();
 
         try {
+            // ✅ LOG: Vérification des utilisateurs par statut
+            this.logger.log('📊 Checking user status distribution...');
+            const userCounts = await this.prisma.user.groupBy({
+                by: ['status'],
+                where: { deleted: false },
+                _count: true,
+            });
+            this.logger.log('📊 User status counts:', JSON.stringify(userCounts, null, 2));
+
+            // ✅ LOG: Vérification des pays avec frais de maintenance
+            this.logger.log('📊 Checking countries with maintenance fees...');
+            const countriesWithFees = await this.prisma.country_provider.findMany({
+                where: {
+                    status: 'ACTIVE',
+                    maintenance_fee: { gt: 0 },
+                },
+                select: {
+                    countryCode: true,
+                    name: true,
+                    maintenance_fee: true,
+                    merchant_maintenance_multiplier: true,
+                },
+            });
+            this.logger.log('📊 Countries with maintenance fees:', JSON.stringify(countriesWithFees, null, 2));
+
+            // ✅ Récupérer les utilisateurs éligibles
             const users = await this.prisma.user.findMany({
                 where: {
                     status: 'ACTIVE',
@@ -405,9 +437,10 @@ export class MaintenanceService {
                 },
             });
 
-            this.logger.log(`Found ${users.length} active users`);
+            this.logger.log(`👥 Found ${users.length} active users eligible for maintenance`);
 
             if (users.length === 0) {
+                this.logger.warn('⚠️ No active users found for maintenance');
                 return {
                     message: this.t('wallet.maintenance.no_users', lang),
                     data: {
@@ -424,6 +457,18 @@ export class MaintenanceService {
                         },
                     },
                 };
+            }
+
+            // ✅ LOG: Détail des utilisateurs trouvés
+            for (const user of users) {
+                this.logger.log(`🔍 User ${user.id}: ${user.full_name || 'No name'}, role: ${user.role}, country: ${user.countryCode || 'CD'}, wallets: ${user.wallets?.length || 0}`);
+                if (user.wallets && user.wallets.length > 0) {
+                    for (const wallet of user.wallets) {
+                        this.logger.log(`   💳 Wallet: ${wallet.currency}, balance: ${wallet.balance}, active: ${wallet.isActive}`);
+                    }
+                } else {
+                    this.logger.log(`   ⚠️ No active wallets found for user ${user.id}`);
+                }
             }
 
             let totalCollected = 0;
@@ -452,8 +497,11 @@ export class MaintenanceService {
 
             for (const user of users) {
                 try {
+                    this.logger.log(`🔄 Processing user ${user.id} (${user.full_name || 'No name'})...`);
                     const result = await this.processUserMaintenance(user, lang);
                     details.push(result);
+
+                    this.logger.log(`📊 Result for user ${user.id}: success=${result.success}, collected=${result.collected}, amount=${result.amount || 0}`);
 
                     const countryCode = user.countryCode || 'CD';
                     if (!countryStats.has(countryCode)) {
@@ -479,11 +527,13 @@ export class MaintenanceService {
                             usersDebited++;
                             stats.users++;
                         }
+                        this.logger.log(`✅ User ${user.id} debited: ${result.amount} ${result.currency || 'USD'}`);
                     } else if (!result.success) {
                         failedCount++;
+                        this.logger.warn(`❌ User ${user.id} failed: ${result.reason || 'Unknown reason'}`);
                     }
                 } catch (error: any) {
-                    this.logger.error(`Error for user ${user.id}:`, error);
+                    this.logger.error(`❌ Error for user ${user.id}:`, error);
                     failedCount++;
                     details.push({
                         userId: user.id,
@@ -497,6 +547,8 @@ export class MaintenanceService {
             }
 
             const executionTime = (Date.now() - startTime) / 1000;
+
+            this.logger.log(`📊 MAINTENANCE SUMMARY: Total collected: ${totalCollected} USD, Users: ${usersDebited}, Merchants: ${merchantsDebited}, Failed: ${failedCount}`);
 
             await this.prisma.audit_log.create({
                 data: {
@@ -558,6 +610,7 @@ export class MaintenanceService {
         success: boolean;
         collected: boolean;
         amount: number;
+        currency?: string;
         reason?: string;
         walletId?: string;
         balance?: number;
@@ -583,9 +636,10 @@ export class MaintenanceService {
             finalFeeUSD = user.maintenance_fee;
         }
 
-        this.logger.log(`User ${user.id} - ${user.role}: baseFeeUSD=${baseFeeUSD}, finalFeeUSD=${finalFeeUSD}`);
+        this.logger.log(`💰 User ${user.id} - ${user.role}: baseFeeUSD=${baseFeeUSD}, finalFeeUSD=${finalFeeUSD}, country=${country.name || 'Unknown'}`);
 
         if (finalFeeUSD <= 0) {
+            this.logger.log(`⏭️ User ${user.id}: No fee to collect (finalFeeUSD=${finalFeeUSD})`);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -599,6 +653,7 @@ export class MaintenanceService {
         }
 
         if (!user.wallets || user.wallets.length === 0) {
+            this.logger.warn(`⚠️ User ${user.id}: No active wallets found`);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -611,12 +666,14 @@ export class MaintenanceService {
             };
         }
 
+        this.logger.log(`🔍 User ${user.id}: Selecting best wallet for fee ${finalFeeUSD} USD`);
         const selection = await this.selectBestWalletForMaintenance(user, user.wallets, finalFeeUSD);
         const { wallet: selectedWallet, feeInWalletCurrency, conversionRate, originalCurrency, selectionReason } = selection;
 
-        this.logger.log(`Wallet sélectionné: ${selectedWallet.currency} (${selectedWallet.balance}) - Frais: ${feeInWalletCurrency} ${selectedWallet.currency} - Raison: ${selectionReason}`);
+        this.logger.log(`💳 User ${user.id}: Wallet sélectionné: ${selectedWallet.currency} (balance: ${selectedWallet.balance}) - Frais: ${feeInWalletCurrency} ${selectedWallet.currency} - Raison: ${selectionReason}`);
 
         if (selectedWallet.balance < feeInWalletCurrency) {
+            this.logger.warn(`⚠️ User ${user.id}: Insufficient balance in ${selectedWallet.currency}: ${selectedWallet.balance} < ${feeInWalletCurrency}`);
             return {
                 userId: user.id,
                 name: user.full_name,
@@ -637,149 +694,181 @@ export class MaintenanceService {
             };
         }
 
-        const systemUserId = process.env.SYSTEM_USER_ID || 'system-maintenance-account';
+        const systemUserId = process.env.SYSTEM_USER_ID || 'e68a3267-5a2d-4309-92c5-a426c3df7188';
+        this.logger.log(`🏦 User ${user.id}: Using system user ${systemUserId}`);
 
-        const result = await this.prisma.$transaction(async (tx) => {
-            const updatedWallet = await tx.wallet.update({
-                where: { id: selectedWallet.id },
-                data: {
-                    balance: { decrement: feeInWalletCurrency },
-                    updatedAt: new Date(),
-                },
-            });
+        try {
+            const result = await this.prisma.$transaction(async (tx) => {
+                this.logger.log(`💸 User ${user.id}: Debiting ${feeInWalletCurrency} ${selectedWallet.currency} from wallet ${selectedWallet.id}`);
 
-            const userTransaction = await tx.transaction.create({
-                data: {
-                    id: crypto.randomUUID(),
-                    userId: user.id,
-                    walletId: selectedWallet.id,
-                    amount: feeInWalletCurrency,
-                    type: 'WITHDRAW',
-                    status: 'SUCCESS',
-                    reference: await this.generateMaintenanceReference(tx),
-                    description: this.t('wallet.maintenance.fee_debit', lang, {
+                const updatedWallet = await tx.wallet.update({
+                    where: { id: selectedWallet.id },
+                    data: {
+                        balance: { decrement: feeInWalletCurrency },
+                        updatedAt: new Date(),
+                    },
+                });
+
+                this.logger.log(`✅ User ${user.id}: Wallet updated, new balance: ${updatedWallet.balance} ${selectedWallet.currency}`);
+
+                const userTransaction = await tx.transaction.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: user.id,
+                        walletId: selectedWallet.id,
                         amount: feeInWalletCurrency,
+                        type: 'WITHDRAW',
+                        status: 'SUCCESS',
+                        reference: await this.generateMaintenanceReference(tx),
+                        description: this.t('wallet.maintenance.fee_debit', lang, {
+                            amount: feeInWalletCurrency,
+                            currency: selectedWallet.currency,
+                            role: isMerchant ? 'Marchand' : 'Utilisateur',
+                            country: country.name || user.countryCode || 'CD',
+                        }),
+                        movement: 'DEBIT',
                         currency: selectedWallet.currency,
-                        role: isMerchant ? 'Marchand' : 'Utilisateur',
-                        country: country.name || user.countryCode || 'CD',
-                    }),
-                    movement: 'DEBIT',
-                    currency: selectedWallet.currency,
-                    paymentMethod: 'INTERNAL',
-                },
-            });
+                        paymentMethod: 'INTERNAL',
+                    },
+                });
 
-            let systemWallet = await tx.wallet.findFirst({
-                where: {
-                    userId: systemUserId,
-                    currency: 'USD',
-                    isActive: true,
-                },
-            });
+                this.logger.log(`📝 User ${user.id}: Transaction created: ${userTransaction.id}`);
 
-            if (!systemWallet) {
-                systemWallet = await tx.wallet.create({
+                let systemWallet = await tx.wallet.findFirst({
+                    where: {
+                        userId: systemUserId,
+                        currency: 'USD',
+                        isActive: true,
+                    },
+                });
+
+                if (!systemWallet) {
+                    this.logger.warn(`⚠️ System wallet USD not found for user ${systemUserId}, creating one...`);
+                    systemWallet = await tx.wallet.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            userId: systemUserId,
+                            currency: 'USD',
+                            balance: 0,
+                            isActive: true,
+                            cashCode: `MAINT${Math.floor(10000000 + Math.random() * 90000000)}`,
+                        },
+                    });
+                    this.logger.log(`✅ System wallet created: ${systemWallet.id}`);
+                }
+
+                const systemAmount = finalFeeUSD;
+
+                this.logger.log(`💰 Crediting system wallet ${systemWallet.id} with ${systemAmount} USD`);
+
+                const updatedSystemWallet = await tx.wallet.update({
+                    where: { id: systemWallet.id },
+                    data: {
+                        balance: { increment: systemAmount },
+                        updatedAt: new Date(),
+                    },
+                });
+
+                this.logger.log(`✅ System wallet updated, new balance: ${updatedSystemWallet.balance} USD`);
+
+                const systemTransaction = await tx.transaction.create({
                     data: {
                         id: crypto.randomUUID(),
                         userId: systemUserId,
+                        walletId: systemWallet.id,
+                        amount: systemAmount,
+                        type: 'DEPOSIT',
+                        status: 'SUCCESS',
+                        reference: await this.generateMaintenanceReference(tx),
+                        description: this.t('wallet.maintenance.fee_credit', lang, {
+                            amount: systemAmount,
+                            currency: 'USD',
+                            user: user.full_name || user.id,
+                            country: country.name || user.countryCode || 'CD',
+                        }),
+                        movement: 'CREDIT',
                         currency: 'USD',
-                        balance: 0,
-                        isActive: true,
-                        cashCode: `MAINT${Math.floor(10000000 + Math.random() * 90000000)}`,
+                        paymentMethod: 'INTERNAL',
                     },
                 });
-            }
 
-            const systemAmount = finalFeeUSD;
+                this.logger.log(`📝 System transaction created: ${systemTransaction.id}`);
 
-            const updatedSystemWallet = await tx.wallet.update({
-                where: { id: systemWallet.id },
-                data: {
-                    balance: { increment: systemAmount },
-                    updatedAt: new Date(),
-                },
-            });
+                await tx.user.update({
+                    where: { id: user.id },
+                    data: {
+                        last_maintenance_date: new Date(),
+                    },
+                });
 
-            const systemTransaction = await tx.transaction.create({
-                data: {
-                    id: crypto.randomUUID(),
-                    userId: systemUserId,
-                    walletId: systemWallet.id,
-                    amount: systemAmount,
-                    type: 'DEPOSIT',
-                    status: 'SUCCESS',
-                    reference: await this.generateMaintenanceReference(tx),
-                    description: this.t('wallet.maintenance.fee_credit', lang, {
-                        amount: systemAmount,
-                        currency: 'USD',
-                        user: user.full_name || user.id,
-                        country: country.name || user.countryCode || 'CD',
-                    }),
-                    movement: 'CREDIT',
-                    currency: 'USD',
-                    paymentMethod: 'INTERNAL',
-                },
-            });
+                await tx.audit_log.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: user.id,
+                        action: 'MAINTENANCE_FEE',
+                        details: JSON.stringify({
+                            amount: feeInWalletCurrency,
+                            currency: selectedWallet.currency,
+                            systemAmount: systemAmount,
+                            systemCurrency: 'USD',
+                            walletId: selectedWallet.id,
+                            systemWalletId: systemWallet.id,
+                            role: user.role,
+                            country: country.name || user.countryCode || 'CD',
+                            baseFee: baseFeeUSD,
+                            finalFee: finalFeeUSD,
+                            isMerchant,
+                            conversionRate,
+                            originalCurrency,
+                            merchantMultiplier: country.merchant_maintenance_multiplier || 2,
+                            selectionReason: selectionReason,
+                            walletBalance: selectedWallet.balance,
+                            walletTransactions: await this.getWalletTransactionCount(selectedWallet.id),
+                        }),
+                        createdAt: new Date(),
+                    },
+                });
 
-            await tx.user.update({
-                where: { id: user.id },
-                data: {
-                    last_maintenance_date: new Date(),
-                },
-            });
+                return {
+                    updatedWallet,
+                    userTransaction,
+                    systemWallet: updatedSystemWallet,
+                    systemTransaction,
+                };
+            }, { timeout: 30000 });
 
-            await tx.audit_log.create({
-                data: {
-                    id: crypto.randomUUID(),
-                    userId: user.id,
-                    action: 'MAINTENANCE_FEE',
-                    details: JSON.stringify({
-                        amount: feeInWalletCurrency,
-                        currency: selectedWallet.currency,
-                        systemAmount: systemAmount,
-                        systemCurrency: 'USD',
-                        walletId: selectedWallet.id,
-                        systemWalletId: systemWallet.id,
-                        role: user.role,
-                        country: country.name || user.countryCode || 'CD',
-                        baseFee: baseFeeUSD,
-                        finalFee: finalFeeUSD,
-                        isMerchant,
-                        conversionRate,
-                        originalCurrency,
-                        merchantMultiplier: country.merchant_maintenance_multiplier || 2,
-                        selectionReason: selectionReason,
-                        walletBalance: selectedWallet.balance,
-                        walletTransactions: await this.getWalletTransactionCount(selectedWallet.id),
-                    }),
-                    createdAt: new Date(),
-                },
-            });
+            this.logger.log(`✅ User ${user.id}: Maintenance completed successfully`);
+
+            await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang);
 
             return {
-                updatedWallet,
-                userTransaction,
-                systemWallet: updatedSystemWallet,
-                systemTransaction,
+                userId: user.id,
+                name: user.full_name,
+                role: user.role,
+                country: country.name || user.countryCode || 'CD',
+                success: true,
+                collected: true,
+                amount: feeInWalletCurrency,
+                currency: selectedWallet.currency,
+                walletId: selectedWallet.id,
+                newBalance: result.updatedWallet.balance,
+                transactionId: result.userTransaction.id,
+                systemTransactionId: result.systemTransaction.id,
+                selectedWalletReason: selectionReason,
             };
-        }, { timeout: 30000 });
-
-        await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang);
-
-        return {
-            userId: user.id,
-            name: user.full_name,
-            role: user.role,
-            country: country.name || user.countryCode || 'CD',
-            success: true,
-            collected: true,
-            amount: feeInWalletCurrency,
-            walletId: selectedWallet.id,
-            newBalance: result.updatedWallet.balance,
-            transactionId: result.userTransaction.id,
-            systemTransactionId: result.systemTransaction.id,
-            selectedWalletReason: selectionReason,
-        };
+        } catch (error: any) {
+            this.logger.error(`❌ Error processing user ${user.id}:`, error);
+            return {
+                userId: user.id,
+                name: user.full_name,
+                role: user.role,
+                country: country.name || user.countryCode || 'CD',
+                success: false,
+                collected: false,
+                amount: finalFeeUSD,
+                error: error.message || 'Transaction failed',
+            };
+        }
     }
 
     /**
@@ -821,9 +910,9 @@ export class MaintenanceService {
                     currency: currency,
                 });
                 await this.smsService.sendSms(cleanPhone, smsText);
-                this.logger.log(`SMS sent to ${cleanPhone}`);
+                this.logger.log(`📱 SMS sent to ${cleanPhone}`);
             } catch (err) {
-                this.logger.error('SMS error:', err);
+                this.logger.error('❌ SMS error:', err);
             }
         }
 
@@ -850,8 +939,9 @@ export class MaintenanceService {
                 crypto.randomUUID(),
                 lang,
             );
+            this.logger.log(`🔔 Push notification sent to user ${user.id}`);
         } catch (err) {
-            this.logger.error('Push notification error:', err);
+            this.logger.error('❌ Push notification error:', err);
         }
     }
 
@@ -904,7 +994,7 @@ export class MaintenanceService {
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-        const systemUserId = process.env.SYSTEM_USER_ID || 'system-maintenance-account';
+        const systemUserId = process.env.SYSTEM_USER_ID || 'e68a3267-5a2d-4309-92c5-a426c3df7188';
 
         const [maintenanceTransactions, totalUsers, totalMerchants, systemWallets, countries] = await Promise.all([
             this.prisma.transaction.findMany({
