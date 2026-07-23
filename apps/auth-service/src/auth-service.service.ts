@@ -254,16 +254,13 @@ export class AuthServiceService {
       const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-      // ✅ GÉNÉRER LE CODE DE FIDÉLITÉ (10 chiffres)
-      const loyaltyCode = await this.generateLoyaltyCode();
-
-      // ✅ Créer l'utilisateur avec le code de fidélité
+      // ✅ Créer l'utilisateur avec le téléphone normalisé
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
           account_number: data.account_number || null,
           full_name: data.full_name,
-          phone: phone,
+          phone: phone, // ✅ Utiliser la version normalisée
           password: hashedPassword,
           role: 'USER',
           status: 'ACTIVE',
@@ -271,25 +268,7 @@ export class AuthServiceService {
           fcmToken: data.fcmToken ?? null,
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
-          profileImage: data.profileImage ?? null,
-          // ✅ CODE DE FIDÉLITÉ
-          loyalty_code: loyaltyCode,
-          loyalty_points: 300, // Bonus de bienvenue
-          lifetime_points: 300,
-          referred_by: null,
-          referral_count: 0,
-        },
-      });
-
-      // ✅ AJOUTER L'HISTORIQUE DU BONUS DE BIENVENUE
-      await this.prisma.loyalty_history.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          points: 300,
-          type: 'BONUS',
-          description: 'Bonus de bienvenue F-Pay',
-          balance_after: 300,
+          profileImage: null,
         },
       });
 
@@ -418,9 +397,6 @@ export class AuthServiceService {
               sent_to: this.i18nService.translate('email_otp_sent_to', lang),
               copyright: this.i18nService.translate('email_otp_copyright', lang, { year: new Date().getFullYear() }),
               email: user.email,
-              // ✅ AJOUTER LE CODE DE FIDÉLITÉ DANS L'EMAIL
-              loyalty_code: loyaltyCode,
-              loyalty_points: 300,
             },
           );
         } catch (err) {
@@ -545,13 +521,6 @@ export class AuthServiceService {
           profileImage: null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
-          // ✅ AJOUTER LE CODE DE FIDÉLITÉ DANS LA RÉPONSE
-          loyalty: {
-            code: user.loyalty_code,
-            points: user.loyalty_points,
-            lifetimePoints: user.lifetime_points,
-            referralCount: user.referral_count,
-          },
           sessions: sessions,
           wallets: wallets,
           kyc: kyc,
