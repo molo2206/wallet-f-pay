@@ -1001,7 +1001,6 @@ export class AuthServiceService {
         profileImage: user.profileImage ?? null,
         kycStatus: user.kycStatus || 'NOT_SUBMITTED',
         countryCode: user.countryCode || 'CD',
-        loyalty_code: user.loyalty_code,
       },
     };
   }
