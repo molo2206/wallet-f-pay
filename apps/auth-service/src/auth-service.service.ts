@@ -53,28 +53,28 @@ export class AuthServiceService {
     return phone.replace(/[^0-9]/g, '');
   }
 
-  private async generateLoyaltyCode(): Promise<string> {
-    const prefix = ''; // Pas de préfixe, juste 10 chiffres
-    const digits = '0123456789';
-    let code = '';
+  // private async generateLoyaltyCode(): Promise<string> {
+  //   const prefix = ''; // Pas de préfixe, juste 10 chiffres
+  //   const digits = '0123456789';
+  //   let code = '';
 
-    // Générer 10 chiffres aléatoires
-    for (let i = 0; i < 10; i++) {
-      code += digits.charAt(Math.floor(Math.random() * digits.length));
-    }
+  //   // Générer 10 chiffres aléatoires
+  //   for (let i = 0; i < 10; i++) {
+  //     code += digits.charAt(Math.floor(Math.random() * digits.length));
+  //   }
 
-    // Vérifier l'unicité
-    const existing = await this.prisma.user.findFirst({
-      where: { loyalty_code: code },
-    });
+  //   // Vérifier l'unicité
+  //   const existing = await this.prisma.user.findFirst({
+  //     where: { loyalty_code: code },
+  //   });
 
-    if (existing) {
-      // Si le code existe déjà, en générer un nouveau
-      return this.generateLoyaltyCode();
-    }
+  //   if (existing) {
+  //     // Si le code existe déjà, en générer un nouveau
+  //     return this.generateLoyaltyCode();
+  //   }
 
-    return code;
-  }
+  //   return code;
+  // }
 
   private async logAudit(
     userId: string | null,
