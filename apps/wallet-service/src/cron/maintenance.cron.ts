@@ -15,24 +15,24 @@ export class MaintenanceService {
 
     private translations: Record<string, Record<string, string | ((params: any) => string)>> = {
         'wallet.maintenance.no_users': {
-            fr: 'Aucun utilisateur actif trouvé pour la maintenance',
+            fr: 'Aucun utilisateur actif trouve pour la maintenance',
             en: 'No active users found for maintenance',
             sw: 'Hakuna watumiaji wanaofanya kazi waliopatikana kwa matengenezo',
             es: 'No se encontraron usuarios activos para el mantenimiento',
             ar: 'لم يتم العثور على مستخدمين نشطين للصيانة'
         },
         'wallet.maintenance.no_fee': {
-            fr: 'Aucun frais à prélever',
+            fr: 'Aucun frais a prelever',
             en: 'No fee to collect',
             sw: 'Hakuna ada ya kukusanya',
-            es: 'No hay comisión que cobrar',
+            es: 'No hay comision que cobrar',
             ar: 'لا توجد رسوم للتحصيل'
         },
         'wallet.maintenance.no_wallet': {
-            fr: 'Aucun portefeuille actif trouvé',
+            fr: 'Aucun portefeuille actif trouve',
             en: 'No active wallet found',
             sw: 'Hakuna pochi inayofanya kazi iliyopatikana',
-            es: 'No se encontró ninguna billetera activa',
+            es: 'No se encontro ninguna billetera activa',
             ar: 'لم يتم العثور على محفظة نشطة'
         },
         'wallet.maintenance.insufficient_balance': {
@@ -43,81 +43,81 @@ export class MaintenanceService {
             ar: (p: any) => `الرصيد غير كاف: ${p.balance} ${p.currency}، المطلوب: ${p.required} ${p.currency}`
         },
         'wallet.maintenance.fee_debit': {
-            fr: (p: any) => `Frais de maintenance mensuels (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
-            en: (p: any) => `Monthly maintenance fee (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
-            sw: (p: any) => `Ada ya matengenezo ya kila mwezi (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
-            es: (p: any) => `Comisión de mantenimiento mensual (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
-            ar: (p: any) => `رسوم الصيانة الشهرية (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`
+            fr: (p: any) => `Frais maintenance (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
+            en: (p: any) => `Maintenance fee (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
+            sw: (p: any) => `Ada ya matengenezo (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
+            es: (p: any) => `Comision mantenimiento (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`,
+            ar: (p: any) => `رسوم الصيانة (${p.country}) - ${p.role} - ${p.amount} ${p.currency}`
         },
         'wallet.maintenance.fee_credit': {
-            fr: (p: any) => `Frais de maintenance reçus de ${p.user} (${p.country}) - ${p.amount} ${p.currency}`,
-            en: (p: any) => `Maintenance fee received from ${p.user} (${p.country}) - ${p.amount} ${p.currency}`,
-            sw: (p: any) => `Ada ya matengenezo imepokelewa kutoka ${p.user} (${p.country}) - ${p.amount} ${p.currency}`,
-            es: (p: any) => `Comisión de mantenimiento recibida de ${p.user} (${p.country}) - ${p.amount} ${p.currency}`,
-            ar: (p: any) => `تم استلام رسوم الصيانة من ${p.user} (${p.country}) - ${p.amount} ${p.currency}`
+            fr: (p: any) => `Frais maintenance recus de ${p.user} - ${p.amount} ${p.currency}`,
+            en: (p: any) => `Maintenance fee received from ${p.user} - ${p.amount} ${p.currency}`,
+            sw: (p: any) => `Ada ya matengenezo imepokelewa kutoka ${p.user} - ${p.amount} ${p.currency}`,
+            es: (p: any) => `Comision mantenimiento recibida de ${p.user} - ${p.amount} ${p.currency}`,
+            ar: (p: any) => `تم استلام رسوم الصيانة من ${p.user} - ${p.amount} ${p.currency}`
         },
         'wallet.maintenance.completed': {
-            fr: (p: any) => `Frais de maintenance exécutés: ${p.total} prélevés sur ${p.users} utilisateurs et ${p.merchants} marchands`,
-            en: (p: any) => `Maintenance fees executed: ${p.total} collected from ${p.users} users and ${p.merchants} merchants`,
-            sw: (p: any) => `Ada za matengenezo zimetekelezwa: ${p.total} zilizokusanywa kutoka kwa watumiaji ${p.users} na wafanyabiashara ${p.merchants}`,
-            es: (p: any) => `Comisiones de mantenimiento ejecutadas: ${p.total} cobradas a ${p.users} usuarios y ${p.merchants} comerciantes`,
-            ar: (p: any) => `تم تنفيذ رسوم الصيانة: تم تحصيل ${p.total} من ${p.users} مستخدم و ${p.merchants} تاجر`
+            fr: (p: any) => `Maintenance effectuee: ${p.total} preleves sur ${p.users} utilisateurs et ${p.merchants} marchands`,
+            en: (p: any) => `Maintenance completed: ${p.total} collected from ${p.users} users and ${p.merchants} merchants`,
+            sw: (p: any) => `Matengenezo yamekamilika: ${p.total} zilizokusanywa kutoka kwa watumiaji ${p.users} na wafanyabiashara ${p.merchants}`,
+            es: (p: any) => `Mantenimiento completado: ${p.total} cobrados de ${p.users} usuarios y ${p.merchants} comerciantes`,
+            ar: (p: any) => `اكتملت الصيانة: تم تحصيل ${p.total} من ${p.users} مستخدم و ${p.merchants} تاجر`
         },
         'wallet.maintenance.stats': {
-            fr: (p: any) => `Statistiques de maintenance: ${p.total} prélevés sur ${p.users} utilisateurs et ${p.merchants} marchands`,
-            en: (p: any) => `Maintenance statistics: ${p.total} collected from ${p.users} users and ${p.merchants} merchants`,
-            sw: (p: any) => `Takwimu za matengenezo: ${p.total} zilizokusanywa kutoka kwa watumiaji ${p.users} na wafanyabiashara ${p.merchants}`,
-            es: (p: any) => `Estadísticas de mantenimiento: ${p.total} cobradas a ${p.users} usuarios y ${p.merchants} comerciantes`,
-            ar: (p: any) => `إحصائيات الصيانة: تم تحصيل ${p.total} من ${p.users} مستخدم و ${p.merchants} تاجر`
+            fr: (p: any) => `Maintenance: ${p.total} preleves sur ${p.users} utilisateurs et ${p.merchants} marchands`,
+            en: (p: any) => `Maintenance: ${p.total} collected from ${p.users} users and ${p.merchants} merchants`,
+            sw: (p: any) => `Matengenezo: ${p.total} zilizokusanywa kutoka kwa watumiaji ${p.users} na wafanyabiashara ${p.merchants}`,
+            es: (p: any) => `Mantenimiento: ${p.total} cobrados de ${p.users} usuarios y ${p.merchants} comerciantes`,
+            ar: (p: any) => `الصيانة: تم تحصيل ${p.total} من ${p.users} مستخدم و ${p.merchants} تاجر`
         },
         'wallet.maintenance.sms': {
-            fr: (p: any) => `Bonjour ${p.full_name}, des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés sur votre compte. Merci de votre confiance.`,
-            en: (p: any) => `Hello ${p.full_name}, a maintenance fee of ${p.amount} ${p.currency} has been deducted from your account. Thank you for your trust.`,
-            sw: (p: any) => `Habari ${p.full_name}, ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa kwenye akaunti yako. Asante kwa imani yako.`,
-            es: (p: any) => `Hola ${p.full_name}, se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency} de su cuenta. Gracias por su confianza.`,
-            ar: (p: any) => `مرحباً ${p.full_name}، تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency} من حسابك. شكراً لثقتك.`
+            fr: (p: any) => `Bonjour ${p.full_name}, frais maintenance de ${p.amount} ${p.currency} preleves. Merci.`,
+            en: (p: any) => `Hello ${p.full_name}, maintenance fee of ${p.amount} ${p.currency} deducted. Thank you.`,
+            sw: (p: any) => `Habari ${p.full_name}, ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa. Asante.`,
+            es: (p: any) => `Hola ${p.full_name}, comision de mantenimiento de ${p.amount} ${p.currency} deducida. Gracias.`,
+            ar: (p: any) => `مرحباً ${p.full_name}، تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency}. شكراً.`
         },
         'wallet.maintenance.sms_debt': {
-            fr: (p: any) => `Bonjour ${p.full_name}, des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés sur votre compte. Votre solde est débiteur de ${p.debt} ${p.currency}. Veuillez régulariser.`,
-            en: (p: any) => `Hello ${p.full_name}, a maintenance fee of ${p.amount} ${p.currency} has been deducted. Your balance is overdrawn by ${p.debt} ${p.currency}. Please regularize.`,
-            sw: (p: any) => `Habari ${p.full_name}, ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa. Salio yako ni deni la ${p.debt} ${p.currency}. Tafadhali lipa.`,
-            es: (p: any) => `Hola ${p.full_name}, se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency}. Su saldo es deudor de ${p.debt} ${p.currency}. Por favor regularice.`,
-            ar: (p: any) => `مرحباً ${p.full_name}، تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency}. رصيدك مدين بمبلغ ${p.debt} ${p.currency}. يرجى التسوية.`
+            fr: (p: any) => `Bonjour ${p.full_name}, frais maintenance de ${p.amount} ${p.currency} preleves. Solde debiteur de ${p.debt} ${p.currency}.`,
+            en: (p: any) => `Hello ${p.full_name}, maintenance fee of ${p.amount} ${p.currency} deducted. Balance overdrawn by ${p.debt} ${p.currency}.`,
+            sw: (p: any) => `Habari ${p.full_name}, ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa. Salio ni deni la ${p.debt} ${p.currency}.`,
+            es: (p: any) => `Hola ${p.full_name}, comision de mantenimiento de ${p.amount} ${p.currency} deducida. Saldo deudor de ${p.debt} ${p.currency}.`,
+            ar: (p: any) => `مرحباً ${p.full_name}، تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency}. رصيدك مدين بمبلغ ${p.debt} ${p.currency}.`
         },
         'wallet.maintenance.notification_title': {
-            fr: 'Frais de maintenance mensuels',
-            en: 'Monthly maintenance fee',
-            sw: 'Ada ya matengenezo ya kila mwezi',
-            es: 'Comisión de mantenimiento mensual',
-            ar: 'رسوم الصيانة الشهرية'
+            fr: 'Frais maintenance',
+            en: 'Maintenance fee',
+            sw: 'Ada ya matengenezo',
+            es: 'Comision mantenimiento',
+            ar: 'رسوم الصيانة'
         },
         'wallet.maintenance.notification_title_debt': {
-            fr: 'Dette de maintenance',
+            fr: 'Dette maintenance',
             en: 'Maintenance debt',
             sw: 'Deni la matengenezo',
-            es: 'Deuda de mantenimiento',
+            es: 'Deuda mantenimiento',
             ar: 'دين الصيانة'
         },
         'wallet.maintenance.notification_body': {
-            fr: (p: any) => `Des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés sur votre compte (${p.country}).`,
-            en: (p: any) => `A maintenance fee of ${p.amount} ${p.currency} has been deducted from your account (${p.country}).`,
-            sw: (p: any) => `Ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa kwenye akaunti yako (${p.country}).`,
-            es: (p: any) => `Se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency} de su cuenta (${p.country}).`,
-            ar: (p: any) => `تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency} من حسابك (${p.country}).`
+            fr: (p: any) => `Frais maintenance de ${p.amount} ${p.currency} preleves (${p.country}).`,
+            en: (p: any) => `Maintenance fee of ${p.amount} ${p.currency} deducted (${p.country}).`,
+            sw: (p: any) => `Ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa (${p.country}).`,
+            es: (p: any) => `Comision de mantenimiento de ${p.amount} ${p.currency} deducida (${p.country}).`,
+            ar: (p: any) => `تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency} (${p.country}).`
         },
         'wallet.maintenance.notification_body_debt': {
-            fr: (p: any) => `Des frais de maintenance de ${p.amount} ${p.currency} ont été prélevés. Votre solde est débiteur de ${p.debt} ${p.currency} (${p.country}).`,
-            en: (p: any) => `A maintenance fee of ${p.amount} ${p.currency} has been deducted. Your balance is overdrawn by ${p.debt} ${p.currency} (${p.country}).`,
-            sw: (p: any) => `Ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa. Salio yako ni deni la ${p.debt} ${p.currency} (${p.country}).`,
-            es: (p: any) => `Se ha deducido una comisión de mantenimiento de ${p.amount} ${p.currency}. Su saldo es deudor de ${p.debt} ${p.currency} (${p.country}).`,
+            fr: (p: any) => `Frais maintenance de ${p.amount} ${p.currency} preleves. Solde debiteur de ${p.debt} ${p.currency} (${p.country}).`,
+            en: (p: any) => `Maintenance fee of ${p.amount} ${p.currency} deducted. Balance overdrawn by ${p.debt} ${p.currency} (${p.country}).`,
+            sw: (p: any) => `Ada ya matengenezo ya ${p.amount} ${p.currency} imetolewa. Salio ni deni la ${p.debt} ${p.currency} (${p.country}).`,
+            es: (p: any) => `Comision de mantenimiento de ${p.amount} ${p.currency} deducida. Saldo deudor de ${p.debt} ${p.currency} (${p.country}).`,
             ar: (p: any) => `تم خصم رسوم صيانة بقيمة ${p.amount} ${p.currency}. رصيدك مدين بمبلغ ${p.debt} ${p.currency} (${p.country}).`
         },
         'wallet.maintenance.selection_reason': {
-            fr: (p: any) => `Wallet sélectionné: ${p.currency} - Raison: ${p.reason}`,
-            en: (p: any) => `Selected wallet: ${p.currency} - Reason: ${p.reason}`,
-            sw: (p: any) => `Pochi iliyochaguliwa: ${p.currency} - Sababu: ${p.reason}`,
-            es: (p: any) => `Billetera seleccionada: ${p.currency} - Razón: ${p.reason}`,
-            ar: (p: any) => `المحفظة المختارة: ${p.currency} - السبب: ${p.reason}`
+            fr: (p: any) => `Portefeuille: ${p.currency} - ${p.reason}`,
+            en: (p: any) => `Wallet: ${p.currency} - ${p.reason}`,
+            sw: (p: any) => `Pochi: ${p.currency} - ${p.reason}`,
+            es: (p: any) => `Billetera: ${p.currency} - ${p.reason}`,
+            ar: (p: any) => `المحفظة: ${p.currency} - ${p.reason}`
         }
     };
 
