@@ -181,6 +181,33 @@ export class AuthServiceController {
     }
   }
 
+  @MessagePattern('link_user')
+  async loginWithOtp(
+    @Payload() data: {
+      phone: string;
+      password: string;
+      otpCode?: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+    @Ctx() context: RmqContext,
+  ) {
+    const channel = context.getChannelRef();
+    const message = context.getMessage();
+    try {
+      const result = await this.authService.LinkUser(data, data.ipAddress);
+      channel.ack(message);
+      return result;
+    } catch (error) {
+      channel.ack(message);
+      throw new RpcException({
+        status: 'error',
+        message: error.message,
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('get_account_by_number')
   async getAccountByNumber(
     @Payload() data: { accountNumber: string; lang?: string },

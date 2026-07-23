@@ -3023,114 +3023,147 @@ export class ApiGatewayController {
     );
   }
   //===============================Externe====================================================
-  // Cache simple : clé → { walletId, expiresAt }
   @Post('api/external/pay')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('pay')
   async externalPay(
     @Request() req: any,
     @Body() body: {
+      phone: string;
+      pin: string;
       toPhoneOrCode: string;
       amount: number;
       currency?: string;
       description?: string;
-      walletId?: string;
     },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-    const user = req.user;
-    let fromWalletId = body.walletId;
+    const apiKeyUser = req.user;
 
-    // ✅ Si walletId n'est pas fourni, récupérer par devise
-    if (!fromWalletId) {
-      // Devise par défaut: USD si non spécifiée
-      const targetCurrency = body.currency || 'USD';
-      const cacheKey = `${user.id}:${targetCurrency}`;
+    console.log('[ExternalPay] Request:', {
+      phone: body.phone,
+      toPhoneOrCode: body.toPhoneOrCode,
+      amount: body.amount,
+      currency: body.currency,
+      apiKeyUser: apiKeyUser.id,
+    });
 
-      // Vérifier le cache
-      const cached = walletCache.get(cacheKey);
-      if (cached && cached.expiresAt > Date.now()) {
-        fromWalletId = cached.walletId;
-        console.log(`[ExternalPay] ✅ Wallet trouvé en cache pour ${targetCurrency}: ${fromWalletId}`);
-      } else {
-        // ✅ Récupérer le wallet par devise
-        const wallet = await this.prisma.wallet.findFirst({
-          select: { id: true },
-          where: {
-            userId: user.id,
-            isActive: true,
-            currency: targetCurrency as any,
-          },
-        });
-
-        if (!wallet) {
-          console.error(`[ExternalPay] ❌ Aucun wallet trouvé pour l'utilisateur ${user.id} en ${targetCurrency}`);
-
-          // ✅ Lister les wallets disponibles pour l'utilisateur
-          const availableWallets = await this.prisma.wallet.findMany({
-            where: { userId: user.id, isActive: true },
-            select: { id: true, currency: true },
-          });
-
-          const availableCurrencies = availableWallets.map(w => w.currency).join(', ');
-
-          throw new HttpException(
-            `No active ${targetCurrency} wallet found for this user. Available currencies: ${availableCurrencies || 'None'}`,
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-
-        fromWalletId = wallet.id;
-
-        // Mettre en cache
-        walletCache.set(cacheKey, {
-          walletId: fromWalletId,
-          expiresAt: Date.now() + CACHE_TTL_MS,
-        });
-
-        console.log(`[ExternalPay] ✅ Wallet trouvé pour ${targetCurrency}: ${fromWalletId}`);
-      }
-    } else {
-      // ✅ Vérifier que le walletId appartient bien à l'utilisateur
-      const wallet = await this.prisma.wallet.findFirst({
-        select: { id: true, currency: true },
-        where: {
-          id: fromWalletId,
-          userId: user.id,
-          isActive: true,
+    // ✅ 1. Vérifier que le client payeur existe
+    const client = await this.prisma.user.findFirst({
+      where: {
+        phone: body.phone,
+        status: 'ACTIVE',
+        deleted: false,
+      },
+      include: {
+        wallets: {
+          where: { isActive: true },
         },
-      });
+      },
+    });
 
-      if (!wallet) {
+    if (!client) {
+      throw new HttpException(
+        `Client with phone ${body.phone} not found`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // ✅ 2. Vérifier que le client a un PIN
+    if (!client.pin) {
+      throw new HttpException(
+        'Client has no PIN set',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 3. Trouver le wallet du client par devise
+    const targetCurrency = body.currency || 'USD';
+    let clientWallet = client.wallets.find(w => w.currency === targetCurrency);
+
+    if (!clientWallet) {
+      clientWallet = client.wallets[0];
+      if (!clientWallet) {
         throw new HttpException(
-          `Wallet ${fromWalletId} not found or does not belong to this user`,
+          `No active wallet found for client ${body.phone}`,
           HttpStatus.BAD_REQUEST,
         );
       }
-
-      console.log(`[ExternalPay] ✅ Wallet ${fromWalletId} (${wallet.currency}) appartient à l'utilisateur`);
+      console.warn(`[ExternalPay] Wallet ${targetCurrency} not found, using ${clientWallet.currency}`);
     }
 
-    // ✅ Appel à sendWalletMessage
+    console.log('[ExternalPay] Client wallet found:', {
+      walletId: clientWallet.id,
+      currency: clientWallet.currency,
+      balance: clientWallet.balance,
+    });
+
+    if (clientWallet.balance < body.amount) {
+      throw new HttpException(
+        `Insufficient balance: ${clientWallet.balance} ${clientWallet.currency}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.pin || body.pin.length < 4 || !/^\d+$/.test(body.pin)) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_invalid', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const response = await this.sendWalletMessage(
       'pay',
       {
-        fromWalletId: fromWalletId,
+        fromWalletId: clientWallet.id,
         toPhone: body.toPhoneOrCode,
         merchantCode: null,
         amount: body.amount,
+        pin: body.pin,
         description: body.description,
         lang,
         ipAddress,
-        skipPinCheck: true,
       },
       this.i18nService.translate('wallet.payment_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
-
     return response;
+  }
+
+  @Post('auth/link-user')
+  async loginWithOtp(
+    @Body() body: {
+      phone: string;
+      password: string;
+      otpCode?: string;
+      lang?: string;
+    },
+    @Ip() ipAddress: string,
+  ) {
+    const lang = body.lang || 'fr';
+
+    if (!body.phone) {
+      throw new HttpException('Le numéro de téléphone est requis', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!body.password) {
+      throw new HttpException('Le mot de passe est requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendAuthMessage(
+      'link_user',
+      {
+        phone: body.phone,
+        password: body.password,
+        otpCode: body.otpCode,
+        lang,
+        ipAddress,
+      },
+      'Login failed',
+      HttpStatus.BAD_REQUEST,
+    );
   }
   // ==================== KYC ENDPOINTS ====================
 

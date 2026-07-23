@@ -23,7 +23,7 @@ model transaction {
   external_reference String?                    @db.Text
   paymentMethod      transaction_paymentMethod? @default(INTERNAL)
   user               user                       @relation(fields: [userId], references: [id], map: "Transaction_userId_fkey")
-  wallet             wallet                     @relation(fields: [walletId], references: [id], onDelete: Cascade, map: "Transaction_walletId_fkey")
+  wallet             wallet                     @relation(fields: [walletId], references: [id], map: "Transaction_walletId_fkey")
 
   @@index([userId], map: "Transaction_userId_fkey")
   @@index([walletId], map: "Transaction_walletId_fkey")
@@ -62,19 +62,29 @@ model user {
   maintenance_fee        Float?                   @default(0) @db.Float
   last_maintenance_date  DateTime?                @db.DateTime(0)
   is_maintenance_exempt  Boolean?                 @default(false)
+  loyalty_code           String?                  @unique(map: "loyalty_code") @db.VarChar(20)
+  loyalty_points         Int?                     @default(0)
+  lifetime_points        Int?                     @default(0)
+  referred_by            String?                  @db.VarChar(36)
+  referral_count         Int?                     @default(0)
   api_key                api_key[]
   audit_log              audit_log[]
   failed_transaction_log failed_transaction_log[]
   kyc_submission         kyc_submission[]
   login_attempt          login_attempt[]
+  loyalty_history        loyalty_history[]
   operation              operation[]
   sessions               sessions[]
   transaction            transaction[]
+  user                   user?                    @relation("userTouser", fields: [referred_by], references: [id], onUpdate: Restrict, map: "fk_user_referred_by")
+  other_user             user[]                   @relation("userTouser")
   user_has_resources     user_has_resources[]
   user_notifications     user_notifications[]
   user_settings          user_settings[]
   user_transaction_limit user_transaction_limit[]
   wallets                wallet[]
+
+  @@index([referred_by], map: "fk_user_referred_by")
 }
 
 model wallet {
@@ -517,6 +527,21 @@ model branch {
   user_has_resources user_has_resources[]
 
   @@index([countryId], map: "fk_branch_country")
+}
+
+model loyalty_history {
+  id             String    @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  userId         String    @db.VarChar(36)
+  points         Int       @default(0)
+  type           String    @db.VarChar(20)
+  description    String?   @db.Text
+  reference_type String?   @db.VarChar(50)
+  reference_id   String?   @db.VarChar(36)
+  balance_after  Int       @default(0)
+  created_at     DateTime? @default(now()) @db.DateTime(0)
+  user           user      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_loyalty_history_user")
+
+  @@index([userId], map: "idx_loyalty_history_user")
 }
 
 enum wallet_currency {

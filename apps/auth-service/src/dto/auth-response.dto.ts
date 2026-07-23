@@ -29,6 +29,7 @@ export interface UserInfoDto {
   resources?: ResourcePermissionDto[];
   wallets?: WalletDto[];
   kyc?: KycDto;
+  loyalty_code: string;
 }
 
 export interface SessionDto {
@@ -93,4 +94,5 @@ export interface AuthResponseDto {
   resources?: ResourcePermissionDto[];
   wallets?: WalletDto[];
   kyc?: KycDto;
+  loyalty_code?: string;
 }

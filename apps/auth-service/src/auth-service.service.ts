@@ -52,6 +52,30 @@ export class AuthServiceService {
   private normalizePhone(phone: string): string {
     return phone.replace(/[^0-9]/g, '');
   }
+
+  private async generateLoyaltyCode(): Promise<string> {
+    const prefix = ''; // Pas de préfixe, juste 10 chiffres
+    const digits = '0123456789';
+    let code = '';
+
+    // Générer 10 chiffres aléatoires
+    for (let i = 0; i < 10; i++) {
+      code += digits.charAt(Math.floor(Math.random() * digits.length));
+    }
+
+    // Vérifier l'unicité
+    const existing = await this.prisma.user.findFirst({
+      where: { loyalty_code: code },
+    });
+
+    if (existing) {
+      // Si le code existe déjà, en générer un nouveau
+      return this.generateLoyaltyCode();
+    }
+
+    return code;
+  }
+
   private async logAudit(
     userId: string | null,
     action: string,
@@ -230,13 +254,16 @@ export class AuthServiceService {
       const plainPassword = data.password;
       const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
-      // ✅ Créer l'utilisateur avec le téléphone normalisé
+      // ✅ GÉNÉRER LE CODE DE FIDÉLITÉ (10 chiffres)
+      const loyaltyCode = await this.generateLoyaltyCode();
+
+      // ✅ Créer l'utilisateur avec le code de fidélité
       const user = await this.prisma.user.create({
         data: {
           id: crypto.randomUUID(),
           account_number: data.account_number || null,
           full_name: data.full_name,
-          phone: phone, // ✅ Utiliser la version normalisée
+          phone: phone,
           password: hashedPassword,
           role: 'USER',
           status: 'ACTIVE',
@@ -244,7 +271,8 @@ export class AuthServiceService {
           fcmToken: data.fcmToken ?? null,
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
-          profileImage: null,
+          profileImage: data.profileImage ?? null,
+          loyalty_code: loyaltyCode,
         },
       });
 
@@ -373,6 +401,7 @@ export class AuthServiceService {
               sent_to: this.i18nService.translate('email_otp_sent_to', lang),
               copyright: this.i18nService.translate('email_otp_copyright', lang, { year: new Date().getFullYear() }),
               email: user.email,
+              loyalty_code: loyaltyCode,
             },
           );
         } catch (err) {
@@ -497,6 +526,7 @@ export class AuthServiceService {
           profileImage: null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
+          loyalty_code: user.loyalty_code,
           sessions: sessions,
           wallets: wallets,
           kyc: kyc,
@@ -506,6 +536,7 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
+
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
@@ -555,6 +586,7 @@ export class AuthServiceService {
           kycStatus: true,
           countryCode: true,
           profileImage: true,
+          loyalty_code: true,
         },
       });
 
@@ -849,6 +881,7 @@ export class AuthServiceService {
           resources: resources,
           wallets: wallets,
           kyc: kyc,
+          loyalty_code: user.loyalty_code || '',
         },
       };
     } catch (error) {
@@ -1165,6 +1198,122 @@ export class AuthServiceService {
       where: { id: userId },
       data: { password: hashedPassword },
     });
+  }
+
+  async LinkUser(
+    dto: {
+      phone: string;
+      password: string;
+      otpCode?: string;
+      lang?: string;
+    },
+    ipAddress?: string,
+  ): Promise<any> {
+    const lang = dto.lang || 'fr';
+    const normalizedPhone = this.normalizePhone(dto.phone);
+
+    // ✅ Vérifier que l'utilisateur existe
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: normalizedPhone },
+          { phone: dto.phone },
+          { phone: normalizedPhone.replace(/^\+/, '') },
+        ],
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException(
+        this.i18nService.translate('user_not_found', lang),
+      );
+    }
+
+    // ✅ Vérifier le mot de passe
+    if (!user.password) {
+      throw new BadRequestException(
+        this.i18nService.translate('user_no_password', lang),
+      );
+    }
+
+    const isValidPassword = await bcrypt.compare(dto.password, user.password);
+    if (!isValidPassword) {
+      throw new BadRequestException(
+        this.i18nService.translate('invalid_password', lang),
+      );
+    }
+
+    // ✅ Si otpCode n'est pas fourni → Étape 1: Envoyer OTP
+    if (!dto.otpCode) {
+      await this.prisma.otp.updateMany({
+        where: { userId: user.id, isUsed: false, expiresAt: { gt: new Date() } },
+        data: { isUsed: true },
+      });
+
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      await this.prisma.otp.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: user.id,
+          email: user.phone || '',
+          otpCode,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+          isUsed: false,
+        },
+      });
+
+      const smsText = this.i18nService.translate('otp_sms', lang, { otpCode });
+      await this.smsService.sendSms(user.phone || '', smsText);
+
+      return {
+        requiresOtp: true,
+        message: this.i18nService.translate('otp_sent', lang),
+      };
+    }
+
+    // ✅ Si otpCode est fourni → Étape 2: Valider OTP
+    const otpEntry = await this.prisma.otp.findFirst({
+      where: {
+        userId: user.id,
+        otpCode: dto.otpCode,
+        isUsed: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!otpEntry) {
+      throw new BadRequestException(
+        this.i18nService.translate('otp_invalid', lang),
+      );
+    }
+
+    if (!otpEntry.expiresAt || new Date() > otpEntry.expiresAt) {
+      throw new BadRequestException(
+        this.i18nService.translate('otp_expired', lang),
+      );
+    }
+
+    await this.prisma.otp.update({
+      where: { id: otpEntry.id },
+      data: { isUsed: true },
+    });
+
+    return {
+      message: this.i18nService.translate('login_success', lang),
+      data: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        role: user.role,
+        status: user.status,
+        profileImage: user.profileImage ?? null,
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+        countryCode: user.countryCode || 'CD',
+        loyalty_code: user.loyalty_code,
+      },
+    };
   }
 
   async getAccountByNumber(
