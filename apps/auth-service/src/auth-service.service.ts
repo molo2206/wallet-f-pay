@@ -272,7 +272,24 @@ export class AuthServiceService {
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
           profileImage: data.profileImage ?? null,
+          // ✅ CODE DE FIDÉLITÉ
           loyalty_code: loyaltyCode,
+          loyalty_points: 300, // Bonus de bienvenue
+          lifetime_points: 300,
+          referred_by: null,
+          referral_count: 0,
+        },
+      });
+
+      // ✅ AJOUTER L'HISTORIQUE DU BONUS DE BIENVENUE
+      await this.prisma.loyalty_history.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: user.id,
+          points: 300,
+          type: 'BONUS',
+          description: 'Bonus de bienvenue F-Pay',
+          balance_after: 300,
         },
       });
 
@@ -401,7 +418,9 @@ export class AuthServiceService {
               sent_to: this.i18nService.translate('email_otp_sent_to', lang),
               copyright: this.i18nService.translate('email_otp_copyright', lang, { year: new Date().getFullYear() }),
               email: user.email,
+              // ✅ AJOUTER LE CODE DE FIDÉLITÉ DANS L'EMAIL
               loyalty_code: loyaltyCode,
+              loyalty_points: 300,
             },
           );
         } catch (err) {
@@ -526,7 +545,13 @@ export class AuthServiceService {
           profileImage: null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
-          loyalty_code: user.loyalty_code,
+          // ✅ AJOUTER LE CODE DE FIDÉLITÉ DANS LA RÉPONSE
+          loyalty: {
+            code: user.loyalty_code,
+            points: user.loyalty_points,
+            lifetimePoints: user.lifetime_points,
+            referralCount: user.referral_count,
+          },
           sessions: sessions,
           wallets: wallets,
           kyc: kyc,
@@ -536,7 +561,6 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
-
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
@@ -586,7 +610,6 @@ export class AuthServiceService {
           kycStatus: true,
           countryCode: true,
           profileImage: true,
-          loyalty_code: true,
         },
       });
 
@@ -881,7 +904,6 @@ export class AuthServiceService {
           resources: resources,
           wallets: wallets,
           kyc: kyc,
-          loyalty_code: user.loyalty_code || '',
         },
       };
     } catch (error) {
@@ -897,6 +919,122 @@ export class AuthServiceService {
         statusCode: 500,
       });
     }
+  }
+
+  async LinkUser(
+    dto: {
+      phone: string;
+      password: string;
+      otpCode?: string;
+      lang?: string;
+    },
+    ipAddress?: string,
+  ): Promise<any> {
+    const lang = dto.lang || 'fr';
+    const normalizedPhone = this.normalizePhone(dto.phone);
+
+    // ✅ Vérifier que l'utilisateur existe
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: normalizedPhone },
+          { phone: dto.phone },
+          { phone: normalizedPhone.replace(/^\+/, '') },
+        ],
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException(
+        this.i18nService.translate('user_not_found', lang),
+      );
+    }
+
+    // ✅ Vérifier le mot de passe
+    if (!user.password) {
+      throw new BadRequestException(
+        this.i18nService.translate('user_no_password', lang),
+      );
+    }
+
+    const isValidPassword = await bcrypt.compare(dto.password, user.password);
+    if (!isValidPassword) {
+      throw new BadRequestException(
+        this.i18nService.translate('invalid_password', lang),
+      );
+    }
+
+    // ✅ Si otpCode n'est pas fourni → Étape 1: Envoyer OTP
+    if (!dto.otpCode) {
+      await this.prisma.otp.updateMany({
+        where: { userId: user.id, isUsed: false, expiresAt: { gt: new Date() } },
+        data: { isUsed: true },
+      });
+
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      await this.prisma.otp.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: user.id,
+          email: user.phone || '',
+          otpCode,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+          isUsed: false,
+        },
+      });
+
+      const smsText = this.i18nService.translate('otp_sms', lang, { otpCode });
+      await this.smsService.sendSms(user.phone || '', smsText);
+
+      return {
+        requiresOtp: true,
+        message: this.i18nService.translate('otp_sent', lang),
+      };
+    }
+
+    // ✅ Si otpCode est fourni → Étape 2: Valider OTP
+    const otpEntry = await this.prisma.otp.findFirst({
+      where: {
+        userId: user.id,
+        otpCode: dto.otpCode,
+        isUsed: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!otpEntry) {
+      throw new BadRequestException(
+        this.i18nService.translate('otp_invalid', lang),
+      );
+    }
+
+    if (!otpEntry.expiresAt || new Date() > otpEntry.expiresAt) {
+      throw new BadRequestException(
+        this.i18nService.translate('otp_expired', lang),
+      );
+    }
+
+    await this.prisma.otp.update({
+      where: { id: otpEntry.id },
+      data: { isUsed: true },
+    });
+
+    return {
+      message: this.i18nService.translate('login_success', lang),
+      data: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        full_name: user.full_name,
+        role: user.role,
+        status: user.status,
+        profileImage: user.profileImage ?? null,
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+        countryCode: user.countryCode || 'CD',
+        loyalty_code: user.loyalty_code,
+      },
+    };
   }
 
   async validateSession(
@@ -1198,122 +1336,6 @@ export class AuthServiceService {
       where: { id: userId },
       data: { password: hashedPassword },
     });
-  }
-
-  async LinkUser(
-    dto: {
-      phone: string;
-      password: string;
-      otpCode?: string;
-      lang?: string;
-    },
-    ipAddress?: string,
-  ): Promise<any> {
-    const lang = dto.lang || 'fr';
-    const normalizedPhone = this.normalizePhone(dto.phone);
-
-    // ✅ Vérifier que l'utilisateur existe
-    const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { phone: normalizedPhone },
-          { phone: dto.phone },
-          { phone: normalizedPhone.replace(/^\+/, '') },
-        ],
-      },
-    });
-
-    if (!user) {
-      throw new BadRequestException(
-        this.i18nService.translate('user_not_found', lang),
-      );
-    }
-
-    // ✅ Vérifier le mot de passe
-    if (!user.password) {
-      throw new BadRequestException(
-        this.i18nService.translate('user_no_password', lang),
-      );
-    }
-
-    const isValidPassword = await bcrypt.compare(dto.password, user.password);
-    if (!isValidPassword) {
-      throw new BadRequestException(
-        this.i18nService.translate('invalid_password', lang),
-      );
-    }
-
-    // ✅ Si otpCode n'est pas fourni → Étape 1: Envoyer OTP
-    if (!dto.otpCode) {
-      await this.prisma.otp.updateMany({
-        where: { userId: user.id, isUsed: false, expiresAt: { gt: new Date() } },
-        data: { isUsed: true },
-      });
-
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-      await this.prisma.otp.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          email: user.phone || '',
-          otpCode,
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-          isUsed: false,
-        },
-      });
-
-      const smsText = this.i18nService.translate('otp_sms', lang, { otpCode });
-      await this.smsService.sendSms(user.phone || '', smsText);
-
-      return {
-        requiresOtp: true,
-        message: this.i18nService.translate('otp_sent', lang),
-      };
-    }
-
-    // ✅ Si otpCode est fourni → Étape 2: Valider OTP
-    const otpEntry = await this.prisma.otp.findFirst({
-      where: {
-        userId: user.id,
-        otpCode: dto.otpCode,
-        isUsed: false,
-        expiresAt: { gt: new Date() },
-      },
-    });
-
-    if (!otpEntry) {
-      throw new BadRequestException(
-        this.i18nService.translate('otp_invalid', lang),
-      );
-    }
-
-    if (!otpEntry.expiresAt || new Date() > otpEntry.expiresAt) {
-      throw new BadRequestException(
-        this.i18nService.translate('otp_expired', lang),
-      );
-    }
-
-    await this.prisma.otp.update({
-      where: { id: otpEntry.id },
-      data: { isUsed: true },
-    });
-
-    return {
-      message: this.i18nService.translate('login_success', lang),
-      data: {
-        id: user.id,
-        email: user.email,
-        phone: user.phone,
-        full_name: user.full_name,
-        role: user.role,
-        status: user.status,
-        profileImage: user.profileImage ?? null,
-        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
-        countryCode: user.countryCode || 'CD',
-        loyalty_code: user.loyalty_code,
-      },
-    };
   }
 
   async getAccountByNumber(
