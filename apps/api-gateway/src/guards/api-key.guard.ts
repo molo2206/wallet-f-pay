@@ -47,7 +47,7 @@ export class ApiKeyGuard implements CanActivate {
             permissionsArray = payload.permissions || [];
             isJwt = true;
 
-            // ✅ Récupérer l'utilisateur complet depuis la base
+            // ✅ Récupérer l'utilisateur complet depuis la base (sans userIdFpay)
             const user = await this.prisma.user.findUnique({
                 where: { id: userId },
                 select: {
@@ -64,7 +64,6 @@ export class ApiKeyGuard implements CanActivate {
                     businessAddress: true,
                     kycStatus: true,
                     countryCode: true,
-                    userIdFpay: true,
                     wallets: {
                         where: { isActive: true },
                         select: {
@@ -83,7 +82,6 @@ export class ApiKeyGuard implements CanActivate {
 
             // ✅ Ajouter l'utilisateur complet à la requête
             request.user = user;
-            request.apiKey = apiKeyRecord;
 
             // ✅ Vérifier les permissions
             const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
@@ -125,16 +123,15 @@ export class ApiKeyGuard implements CanActivate {
                             full_name: true,
                             phone: true,
                             email: true,
-                            merchantCode: true,
                             role: true,
                             status: true,
+                            merchantCode: true,
                             merchantType: true,
                             businessName: true,
                             businessCategory: true,
                             businessAddress: true,
                             kycStatus: true,
                             countryCode: true,
-                            userIdFpay: true,
                             wallets: {
                                 where: { isActive: true },
                                 select: {
@@ -173,7 +170,7 @@ export class ApiKeyGuard implements CanActivate {
                 permissionsArray = keyRecord.permissions;
             }
 
-            // ✅ Ajouter l'utilisateur complet à la requête
+            // ✅ Ajouter l'utilisateur complet à la requête (keyRecord.user existe car include: { user: true })
             request.user = keyRecord.user;
             request.apiKey = apiKeyRecord;
 
