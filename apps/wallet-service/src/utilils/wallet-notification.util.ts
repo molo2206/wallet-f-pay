@@ -21,30 +21,54 @@ export async function notifyTransaction(
   type: string,
   counterparty?: { name?: string; phone?: string; accountNumber?: string; status?: string },
 ) {
+  // ============================================
+  // 1. RÉCUPÉRATION DE LA LANGUE
+  // ============================================
   let userLang = 'fr';
   try {
     userLang = await getUserLanguage(user.id);
   } catch (error) {
-    console.warn(`Impossible de récupérer la langue pour l'utilisateur ${user.id}, utilisation de 'fr' par défaut`);
+    console.warn(`[notifyTransaction] ⚠️ Impossible de récupérer la langue pour l'utilisateur ${user.id}, utilisation de 'fr' par défaut`);
   }
 
+  console.log(`[notifyTransaction] 📢 === DÉBUT NOTIFICATION ===`);
   console.log(`[notifyTransaction] 📢 Type: ${type}, User: ${user.id}, Lang: ${userLang}`);
+  console.log(`[notifyTransaction] 📢 Transaction: ${transaction?.id}, Amount: ${transaction?.amount}`);
+  console.log(`[notifyTransaction] 📢 Wallet: ${wallet?.id}, Currency: ${wallet?.currency}`);
 
-  // ✅ Valeurs par défaut
+  // ============================================
+  // 2. VALEURS PAR DÉFAUT
+  // ============================================
   const defaultName = user?.full_name || 'Client';
   const defaultAmount = transaction?.amount || 0;
   const defaultCurrency = wallet?.currency || 'CDF';
   const defaultBalance = wallet?.balance || 0;
 
   // ============================================
-  // 📱 SMS
+  // 3. VÉRIFICATION DES PRÉFÉRENCES UTILISATEUR
   // ============================================
-  if (user?.phone && (await shouldSendSms(user.id))) {
+  let canSendSms = false;
+  let canSendPush = false;
+
+  try {
+    canSendSms = await shouldSendSms(user.id);
+    canSendPush = await shouldSendPush(user.id);
+    console.log(`[notifyTransaction] 📋 Préférences: SMS=${canSendSms}, Push=${canSendPush}`);
+  } catch (error) {
+    console.error(`[notifyTransaction] ❌ Erreur lors de la vérification des préférences:`, error);
+    // Par défaut, on tente d'envoyer quand même
+    canSendSms = true;
+    canSendPush = true;
+  }
+
+  // ============================================
+  // 4. 📱 SMS
+  // ============================================
+  if (user?.phone && canSendSms) {
     const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
-    console.log(`[notifyTransaction] 📱 Envoi SMS à ${cleanPhone}`);
+    console.log(`[notifyTransaction] 📱 Tentative d'envoi SMS à ${cleanPhone}`);
 
     let smsKey: string;
-    // ✅ Paramètres corrects correspondant aux traductions
     const params: any = {
       full_name: defaultName,
       amount: defaultAmount,
@@ -52,115 +76,99 @@ export async function notifyTransaction(
       balance: defaultBalance,
     };
 
+    // ✅ Déterminer la clé SMS
     switch (type) {
       case 'topup':
         smsKey = 'wallet.top_up_sms';
-        // ✅ Les paramètres sont déjà dans params
         break;
 
       case 'cashout':
         smsKey = 'wallet.cashout_sms';
-        // ✅ Les paramètres sont déjà dans params
         break;
 
       case 'send_sent':
         smsKey = 'wallet.transfer_sender_sms';
         params.toPhone = counterparty?.phone || 'Destinataire';
-        // ✅ full_name, amount, currency, balance sont déjà dans params
         break;
 
       case 'send_received':
         smsKey = 'wallet.transfer_receiver_sms';
         params.fromPhone = counterparty?.phone || 'Expéditeur';
-        // ✅ full_name, amount, currency, balance sont déjà dans params
         break;
 
       case 'send_pending':
         smsKey = 'wallet.transfer_pending_sms';
-        // ✅ full_name, amount, currency sont déjà dans params
         break;
 
       case 'send_confirmed':
         smsKey = 'wallet.transfer_confirmed_sms';
-        // ✅ full_name, amount, currency sont déjà dans params
         break;
 
       case 'pay_sent':
         smsKey = 'wallet.payment_payer_sms';
         params.merchantName = counterparty?.name || 'Commerçant';
-        // ✅ full_name, amount, currency, balance sont déjà dans params
         break;
 
       case 'pay_received':
         smsKey = 'wallet.payment_merchant_sms';
         params.payerName = counterparty?.name || 'Client';
-        // ✅ full_name, amount, currency, balance sont déjà dans params
         break;
 
       default:
         console.warn(`[notifyTransaction] ⚠️ Type SMS non reconnu: ${type}`);
-        return;
+        break;
     }
 
-    try {
-      console.log(`[notifyTransaction] 📝 Clé SMS: ${smsKey}, Paramètres:`, params);
-      const smsText = i18nService.translate(smsKey, userLang, params);
-      console.log(`[notifyTransaction] 📝 SMS traduit: ${smsText}`);
+    // ✅ Envoyer le SMS si une clé est définie
+    if (smsKey) {
+      try {
+        console.log(`[notifyTransaction] 📝 Clé SMS: ${smsKey}`);
+        console.log(`[notifyTransaction] 📝 Paramètres:`, params);
 
-      // ✅ Vérifier que le SMS n'est pas vide
-      if (!smsText || smsText === smsKey) {
-        console.warn(`[notifyTransaction] ⚠️ SMS vide ou traduction manquante pour ${smsKey}`);
-        // ✅ Fallback: construire un message manuellement
-        let fallbackMessage = '';
-        switch (type) {
-          case 'topup':
-            fallbackMessage = `Bonjour ${defaultName}, Recharge ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Merci.`;
-            break;
-          case 'cashout':
-            fallbackMessage = `Bonjour ${defaultName}, Retrait ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}.`;
-            break;
-          case 'send_sent':
-            fallbackMessage = `Bonjour ${defaultName}, Envoi ${defaultAmount} ${defaultCurrency} à ${params.toPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`;
-            break;
-          case 'send_received':
-            fallbackMessage = `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.fromPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`;
-            break;
-          case 'send_pending':
-            fallbackMessage = `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Vous recevrez une confirmation une fois approuvé.`;
-            break;
-          case 'send_confirmed':
-            fallbackMessage = `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} a été validé. Le destinataire a été notifié.`;
-            break;
-          case 'pay_sent':
-            fallbackMessage = `Bonjour ${defaultName}, Paiement ${defaultAmount} ${defaultCurrency} à ${params.merchantName}. Solde: ${defaultBalance} ${defaultCurrency}.`;
-            break;
-          case 'pay_received':
-            fallbackMessage = `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.payerName}. Solde: ${defaultBalance} ${defaultCurrency}.`;
-            break;
-          default:
-            fallbackMessage = `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}.`;
+        let smsText = i18nService.translate(smsKey, userLang, params);
+        console.log(`[notifyTransaction] 📝 SMS traduit: ${smsText}`);
+
+        // ✅ Vérifier que le SMS n'est pas vide ou que la traduction a fonctionné
+        if (!smsText || smsText === smsKey) {
+          console.warn(`[notifyTransaction] ⚠️ Traduction manquante pour ${smsKey}, utilisation du fallback`);
+
+          // ✅ Fallback: construire un message manuellement
+          const fallbackMessages: Record<string, string> = {
+            'topup': `Bonjour ${defaultName}, Recharge ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Merci.`,
+            'cashout': `Bonjour ${defaultName}, Retrait ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+            'send_sent': `Bonjour ${defaultName}, Envoi ${defaultAmount} ${defaultCurrency} à ${params.toPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+            'send_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.fromPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+            'send_pending': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Vous recevrez une confirmation une fois approuvé.`,
+            'send_confirmed': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} a été validé. Le destinataire a été notifié.`,
+            'pay_sent': `Bonjour ${defaultName}, Paiement ${defaultAmount} ${defaultCurrency} à ${params.merchantName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+            'pay_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.payerName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+          };
+
+          smsText = fallbackMessages[type] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}.`;
         }
-        await smsService.sendSms(cleanPhone, fallbackMessage);
-        console.log(`[notifyTransaction] ✅ SMS de fallback envoyé à ${cleanPhone}`);
-        return;
-      }
 
-      await smsService.sendSms(cleanPhone, smsText);
-      console.log(`[notifyTransaction] ✅ SMS envoyé à ${cleanPhone}`);
-    } catch (error) {
-      console.error(`[notifyTransaction] ❌ Erreur envoi SMS:`, error);
+        // ✅ Envoyer le SMS
+        await smsService.sendSms(cleanPhone, smsText);
+        console.log(`[notifyTransaction] ✅ SMS envoyé avec succès à ${cleanPhone}`);
+
+      } catch (error) {
+        console.error(`[notifyTransaction] ❌ Erreur lors de l'envoi du SMS à ${cleanPhone}:`, error);
+      }
     }
   } else {
-    console.log(`[notifyTransaction] ⚠️ SMS non envoyé: phone=${!!user?.phone}, shouldSendSms=${await shouldSendSms(user?.id)}`);
+    console.log(`[notifyTransaction] ⚠️ SMS non envoyé: phone=${!!user?.phone}, canSendSms=${canSendSms}`);
+    if (!user?.phone) {
+      console.warn(`[notifyTransaction] ⚠️ L'utilisateur ${user?.id} n'a pas de numéro de téléphone`);
+    }
   }
 
   // ============================================
-  // 🔔 PUSH NOTIFICATION
+  // 5. 🔔 PUSH NOTIFICATION
   // ============================================
-  if (await shouldSendPush(user.id)) {
-    console.log(`[notifyTransaction] 🔔 Envoi Push à ${user.id}`);
+  if (canSendPush) {
+    console.log(`[notifyTransaction] 🔔 Tentative d'envoi Push à ${user.id}`);
 
-    let pushType: NotificationType;
+    let pushType: NotificationType | null = null;
     let pushData: any = {
       amount: defaultAmount,
       currency: defaultCurrency,
@@ -168,8 +176,10 @@ export async function notifyTransaction(
       status: transaction?.status || 'SUCCESS',
       balance: defaultBalance,
       full_name: defaultName,
+      timestamp: new Date().toISOString(),
     };
 
+    // ✅ Déterminer le type et les données Push
     switch (type) {
       case 'topup':
         pushType = NotificationType.TOP_UP_SUCCESS;
@@ -246,7 +256,7 @@ export async function notifyTransaction(
           amount: defaultAmount,
           currency: defaultCurrency,
           balance: defaultBalance,
-          merchantName: counterparty?.name || 'Commerçant',
+          merchantName: counterparty?.name || 'Commerçant', // ✅ Correspond à {{merchantName}}
           merchantPhone: counterparty?.phone || '',
           full_name: defaultName,
         };
@@ -258,31 +268,49 @@ export async function notifyTransaction(
           amount: defaultAmount,
           currency: defaultCurrency,
           balance: defaultBalance,
-          payerName: counterparty?.name || 'Client',
-          payerPhone: counterparty?.phone || '',
+          customerName: counterparty?.name || 'Client', // ✅ Changé payerName → customerName
+          customerPhone: counterparty?.phone || '',
           full_name: defaultName,
         };
         break;
 
       default:
         console.warn(`[notifyTransaction] ⚠️ Type Push non reconnu: ${type}`);
-        return;
+        break;
     }
 
-    try {
-      await notificationHelper.notify(
-        user.id,
-        pushType,
-        pushData,
-        'TRANSACTION',
-        transaction?.id || crypto.randomUUID(),
-        userLang,
-      );
-      console.log(`[notifyTransaction] ✅ Push envoyé à ${user.id} (${pushType})`);
-    } catch (error) {
-      console.error(`[notifyTransaction] ❌ Erreur envoi Push:`, error);
+    // ✅ Envoyer la notification Push
+    if (pushType) {
+      try {
+        console.log(`[notifyTransaction] 🔔 Type Push: ${pushType}`);
+        console.log(`[notifyTransaction] 🔔 Données Push:`, pushData);
+
+        await notificationHelper.notify(
+          user.id,
+          pushType,
+          pushData,
+          'TRANSACTION',
+          transaction?.id || crypto.randomUUID(),
+          userLang,
+        );
+
+        console.log(`[notifyTransaction] ✅ Push envoyé avec succès à ${user.id} (${pushType})`);
+
+      } catch (error) {
+        console.error(`[notifyTransaction] ❌ Erreur lors de l'envoi du Push à ${user.id}:`, error);
+
+        if (user?.email) {
+          try {
+            console.log(`[notifyTransaction] 📧 Tentative d'envoi par email à ${user.email}`);
+          } catch (emailError) {
+            console.error(`[notifyTransaction] ❌ Erreur envoi email fallback:`, emailError);
+          }
+        }
+      }
     }
   } else {
-    console.log(`[notifyTransaction] ⚠️ Push non envoyé: shouldSendPush=${await shouldSendPush(user?.id)}`);
+    console.log(`[notifyTransaction] ⚠️ Push non envoyé: canSendPush=${canSendPush}`);
   }
+
+  console.log(`[notifyTransaction] 📢 === FIN NOTIFICATION ===`);
 }

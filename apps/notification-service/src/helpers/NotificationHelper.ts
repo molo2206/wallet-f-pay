@@ -1,3 +1,4 @@
+// apps/notification-service/src/helpers/NotificationHelper.ts
 import { Injectable, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { NotificationType } from '../type/notification-type';
