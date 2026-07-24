@@ -4386,7 +4386,7 @@ export class WalletServiceService {
       }),
       toPhone
         ? this.prisma.user.findFirst({
-          where: { phone: toPhone, role: 'MERCHANT' },
+          where: { phone: toPhone},
           select: {
             id: true,
             full_name: true,
@@ -4397,7 +4397,7 @@ export class WalletServiceService {
           },
         })
         : this.prisma.user.findFirst({
-          where: { merchantCode, role: 'MERCHANT' },
+          where: { merchantCode},
           select: {
             id: true,
             full_name: true,
@@ -4477,10 +4477,10 @@ export class WalletServiceService {
           newStatus = user_status.BLOCKED;
           lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
         }
-        // await this.prisma.user.update({
-        //   where: { id: fromUser.id },
-        //   data: { failed_pin_attempts: newAttempts, status: newStatus },
-        // });
+        await this.prisma.user.update({
+          where: { id: fromUser.id },
+          data: { failed_pin_attempts: newAttempts, status: newStatus },
+        });
         await logFailedLoginAttempt(
           this.prisma,
           fromUser.id,
