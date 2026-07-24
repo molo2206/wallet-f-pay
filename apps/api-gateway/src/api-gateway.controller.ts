@@ -3273,7 +3273,7 @@ export class ApiGatewayController {
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-    const apiKeyUser = req.user; // ✅ L'utilisateur complet avec tous les champs
+    const apiKeyUser = req.user;
 
     console.log('[ExternalPay] 📋 Utilisateur de l\'API Key:', {
       id: apiKeyUser.id,
@@ -3282,7 +3282,6 @@ export class ApiGatewayController {
       merchantCode: apiKeyUser.merchantCode,
       role: apiKeyUser.role,
       status: apiKeyUser.status,
-      userIdFpay: apiKeyUser.userIdFpay,
       hasPhone: !!apiKeyUser.phone,
       hasMerchantCode: !!apiKeyUser.merchantCode,
     });
@@ -3378,27 +3377,7 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 7. Déterminer le toPhoneOrCode (UNIFIÉ)
-    let toPhoneOrCode: string | null = null;
-
-    // Si le destinataire est un marchand, utiliser son merchantCode
-    if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
-      toPhoneOrCode = recipient.merchantCode;
-      console.log('[ExternalPay] ✅ Destinataire est un marchand, code:', toPhoneOrCode);
-    }
-    // Sinon utiliser son numéro de téléphone
-    else if (recipient.phone) {
-      toPhoneOrCode = recipient.phone;
-      console.log('[ExternalPay] ✅ Destinataire est un utilisateur, téléphone:', toPhoneOrCode);
-    }
-    else {
-      throw new HttpException(
-        'Recipient has no phone or merchant code',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 8. Vérifier que le client ne paie pas à lui-même
+    // ✅ 7. Vérifier que le client ne paie pas à lui-même
     if (client.id === recipient.id) {
       throw new HttpException(
         'Cannot pay to yourself',
@@ -3406,23 +3385,44 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 9. Appeler le service wallet
+    // ✅ 8. Préparer les données pour le service wallet
+    // 🔥 La méthode 'pay' attend toPhone OU merchantCode séparément
+    const payPayload: any = {
+      fromWalletId: clientWallet.id,
+      amount: body.amount,
+      pin: body.pin,
+      description: body.description || `Paiement via API externe vers ${recipient.full_name || recipient.phone}`,
+      lang,
+      ipAddress,
+    };
+
+    // ✅ 9. Déterminer si c'est un marchand ou un utilisateur
+    if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
+      // 🔥 Si c'est un marchand, utiliser merchantCode
+      payPayload.merchantCode = recipient.merchantCode;
+      console.log('[ExternalPay] ✅ Paiement vers un marchand, code:', recipient.merchantCode);
+    } else if (recipient.phone) {
+      // 🔥 Si c'est un utilisateur, utiliser toPhone
+      payPayload.toPhone = recipient.phone;
+      console.log('[ExternalPay] ✅ Paiement vers un utilisateur, téléphone:', recipient.phone);
+    } else {
+      throw new HttpException(
+        'Recipient has no phone or merchant code',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[ExternalPay] 📤 Payload envoyé au service wallet:', payPayload);
+
+    // ✅ 10. Appeler le service wallet
     const response = await this.sendWalletMessage(
       'pay',
-      {
-        fromWalletId: clientWallet.id,
-        toPhoneOrCode: toPhoneOrCode,
-        amount: body.amount,
-        pin: body.pin,
-        description: body.description || `Paiement via API externe vers ${recipient.full_name || recipient.phone}`,
-        lang,
-        ipAddress,
-      },
+      payPayload,
       this.i18nService.translate('wallet.payment_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
 
-    // ✅ 10. Log de l'opération avec l'API Key
+    // ✅ 11. Log de l'opération avec l'API Key
     await this.prisma.audit_log.create({
       data: {
         id: crypto.randomUUID(),
@@ -3434,7 +3434,6 @@ export class ApiGatewayController {
           recipientId: recipient.id,
           recipientPhone: recipient.phone,
           recipientMerchantCode: recipient.merchantCode,
-          toPhoneOrCode: toPhoneOrCode,
           amount: body.amount,
           currency: body.currency,
           apiKeyId: apiKeyUser.id,
@@ -3447,7 +3446,7 @@ export class ApiGatewayController {
 
     return response;
   }
-  
+
   @Post('auth/link-user')
   async loginWithOtp(
     @Body() body: {
