@@ -14,10 +14,10 @@ export class ApiKeyGuard implements CanActivate {
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
-        
+
         // ✅ Récupérer la clé API du header Authorization
         const authHeader = request.headers['authorization'];
-        
+
         if (!authHeader) {
             throw new UnauthorizedException('API key required in Authorization header');
         }
@@ -43,17 +43,73 @@ export class ApiKeyGuard implements CanActivate {
         try {
             const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
             const payload = jwt.verify(apiKey, secret) as any;
-            userId = payload.sub;
+            userId = payload.sub || payload.userId;
             permissionsArray = payload.permissions || [];
             isJwt = true;
-            request.user = { id: userId };
+
+            // ✅ Récupérer l'utilisateur complet depuis la base
+            const user = await this.prisma.user.findUnique({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    full_name: true,
+                    phone: true,
+                    email: true,
+                    role: true,
+                    status: true,
+                    merchantCode: true,
+                    merchantType: true,
+                    businessName: true,
+                    businessCategory: true,
+                    businessAddress: true,
+                    kycStatus: true,
+                    countryCode: true,
+                    userIdFpay: true,
+                    wallets: {
+                        where: { isActive: true },
+                        select: {
+                            id: true,
+                            currency: true,
+                            balance: true,
+                            isActive: true,
+                        }
+                    }
+                }
+            });
+
+            if (!user) {
+                throw new UnauthorizedException('User not found');
+            }
+
+            // ✅ Ajouter l'utilisateur complet à la requête
+            request.user = user;
+            request.apiKey = apiKeyRecord;
+
+            // ✅ Vérifier les permissions
+            const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
+            if (requiredPermissions && requiredPermissions.length) {
+                const hasPermission = requiredPermissions.some(p => permissionsArray.includes(p));
+                if (!hasPermission) {
+                    throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
+                }
+            }
+
+            console.log('[ApiKeyGuard] ✅ Utilisateur trouvé (JWT):', {
+                id: user.id,
+                full_name: user.full_name,
+                phone: user.phone,
+                merchantCode: user.merchantCode,
+                role: user.role,
+            });
+
+            return true;
         } catch (err) {
-            // Ce n'est pas un JWT valide, on continue
+            // Ce n'est pas un JWT valide, on continue avec la recherche en base
+            console.log('[ApiKeyGuard] ⚠️ JWT invalide, recherche en base...');
         }
 
         // 2️⃣ Si ce n'est pas un JWT, rechercher dans la base
         if (!isJwt) {
-            // ✅ Utiliser findFirst avec typage explicite
             const keyRecord = await this.prisma.api_key.findFirst({
                 where: {
                     key: apiKey,
@@ -72,7 +128,23 @@ export class ApiKeyGuard implements CanActivate {
                             merchantCode: true,
                             role: true,
                             status: true,
-                        },
+                            merchantType: true,
+                            businessName: true,
+                            businessCategory: true,
+                            businessAddress: true,
+                            kycStatus: true,
+                            countryCode: true,
+                            userIdFpay: true,
+                            wallets: {
+                                where: { isActive: true },
+                                select: {
+                                    id: true,
+                                    currency: true,
+                                    balance: true,
+                                    isActive: true,
+                                }
+                            }
+                        }
                     },
                 },
             });
@@ -101,24 +173,31 @@ export class ApiKeyGuard implements CanActivate {
                 permissionsArray = keyRecord.permissions;
             }
 
+            // ✅ Ajouter l'utilisateur complet à la requête
             request.user = keyRecord.user;
+            request.apiKey = apiKeyRecord;
+
+            // ✅ Vérifier les permissions
+            const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
+            if (requiredPermissions && requiredPermissions.length) {
+                const hasPermission = requiredPermissions.some(p => permissionsArray.includes(p));
+                if (!hasPermission) {
+                    throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
+                }
+            }
+
+            console.log('[ApiKeyGuard] ✅ Utilisateur trouvé (Base de données):', {
+                id: keyRecord.user.id,
+                full_name: keyRecord.user.full_name,
+                phone: keyRecord.user.phone,
+                merchantCode: keyRecord.user.merchantCode,
+                role: keyRecord.user.role,
+            });
         }
 
         if (!userId) {
             throw new UnauthorizedException('Unable to identify user');
         }
-
-        // 3️⃣ Vérifier les permissions requises
-        const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
-        if (requiredPermissions && requiredPermissions.length) {
-            const hasPermission = requiredPermissions.some(p => permissionsArray.includes(p));
-            if (!hasPermission) {
-                throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
-            }
-        }
-
-        // ✅ Ajouter la clé API à la requête pour le webhook
-        request.apiKey = apiKeyRecord;
 
         return true;
     }

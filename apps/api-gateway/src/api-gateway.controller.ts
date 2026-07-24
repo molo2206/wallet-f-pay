@@ -3038,7 +3038,7 @@ export class ApiGatewayController {
     }
 
     // ✅ Si userId n'est pas fourni, utiliser l'ID de l'utilisateur connecté
-    const targetUserId = userId ;
+    const targetUserId = userId;
 
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
@@ -3273,19 +3273,29 @@ export class ApiGatewayController {
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-    const apiKeyUser = req.user;
+    const apiKeyUser = req.user; // ✅ L'utilisateur complet avec tous les champs
 
-    console.log('[ExternalPay] Request:', {
-      phone: body.phone,
-      amount: body.amount,
-      currency: body.currency,
-      apiKeyUser: apiKeyUser.id,
-      apiKeyUserRole: apiKeyUser.role,
-      apiKeyUserPhone: apiKeyUser.phone,
-      apiKeyUserMerchantCode: apiKeyUser.merchantCode,
+    console.log('[ExternalPay] 📋 Utilisateur de l\'API Key:', {
+      id: apiKeyUser.id,
+      full_name: apiKeyUser.full_name,
+      phone: apiKeyUser.phone,
+      merchantCode: apiKeyUser.merchantCode,
+      role: apiKeyUser.role,
+      status: apiKeyUser.status,
+      userIdFpay: apiKeyUser.userIdFpay,
+      hasPhone: !!apiKeyUser.phone,
+      hasMerchantCode: !!apiKeyUser.merchantCode,
     });
 
-    // ✅ 1. Vérifier que le client payeur (expéditeur) existe
+    // ✅ 1. Vérifier que l'utilisateur a un téléphone ou un merchantCode
+    if (!apiKeyUser.phone && !apiKeyUser.merchantCode) {
+      throw new HttpException(
+        'Recipient has no phone or merchant code',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 2. Vérifier que le client payeur (expéditeur) existe
     const client = await this.prisma.user.findFirst({
       where: {
         phone: body.phone,
@@ -3306,7 +3316,7 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 2. Vérifier que le client a un PIN
+    // ✅ 3. Vérifier que le client a un PIN
     if (!client.pin) {
       throw new HttpException(
         'Client has no PIN set',
@@ -3314,7 +3324,7 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 3. Trouver le wallet du client par devise
+    // ✅ 4. Trouver le wallet du client par devise
     const targetCurrency = body.currency || 'USD';
     let clientWallet = client.wallets.find(w => w.currency === targetCurrency);
 
@@ -3349,7 +3359,7 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 4. Le destinataire est l'utilisateur de l'API Key
+    // ✅ 5. Le destinataire est l'utilisateur de l'API Key
     const recipient = apiKeyUser;
 
     console.log('[ExternalPay] ✅ Destinataire (API Key owner):', {
@@ -3360,15 +3370,15 @@ export class ApiGatewayController {
       role: recipient.role,
     });
 
-    // ✅ 5. Vérifier que le destinataire est actif
-    // if (recipient.status !== 'ACTIVE') {
-    //   throw new HttpException(
-    //     `Recipient is not active: ${recipient.status}`,
-    //     HttpStatus.BAD_REQUEST,
-    //   );
-    // }
+    // ✅ 6. Vérifier que le destinataire est actif
+    if (recipient.status !== 'ACTIVE') {
+      throw new HttpException(
+        `Recipient is not active: ${recipient.status}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
-    // ✅ 6. Déterminer le toPhoneOrCode (UNIFIÉ)
+    // ✅ 7. Déterminer le toPhoneOrCode (UNIFIÉ)
     let toPhoneOrCode: string | null = null;
 
     // Si le destinataire est un marchand, utiliser son merchantCode
@@ -3388,7 +3398,7 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 7. Vérifier que le client ne paie pas à lui-même
+    // ✅ 8. Vérifier que le client ne paie pas à lui-même
     if (client.id === recipient.id) {
       throw new HttpException(
         'Cannot pay to yourself',
@@ -3396,12 +3406,12 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 8. Appeler le service wallet
+    // ✅ 9. Appeler le service wallet
     const response = await this.sendWalletMessage(
       'pay',
       {
         fromWalletId: clientWallet.id,
-        toPhoneOrCode: toPhoneOrCode, // ✅ Un seul champ unifié
+        toPhoneOrCode: toPhoneOrCode,
         amount: body.amount,
         pin: body.pin,
         description: body.description || `Paiement via API externe vers ${recipient.full_name || recipient.phone}`,
@@ -3412,7 +3422,7 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
 
-    // ✅ 9. Log de l'opération avec l'API Key
+    // ✅ 10. Log de l'opération avec l'API Key
     await this.prisma.audit_log.create({
       data: {
         id: crypto.randomUUID(),
@@ -3437,7 +3447,7 @@ export class ApiGatewayController {
 
     return response;
   }
-
+  
   @Post('auth/link-user')
   async loginWithOtp(
     @Body() body: {
