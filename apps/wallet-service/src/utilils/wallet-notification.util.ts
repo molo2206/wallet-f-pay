@@ -28,15 +28,20 @@ export async function notifyTransaction(
     console.warn(`Impossible de récupérer la langue pour l'utilisateur ${user.id}, utilisation de 'fr' par défaut`);
   }
 
+  console.log(`[notifyTransaction] 📢 Type: ${type}, User: ${user.id}, Lang: ${userLang}`);
+
   // ✅ Valeurs par défaut
   const defaultName = user?.full_name || 'Client';
   const defaultAmount = transaction?.amount || 0;
   const defaultCurrency = wallet?.currency || 'CDF';
   const defaultBalance = wallet?.balance || 0;
 
-  // --- SMS ---
+  // ============================================
+  // 📱 SMS
+  // ============================================
   if (user?.phone && (await shouldSendSms(user.id))) {
     const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
+    console.log(`[notifyTransaction] 📱 Envoi SMS à ${cleanPhone}`);
 
     let smsKey: string;
     const params: any = {
@@ -50,107 +55,194 @@ export async function notifyTransaction(
       case 'topup':
         smsKey = 'wallet.top_up_sms';
         break;
+
       case 'cashout':
         smsKey = 'wallet.cashout_sms';
         break;
+
       case 'send_sent':
         smsKey = 'wallet.transfer_sender_sms';
         params.toPhone = counterparty?.phone || 'Destinataire';
-        params.toName = counterparty?.name || 'Destinataire';
         break;
+
       case 'send_received':
         smsKey = 'wallet.transfer_receiver_sms';
         params.fromPhone = counterparty?.phone || 'Expéditeur';
-        params.fromName = counterparty?.name || 'Expéditeur';
         break;
+
       case 'send_pending':
         smsKey = 'wallet.transfer_pending_sms';
         params.toPhone = counterparty?.phone || 'Destinataire';
-        params.toName = counterparty?.name || 'Destinataire';
-        params.status = 'PENDING';
         break;
+
       case 'send_confirmed':
         smsKey = 'wallet.transfer_confirmed_sms';
         params.toPhone = counterparty?.phone || 'Destinataire';
-        params.toName = counterparty?.name || 'Destinataire';
-        params.status = 'COMPLETED';
         break;
+
       case 'pay_sent':
         smsKey = 'wallet.payment_payer_sms';
         params.merchantName = counterparty?.name || 'Commerçant';
-        params.merchantPhone = counterparty?.phone || '';
         break;
+
       case 'pay_received':
         smsKey = 'wallet.payment_merchant_sms';
-        params.payerAccount = counterparty?.accountNumber || '';
         params.payerName = counterparty?.name || 'Client';
         break;
+
       default:
+        console.warn(`[notifyTransaction] ⚠️ Type SMS non reconnu: ${type}`);
         return;
     }
 
-    const smsText = i18nService.translate(smsKey, userLang, params);
-    await smsService.sendSms(cleanPhone, smsText);
+    try {
+      const smsText = i18nService.translate(smsKey, userLang, params);
+      console.log(`[notifyTransaction] 📝 SMS: ${smsText}`);
+      await smsService.sendSms(cleanPhone, smsText);
+      console.log(`[notifyTransaction] ✅ SMS envoyé à ${cleanPhone}`);
+    } catch (error) {
+      console.error(`[notifyTransaction] ❌ Erreur envoi SMS:`, error);
+    }
+  } else {
+    console.log(`[notifyTransaction] ⚠️ SMS non envoyé: phone=${!!user?.phone}, shouldSendSms=${await shouldSendSms(user?.id)}`);
   }
 
-  // --- Push notification ---
+  // ============================================
+  // 🔔 PUSH NOTIFICATION
+  // ============================================
   if (await shouldSendPush(user.id)) {
-    let pushType = NotificationType.TRANSACTION;
+    console.log(`[notifyTransaction] 🔔 Envoi Push à ${user.id}`);
+
+    let pushType: NotificationType;
     let pushData: any = {
       amount: defaultAmount,
       currency: defaultCurrency,
       operationType: type,
       status: transaction?.status || 'SUCCESS',
+      balance: defaultBalance,
     };
 
     switch (type) {
+      // ===== TOPUP =====
+      case 'topup':
+        pushType = NotificationType.TOP_UP_SUCCESS;
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          balance: defaultBalance,
+          full_name: defaultName,
+        };
+        break;
+
+      // ===== CASHOUT =====
+      case 'cashout':
+        pushType = NotificationType.CASHOUT_SUCCESS;
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          balance: defaultBalance,
+          full_name: defaultName,
+        };
+        break;
+
+      // ===== TRANSFERT ENVOYÉ =====
       case 'send_sent':
-        pushType = NotificationType.TRANSFER;
-        pushData.direction = 'sent';
-        pushData.toName = counterparty?.name || 'Destinataire';
-        pushData.status = transaction?.status;
+        pushType = NotificationType.TRANSFER_SENT;
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          balance: defaultBalance,
+          toName: counterparty?.name || 'Destinataire',
+          toPhone: counterparty?.phone || '',
+          full_name: defaultName,
+        };
         break;
+
+      // ===== TRANSFERT REÇU =====
       case 'send_received':
-        pushType = NotificationType.TRANSFER;
-        pushData.direction = 'received';
-        pushData.fromName = counterparty?.name || 'Expéditeur';
-        pushData.status = transaction?.status;
+        pushType = NotificationType.TRANSFER_RECEIVED;
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          balance: defaultBalance,
+          fromName: counterparty?.name || 'Expéditeur',
+          fromPhone: counterparty?.phone || '',
+          full_name: defaultName,
+        };
         break;
+
+      // ===== TRANSFERT INTERNATIONAL EN ATTENTE =====
       case 'send_pending':
         pushType = NotificationType.TRANSFER_PENDING;
-        pushData.direction = 'sent';
-        pushData.toName = counterparty?.name || 'Destinataire';
-        pushData.status = 'PENDING';
-        pushData.messageKey = 'wallet.transfer_pending_push';
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          toName: counterparty?.name || 'Destinataire',
+          toPhone: counterparty?.phone || '',
+          full_name: defaultName,
+          status: 'PENDING',
+        };
         break;
+
+      // ===== TRANSFERT INTERNATIONAL CONFIRMÉ =====
       case 'send_confirmed':
         pushType = NotificationType.TRANSFER_CONFIRMED;
-        pushData.direction = 'sent';
-        pushData.toName = counterparty?.name || 'Destinataire';
-        pushData.status = 'COMPLETED';
-        pushData.messageKey = 'wallet.transfer_confirmed_push';
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          balance: defaultBalance,
+          toName: counterparty?.name || 'Destinataire',
+          toPhone: counterparty?.phone || '',
+          full_name: defaultName,
+          status: 'COMPLETED',
+        };
         break;
+
+      // ===== PAIEMENT ENVOYÉ =====
       case 'pay_sent':
-        pushType = NotificationType.PAYMENT;
-        pushData.direction = 'sent';
-        pushData.merchantName = counterparty?.name || 'Commerçant';
+        pushType = NotificationType.PAYMENT_SENT;
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          balance: defaultBalance,
+          merchantName: counterparty?.name || 'Commerçant',
+          merchantPhone: counterparty?.phone || '',
+          full_name: defaultName,
+        };
         break;
+
+      // ===== PAIEMENT REÇU =====
       case 'pay_received':
-        pushType = NotificationType.PAYMENT;
-        pushData.direction = 'received';
-        pushData.customerName = counterparty?.name || 'Client';
+        pushType = NotificationType.PAYMENT_RECEIVED;
+        pushData = {
+          amount: defaultAmount,
+          currency: defaultCurrency,
+          balance: defaultBalance,
+          payerName: counterparty?.name || 'Client',
+          payerPhone: counterparty?.phone || '',
+          full_name: defaultName,
+        };
         break;
+
       default:
-        break;
+        console.warn(`[notifyTransaction] ⚠️ Type Push non reconnu: ${type}`);
+        return;
     }
 
-    await notificationHelper.notify(
-      user.id,
-      pushType,
-      pushData,
-      'TRANSACTION',
-      transaction?.id || crypto.randomUUID(),
-      userLang,
-    );
+    try {
+      await notificationHelper.notify(
+        user.id,
+        pushType,
+        pushData,
+        'TRANSACTION',
+        transaction?.id || crypto.randomUUID(),
+        userLang,
+      );
+      console.log(`[notifyTransaction] ✅ Push envoyé à ${user.id} (${pushType})`);
+    } catch (error) {
+      console.error(`[notifyTransaction] ❌ Erreur envoi Push:`, error);
+    }
+  } else {
+    console.log(`[notifyTransaction] ⚠️ Push non envoyé: shouldSendPush=${await shouldSendPush(user?.id)}`);
   }
 }
