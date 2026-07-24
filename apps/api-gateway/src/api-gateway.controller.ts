@@ -3361,12 +3361,12 @@ export class ApiGatewayController {
     });
 
     // ✅ 5. Vérifier que le destinataire est actif
-    if (recipient.status !== 'ACTIVE') {
-      throw new HttpException(
-        `Recipient is not active: ${recipient.status}`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    // if (recipient.status !== 'ACTIVE') {
+    //   throw new HttpException(
+    //     `Recipient is not active: ${recipient.status}`,
+    //     HttpStatus.BAD_REQUEST,
+    //   );
+    // }
 
     // ✅ 6. Déterminer le toPhoneOrCode (UNIFIÉ)
     let toPhoneOrCode: string | null = null;
