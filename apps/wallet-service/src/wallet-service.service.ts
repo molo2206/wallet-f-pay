@@ -4238,7 +4238,6 @@ export class WalletServiceService {
       },
     };
   }
-
   /**
    * ✅ Méthode pour calculer le taux de change via USD comme devise pivot
    */
