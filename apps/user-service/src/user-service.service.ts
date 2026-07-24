@@ -2932,36 +2932,78 @@ export class UserServiceService {
 
   async createApiKey(data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
     // Vérifier que l'utilisateur existe
-    const user = await this.prisma.user.findUnique({ where: { id: data.userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: data.userId }
+    });
+
     if (!user) {
       throw new RpcException({ status: 'error', message: 'User not found', statusCode: 404 });
     }
 
-    const expiresInDays = data.expiresInDays || 365; // défaut 1 an
+    const expiresInDays = data.expiresInDays || 365;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-    // Construction du payload JWT
+    // ✅ Ajouter tous les champs manquants de l'utilisateur dans le payload
     const payload = {
-      sub: user.id,                 // sujet (userId)
+      // Identifiants
+      sub: user.id,
+      userId: user.id,
+
+      // Informations personnelles
+      fullName: user.full_name,
+      email: user.email,
+      phone: user.phone,
+
+      // Rôle et statut
+      role: user.role,
+      status: user.status,
+
+      // Commerçant
+      merchantCode: user.merchantCode,
+      merchantType: user.merchantType,
+      businessName: user.businessName,
+      businessCategory: user.businessCategory,
+      businessAddress: user.businessAddress,
+
+      // KYC
+      kycStatus: user.kycStatus,
+
+      // Pays
+      countryCode: user.countryCode,
+
+      // Compte bancaire
+      account_number: user.account_number,
+      branch: user.branch,
+
+      // Fidélité
+      loyalty_code: user.loyalty_code,
+      loyalty_points: user.loyalty_points,
+      lifetime_points: user.lifetime_points,
+
+      // Maintenance
+      maintenance_fee: user.maintenance_fee,
+      is_maintenance_exempt: user.is_maintenance_exempt,
+
+      // API Key
       name: data.name,
       permissions: data.permissions,
-      iat: Math.floor(Date.now() / 1000),      // émis à
-      exp: Math.floor(expiresAt.getTime() / 1000), // expiration
-      jti: crypto.randomUUID(),     // identifiant unique du token
+
+      // Métadonnées JWT
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(expiresAt.getTime() / 1000),
+      jti: crypto.randomUUID(),
     };
 
-    // Signer le JWT avec une clé secrète (stockée dans les variables d'environnement)
+    // Signer le JWT
     const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
     const apiKey = jwt.sign(payload, secret, { algorithm: 'HS256' });
 
-    // Optionnel : stocker le JWT en base (pour pouvoir le révoquer ultérieurement)
-    // Vous pouvez stocker le jti, l'expiration, etc.
-    // Ici, on ne stocke que les infos minimales pour traçabilité
+    // Stocker la clé API
     await this.prisma.api_key.create({
       data: {
         id: crypto.randomUUID(),
-        key: apiKey,      // le JWT complet
+        key: apiKey,
         name: data.name,
         userId: data.userId,
         permissions: JSON.stringify(data.permissions),
@@ -2971,7 +3013,6 @@ export class UserServiceService {
 
     return { apiKey };
   }
-
 
   // ========================= BRANCH MANAGEMENT =========================
 

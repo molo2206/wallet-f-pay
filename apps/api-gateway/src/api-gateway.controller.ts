@@ -3022,7 +3022,7 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
   }
-  //===============================Externe====================================================
+  //===============================Externe============================
   @Post('api/external/pay')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('pay')
@@ -3031,7 +3031,6 @@ export class ApiGatewayController {
     @Body() body: {
       phone: string;
       pin: string;
-      toPhoneOrCode: string;
       amount: number;
       currency?: string;
       description?: string;
@@ -3044,13 +3043,15 @@ export class ApiGatewayController {
 
     console.log('[ExternalPay] Request:', {
       phone: body.phone,
-      toPhoneOrCode: body.toPhoneOrCode,
       amount: body.amount,
       currency: body.currency,
       apiKeyUser: apiKeyUser.id,
+      apiKeyUserRole: apiKeyUser.role,
+      apiKeyUserPhone: apiKeyUser.phone,
+      apiKeyUserMerchantCode: apiKeyUser.merchantCode,
     });
 
-    // ✅ 1. Vérifier que le client payeur existe
+    // ✅ 1. Vérifier que le client payeur (expéditeur) existe
     const client = await this.prisma.user.findFirst({
       where: {
         phone: body.phone,
@@ -3114,21 +3115,92 @@ export class ApiGatewayController {
       );
     }
 
+    // ✅ 4. Le destinataire est l'utilisateur de l'API Key
+    const recipient = apiKeyUser;
+
+    console.log('[ExternalPay] ✅ Destinataire (API Key owner):', {
+      id: recipient.id,
+      full_name: recipient.full_name,
+      phone: recipient.phone,
+      merchantCode: recipient.merchantCode,
+      role: recipient.role,
+    });
+
+    // ✅ 5. Vérifier que le destinataire est actif
+    if (recipient.status !== 'ACTIVE') {
+      throw new HttpException(
+        `Recipient is not active: ${recipient.status}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 6. Déterminer le toPhoneOrCode (UNIFIÉ)
+    let toPhoneOrCode: string | null = null;
+
+    // Si le destinataire est un marchand, utiliser son merchantCode
+    if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
+      toPhoneOrCode = recipient.merchantCode;
+      console.log('[ExternalPay] ✅ Destinataire est un marchand, code:', toPhoneOrCode);
+    }
+    // Sinon utiliser son numéro de téléphone
+    else if (recipient.phone) {
+      toPhoneOrCode = recipient.phone;
+      console.log('[ExternalPay] ✅ Destinataire est un utilisateur, téléphone:', toPhoneOrCode);
+    }
+    else {
+      throw new HttpException(
+        'Recipient has no phone or merchant code',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 7. Vérifier que le client ne paie pas à lui-même
+    if (client.id === recipient.id) {
+      throw new HttpException(
+        'Cannot pay to yourself',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 8. Appeler le service wallet
     const response = await this.sendWalletMessage(
       'pay',
       {
         fromWalletId: clientWallet.id,
-        toPhone: body.toPhoneOrCode,
-        merchantCode: null,
+        toPhoneOrCode: toPhoneOrCode, // ✅ Un seul champ unifié
         amount: body.amount,
         pin: body.pin,
-        description: body.description,
+        description: body.description || `Paiement via API externe vers ${recipient.full_name || recipient.phone}`,
         lang,
         ipAddress,
       },
       this.i18nService.translate('wallet.payment_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
+
+    // ✅ 9. Log de l'opération avec l'API Key
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: apiKeyUser.id,
+        action: 'EXTERNAL_PAYMENT',
+        details: JSON.stringify({
+          clientPhone: body.phone,
+          clientId: client.id,
+          recipientId: recipient.id,
+          recipientPhone: recipient.phone,
+          recipientMerchantCode: recipient.merchantCode,
+          toPhoneOrCode: toPhoneOrCode,
+          amount: body.amount,
+          currency: body.currency,
+          apiKeyId: apiKeyUser.id,
+          description: body.description,
+        }),
+        ipAddress: ipAddress || null,
+        createdAt: new Date(),
+      },
+    });
+
     return response;
   }
 
