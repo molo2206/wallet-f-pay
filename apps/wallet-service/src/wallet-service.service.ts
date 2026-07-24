@@ -4238,9 +4238,7 @@ export class WalletServiceService {
       },
     };
   }
-  /**
-   * ✅ Méthode pour calculer le taux de change via USD comme devise pivot
-   */
+
   private async getExchangeRateViaPivot(
     fromCurrency: string,
     toCurrency: string,
@@ -4479,10 +4477,10 @@ export class WalletServiceService {
           newStatus = user_status.BLOCKED;
           lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
         }
-        await this.prisma.user.update({
-          where: { id: fromUser.id },
-          data: { failed_pin_attempts: newAttempts, status: newStatus },
-        });
+        // await this.prisma.user.update({
+        //   where: { id: fromUser.id },
+        //   data: { failed_pin_attempts: newAttempts, status: newStatus },
+        // });
         await logFailedLoginAttempt(
           this.prisma,
           fromUser.id,
@@ -4647,39 +4645,43 @@ export class WalletServiceService {
     }, { timeout: 30000 });
 
     // ========== SMS ET NOTIFICATIONS ==========
-    if (result.fromUser.phone) {
-      try {
-        const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.payment_payer_sms', lang, {
-          full_name: result.fromUser.full_name || '',
-          amount: amount,
-          currency: result.fromWallet.currency || 'CDF',
-          merchantName: result.toUser.full_name || '',
-          balance: result.fromWallet.balance || 0,
-        });
-        await this.smsService.sendSms(cleanPhone, smsText);
-      } catch (err) {
-        console.error('[Pay] Erreur envoi SMS au payeur:', err);
-      }
-    }
-
-    if (result.toUser.phone) {
-      try {
-        const cleanPhone = result.toUser.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.payment_merchant_sms', lang, {
-          full_name: result.toUser.full_name || '',
-          amount: amount,
-          currency: result.merchantWallet.currency || 'CDF',
-          payerName: result.fromUser.full_name || '',
-          balance: result.merchantWallet.balance || 0,
-        });
-        await this.smsService.sendSms(cleanPhone, smsText);
-      } catch (err) {
-        console.error('[Pay] Erreur envoi SMS au commerçant:', err);
-      }
-    }
-
     try {
+      // ✅ 1. Envoyer les SMS (comme dans send)
+      if (result.fromUser.phone) {
+        try {
+          const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
+          const smsText = this.i18nService.translate('wallet.payment_payer_sms', lang, {
+            full_name: result.fromUser.full_name || '',
+            amount: amount,
+            currency: result.fromWallet.currency || 'CDF',
+            merchantName: result.toUser.full_name || '',
+            balance: result.fromWallet.balance || 0,
+          });
+          await this.smsService.sendSms(cleanPhone, smsText);
+          console.log('[Pay] ✅ SMS envoyé au payeur');
+        } catch (err) {
+          console.error('[Pay] Erreur envoi SMS au payeur:', err);
+        }
+      }
+
+      if (result.toUser.phone) {
+        try {
+          const cleanPhone = result.toUser.phone.replace(/[^0-9+]/g, '');
+          const smsText = this.i18nService.translate('wallet.payment_merchant_sms', lang, {
+            full_name: result.toUser.full_name || '',
+            amount: amount,
+            currency: result.merchantWallet.currency || 'CDF',
+            payerName: result.fromUser.full_name || '',
+            balance: result.merchantWallet.balance || 0,
+          });
+          await this.smsService.sendSms(cleanPhone, smsText);
+          console.log('[Pay] ✅ SMS envoyé au commerçant');
+        } catch (err) {
+          console.error('[Pay] Erreur envoi SMS au commerçant:', err);
+        }
+      }
+
+      // ✅ 2. Envoyer les notifications push (comme dans send)
       await Promise.all([
         notifyTransaction(
           this.smsService,
@@ -4714,11 +4716,11 @@ export class WalletServiceService {
           },
         ),
       ]);
+      console.log('[Pay] ✅ Notifications push envoyées');
     } catch (err) {
       console.error('[Notifications] Pay notification error:', err);
     }
 
-    // ✅ Format unifié
     return {
       message: this.i18nService.translate('wallet.payment_success', lang),
       data: {
