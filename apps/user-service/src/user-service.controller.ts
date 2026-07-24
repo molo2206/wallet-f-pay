@@ -600,11 +600,121 @@ export class UserServiceController {
       });
     }
   }
+  // ==================== API KEY MANAGEMENT ====================
 
   @MessagePattern('create_api_key')
-  async createApiKey(@Payload() data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
-    return this.userService.createApiKey(data);
+  async createApiKey(@Payload() data: {
+    name: string;
+    userId: string;
+    permissions: string[];
+    expiresInDays?: number
+  }) {
+    try {
+      return await this.userService.createApiKey(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
   }
+
+  @MessagePattern('list_api_keys')
+  async listApiKeys(@Payload() data: {
+    userId: string;
+    page?: number;
+    limit?: number
+  }) {
+    try {
+      return await this.userService.listApiKeys(
+        data.userId,
+        data.page || 1,
+        data.limit || 10
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_api_key')
+  async updateApiKey(@Payload() data: {
+    id: string;
+    userId: string;
+    name?: string;
+    permissions?: string[];
+    isActive?: boolean;
+    expiresInDays?: number;
+  }) {
+    try {
+      return await this.userService.updateApiKey(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('delete_api_key')
+  async deleteApiKey(@Payload() data: {
+    id: string;
+    userId: string
+  }) {
+    try {
+      return await this.userService.deleteApiKey(data.id, data.userId);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('revoke_api_key')
+  async revokeApiKey(@Payload() data: {
+    id: string;
+    userId: string
+  }) {
+    try {
+      return await this.userService.revokeApiKey(data.id, data.userId);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('reactivate_api_key')
+  async reactivateApiKey(@Payload() data: {
+    id: string;
+    userId: string
+  }) {
+    try {
+      return await this.userService.reactivateApiKey(data.id, data.userId);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
 
   // ==================== BRANCH MANAGEMENT ====================
 

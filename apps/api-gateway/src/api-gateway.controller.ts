@@ -3005,7 +3005,8 @@ export class ApiGatewayController {
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
   }
-  //============================== Endpoint admin pour générer des clés API ================================================
+  // ==================== API KEY MANAGEMENT ENDPOINTS ====================
+
   @Post('admin/api-keys')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async createApiKey(
@@ -3022,6 +3023,239 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
   }
+
+  @Get('admin/api-keys')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async listApiKeys(
+    @CurrentUser() currentUser: any,
+    @Query('userId') userId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    // ✅ Vérifier que l'utilisateur est admin
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    // ✅ Si userId n'est pas fourni, utiliser l'ID de l'utilisateur connecté
+    const targetUserId = userId ;
+
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+
+    return this.sendUserMessage(
+      'list_api_keys',
+      { userId: targetUserId, page: pageNum, limit: limitNum },
+      'Failed to list API keys',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Get('users/me/api-keys')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async listMyApiKeys(
+    @CurrentUser() currentUser: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+
+    return this.sendUserMessage(
+      'list_api_keys',
+      { userId: currentUser.id, page: pageNum, limit: limitNum },
+      'Failed to list your API keys',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Patch('admin/api-keys/:id')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async updateApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+    @Body() body: {
+      name?: string;
+      permissions?: string[];
+      isActive?: boolean;
+      expiresInDays?: number;
+    },
+  ) {
+    // ✅ Vérifier que l'utilisateur est admin
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'update_api_key',
+      {
+        id,
+        userId: currentUser.id,
+        ...body,
+      },
+      'Failed to update API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Patch('users/me/api-keys/:id')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async updateMyApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+    @Body() body: {
+      name?: string;
+      permissions?: string[];
+      isActive?: boolean;
+      expiresInDays?: number;
+    },
+  ) {
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'update_api_key',
+      {
+        id,
+        userId: currentUser.id,
+        ...body,
+      },
+      'Failed to update your API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Delete('admin/api-keys/:id')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async deleteApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+  ) {
+    // ✅ Vérifier que l'utilisateur est admin
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'delete_api_key',
+      { id, userId: currentUser.id },
+      'Failed to delete API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Delete('users/me/api-keys/:id')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async deleteMyApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+  ) {
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'delete_api_key',
+      { id, userId: currentUser.id },
+      'Failed to delete your API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+
+  @Post('admin/api-keys/:id/revoke')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async revokeApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+  ) {
+    // ✅ Vérifier que l'utilisateur est admin
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'revoke_api_key',
+      { id, userId: currentUser.id },
+      'Failed to revoke API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Post('users/me/api-keys/:id/revoke')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async revokeMyApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+  ) {
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'revoke_api_key',
+      { id, userId: currentUser.id },
+      'Failed to revoke your API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Post('admin/api-keys/:id/reactivate')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async reactivateApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+  ) {
+    // ✅ Vérifier que l'utilisateur est admin
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'reactivate_api_key',
+      { id, userId: currentUser.id },
+      'Failed to reactivate API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+
+  @Post('users/me/api-keys/:id/reactivate')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async reactivateMyApiKey(
+    @CurrentUser() currentUser: any,
+    @Param('id') id: string,
+  ) {
+    if (!id) {
+      throw new HttpException('ID de la clé API requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'reactivate_api_key',
+      { id, userId: currentUser.id },
+      'Failed to reactivate your API key',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+
   //===============================Externe============================
   @Post('api/external/pay')
   @UseGuards(ApiKeyGuard)

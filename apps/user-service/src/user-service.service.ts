@@ -2933,7 +2933,18 @@ export class UserServiceService {
   async createApiKey(data: { name: string; userId: string; permissions: string[]; expiresInDays?: number }) {
     // Vérifier que l'utilisateur existe
     const user = await this.prisma.user.findUnique({
-      where: { id: data.userId }
+      where: { id: data.userId },
+      include: {
+        wallets: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            currency: true,
+            balance: true,
+            isActive: true,
+          }
+        }
+      }
     });
 
     if (!user) {
@@ -3000,7 +3011,7 @@ export class UserServiceService {
     const apiKey = jwt.sign(payload, secret, { algorithm: 'HS256' });
 
     // Stocker la clé API
-    await this.prisma.api_key.create({
+    const apiKeyRecord = await this.prisma.api_key.create({
       data: {
         id: crypto.randomUUID(),
         key: apiKey,
@@ -3011,8 +3022,375 @@ export class UserServiceService {
       },
     });
 
-    return { apiKey };
+    // ✅ Retourner avec message et data
+    return {
+      message: 'API Key created successfully',
+      data: {
+        // Informations de la clé API
+        id: apiKeyRecord.id,
+        apiKey: apiKey,
+        name: data.name,
+        permissions: data.permissions,
+        expiresAt: expiresAt,
+        createdAt: apiKeyRecord.createdAt,
+        isActive: apiKeyRecord.isActive,
+
+        // Informations de l'utilisateur
+        user: {
+          id: user.id,
+          full_name: user.full_name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          status: user.status,
+          merchantCode: user.merchantCode,
+          merchantType: user.merchantType,
+          kycStatus: user.kycStatus,
+          countryCode: user.countryCode,
+          // Wallets actifs
+          wallets: user.wallets.map(w => ({
+            id: w.id,
+            currency: w.currency,
+            balance: w.balance,
+            isActive: w.isActive,
+          })),
+        },
+
+        // Informations du token JWT
+        token: {
+          sub: payload.sub,
+          iat: payload.iat,
+          exp: payload.exp,
+          jti: payload.jti,
+        }
+      }
+    };
   }
+
+  async listApiKeys(userId: string, page: number = 1, limit: number = 10) {
+    // Vérifier que l'utilisateur existe
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new RpcException({ status: 'error', message: 'User not found', statusCode: 404 });
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [apiKeys, total] = await Promise.all([
+      this.prisma.api_key.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          permissions: true,
+          isActive: true,
+          expiresAt: true,
+          lastUsedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        }
+      }),
+      this.prisma.api_key.count({
+        where: { userId }
+      })
+    ]);
+
+    // ✅ Décoder les permissions pour chaque clé
+    const formattedKeys = apiKeys.map(key => ({
+      ...key,
+      permissions: key.permissions ? JSON.parse(key.permissions) : [],
+      isExpired: key.expiresAt ? new Date() > key.expiresAt : false,
+    }));
+
+    return {
+      message: 'API Keys retrieved successfully',
+      data: {
+        data: formattedKeys,
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      }
+    };
+  }
+
+  async updateApiKey(data: {
+    id: string;
+    userId: string;
+    name?: string;
+    permissions?: string[];
+    isActive?: boolean;
+    expiresInDays?: number;
+  }) {
+    // ✅ 1. Vérifier que la clé API existe et appartient à l'utilisateur
+    const existingKey = await this.prisma.api_key.findFirst({
+      where: {
+        id: data.id,
+        userId: data.userId,
+      },
+      include: {
+        user: true,
+      }
+    });
+
+    if (!existingKey) {
+      throw new RpcException({
+        status: 'error',
+        message: 'API Key not found or does not belong to this user',
+        statusCode: 404
+      });
+    }
+
+    // ✅ 2. Préparer les données de mise à jour
+    const updateData: any = {};
+
+    if (data.name) {
+      updateData.name = data.name;
+    }
+
+    if (data.permissions) {
+      updateData.permissions = JSON.stringify(data.permissions);
+    }
+
+    if (data.isActive !== undefined) {
+      updateData.isActive = data.isActive;
+    }
+
+    if (data.expiresInDays) {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + data.expiresInDays);
+      updateData.expiresAt = expiresAt;
+    }
+
+    // ✅ 3. Mettre à jour la clé API
+    const updatedKey = await this.prisma.api_key.update({
+      where: { id: data.id },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        permissions: true,
+        isActive: true,
+        expiresAt: true,
+        lastUsedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
+
+    // ✅ 4. Si le nom ou les permissions changent, régénérer le JWT
+    if (data.name || data.permissions) {
+      const user = existingKey.user;
+      const permissions = data.permissions || JSON.parse(existingKey.permissions);
+      const expiresAt = updateData.expiresAt || existingKey.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+      // ✅ Régénérer le JWT avec les nouvelles infos
+      const payload = {
+        sub: user.id,
+        userId: user.id,
+        fullName: user.full_name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        status: user.status,
+        merchantCode: user.merchantCode,
+        merchantType: user.merchantType,
+        businessName: user.businessName,
+        businessCategory: user.businessCategory,
+        businessAddress: user.businessAddress,
+        kycStatus: user.kycStatus,
+        countryCode: user.countryCode,
+        account_number: user.account_number,
+        branch: user.branch,
+        loyalty_code: user.loyalty_code,
+        loyalty_points: user.loyalty_points,
+        lifetime_points: user.lifetime_points,
+        maintenance_fee: user.maintenance_fee,
+        is_maintenance_exempt: user.is_maintenance_exempt,
+        name: data.name || existingKey.name,
+        permissions: permissions,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(expiresAt.getTime() / 1000),
+        jti: crypto.randomUUID(),
+      };
+
+      const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
+      const newApiKey = jwt.sign(payload, secret, { algorithm: 'HS256' });
+
+      // ✅ Mettre à jour la clé JWT
+      await this.prisma.api_key.update({
+        where: { id: data.id },
+        data: { key: newApiKey },
+      });
+
+      return {
+        message: 'API Key updated successfully - New key generated',
+        data: {
+          ...updatedKey,
+          permissions: data.permissions || JSON.parse(existingKey.permissions),
+          apiKey: newApiKey,
+          isExpired: updatedKey.expiresAt ? new Date() > updatedKey.expiresAt : false,
+        }
+      };
+    }
+
+    return {
+      message: 'API Key updated successfully',
+      data: {
+        ...updatedKey,
+        permissions: updatedKey.permissions ? JSON.parse(updatedKey.permissions) : [],
+        isExpired: updatedKey.expiresAt ? new Date() > updatedKey.expiresAt : false,
+      }
+    };
+  }
+
+  async deleteApiKey(id: string, userId: string) {
+    // ✅ 1. Vérifier que la clé API existe et appartient à l'utilisateur
+    const existingKey = await this.prisma.api_key.findFirst({
+      where: {
+        id: id,
+        userId: userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+      }
+    });
+
+    if (!existingKey) {
+      throw new RpcException({
+        status: 'error',
+        message: 'API Key not found or does not belong to this user',
+        statusCode: 404
+      });
+    }
+
+    // ✅ 2. Supprimer la clé API
+    await this.prisma.api_key.delete({
+      where: { id: id },
+    });
+
+    return {
+      message: `API Key "${existingKey.name}" deleted successfully`,
+      data: {
+        id: existingKey.id,
+        name: existingKey.name,
+        deleted: true,
+      }
+    };
+  }
+
+  async revokeApiKey(id: string, userId: string) {
+    // ✅ 1. Vérifier que la clé API existe et appartient à l'utilisateur
+    const existingKey = await this.prisma.api_key.findFirst({
+      where: {
+        id: id,
+        userId: userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+      }
+    });
+
+    if (!existingKey) {
+      throw new RpcException({
+        status: 'error',
+        message: 'API Key not found or does not belong to this user',
+        statusCode: 404
+      });
+    }
+
+    if (!existingKey.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: 'API Key is already revoked',
+        statusCode: 400
+      });
+    }
+
+    // ✅ 2. Désactiver la clé API
+    await this.prisma.api_key.update({
+      where: { id: id },
+      data: { isActive: false },
+    });
+
+    return {
+      message: `API Key "${existingKey.name}" revoked successfully`,
+      data: {
+        id: existingKey.id,
+        name: existingKey.name,
+        isActive: false,
+        revokedAt: new Date().toISOString(),
+      }
+    };
+  }
+
+  async reactivateApiKey(id: string, userId: string) {
+    // ✅ 1. Vérifier que la clé API existe et appartient à l'utilisateur
+    const existingKey = await this.prisma.api_key.findFirst({
+      where: {
+        id: id,
+        userId: userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        expiresAt: true,
+      }
+    });
+
+    if (!existingKey) {
+      throw new RpcException({
+        status: 'error',
+        message: 'API Key not found or does not belong to this user',
+        statusCode: 404
+      });
+    }
+
+    if (existingKey.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: 'API Key is already active',
+        statusCode: 400
+      });
+    }
+
+    // Vérifier si la clé a expiré
+    if (existingKey.expiresAt && new Date() > existingKey.expiresAt) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Cannot reactivate an expired API Key. Please create a new one.',
+        statusCode: 400
+      });
+    }
+
+    // ✅ 2. Réactiver la clé API
+    await this.prisma.api_key.update({
+      where: { id: id },
+      data: { isActive: true },
+    });
+
+    return {
+      message: `API Key "${existingKey.name}" reactivated successfully`,
+      data: {
+        id: existingKey.id,
+        name: existingKey.name,
+        isActive: true,
+        reactivatedAt: new Date().toISOString(),
+      }
+    };
+  }
+
 
   // ========================= BRANCH MANAGEMENT =========================
 
