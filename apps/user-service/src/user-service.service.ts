@@ -3203,8 +3203,6 @@ export class UserServiceService {
         countryCode: user.countryCode,
         account_number: user.account_number,
         branch: user.branch,
-        loyalty_points: user.loyalty_points,
-        lifetime_points: user.lifetime_points,
         maintenance_fee: user.maintenance_fee,
         is_maintenance_exempt: user.is_maintenance_exempt,
         name: data.name || existingKey.name,
