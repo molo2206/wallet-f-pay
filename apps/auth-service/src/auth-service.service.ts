@@ -193,7 +193,7 @@ export class AuthServiceService {
           const smsText = this.i18nService.translate('otp_sms', lang, {
             otpCode: newOtpCode,
           });
-          await this.smsService.sendSms(phone, smsText);
+          await this.smsService.sendSms(phone, smsText, data.countryCode);
         } catch (err) {
           console.error('Erreur SMS OTP:', err);
         }
@@ -374,7 +374,7 @@ export class AuthServiceService {
           phone: phone,
           password: plainPassword,
         });
-        await this.smsService.sendSms(phone, welcomeSms);
+        await this.smsService.sendSms(phone, welcomeSms, data.countryCode);
       } catch (err) {
         console.error('Erreur SMS bienvenue:', err);
       }
@@ -954,7 +954,7 @@ export class AuthServiceService {
       });
 
       const smsText = this.i18nService.translate('otp_sms', lang, { otpCode });
-      await this.smsService.sendSms(user.phone || '', smsText);
+      await this.smsService.sendSms(user.phone || '', smsText, user.countryCode || '');
 
       return {
         requiresOtp: true,
@@ -1173,7 +1173,7 @@ export class AuthServiceService {
       const smsText = this.i18nService.translate('reset_password_sms', lang, {
         otpCode,
       });
-      await this.smsService.sendSms(user.phone, smsText);
+      await this.smsService.sendSms(user.phone, smsText, user.countryCode);
     }
 
     await this.logAudit(
