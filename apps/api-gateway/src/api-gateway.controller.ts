@@ -3147,7 +3147,7 @@ export class ApiGatewayController {
 
     return this.sendUserMessage(
       'delete_api_key',
-      { id, userId: currentUser.id },
+      { id },
       'Failed to delete API key',
       HttpStatus.BAD_REQUEST,
     );

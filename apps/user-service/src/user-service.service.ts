@@ -3250,12 +3250,11 @@ export class UserServiceService {
     };
   }
 
-  async deleteApiKey(id: string, userId: string) {
+  async deleteApiKey(id: string) {
     // ✅ 1. Vérifier que la clé API existe et appartient à l'utilisateur
     const existingKey = await this.prisma.api_key.findFirst({
       where: {
         id: id,
-        userId: userId,
       },
       select: {
         id: true,
