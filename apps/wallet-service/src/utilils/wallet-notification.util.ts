@@ -56,7 +56,6 @@ export async function notifyTransaction(
     console.log(`[notifyTransaction] 📋 Préférences: SMS=${canSendSms}, Push=${canSendPush}`);
   } catch (error) {
     console.error(`[notifyTransaction] ❌ Erreur lors de la vérification des préférences:`, error);
-    // Par défaut, on tente d'envoyer quand même
     canSendSms = true;
     canSendPush = true;
   }
@@ -68,7 +67,7 @@ export async function notifyTransaction(
     const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
     console.log(`[notifyTransaction] 📱 Tentative d'envoi SMS à ${cleanPhone}`);
 
-    let smsKey: string;
+    let smsKey: string = ''; // ✅ Initialisation avec valeur par défaut
     const params: any = {
       full_name: defaultName,
       amount: defaultAmount,
@@ -116,44 +115,42 @@ export async function notifyTransaction(
 
       default:
         console.warn(`[notifyTransaction] ⚠️ Type SMS non reconnu: ${type}`);
-        break;
+        // ✅ Si le type n'est pas reconnu, on sort de la fonction
+        return;
     }
 
-    // ✅ Envoyer le SMS si une clé est définie
-    if (smsKey) {
-      try {
-        console.log(`[notifyTransaction] 📝 Clé SMS: ${smsKey}`);
-        console.log(`[notifyTransaction] 📝 Paramètres:`, params);
+    // ✅ Envoyer le SMS (smsKey est toujours défini)
+    try {
+      console.log(`[notifyTransaction] 📝 Clé SMS: ${smsKey}`);
+      console.log(`[notifyTransaction] 📝 Paramètres:`, params);
 
-        let smsText = i18nService.translate(smsKey, userLang, params);
-        console.log(`[notifyTransaction] 📝 SMS traduit: ${smsText}`);
+      let smsText = i18nService.translate(smsKey, userLang, params);
+      console.log(`[notifyTransaction] 📝 SMS traduit: ${smsText}`);
 
-        // ✅ Vérifier que le SMS n'est pas vide ou que la traduction a fonctionné
-        if (!smsText || smsText === smsKey) {
-          console.warn(`[notifyTransaction] ⚠️ Traduction manquante pour ${smsKey}, utilisation du fallback`);
+      // ✅ Vérifier que le SMS n'est pas vide ou que la traduction a fonctionné
+      if (!smsText || smsText === smsKey) {
+        console.warn(`[notifyTransaction] ⚠️ Traduction manquante pour ${smsKey}, utilisation du fallback`);
 
-          // ✅ Fallback: construire un message manuellement
-          const fallbackMessages: Record<string, string> = {
-            'topup': `Bonjour ${defaultName}, Recharge ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Merci.`,
-            'cashout': `Bonjour ${defaultName}, Retrait ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-            'send_sent': `Bonjour ${defaultName}, Envoi ${defaultAmount} ${defaultCurrency} à ${params.toPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-            'send_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.fromPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-            'send_pending': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Vous recevrez une confirmation une fois approuvé.`,
-            'send_confirmed': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} a été validé. Le destinataire a été notifié.`,
-            'pay_sent': `Bonjour ${defaultName}, Paiement ${defaultAmount} ${defaultCurrency} à ${params.merchantName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-            'pay_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.payerName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-          };
+        const fallbackMessages: Record<string, string> = {
+          'topup': `Bonjour ${defaultName}, Recharge ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Merci.`,
+          'cashout': `Bonjour ${defaultName}, Retrait ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+          'send_sent': `Bonjour ${defaultName}, Envoi ${defaultAmount} ${defaultCurrency} à ${params.toPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+          'send_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.fromPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+          'send_pending': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Vous recevrez une confirmation une fois approuvé.`,
+          'send_confirmed': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} a été validé. Le destinataire a été notifié.`,
+          'pay_sent': `Bonjour ${defaultName}, Paiement ${defaultAmount} ${defaultCurrency} à ${params.merchantName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+          'pay_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.payerName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+        };
 
-          smsText = fallbackMessages[type] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}.`;
-        }
-
-        // ✅ Envoyer le SMS
-        await smsService.sendSms(cleanPhone, smsText);
-        console.log(`[notifyTransaction] ✅ SMS envoyé avec succès à ${cleanPhone}`);
-
-      } catch (error) {
-        console.error(`[notifyTransaction] ❌ Erreur lors de l'envoi du SMS à ${cleanPhone}:`, error);
+        smsText = fallbackMessages[type] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}.`;
       }
+
+      // ✅ Envoyer le SMS
+      await smsService.sendSms(cleanPhone, smsText);
+      console.log(`[notifyTransaction] ✅ SMS envoyé avec succès à ${cleanPhone}`);
+
+    } catch (error) {
+      console.error(`[notifyTransaction] ❌ Erreur lors de l'envoi du SMS à ${cleanPhone}:`, error);
     }
   } else {
     console.log(`[notifyTransaction] ⚠️ SMS non envoyé: phone=${!!user?.phone}, canSendSms=${canSendSms}`);
@@ -256,7 +253,7 @@ export async function notifyTransaction(
           amount: defaultAmount,
           currency: defaultCurrency,
           balance: defaultBalance,
-          merchantName: counterparty?.name || 'Commerçant', // ✅ Correspond à {{merchantName}}
+          merchantName: counterparty?.name || 'Commerçant',
           merchantPhone: counterparty?.phone || '',
           full_name: defaultName,
         };
@@ -268,7 +265,7 @@ export async function notifyTransaction(
           amount: defaultAmount,
           currency: defaultCurrency,
           balance: defaultBalance,
-          customerName: counterparty?.name || 'Client', // ✅ Changé payerName → customerName
+          customerName: counterparty?.name || 'Client',
           customerPhone: counterparty?.phone || '',
           full_name: defaultName,
         };
