@@ -670,7 +670,7 @@ export class UserServiceController {
     userId: string
   }) {
     try {
-      return await this.userService.deleteApiKey(data.id, data.userId);
+      return await this.userService.deleteApiKey(data.id);
     } catch (error) {
       if (error instanceof RpcException) throw error;
       throw new RpcException({
