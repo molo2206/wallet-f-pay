@@ -3447,6 +3447,179 @@ export class ApiGatewayController {
     return response;
   }
 
+  @Post('api/external/send')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('send')
+  async externalSend(
+    @Request() req: any,
+    @Body() body: {
+      userId: string;
+      amount: number;
+      pin: string;
+      description?: string;
+      currency?: string;
+      countryCode?: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const apiKeyUser = req.user;
+
+    console.log('[ExternalSend] 📋 Utilisateur de l\'API Key:', {
+      id: apiKeyUser.id,
+      full_name: apiKeyUser.full_name,
+      phone: apiKeyUser.phone,
+      merchantCode: apiKeyUser.merchantCode,
+      role: apiKeyUser.role,
+      status: apiKeyUser.status,
+    });
+
+    // ✅ 1. Vérifier que l'utilisateur de l'API Key a un téléphone
+    if (!apiKeyUser.phone) {
+      throw new HttpException(
+        'API Key user has no phone number',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 2. Vérifier que le client payeur (expéditeur) existe
+    const client = await this.prisma.user.findFirst({
+      where: {
+        id: body.userId,
+        status: 'ACTIVE',
+        deleted: false,
+      },
+      include: {
+        wallets: {
+          where: { isActive: true },
+        },
+      },
+    });
+
+    if (!client) {
+      throw new HttpException(
+        `Client with id ${body.userId} not found`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // ✅ 3. Vérifier que le client a un PIN
+    if (!client.pin) {
+      throw new HttpException(
+        'Client has no PIN set',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 4. Récupérer le wallet du client à partir de l'API Key
+    const targetCurrency = body.currency || 'USD';
+    let clientWallet = client.wallets.find(w => w.currency === targetCurrency);
+
+    if (!clientWallet) {
+      clientWallet = client.wallets[0];
+      if (!clientWallet) {
+        throw new HttpException(
+          `No active wallet found for client ${body.userId}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      console.warn(`[ExternalSend] Wallet ${targetCurrency} not found, using ${clientWallet.currency}`);
+    }
+
+    console.log('[ExternalSend] Client wallet found:', {
+      walletId: clientWallet.id,
+      currency: clientWallet.currency,
+      balance: clientWallet.balance,
+    });
+
+    if (clientWallet.balance < body.amount) {
+      throw new HttpException(
+        `Insufficient balance: ${clientWallet.balance} ${clientWallet.currency}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.pin || body.pin.length < 4 || !/^\d+$/.test(body.pin)) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_invalid', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 5. Le destinataire est l'utilisateur de l'API Key
+    const recipient = apiKeyUser;
+
+    console.log('[ExternalSend] ✅ Destinataire (API Key owner):', {
+      id: recipient.id,
+      full_name: recipient.full_name,
+      phone: recipient.phone,
+      role: recipient.role,
+    });
+
+    // ✅ 6. Vérifier que le destinataire est actif
+    if (recipient.status !== 'ACTIVE') {
+      throw new HttpException(
+        `Recipient is not active: ${recipient.status}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 7. Vérifier que le client ne s'envoie pas à lui-même
+    if (client.id === recipient.id) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.cannot_transfer_self', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 8. Préparer les données pour le service wallet
+    const sendPayload: any = {
+      fromWalletId: clientWallet.id,
+      toPhone: recipient.phone,
+      amount: body.amount,
+      pin: body.pin,
+      description: body.description || `Envoi vers ${recipient.full_name || recipient.phone}`,
+      countryCode: body.countryCode,
+      lang,
+      ipAddress,
+    };
+
+    console.log('[ExternalSend] 📤 Payload envoyé au service wallet:', sendPayload);
+
+    // ✅ 9. Appeler le service wallet
+    const response = await this.sendWalletMessage(
+      'send',
+      sendPayload,
+      this.i18nService.translate('wallet.transfer_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+
+    // ✅ 10. Log de l'opération avec l'API Key
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: apiKeyUser.id,
+        action: 'EXTERNAL_SEND',
+        details: JSON.stringify({
+          clientUserId: body.userId,
+          clientId: client.id,
+          recipientId: recipient.id,
+          recipientPhone: recipient.phone,
+          amount: body.amount,
+          currency: body.currency,
+          apiKeyId: apiKeyUser.id,
+          description: body.description,
+          countryCode: body.countryCode,
+        }),
+        ipAddress: ipAddress || null,
+        createdAt: new Date(),
+      },
+    });
+
+    return response;
+  }
+
   @Post('auth/link-user')
   async loginWithOtp(
     @Body() body: {
