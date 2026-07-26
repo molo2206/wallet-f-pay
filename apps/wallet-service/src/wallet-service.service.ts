@@ -3243,7 +3243,7 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Vérifier le solde (montant demandé)
+    // ✅ Vérifier le solde (montant demandé) - AVANT le retrait
     if (wallet.balance < amount) {
       throw new RpcException({
         status: 'error',
@@ -3337,7 +3337,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount, // ✅ Montant demandé (1.02)
+              amount: amount,
               type: 'WITHDRAW',
               status: 'FAILED',
               reference: await this.generateTransactionReference('', tx),
@@ -3386,7 +3386,6 @@ export class WalletServiceService {
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
-          // ✅ Récupérer les frais pour la description
           const fees = await this.getNetworkProviderFees(provider);
 
           const description =
@@ -3409,7 +3408,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount, // ✅ 1.02 (montant demandé)
+              amount: amount,
               type: 'WITHDRAW',
               status: 'SUCCESS',
               reference: reference,
@@ -3443,7 +3442,7 @@ export class WalletServiceService {
         const fees = await this.getNetworkProviderFees(provider);
         const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
           full_name: user.full_name || '',
-          amount: amount.toFixed(2), // ✅ 1.02
+          amount: amount.toFixed(2),
           feePercent: fees.payoutFee,
           currency: wallet.currency || 'CDF',
           balance: updatedWallet.balance || 0,
@@ -3479,7 +3478,7 @@ export class WalletServiceService {
     const fees = await this.getNetworkProviderFees(provider);
     return {
       message: this.i18nService.translate('wallet.cashout_success', lang, {
-        amount: amount.toFixed(2), // ✅ 1.02
+        amount: amount.toFixed(2),
         feePercent: fees.payoutFee,
         currency: wallet.currency,
       }),
