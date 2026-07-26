@@ -1751,7 +1751,7 @@ export class UserServiceService {
       ]);
 
       // ========== 2. VOLUME PAR CURRENCY (Transactions) ==========
-      const volumeByCurrency = await this.prisma.transaction.groupBy({
+      const volume = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: transactionWhere,
         _sum: { amount: true },
@@ -1759,7 +1759,7 @@ export class UserServiceService {
       });
 
       // ========== 3. MERCHANT PAYMENTS PAR CURRENCY ==========
-      const merchantPaymentsByCurrency = await this.prisma.transaction.groupBy({
+      const merchantPayments = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: { ...transactionWhere, type: 'PAYMENT' },
         _sum: { amount: true },
@@ -1767,7 +1767,7 @@ export class UserServiceService {
       });
 
       // ========== 4. CASH PAR CURRENCY ==========
-      const cashByCurrency = await this.prisma.transaction.groupBy({
+      const cash = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
           ...transactionWhere,
@@ -1778,7 +1778,7 @@ export class UserServiceService {
       });
 
       // ========== 5. MOBILE PAR CURRENCY ==========
-      const mobileByCurrency = await this.prisma.transaction.groupBy({
+      const mobile = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
           ...transactionWhere,
@@ -1917,23 +1917,23 @@ export class UserServiceService {
             totalDebitAmount: totalDebits,
             netBalance,
           },
-          // ===== NOUVEAUX OBJETS AJOUTÉS (sans changer les noms existants) =====
-          volumeByCurrency: volumeByCurrency.map((v) => ({
+          // ===== OBJETS RENOMMÉS (sans "ByCurrency") =====
+          volume: volume.map((v) => ({
             currency: v.currency || 'N/A',
             totalAmount: v._sum.amount || 0,
             count: v._count.id || 0,
           })),
-          merchantPaymentsByCurrency: merchantPaymentsByCurrency.map((v) => ({
+          merchantPayments: merchantPayments.map((v) => ({
             currency: v.currency || 'N/A',
             totalAmount: v._sum.amount || 0,
             count: v._count.id || 0,
           })),
-          cashByCurrency: cashByCurrency.map((v) => ({
+          cash: cash.map((v) => ({
             currency: v.currency || 'N/A',
             totalAmount: v._sum.amount || 0,
             count: v._count.id || 0,
           })),
-          mobileByCurrency: mobileByCurrency.map((v) => ({
+          mobile: mobile.map((v) => ({
             currency: v.currency || 'N/A',
             totalAmount: v._sum.amount || 0,
             count: v._count.id || 0,

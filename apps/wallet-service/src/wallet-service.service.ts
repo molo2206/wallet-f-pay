@@ -2995,6 +2995,7 @@ export class WalletServiceService {
               reason: failureMessage,
             }),
             movement: 'CREDIT',
+            paymentMethod: 'MOBILE_MONEY',
             currency: wallet.currency,
           },
         });
@@ -3034,6 +3035,7 @@ export class WalletServiceService {
             reference: await this.generateTransactionReference('', tx),
             description,
             movement: 'CREDIT',
+            paymentMethod: 'MOBILE_MONEY',
             currency: wallet.currency,
           },
         });
@@ -3357,6 +3359,7 @@ export class WalletServiceService {
                 reason: failureMessage,
               }),
               movement: 'DEBIT',
+              paymentMethod: 'MOBILE_MONEY',
               currency: wallet.currency,
             },
           });
@@ -4053,7 +4056,7 @@ export class WalletServiceService {
                   description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetCurrency} | Pays: ${senderCountryCode}`,
                   movement: 'CREDIT',
                   currency: feeCurrency,
-                  paymentMethod: 'INTERNAL',
+                  paymentMethod: 'MOBILE_MONEY',
                   external_reference: reference,
                 },
               });
@@ -4130,6 +4133,7 @@ export class WalletServiceService {
             description: senderDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
+            paymentMethod: 'MOBILE_MONEY',
           },
         });
 
@@ -4144,6 +4148,7 @@ export class WalletServiceService {
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
+            paymentMethod: 'MOBILE_MONEY',
             currency: targetCurrency,
           },
         });
@@ -4619,6 +4624,7 @@ export class WalletServiceService {
             description: payerDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
+            paymentMethod: 'MOBILE_MONEY',
           },
         }),
         tx.transaction.create({
@@ -4633,6 +4639,7 @@ export class WalletServiceService {
             description: merchantDescription,
             movement: 'CREDIT',
             currency: merchantWallet.currency,
+            paymentMethod: 'MOBILE_MONEY',
           },
         }),
       ]);
@@ -5215,7 +5222,7 @@ export class WalletServiceService {
                   description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetWallet.currency} | Pays: ${senderCountryCode}`,
                   movement: 'CREDIT',
                   currency: feeCurrency,
-                  paymentMethod: 'INTERNAL',
+                  paymentMethod: 'MOBILE_MONEY',
                   external_reference: reference,
                 },
               });
@@ -5292,7 +5299,7 @@ export class WalletServiceService {
             description: senderDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
-            paymentMethod: 'INTERNAL',
+            paymentMethod:'MOBILE_MONEY',
           },
         });
 
@@ -5308,6 +5315,7 @@ export class WalletServiceService {
             description: receiverDescription,
             movement: 'CREDIT',
             currency: targetWallet.currency,
+            paymentMethod:'MOBILE_MONEY',
           },
         });
 
