@@ -3453,7 +3453,7 @@ export class ApiGatewayController {
   async externalSend(
     @Request() req: any,
     @Body() body: {
-      userId: string;
+      userId: string; // 🔥 userId du DESTINATAIRE (client)
       amount: number;
       description?: string;
       currency?: string;
@@ -3463,9 +3463,9 @@ export class ApiGatewayController {
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-    const apiKeyUser = req.user;
+    const apiKeyUser = req.user; // 🔥 API Key owner = PAYEUR (company)
 
-    console.log('[ExternalSend] 📋 Utilisateur de l\'API Key:', {
+    console.log('[ExternalSend] 📋 Utilisateur de l\'API Key (PAYEUR):', {
       id: apiKeyUser.id,
       full_name: apiKeyUser.full_name,
       phone: apiKeyUser.phone,
@@ -3474,6 +3474,7 @@ export class ApiGatewayController {
       status: apiKeyUser.status,
     });
 
+    // ✅ 1. Vérifier que le payeur (API Key owner) a un téléphone
     if (!apiKeyUser.phone) {
       throw new HttpException(
         'API Key user has no phone number',
@@ -3481,7 +3482,8 @@ export class ApiGatewayController {
       );
     }
 
-    const client = await this.prisma.user.findFirst({
+    // ✅ 2. Récupérer le DESTINATAIRE (client) par son userId
+    const recipient = await this.prisma.user.findFirst({
       where: {
         id: body.userId,
         status: 'ACTIVE',
@@ -3494,68 +3496,89 @@ export class ApiGatewayController {
       },
     });
 
-    if (!client) {
+    if (!recipient) {
       throw new HttpException(
-        `Client with id ${body.userId} not found`,
+        `Recipient with id ${body.userId} not found`,
         HttpStatus.NOT_FOUND,
       );
     }
 
+    // ✅ 3. Récupérer le wallet du DESTINATAIRE
     const targetCurrency = body.currency || 'USD';
-    let clientWallet = client.wallets.find(w => w.currency === targetCurrency);
+    let recipientWallet = recipient.wallets.find(w => w.currency === targetCurrency);
 
-    if (!clientWallet) {
-      clientWallet = client.wallets[0];
-      if (!clientWallet) {
+    if (!recipientWallet) {
+      recipientWallet = recipient.wallets[0];
+      if (!recipientWallet) {
         throw new HttpException(
-          `No active wallet found for client ${body.userId}`,
+          `No active wallet found for recipient ${body.userId}`,
           HttpStatus.BAD_REQUEST,
         );
       }
-      console.warn(`[ExternalSend] Wallet ${targetCurrency} not found, using ${clientWallet.currency}`);
+      console.warn(`[ExternalSend] Wallet ${targetCurrency} not found, using ${recipientWallet.currency}`);
     }
 
-    console.log('[ExternalSend] Client wallet found:', {
-      walletId: clientWallet.id,
-      currency: clientWallet.currency,
-      balance: clientWallet.balance,
+    console.log('[ExternalSend] Wallet du destinataire trouvé:', {
+      walletId: recipientWallet.id,
+      currency: recipientWallet.currency,
+      balance: recipientWallet.balance,
     });
 
-    if (clientWallet.balance < body.amount) {
-      throw new HttpException(
-        `Insufficient balance: ${clientWallet.balance} ${clientWallet.currency}`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    // ✅ 4. Vérifier que le DESTINATAIRE a assez de solde
+    // ⚠️ Le solde du destinataire n'est pas vérifié car c'est le payeur qui paie
 
-    const recipient = apiKeyUser;
-
-    console.log('[ExternalSend] ✅ Destinataire (API Key owner):', {
-      id: recipient.id,
-      full_name: recipient.full_name,
-      phone: recipient.phone,
-      role: recipient.role,
-    });
-
-    if (recipient.status !== 'ACTIVE') {
-      throw new HttpException(
-        `Recipient is not active: ${recipient.status}`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    if (client.id === recipient.id) {
+    // ✅ 5. Vérifier que le payeur n'est pas le destinataire
+    if (apiKeyUser.id === recipient.id) {
       throw new HttpException(
         this.i18nService.translate('wallet.cannot_transfer_self', lang),
         HttpStatus.BAD_REQUEST,
       );
     }
 
+    // ✅ 6. Récupérer le wallet du PAYEUR (company)
+    const payerWallets = await this.prisma.wallet.findMany({
+      where: {
+        userId: apiKeyUser.id,
+        isActive: true,
+      },
+    });
+
+    if (!payerWallets || payerWallets.length === 0) {
+      throw new HttpException(
+        `No active wallet found for payer ${apiKeyUser.id}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Trouver le wallet du payeur dans la même devise
+    let payerWallet = payerWallets.find(w => w.currency === targetCurrency);
+    if (!payerWallet) {
+      payerWallet = payerWallets[0];
+      console.warn(`[ExternalSend] Payer wallet ${targetCurrency} not found, using ${payerWallet.currency}`);
+    }
+
+    console.log('[ExternalSend] Wallet du payeur trouvé:', {
+      walletId: payerWallet.id,
+      currency: payerWallet.currency,
+      balance: payerWallet.balance,
+    });
+
+    // ✅ 7. Vérifier le solde du PAYEUR
+    if (payerWallet.balance < body.amount) {
+      throw new HttpException(
+        `Insufficient balance: ${payerWallet.balance} ${payerWallet.currency}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 8. Préparer les données pour le service wallet
+    // 🔥 fromWalletId = wallet du PAYEUR (company)
+    // 🔥 toPhone = téléphone du DESTINATAIRE (client)
     const sendPayload: any = {
-      fromWalletId: clientWallet.id,
+      fromWalletId: payerWallet.id,
       toPhone: recipient.phone,
       amount: body.amount,
-      description: body.description || `Envoi vers ${recipient.full_name || recipient.phone}`,
+      description: body.description || `Envoi de fidélité vers ${recipient.full_name || recipient.phone}`,
       countryCode: body.countryCode,
       lang,
       ipAddress,
@@ -3563,22 +3586,23 @@ export class ApiGatewayController {
 
     console.log('[ExternalSend] 📤 Payload envoyé au service wallet:', sendPayload);
 
+    // ✅ 9. Appeler le service wallet
     const response = await this.sendWalletMessage(
-      'send_fidelity', // 🔥 Utiliser send_fidelity au lieu de send
+      'send_fidelity',
       sendPayload,
       this.i18nService.translate('wallet.transfer_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
 
-    // ✅ 9. Log de l'opération
+    // ✅ 10. Log de l'opération
     await this.prisma.audit_log.create({
       data: {
         id: crypto.randomUUID(),
         userId: apiKeyUser.id,
         action: 'EXTERNAL_SEND_FIDELITY',
         details: JSON.stringify({
-          clientUserId: body.userId,
-          clientId: client.id,
+          payerId: apiKeyUser.id,
+          payerPhone: apiKeyUser.phone,
           recipientId: recipient.id,
           recipientPhone: recipient.phone,
           amount: body.amount,
