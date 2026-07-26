@@ -3524,10 +3524,7 @@ export class ApiGatewayController {
       balance: recipientWallet.balance,
     });
 
-    // ✅ 4. Vérifier que le DESTINATAIRE a assez de solde
-    // ⚠️ Le solde du destinataire n'est pas vérifié car c'est le payeur qui paie
-
-    // ✅ 5. Vérifier que le payeur n'est pas le destinataire
+    // ✅ 4. Vérifier que le payeur n'est pas le destinataire
     if (apiKeyUser.id === recipient.id) {
       throw new HttpException(
         this.i18nService.translate('wallet.cannot_transfer_self', lang),
@@ -3535,7 +3532,7 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 6. Récupérer le wallet du PAYEUR (company)
+    // ✅ 5. Récupérer les wallets du PAYEUR (company)
     const payerWallets = await this.prisma.wallet.findMany({
       where: {
         userId: apiKeyUser.id,
@@ -3550,30 +3547,57 @@ export class ApiGatewayController {
       );
     }
 
-    // Trouver le wallet du payeur dans la même devise
+    // ✅ 6. Chercher le wallet du payeur dans la devise demandée
     let payerWallet = payerWallets.find(w => w.currency === targetCurrency);
-    if (!payerWallet) {
-      payerWallet = payerWallets[0];
-      console.warn(`[ExternalSend] Payer wallet ${targetCurrency} not found, using ${payerWallet.currency}`);
+
+    // ✅ 7. Si pas assez de solde ou pas de wallet dans cette devise, chercher un autre wallet avec assez de solde
+    if (payerWallet) {
+      if (payerWallet.balance < body.amount) {
+        console.log(`[ExternalSend] Solde insuffisant en ${targetCurrency} (${payerWallet.balance}), recherche d'un autre wallet...`);
+
+        // Chercher un autre wallet avec assez de solde
+        const otherWallet = payerWallets.find(w =>
+          w.currency !== targetCurrency &&
+          w.balance >= body.amount
+        );
+
+        if (otherWallet) {
+          payerWallet = otherWallet;
+          console.log(`[ExternalSend] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
+        } else {
+          // Aucun wallet avec assez de solde
+          throw new HttpException(
+            `Insufficient balance: ${payerWallet.balance} ${payerWallet.currency}. You have ${payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ')}`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+    } else {
+      // ✅ 8. Si pas de wallet dans la devise demandée, prendre le premier avec assez de solde
+      console.log(`[ExternalSend] Aucun wallet en ${targetCurrency}, recherche d'un autre wallet...`);
+
+      const availableWallet = payerWallets.find(w => w.balance >= body.amount);
+
+      if (availableWallet) {
+        payerWallet = availableWallet;
+        console.log(`[ExternalSend] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
+      } else {
+        // Aucun wallet avec assez de solde
+        const balances = payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ');
+        throw new HttpException(
+          `Insufficient balance in any wallet. Available balances: ${balances}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
     }
 
-    console.log('[ExternalSend] Wallet du payeur trouvé:', {
+    console.log('[ExternalSend] Wallet du payeur sélectionné:', {
       walletId: payerWallet.id,
       currency: payerWallet.currency,
       balance: payerWallet.balance,
     });
 
-    // ✅ 7. Vérifier le solde du PAYEUR
-    if (payerWallet.balance < body.amount) {
-      throw new HttpException(
-        `Insufficient balance: ${payerWallet.balance} ${payerWallet.currency}`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 8. Préparer les données pour le service wallet
-    // 🔥 fromWalletId = wallet du PAYEUR (company)
-    // 🔥 toPhone = téléphone du DESTINATAIRE (client)
+    // ✅ 9. Préparer les données pour le service wallet
     const sendPayload: any = {
       fromWalletId: payerWallet.id,
       toPhone: recipient.phone,
@@ -3586,7 +3610,7 @@ export class ApiGatewayController {
 
     console.log('[ExternalSend] 📤 Payload envoyé au service wallet:', sendPayload);
 
-    // ✅ 9. Appeler le service wallet
+    // ✅ 10. Appeler le service wallet
     const response = await this.sendWalletMessage(
       'send_fidelity',
       sendPayload,
@@ -3594,7 +3618,7 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
 
-    // ✅ 10. Log de l'opération
+    // ✅ 11. Log de l'opération
     await this.prisma.audit_log.create({
       data: {
         id: crypto.randomUUID(),
@@ -3610,6 +3634,7 @@ export class ApiGatewayController {
           apiKeyId: apiKeyUser.id,
           description: body.description,
           countryCode: body.countryCode,
+          selectedWalletCurrency: payerWallet.currency,
         }),
         ipAddress: ipAddress || null,
         createdAt: new Date(),
