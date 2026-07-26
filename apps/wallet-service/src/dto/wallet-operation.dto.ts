@@ -132,3 +132,32 @@ export class PayDto {
   @IsOptional()
   skipPinCheck?: boolean;
 }
+
+export class SendFidelityDto {
+  @IsOptional()
+  @IsString()
+  fromAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  fromWalletId?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  toPhone!: string;
+
+  @IsNumber()
+  @Min(0.01)
+  amount!: number;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  lang?: string;
+
+  @IsOptional()
+  countryCode?: string;
+}

@@ -7,7 +7,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
 import { WalletServiceService } from './wallet-service.service';
-import { PayDto, SendDto } from './dto/wallet-operation.dto';
+import { PayDto, SendDto, SendFidelityDto } from './dto/wallet-operation.dto';
 import { PawapayService } from './pawapay/pawapay.service';
 import { CreateCountryDto } from './pawapay/dto/create-country.dto';
 import { UpdateCountryDto } from './pawapay/dto/update-country.dto';
@@ -416,6 +416,32 @@ export class WalletServiceController {
       return await this.walletService.send(data, data.lang || 'fr', ipAddress);
     } catch (error) {
       console.error('[WalletService] send error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('send_fidelity')
+  async sendFidelity(@Payload() data: SendFidelityDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_fidelity received:', {
+      from: data.fromWalletId,
+      to: data.toPhone,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
+    try {
+      return await this.walletService.sendFidelity(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_fidelity error:', error);
       const lang = data.lang || 'fr';
       throw new RpcException({
         status: 'error',

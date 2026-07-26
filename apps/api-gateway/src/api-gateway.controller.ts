@@ -3455,7 +3455,6 @@ export class ApiGatewayController {
     @Body() body: {
       userId: string;
       amount: number;
-      pin: string;
       description?: string;
       currency?: string;
       countryCode?: string;
@@ -3475,7 +3474,6 @@ export class ApiGatewayController {
       status: apiKeyUser.status,
     });
 
-    // ✅ 1. Vérifier que l'utilisateur de l'API Key a un téléphone
     if (!apiKeyUser.phone) {
       throw new HttpException(
         'API Key user has no phone number',
@@ -3483,7 +3481,6 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 2. Vérifier que le client payeur (expéditeur) existe
     const client = await this.prisma.user.findFirst({
       where: {
         id: body.userId,
@@ -3504,15 +3501,6 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 3. Vérifier que le client a un PIN
-    if (!client.pin) {
-      throw new HttpException(
-        'Client has no PIN set',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 4. Récupérer le wallet du client à partir de l'API Key
     const targetCurrency = body.currency || 'USD';
     let clientWallet = client.wallets.find(w => w.currency === targetCurrency);
 
@@ -3540,14 +3528,6 @@ export class ApiGatewayController {
       );
     }
 
-    if (!body.pin || body.pin.length < 4 || !/^\d+$/.test(body.pin)) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.pin_invalid', lang),
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 5. Le destinataire est l'utilisateur de l'API Key
     const recipient = apiKeyUser;
 
     console.log('[ExternalSend] ✅ Destinataire (API Key owner):', {
@@ -3557,7 +3537,6 @@ export class ApiGatewayController {
       role: recipient.role,
     });
 
-    // ✅ 6. Vérifier que le destinataire est actif
     if (recipient.status !== 'ACTIVE') {
       throw new HttpException(
         `Recipient is not active: ${recipient.status}`,
@@ -3565,7 +3544,6 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 7. Vérifier que le client ne s'envoie pas à lui-même
     if (client.id === recipient.id) {
       throw new HttpException(
         this.i18nService.translate('wallet.cannot_transfer_self', lang),
@@ -3573,12 +3551,10 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 8. Préparer les données pour le service wallet
     const sendPayload: any = {
       fromWalletId: clientWallet.id,
       toPhone: recipient.phone,
       amount: body.amount,
-      pin: body.pin,
       description: body.description || `Envoi vers ${recipient.full_name || recipient.phone}`,
       countryCode: body.countryCode,
       lang,
@@ -3587,20 +3563,19 @@ export class ApiGatewayController {
 
     console.log('[ExternalSend] 📤 Payload envoyé au service wallet:', sendPayload);
 
-    // ✅ 9. Appeler le service wallet
     const response = await this.sendWalletMessage(
-      'send',
+      'send_fidelity', // 🔥 Utiliser send_fidelity au lieu de send
       sendPayload,
       this.i18nService.translate('wallet.transfer_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
 
-    // ✅ 10. Log de l'opération avec l'API Key
+    // ✅ 9. Log de l'opération
     await this.prisma.audit_log.create({
       data: {
         id: crypto.randomUUID(),
         userId: apiKeyUser.id,
-        action: 'EXTERNAL_SEND',
+        action: 'EXTERNAL_SEND_FIDELITY',
         details: JSON.stringify({
           clientUserId: body.userId,
           clientId: client.id,
