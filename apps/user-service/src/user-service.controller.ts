@@ -283,13 +283,14 @@ export class UserServiceController {
 
   @MessagePattern('get_admin_dashboard')
   async getAdminDashboard(
-    @Payload() payload: { startDate?: string; endDate?: string },
+    @Payload() payload: { startDate?: string; endDate?: string; countryCode?: string },
   ) {
     const startDate = payload.startDate
       ? new Date(payload.startDate)
       : undefined;
     const endDate = payload.endDate ? new Date(payload.endDate) : undefined;
-    return this.userService.getAdminDashboard({ startDate, endDate });
+    const countryCode = payload.countryCode;
+    return this.userService.getAdminDashboard({ startDate, endDate, countryCode });
   }
 
   // ==================== GESTION DES RESSOURCES ====================

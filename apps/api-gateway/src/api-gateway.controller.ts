@@ -2530,13 +2530,14 @@ export class ApiGatewayController {
     @CurrentUser() currentUser: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('countryCode') countryCode?: string,
   ) {
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     return this.sendUserMessage(
       'get_admin_dashboard',
-      { startDate, endDate },
+      { startDate, endDate, countryCode },
       'Failed to get dashboard',
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
