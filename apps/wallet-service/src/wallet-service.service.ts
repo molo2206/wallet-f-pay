@@ -5029,59 +5029,25 @@ export class WalletServiceService {
 
         console.log('[WalletService] Wallets du destinataire:', receiverWallets.map(w => w.currency));
 
-        let targetCurrency: string = receiverWallets[0].currency;
-        let targetWallet: any = receiverWallets[0];
+        // ✅ La devise du paiement est la devise du wallet source (fromWallet.currency)
+        const paymentCurrency = fromWallet.currency;
 
-        if (isInternational) {
-          const receiverCountry = await tx.country_provider.findFirst({
-            where: {
-              OR: [
-                { countryCode: receiverCountryCode },
-                { code: receiverCountryCode },
-              ]
-            },
-            select: {
-              default_currency: true,
-              country_currency: {
-                where: { is_default: true },
-                take: 1,
-                select: { currency_code: true },
-              }
-            },
-          });
+        console.log('[WalletService] Devise du paiement:', paymentCurrency);
 
-          let preferredCurrency: string | null = null;
-          if (receiverCountry?.default_currency) {
-            preferredCurrency = receiverCountry.default_currency;
-          } else if (receiverCountry?.country_currency && receiverCountry.country_currency.length > 0) {
-            preferredCurrency = receiverCountry.country_currency[0].currency_code;
-          }
+        // ✅ Chercher un wallet du destinataire dans la même devise que le paiement
+        let targetWallet = receiverWallets.find(w => w.currency === paymentCurrency);
 
-          console.log('[WalletService] Devise préférée du destinataire:', preferredCurrency);
-
-          if (preferredCurrency) {
-            const foundWallet = receiverWallets.find(w => w.currency === preferredCurrency);
-            if (foundWallet) {
-              targetWallet = foundWallet;
-              targetCurrency = preferredCurrency;
-              console.log(`[WalletService] ✅ Wallet trouvé en ${targetCurrency} (devise préférée)`);
-            }
-          }
-
-          if (!targetWallet || targetWallet.currency !== targetCurrency) {
-            targetWallet = receiverWallets[0];
-            targetCurrency = targetWallet.currency;
-            console.log(`[WalletService] ⚠️ Aucun wallet en devise préférée, utilisation du premier wallet: ${targetCurrency}`);
-          }
-        } else {
+        // ✅ Si pas de wallet dans cette devise, prendre le premier wallet disponible
+        if (!targetWallet) {
           targetWallet = receiverWallets[0];
-          targetCurrency = targetWallet.currency;
-          console.log(`[WalletService] 🔵 Transfert national, utilisation du premier wallet: ${targetCurrency}`);
+          console.log(`[WalletService] ⚠️ Aucun wallet en ${paymentCurrency}, utilisation du premier wallet: ${targetWallet.currency}`);
+        } else {
+          console.log(`[WalletService] ✅ Wallet en ${paymentCurrency} trouvé pour le destinataire`);
         }
 
         console.log('[WalletService] Wallet cible du destinataire:', {
           id: targetWallet.id,
-          currency: targetCurrency,
+          currency: targetWallet.currency,
           balance: targetWallet.balance,
         });
 
@@ -5089,16 +5055,16 @@ export class WalletServiceService {
         let exchangeRate = 1;
         let convertedAmount = netAmount;
 
-        if (fromWallet.currency !== targetCurrency) {
+        if (fromWallet.currency !== targetWallet.currency) {
           exchangeRate = await this.getExchangeRateViaPivot(
             fromWallet.currency,
-            targetCurrency,
+            targetWallet.currency,
             tx,
           );
           convertedAmount = netAmount * exchangeRate;
-          console.log('[WalletService] Conversion du montant net (via pivot USD):', {
+          console.log('[WalletService] Conversion du montant:', {
             from: fromWallet.currency,
-            to: targetCurrency,
+            to: targetWallet.currency,
             netAmount,
             rate: exchangeRate,
             convertedAmount,
@@ -5143,7 +5109,7 @@ export class WalletServiceService {
           feeAmount,
           feeCurrency,
           fromWalletCurrency: fromWallet.currency,
-          targetCurrency,
+          targetCurrency: targetWallet.currency,
           exchangeRate,
           netAmount,
           convertedAmount,
@@ -5227,7 +5193,7 @@ export class WalletServiceService {
                   type: 'DEPOSIT',
                   status: 'SUCCESS',
                   reference: feeReference,
-                  description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetCurrency} | Pays: ${senderCountryCode}`,
+                  description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetWallet.currency} | Pays: ${senderCountryCode}`,
                   movement: 'CREDIT',
                   currency: feeCurrency,
                   paymentMethod: 'INTERNAL',
@@ -5263,8 +5229,8 @@ export class WalletServiceService {
           senderDescription += ` (frais ${internationalFeePercentage}%: ${feeAmount} ${fromWallet.currency})`;
         }
 
-        if (isInternational && fromWallet.currency !== targetCurrency) {
-          senderDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
+        if (isInternational && fromWallet.currency !== targetWallet.currency) {
+          senderDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetWallet.currency}`;
           if (countryCode) {
             senderDescription += ` - Pays: ${countryCode}`;
           }
@@ -5276,8 +5242,8 @@ export class WalletServiceService {
           receiverDescription = `${description} (de: ${fromUserDisplay})`;
         }
 
-        if (isInternational && fromWallet.currency !== targetCurrency) {
-          receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
+        if (isInternational && fromWallet.currency !== targetWallet.currency) {
+          receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetWallet.currency}`;
           if (countryCode) {
             receiverDescription += ` - Pays: ${countryCode}`;
           }
@@ -5322,7 +5288,7 @@ export class WalletServiceService {
             reference: reference,
             description: receiverDescription,
             movement: 'CREDIT',
-            currency: targetCurrency,
+            currency: targetWallet.currency,
           },
         });
 
@@ -5338,7 +5304,7 @@ export class WalletServiceService {
           isInternational,
           exchangeRate,
           convertedAmount,
-          targetCurrency,
+          targetCurrency: targetWallet.currency,
           fee: feeAmount,
           internationalFeePercentage,
           debitAmount,
