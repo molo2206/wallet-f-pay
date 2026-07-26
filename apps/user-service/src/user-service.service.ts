@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { ApiResponse } from './interfaces/api-response.interface';
 import { SmsService } from 'apps/auth-service/src/sms/sms.service';
-import { user_merchantType, user_passwordStatus, user_role, user_status, wallet_currency, branch_status } from '@prisma/client';
+import { user_merchantType, user_passwordStatus, user_role, user_status, wallet_currency, branch_status, Prisma } from '@prisma/client';
 import { MailService } from 'apps/auth-service/src/email/email.service';
 import { CreateUserFromAccountDto } from './dto/create-user-from-account.dto';
 import { I18nService } from '../../../libs/common/src/i18n/i18n.service';
@@ -1637,11 +1637,15 @@ export class UserServiceService {
     };
   }
 
-  async getAdminDashboard(filters?: { startDate?: Date; endDate?: Date }) {
+  async getAdminDashboard(filters?: {
+    startDate?: Date;
+    endDate?: Date;
+    countryCode?: string;
+  }) {
     try {
-      let { startDate, endDate } = filters || {};
+      let { startDate, endDate, countryCode } = filters || {};
 
-      // ✅ Normalisation des dates : début de journée pour startDate, fin de journée pour endDate
+      // ✅ Normalisation des dates
       if (startDate) {
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
@@ -1653,10 +1657,10 @@ export class UserServiceService {
         endDate = end;
       }
 
-      // Par défaut, on filtre sur la date actuelle (aujourd'hui)
+      // Par défaut, on filtre sur la date actuelle
       const now = new Date();
       if (!startDate && !endDate) {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 00:00:00
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         endDate = new Date(
           now.getFullYear(),
           now.getMonth(),
@@ -1668,7 +1672,7 @@ export class UserServiceService {
         );
       }
 
-      // Construction du filtre de date pour les transactions et autres métriques temporelles
+      // Construction du filtre de date
       const dateFilter: any = {};
       if (startDate && !isNaN(startDate.getTime())) {
         dateFilter.gte = startDate;
@@ -1677,20 +1681,29 @@ export class UserServiceService {
         dateFilter.lte = endDate;
       }
 
-      // Filtre pour les métriques temporelles (transactions, etc.)
+      // Filtre pour les transactions
       const transactionWhere: any = {};
       if (Object.keys(dateFilter).length > 0) {
         transactionWhere.createdAt = dateFilter;
       }
 
-      // Filtre pour les métriques permanentes (utilisateurs, commerçants, admins) → PAS de filtre date
+      // 🔥 Filtre par pays (via l'utilisateur)
+      if (countryCode) {
+        transactionWhere.user = {
+          countryCode: countryCode.toUpperCase(),
+        };
+      }
+
+      // Filtre pour les utilisateurs (permanent)
       const userWhere: any = { deleted: false };
+      if (countryCode) {
+        userWhere.countryCode = countryCode.toUpperCase();
+      }
 
-      // Logs de débogage
-      console.log('[Dashboard] Filters reçus:', { startDate, endDate });
-      console.log('[Dashboard] dateFilter appliqué:', dateFilter);
+      console.log('[Dashboard] Filters:', { startDate, endDate, countryCode });
+      console.log('[Dashboard] transactionWhere:', transactionWhere);
 
-      // Exécution parallèle des requêtes
+      // ========== 1. MÉTRIQUES PRINCIPALES ==========
       const [
         totalUsers,
         totalWalletBalance,
@@ -1706,7 +1719,10 @@ export class UserServiceService {
         totalDebitAmount,
       ] = await Promise.all([
         this.prisma.user.count({ where: userWhere }),
-        this.prisma.wallet.aggregate({ _sum: { balance: true } }),
+        this.prisma.wallet.aggregate({
+          where: countryCode ? { user: { countryCode: countryCode.toUpperCase() } } : {},
+          _sum: { balance: true }
+        }),
         this.prisma.transaction.count({ where: transactionWhere }),
         this.prisma.transaction.aggregate({
           where: transactionWhere,
@@ -1723,9 +1739,7 @@ export class UserServiceService {
         }),
         this.prisma.user.count({ where: { ...userWhere, role: 'MERCHANT' } }),
         this.prisma.user.count({ where: { ...userWhere, role: 'ADMIN' } }),
-        this.prisma.user.count({
-          where: { ...userWhere, role: 'SUPER_ADMIN' },
-        }),
+        this.prisma.user.count({ where: { ...userWhere, role: 'SUPER_ADMIN' } }),
         this.prisma.transaction.aggregate({
           where: { ...transactionWhere, movement: 'CREDIT' },
           _sum: { amount: true },
@@ -1736,29 +1750,80 @@ export class UserServiceService {
         }),
       ]);
 
+      // ========== 2. VOLUME PAR CURRENCY (Transactions) ==========
+      const volumeByCurrency = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: transactionWhere,
+        _sum: { amount: true },
+        _count: { id: true },
+      });
+
+      // ========== 3. MERCHANT PAYMENTS PAR CURRENCY ==========
+      const merchantPaymentsByCurrency = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: { ...transactionWhere, type: 'PAYMENT' },
+        _sum: { amount: true },
+        _count: { id: true },
+      });
+
+      // ========== 4. CASH PAR CURRENCY ==========
+      const cashByCurrency = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: {
+          ...transactionWhere,
+          paymentMethod: 'CASH'
+        },
+        _sum: { amount: true },
+        _count: { id: true },
+      });
+
+      // ========== 5. MOBILE PAR CURRENCY ==========
+      const mobileByCurrency = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: {
+          ...transactionWhere,
+          paymentMethod: 'MOBILE_MONEY'
+        },
+        _sum: { amount: true },
+        _count: { id: true },
+      });
+
       const totalDownloads = 0;
       const totalVolume = totalTransactionVolume._sum.amount || 0;
       const totalCredits = totalCreditAmount._sum.amount || 0;
       const totalDebits = totalDebitAmount._sum.amount || 0;
       const netBalance = totalCredits - totalDebits;
 
-      // Graphique du volume des transactions
+      // ========== 6. GRAPHIQUE VOLUME ==========
       let volumeChart: any[] = [];
-      volumeChart = await this.prisma.$queryRaw`
-      SELECT DATE(createdAt) as date, SUM(amount) as volume, COUNT(*) as count
-      FROM transaction
-      WHERE createdAt >= ${startDate}
-        AND createdAt <= ${endDate}
-      GROUP BY DATE(createdAt)
-      ORDER BY date ASC
-    `;
+      if (countryCode) {
+        volumeChart = await this.prisma.$queryRaw`
+        SELECT DATE(t.createdAt) as date, SUM(t.amount) as volume, COUNT(*) as count
+        FROM transaction t
+        INNER JOIN user u ON t.userId = u.id
+        WHERE t.createdAt >= ${startDate}
+          AND t.createdAt <= ${endDate}
+          AND u.countryCode = ${countryCode.toUpperCase()}
+        GROUP BY DATE(t.createdAt)
+        ORDER BY date ASC
+      `;
+      } else {
+        volumeChart = await this.prisma.$queryRaw`
+        SELECT DATE(createdAt) as date, SUM(amount) as volume, COUNT(*) as count
+        FROM transaction
+        WHERE createdAt >= ${startDate}
+          AND createdAt <= ${endDate}
+        GROUP BY DATE(createdAt)
+        ORDER BY date ASC
+      `;
+      }
       volumeChart = volumeChart.map((v: any) => ({
         ...v,
         volume: Number(v.volume),
         count: Number(v.count),
       }));
 
-      // Paiements par type
+      // ========== 7. PAIEMENTS PAR TYPE ==========
       const paymentsByType = await this.prisma.transaction.groupBy({
         by: ['type'],
         where: transactionWhere,
@@ -1776,12 +1841,14 @@ export class UserServiceService {
         totalAmount: p._sum.amount || 0,
         count: p._count.type || 0,
       }));
-      // Croissance des utilisateurs (filtrée par les dates)
+
+      // ========== 8. CROISSANCE DES UTILISATEURS ==========
       let userGrowth = await this.prisma.$queryRaw`
       SELECT DATE_FORMAT(createdAt, '%Y-%m') as month, COUNT(*) as newUsers
       FROM user
       WHERE createdAt >= ${startDate}
         AND createdAt <= ${endDate}
+        ${countryCode ? Prisma.sql`AND countryCode = ${countryCode.toUpperCase()}` : Prisma.sql``}
       GROUP BY month
       ORDER BY month ASC
     `;
@@ -1806,9 +1873,32 @@ export class UserServiceService {
           : 0,
       };
 
+      // ========== 9. PAYS DISPONIBLES ==========
+      const availableCountries = await this.prisma.user.groupBy({
+        by: ['countryCode'],
+        where: { deleted: false },
+        _count: { id: true },
+      });
+
+      // ========== RÉPONSE ==========
       return {
         message: 'Dashboard data retrieved successfully',
         data: {
+          // 🔥 Filtres appliqués
+          filters: {
+            startDate,
+            endDate,
+            countryCode: countryCode || 'Tous',
+          },
+          // 🔥 Pays disponibles pour le filtre
+          availableCountries: availableCountries
+            .filter(c => c.countryCode)
+            .map(c => ({
+              code: c.countryCode,
+              count: c._count.id,
+            }))
+            .sort((a, b) => b.count - a.count),
+          // ===== VOTRE STRUCTURE EXISTANTE (inchangée) =====
           keyMetrics: {
             totalRegisteredUsers: totalUsers,
             totalApplicationDownloads: totalDownloads,
@@ -1827,6 +1917,27 @@ export class UserServiceService {
             totalDebitAmount: totalDebits,
             netBalance,
           },
+          // ===== NOUVEAUX OBJETS AJOUTÉS (sans changer les noms existants) =====
+          volumeByCurrency: volumeByCurrency.map((v) => ({
+            currency: v.currency || 'N/A',
+            totalAmount: v._sum.amount || 0,
+            count: v._count.id || 0,
+          })),
+          merchantPaymentsByCurrency: merchantPaymentsByCurrency.map((v) => ({
+            currency: v.currency || 'N/A',
+            totalAmount: v._sum.amount || 0,
+            count: v._count.id || 0,
+          })),
+          cashByCurrency: cashByCurrency.map((v) => ({
+            currency: v.currency || 'N/A',
+            totalAmount: v._sum.amount || 0,
+            count: v._count.id || 0,
+          })),
+          mobileByCurrency: mobileByCurrency.map((v) => ({
+            currency: v.currency || 'N/A',
+            totalAmount: v._sum.amount || 0,
+            count: v._count.id || 0,
+          })),
           charts: {
             transactionVolume: volumeChart,
             paymentsByType: formattedPayments,
