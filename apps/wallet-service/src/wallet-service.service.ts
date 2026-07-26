@@ -2764,6 +2764,7 @@ export class WalletServiceService {
     phone?: string,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
     console.log('[WalletService] Top-up request:', { userId, amount, lang, walletId, provider, phone });
+
     if (amount <= 0)
       throw new RpcException({
         status: 'error',
@@ -2899,6 +2900,21 @@ export class WalletServiceService {
       });
     }
 
+    // ========== CALCUL DES FRAIS ==========
+    // Récupérer les frais de dépôt
+    const fees = await this.getNetworkProviderFees(provider);
+    const feeAmount = (amount * fees.depositFee) / 100;
+
+    // ✅ Net reçu par l'utilisateur (montant demandé - frais)
+    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
+
+    console.log('[WalletService] Top-up calcul:', {
+      amount,        // 1.02 (montant demandé)
+      feeAmount,     // 0.02 (frais)
+      netAmount,     // 1.00 (net reçu par l'utilisateur) ✅
+      depositFee: fees.depositFee,
+    });
+
     // 2. Exécuter le paiement PawaPay
     let paymentSucceeded = false;
     let failureReasonKey: string | null = null;
@@ -2913,28 +2929,17 @@ export class WalletServiceService {
       });
     }
 
-    // Récupérer les frais de dépôt
-    const fees = await this.getNetworkProviderFees(provider);
-    const feeAmount = (amount * fees.depositFee) / 100;
-
-    // ✅ Arrondir le netAmount à 2 décimales
-    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
-
-    console.log('[WalletService] Top-up calcul:', {
-      amount,
-      feeAmount,
-      netAmount,
-    });
+    // ✅ Envoyer le MONTANT DEMANDÉ à PawaPay (1.02)
     const amountStr = amount.toString();
     const pawapayData = {
-      amount: amountStr,
+      amount: amountStr, // ✅ 1.02 (montant demandé)
       currency: wallet.currency,
       provider,
       phone,
       walletId: wallet.id,
     };
 
-    console.log('[WalletService] Appel PawaPay deposit:', pawapayData);
+    console.log('[WalletService] Appel PawaPay deposit (montant demandé):', pawapayData);
     try {
       const pawapayResponse = await this.pawapayService.createDepositSimple(pawapayData);
       console.log('[WalletService] Réponse PawaPay:', pawapayResponse);
@@ -2982,7 +2987,7 @@ export class WalletServiceService {
             id: crypto.randomUUID(),
             userId,
             walletId: wallet.id,
-            amount: netAmount,
+            amount: netAmount, // ✅ Net (1.00)
             type: 'DEPOSIT',
             status: 'FAILED',
             reference: await this.generateTransactionReference('', tx),
@@ -3008,20 +3013,22 @@ export class WalletServiceService {
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         const description = this.i18nService.translate('wallet.transaction_description_deposit', lang)
-          .replace('{phone}', phone || '')  // ← Changé de {accountNumber} à {phone}
-          + ` (frais ${fees.depositFee}% : ${feeAmount} ${wallet.currency}) - Net crédité: ${netAmount} ${wallet.currency}`
+          .replace('{phone}', phone || '')
+          + ` (frais ${fees.depositFee}% : ${feeAmount.toFixed(2)} ${wallet.currency} déduits) - Net crédité: ${netAmount.toFixed(2)} ${wallet.currency}`
           + ' ' + this.i18nService.translate('wallet.via_pawapay', lang, { provider });
 
+        // ✅ Créditer le NET (1.00)
         const upd = await tx.wallet.update({
           where: { id: wallet.id },
           data: { balance: { increment: netAmount }, updatedAt: new Date() },
         });
+
         const txRecord = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
             userId,
             walletId: wallet.id,
-            amount: netAmount,
+            amount: netAmount, // ✅ Net (1.00) - ENREGISTRÉ EN BASE
             type: 'DEPOSIT',
             status: 'SUCCESS',
             reference: await this.generateTransactionReference('', tx),
@@ -3062,7 +3069,12 @@ export class WalletServiceService {
     }
 
     return {
-      message: this.i18nService.translate('wallet.top_up_success', lang),
+      message: this.i18nService.translate('wallet.top_up_success', lang, {
+        amount: netAmount.toFixed(2), // ✅ 1.00 (Net reçu)
+        feeAmount: feeAmount.toFixed(2), // 0.02
+        feePercent: fees.depositFee, // 2
+        currency: wallet.currency,
+      }),
       data: {
         wallet: this.toResponse(updatedWallet),
         transaction,
@@ -3231,18 +3243,18 @@ export class WalletServiceService {
       });
     }
 
-    // ========== CALCUL DES FRAIS (COMME DANS TOPUP) ==========
+    // ========== CALCUL DES FRAIS ==========
     // Récupérer les frais
     const fees = await this.getNetworkProviderFees(provider);
     const feeAmount = (amount * fees.payoutFee) / 100;
 
-    // ✅ Arrondir le netAmount à 2 décimales (comme dans topUp)
+    // ✅ Net reçu par l'utilisateur (montant demandé - frais)
     const netAmount = Math.round((amount - feeAmount) * 100) / 100;
 
-    console.log('[WalletService] Cashout calcul (comme topUp):', {
+    console.log('[WalletService] Cashout calcul:', {
       amount,        // 1.02 (montant demandé)
       feeAmount,     // 0.02 (frais)
-      netAmount,     // 1.00 (net reçu) ✅
+      netAmount,     // 1.00 (net reçu par l'utilisateur) ✅
       payoutFee: fees.payoutFee,
     });
 
@@ -3262,16 +3274,16 @@ export class WalletServiceService {
     let pawaPayErrorDetails: any = null;
     let externalReference: string | undefined;
 
-    // ✅ Envoyer le NET à PawaPay
-    const amountStr = netAmount.toString();
+    // ✅ Envoyer le MONTANT DEMANDÉ à PawaPay (1.02)
+    const amountStr = amount.toString(); // "1.02"
     const pawapayData = {
-      amount: amountStr,
+      amount: amountStr, // ✅ 1.02 (montant demandé)
       currency: wallet.currency,
       provider,
       phone,
     };
 
-    console.log('[WalletService] Appel PawaPay payout (net):', JSON.stringify(pawapayData, null, 2));
+    console.log('[WalletService] Appel PawaPay payout (montant demandé):', JSON.stringify(pawapayData, null, 2));
 
     try {
       const pawapayResponse = await this.pawapayService.createPayoutSimple(pawapayData);
@@ -3340,7 +3352,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: netAmount, // ✅ Net (comme dans topUp)
+              amount: netAmount, // ✅ Net (1.00)
               type: 'WITHDRAW',
               status: 'FAILED',
               reference: await this.generateTransactionReference('', tx),
@@ -3409,7 +3421,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: netAmount, // ✅ Net reçu (comme dans topUp)
+              amount: netAmount, // ✅ Net reçu (1.00) - ENREGISTRÉ EN BASE
               type: 'WITHDRAW',
               status: 'SUCCESS',
               reference: reference,
@@ -3442,7 +3454,7 @@ export class WalletServiceService {
         const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
         const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
           full_name: user.full_name || '',
-          amount: netAmount.toFixed(2), // ✅ Net reçu (1.00)
+          amount: netAmount.toFixed(2), // ✅ 1.00 (Net reçu)
           feeAmount: feeAmount.toFixed(2), // 0.02
           feePercent: fees.payoutFee, // 2
           currency: wallet.currency || 'CDF',
@@ -3478,7 +3490,7 @@ export class WalletServiceService {
     // ---------- 7. Retour ----------
     return {
       message: this.i18nService.translate('wallet.cashout_success', lang, {
-        amount: netAmount.toFixed(2), // ✅ Net reçu (1.00)
+        amount: netAmount.toFixed(2), // ✅ 1.00 (Net reçu)
         feeAmount: feeAmount.toFixed(2), // 0.02
         feePercent: fees.payoutFee, // 2
         currency: wallet.currency,
