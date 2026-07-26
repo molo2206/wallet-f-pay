@@ -1898,15 +1898,13 @@ export class UserServiceService {
               count: c._count.id,
             }))
             .sort((a, b) => b.count - a.count),
-          // ===== VOTRE STRUCTURE EXISTANTE (inchangée) =====
+          // ===== MÉTRIQUES CLÉS =====
           keyMetrics: {
             totalRegisteredUsers: totalUsers,
             totalApplicationDownloads: totalDownloads,
             totalMarchant: totalMerchant,
             totalAdmin,
             totalSuperAdmin,
-          },
-          wallet: {
             totalWalletBalances: totalWalletBalance._sum.balance || 0,
             totalTransactionsToday: totalTransactions,
             totalTransactionVolume: totalVolume,
@@ -1917,7 +1915,7 @@ export class UserServiceService {
             totalDebitAmount: totalDebits,
             netBalance,
           },
-          // ===== OBJETS RENOMMÉS (sans "ByCurrency") =====
+          // ===== VOLUMES PAR DEVISE =====
           volume: volume.map((v) => ({
             currency: v.currency || 'N/A',
             totalAmount: v._sum.amount || 0,
