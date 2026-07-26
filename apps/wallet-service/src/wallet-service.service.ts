@@ -3243,21 +3243,6 @@ export class WalletServiceService {
       });
     }
 
-    // ========== CALCUL DES FRAIS ==========
-    // Récupérer les frais
-    const fees = await this.getNetworkProviderFees(provider);
-    const feeAmount = (amount * fees.payoutFee) / 100;
-
-    // ✅ Net reçu par l'utilisateur (montant demandé - frais)
-    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
-
-    console.log('[WalletService] Cashout calcul:', {
-      amount,        // 1.02 (montant demandé)
-      feeAmount,     // 0.02 (frais)
-      netAmount,     // 1.00 (net reçu par l'utilisateur) ✅
-      payoutFee: fees.payoutFee,
-    });
-
     // ✅ Vérifier le solde (montant demandé)
     if (wallet.balance < amount) {
       throw new RpcException({
@@ -3275,15 +3260,15 @@ export class WalletServiceService {
     let externalReference: string | undefined;
 
     // ✅ Envoyer le MONTANT DEMANDÉ à PawaPay (1.02)
-    const amountStr = amount.toString(); // "1.02"
+    const amountStr = amount.toString();
     const pawapayData = {
-      amount: amountStr, // ✅ 1.02 (montant demandé)
+      amount: amountStr,
       currency: wallet.currency,
       provider,
       phone,
     };
 
-    console.log('[WalletService] Appel PawaPay payout (montant demandé):', JSON.stringify(pawapayData, null, 2));
+    console.log('[WalletService] Appel PawaPay payout:', JSON.stringify(pawapayData, null, 2));
 
     try {
       const pawapayResponse = await this.pawapayService.createPayoutSimple(pawapayData);
@@ -3352,7 +3337,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: netAmount, // ✅ Net (1.00)
+              amount: amount, // ✅ Montant demandé (1.02)
               type: 'WITHDRAW',
               status: 'FAILED',
               reference: await this.generateTransactionReference('', tx),
@@ -3401,10 +3386,13 @@ export class WalletServiceService {
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
+          // ✅ Récupérer les frais pour la description
+          const fees = await this.getNetworkProviderFees(provider);
+
           const description =
             this.i18nService.translate('wallet.transaction_description_withdraw', lang)
               .replace('{phone}', phone || '') +
-            ` (frais PawaPay ${fees.payoutFee}% : ${feeAmount.toFixed(2)} ${wallet.currency} déduits) - Net reçu: ${netAmount.toFixed(2)} ${wallet.currency}` +
+            ` (frais PawaPay ${fees.payoutFee}%)` +
             ' ' +
             this.i18nService.translate('wallet.via_pawapay', lang, { provider }) +
             (externalReference ? ` Ref: ${externalReference}` : '');
@@ -3421,7 +3409,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: netAmount, // ✅ Net reçu (1.00) - ENREGISTRÉ EN BASE
+              amount: amount, // ✅ 1.02 (montant demandé)
               type: 'WITHDRAW',
               status: 'SUCCESS',
               reference: reference,
@@ -3452,11 +3440,11 @@ export class WalletServiceService {
     if (user.phone) {
       try {
         const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
+        const fees = await this.getNetworkProviderFees(provider);
         const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
           full_name: user.full_name || '',
-          amount: netAmount.toFixed(2), // ✅ 1.00 (Net reçu)
-          feeAmount: feeAmount.toFixed(2), // 0.02
-          feePercent: fees.payoutFee, // 2
+          amount: amount.toFixed(2), // ✅ 1.02
+          feePercent: fees.payoutFee,
           currency: wallet.currency || 'CDF',
           balance: updatedWallet.balance || 0,
         });
@@ -3488,11 +3476,11 @@ export class WalletServiceService {
     }
 
     // ---------- 7. Retour ----------
+    const fees = await this.getNetworkProviderFees(provider);
     return {
       message: this.i18nService.translate('wallet.cashout_success', lang, {
-        amount: netAmount.toFixed(2), // ✅ 1.00 (Net reçu)
-        feeAmount: feeAmount.toFixed(2), // 0.02
-        feePercent: fees.payoutFee, // 2
+        amount: amount.toFixed(2), // ✅ 1.02
+        feePercent: fees.payoutFee,
         currency: wallet.currency,
       }),
       data: {
