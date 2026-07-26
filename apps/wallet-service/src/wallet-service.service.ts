@@ -3243,7 +3243,19 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Vérifier le solde (montant demandé) - AVANT le retrait
+    // ========== CALCUL DES FRAIS ==========
+    const fees = await this.getNetworkProviderFees(provider);
+    const feeAmount = (amount * fees.payoutFee) / 100;
+    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
+
+    console.log('[WalletService] Cashout calcul:', {
+      amount,        // 1.02 (montant demandé)
+      feeAmount,     // 0.02 (frais)
+      netAmount,     // 1.00 (net envoyé à PawaPay) ✅
+      payoutFee: fees.payoutFee,
+    });
+
+    // ✅ Vérifier le solde (montant demandé)
     if (wallet.balance < amount) {
       throw new RpcException({
         status: 'error',
@@ -3259,8 +3271,8 @@ export class WalletServiceService {
     let pawaPayErrorDetails: any = null;
     let externalReference: string | undefined;
 
-    // ✅ Envoyer le MONTANT DEMANDÉ à PawaPay (1.02)
-    const amountStr = amount.toString();
+    // ✅ Envoyer le NET à PawaPay (1.00)
+    const amountStr = netAmount.toString(); // "1.00" ✅
     const pawapayData = {
       amount: amountStr,
       currency: wallet.currency,
@@ -3268,7 +3280,7 @@ export class WalletServiceService {
       phone,
     };
 
-    console.log('[WalletService] Appel PawaPay payout:', JSON.stringify(pawapayData, null, 2));
+    console.log('[WalletService] Appel PawaPay payout (net):', JSON.stringify(pawapayData, null, 2));
 
     try {
       const pawapayResponse = await this.pawapayService.createPayoutSimple(pawapayData);
@@ -3337,7 +3349,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount,
+              amount: amount, // ✅ 1.02
               type: 'WITHDRAW',
               status: 'FAILED',
               reference: await this.generateTransactionReference('', tx),
@@ -3386,8 +3398,6 @@ export class WalletServiceService {
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
-          const fees = await this.getNetworkProviderFees(provider);
-
           const description =
             this.i18nService.translate('wallet.transaction_description_withdraw', lang)
               .replace('{phone}', phone || '') +
@@ -3408,7 +3418,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount,
+              amount: amount, // ✅ 1.02
               type: 'WITHDRAW',
               status: 'SUCCESS',
               reference: reference,
@@ -3439,10 +3449,9 @@ export class WalletServiceService {
     if (user.phone) {
       try {
         const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
-        const fees = await this.getNetworkProviderFees(provider);
         const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
           full_name: user.full_name || '',
-          amount: amount.toFixed(2),
+          amount: amount.toFixed(2), // ✅ 1.02
           feePercent: fees.payoutFee,
           currency: wallet.currency || 'CDF',
           balance: updatedWallet.balance || 0,
@@ -3475,10 +3484,9 @@ export class WalletServiceService {
     }
 
     // ---------- 7. Retour ----------
-    const fees = await this.getNetworkProviderFees(provider);
     return {
       message: this.i18nService.translate('wallet.cashout_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(2), // ✅ 1.02
         feePercent: fees.payoutFee,
         currency: wallet.currency,
       }),
