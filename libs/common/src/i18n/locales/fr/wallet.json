@@ -92,7 +92,7 @@
   "wallet.payout_provider_unavailable": "Le fournisseur {{provider}} est temporairement indisponible.",
   "wallet.payout_failed": "Le paiement mobile money a echoue.",
   "wallet.payout_technical_error": "Erreur technique lors du paiement mobile money.",
-  "wallet.bank_cashout_failed": "Le retrait bancaire a echoue : {{message}}",
+  "wallet.bank_cashout_failed": "Le retrait a echoue : {{message}}",
   "wallet.bank_error": "Erreur bancaire : {{error}}",
   "wallet.deposit_failed": "Le depot mobile money a echoue.",
   "wallet.deposit_technical_error": "Erreur technique lors du depot mobile money.",
