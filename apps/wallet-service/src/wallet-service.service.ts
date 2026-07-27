@@ -627,7 +627,7 @@ export class WalletServiceService {
 
     // ✅ Calculer le montant converti avec arrondi par défaut (floor)
     const rawConvertedAmount = amount * rate;
-    const convertedAmount = Math.floor(rawConvertedAmount * 100) / 100; // Arrondi à 2 décimales par défaut
+    const convertedAmount = Math.floor(rawConvertedAmount * 100) / 100;
 
     console.log('[WalletService] Conversion calculée:', {
       fromCurrency: fromWallet.currency,
@@ -663,21 +663,26 @@ export class WalletServiceService {
         // Créer les transactions
         const reference = `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 
-        // ✅ DESCRIPTION CORRIGÉE : Passer tous les paramètres
+        // ✅ Formater les valeurs pour l'affichage
+        const formattedAmount = amount.toFixed(2);
+        const formattedRate = rate.toFixed(4);
+        const formattedConvertedAmount = convertedAmount.toFixed(2);
+
+        // ✅ DESCRIPTION CORRIGÉE - Passer tous les paramètres avec les bons noms
         const debitDescription = description || this.i18nService.translate('wallet.conversion_debit', lang, {
-          amount: amount,
+          amount: formattedAmount,
           fromCurrency: fromWallet.currency,
           toCurrency: toWallet.currency,
-          rate: rate,
-          convertedAmount: convertedAmount,
+          rate: formattedRate,
+          convertedAmount: formattedConvertedAmount,
         });
 
         const creditDescription = description || this.i18nService.translate('wallet.conversion_credit', lang, {
-          amount: amount,
+          amount: formattedAmount,
           fromCurrency: fromWallet.currency,
           toCurrency: toWallet.currency,
-          rate: rate,
-          convertedAmount: convertedAmount,
+          rate: formattedRate,
+          convertedAmount: formattedConvertedAmount,
         });
 
         const senderTx = await tx.transaction.create({
