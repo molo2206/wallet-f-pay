@@ -625,7 +625,7 @@ export class WalletServiceService {
     // ✅ Récupérer le taux de change
     const rate = await this.getExchangeRate(fromWallet.currency, toWallet.currency);
 
-    // ✅ Calculer le montant converti
+    // ✅ Calculer le montant converti avec arrondi
     const rawConvertedAmount = amount * rate;
     const convertedAmount = Math.floor(rawConvertedAmount * 100) / 100;
 
@@ -649,6 +649,7 @@ export class WalletServiceService {
     // ✅ Transaction
     const result = await this.prisma.$transaction(
       async (tx) => {
+        // Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
@@ -658,21 +659,21 @@ export class WalletServiceService {
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
 
+        // Générer la référence
         const reference = `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 
-        // ✅ Utiliser la même méthode que topUp pour les descriptions
+        // ✅ Formater les valeurs pour la traduction
         const amountStr = amount.toFixed(2);
         const rateStr = rate.toFixed(4);
         const convertedStr = convertedAmount.toFixed(2);
         const fromCurrency = fromWallet.currency;
         const toCurrency = toWallet.currency;
 
-        // ✅ Construction des descriptions (comme dans topUp)
+        // ✅ Construction des descriptions avec traduction
         let debitDescription = description;
         let creditDescription = description;
 
         if (!debitDescription) {
-          // Essayer avec la traduction
           debitDescription = this.i18nService.translate('wallet.conversion_debit', lang, {
             amount: amountStr,
             fromCurrency: fromCurrency,
@@ -680,10 +681,6 @@ export class WalletServiceService {
             rate: rateStr,
             convertedAmount: convertedStr,
           });
-          // Si la traduction retourne la clé ou contient encore {{, on construit manuellement
-          if (debitDescription.includes('{{') || debitDescription === 'wallet.conversion_debit') {
-            debitDescription = `Conversion de ${amountStr} ${fromCurrency} vers ${toCurrency} (taux ${rateStr}) : ${convertedStr} ${toCurrency}`;
-          }
         }
 
         if (!creditDescription) {
@@ -694,14 +691,12 @@ export class WalletServiceService {
             rate: rateStr,
             convertedAmount: convertedStr,
           });
-          if (creditDescription.includes('{{') || creditDescription === 'wallet.conversion_credit') {
-            creditDescription = `Réception de conversion : ${amountStr} ${fromCurrency} -> ${convertedStr} ${toCurrency}`;
-          }
         }
 
         console.log('[WalletService] Debit description:', debitDescription);
         console.log('[WalletService] Credit description:', creditDescription);
 
+        // Créer la transaction de débit (wallet source)
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -717,6 +712,7 @@ export class WalletServiceService {
           },
         });
 
+        // Créer la transaction de crédit (wallet destination)
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -732,6 +728,7 @@ export class WalletServiceService {
           },
         });
 
+        // Audit
         await this.logAudit(user.id, 'convertCurrency', {
           from: updatedFrom,
           to: updatedTo,
@@ -755,7 +752,7 @@ export class WalletServiceService {
       }
     );
 
-    // Notifications
+    // ✅ Notifications
     try {
       await notifyTransaction(
         this.smsService,
@@ -773,6 +770,7 @@ export class WalletServiceService {
       console.error('[Notifications] convert error:', err);
     }
 
+    // ✅ Message de succès avec traduction
     return {
       message: this.i18nService.translate('wallet.conversion_success', lang, {
         fromCurrency: fromWallet.currency,
