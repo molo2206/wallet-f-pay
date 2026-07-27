@@ -1798,8 +1798,8 @@ export class UserServiceService {
         _count: { id: true },
       });
 
-      // ========== 4. CASH PAR CURRENCY ==========
-      const cash = await this.prisma.transaction.groupBy({
+      // ========== 4. CASH PAR CURRENCY AVEC DEBIT, CREDIT ET BALANCE ==========
+      const cashRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
           ...transactionWhere,
@@ -1809,8 +1809,57 @@ export class UserServiceService {
         _count: { id: true },
       });
 
-      // ========== 5. MOBILE PAR CURRENCY ==========
-      const mobile = await this.prisma.transaction.groupBy({
+      const cashCreditRaw = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: {
+          ...transactionWhere,
+          paymentMethod: 'CASH',
+          movement: 'CREDIT'
+        },
+        _sum: { amount: true },
+      });
+
+      const cashDebitRaw = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: {
+          ...transactionWhere,
+          paymentMethod: 'CASH',
+          movement: 'DEBIT'
+        },
+        _sum: { amount: true },
+      });
+
+      const cashMap = new Map();
+      for (const item of cashRaw) {
+        const currency = item.currency || 'N/A';
+        cashMap.set(currency, {
+          currency,
+          totalAmount: item._sum.amount || 0,
+          count: item._count.id || 0,
+          credit: 0,
+          debit: 0,
+          balance: 0,
+        });
+      }
+      for (const item of cashCreditRaw) {
+        const currency = item.currency || 'N/A';
+        if (cashMap.has(currency)) {
+          cashMap.get(currency).credit = item._sum.amount || 0;
+        }
+      }
+      for (const item of cashDebitRaw) {
+        const currency = item.currency || 'N/A';
+        if (cashMap.has(currency)) {
+          cashMap.get(currency).debit = item._sum.amount || 0;
+        }
+      }
+      for (const [, value] of cashMap) {
+        value.balance = (value.credit || 0) - (value.debit || 0);
+      }
+      const cash = Array.from(cashMap.values());
+
+      // ========== 5. MOBILE PAR CURRENCY AVEC DEBIT, CREDIT ET BALANCE ==========
+      const mobileRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
           ...transactionWhere,
@@ -1819,6 +1868,55 @@ export class UserServiceService {
         _sum: { amount: true },
         _count: { id: true },
       });
+
+      const mobileCreditRaw = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: {
+          ...transactionWhere,
+          paymentMethod: 'MOBILE_MONEY',
+          movement: 'CREDIT'
+        },
+        _sum: { amount: true },
+      });
+
+      const mobileDebitRaw = await this.prisma.transaction.groupBy({
+        by: ['currency'],
+        where: {
+          ...transactionWhere,
+          paymentMethod: 'MOBILE_MONEY',
+          movement: 'DEBIT'
+        },
+        _sum: { amount: true },
+      });
+
+      const mobileMap = new Map();
+      for (const item of mobileRaw) {
+        const currency = item.currency || 'N/A';
+        mobileMap.set(currency, {
+          currency,
+          totalAmount: item._sum.amount || 0,
+          count: item._count.id || 0,
+          credit: 0,
+          debit: 0,
+          balance: 0,
+        });
+      }
+      for (const item of mobileCreditRaw) {
+        const currency = item.currency || 'N/A';
+        if (mobileMap.has(currency)) {
+          mobileMap.get(currency).credit = item._sum.amount || 0;
+        }
+      }
+      for (const item of mobileDebitRaw) {
+        const currency = item.currency || 'N/A';
+        if (mobileMap.has(currency)) {
+          mobileMap.get(currency).debit = item._sum.amount || 0;
+        }
+      }
+      for (const [, value] of mobileMap) {
+        value.balance = (value.credit || 0) - (value.debit || 0);
+      }
+      const mobile = Array.from(mobileMap.values());
 
       const totalDownloads = 0;
       const totalVolume = totalTransactionVolume._sum.amount || 0;
@@ -1916,13 +2014,11 @@ export class UserServiceService {
       return {
         message: 'Dashboard data retrieved successfully',
         data: {
-          // 🔥 Filtres appliqués
           filters: {
             startDate,
             endDate,
             countryCode: countryCode || 'Tous',
           },
-          // 🔥 Pays disponibles pour le filtre
           availableCountries: availableCountries
             .filter(c => c.countryCode)
             .map(c => ({
@@ -1930,7 +2026,6 @@ export class UserServiceService {
               count: c._count.id,
             }))
             .sort((a, b) => b.count - a.count),
-          // ===== MÉTRIQUES CLÉS =====
           keyMetrics: {
             totalRegisteredUsers: totalUsers,
             totalApplicationDownloads: totalDownloads,
@@ -1947,7 +2042,6 @@ export class UserServiceService {
             totalDebitAmount: totalDebits,
             netBalance,
           },
-          // ===== VOLUMES PAR DEVISE =====
           volume: volume.map((v) => ({
             currency: v.currency || 'N/A',
             totalAmount: v._sum.amount || 0,
@@ -1958,16 +2052,8 @@ export class UserServiceService {
             totalAmount: v._sum.amount || 0,
             count: v._count.id || 0,
           })),
-          cash: cash.map((v) => ({
-            currency: v.currency || 'N/A',
-            totalAmount: v._sum.amount || 0,
-            count: v._count.id || 0,
-          })),
-          mobile: mobile.map((v) => ({
-            currency: v.currency || 'N/A',
-            totalAmount: v._sum.amount || 0,
-            count: v._count.id || 0,
-          })),
+          cash: cash,
+          mobile: mobile,
           charts: {
             transactionVolume: volumeChart,
             paymentsByType: formattedPayments,
