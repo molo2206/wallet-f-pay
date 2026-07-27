@@ -44,7 +44,7 @@
   "profile_update_sms": "Bonjour {{full_name}}, votre profil (compte {{account_number}}) a ete mis a jour.",
   "password_changed_sms": "Votre mot de passe a ete modifie. Si vous n'etes pas a l'origine, contactez le support.",
   "pin_changed_sms": "Votre code PIN a ete modifie.",
-  "welcome_sms": "Bonjour {{full_name}}, votre compte F-Pay est cree. Tel: {{phone}}. Mdp: {{password}}. PIN: {{pin}}. Merci.",
+  "welcome_sms": "Bonjour {{full_name}}, votre compte F-Pay est cree. Tel: {{phone}}. Mot de passe: {{password}}. PIN: {{pin}}. Merci.",
   "kyc_submitted_success": "Votre demande KYC a ete soumise avec succes",
   "kyc_status_retrieved": "Statut KYC recupere avec succes",
   "kyc_submissions_retrieved": "Soumissions KYC recuperees avec succes",

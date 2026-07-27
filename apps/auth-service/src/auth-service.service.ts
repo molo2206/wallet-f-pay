@@ -367,17 +367,17 @@ export class AuthServiceService {
         });
       }
 
-      try {
-        const welcomeSms = this.i18nService.translate('welcome_sms', lang, {
-          full_name: user.full_name,
-          account_number: user.account_number,
-          phone: phone,
-          password: plainPassword,
-        });
-        await this.smsService.sendSms(phone, welcomeSms, data.countryCode);
-      } catch (err) {
-        console.error('Erreur SMS bienvenue:', err);
-      }
+      // try {
+      //   const welcomeSms = this.i18nService.translate('welcome_sms_begin', lang, {
+      //     full_name: user.full_name,
+      //     account_number: user.account_number,
+      //     phone: phone,
+      //     password: plainPassword,
+      //   });
+      //   await this.smsService.sendSms(phone, welcomeSms, data.countryCode);
+      // } catch (err) {
+      //   console.error('Erreur SMS bienvenue:', err);
+      // }
 
       if (user.email) {
         try {
