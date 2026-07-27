@@ -660,7 +660,7 @@ export class WalletServiceService {
         });
 
         // Générer la référence
-        const reference = `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+        const reference = await this.generateTransactionReference('', tx)
 
         // ✅ Formater les valeurs pour la traduction
         const amountStr = amount.toFixed(2);
@@ -5238,7 +5238,7 @@ export class WalletServiceService {
                 currency: feeCurrency,
               });
 
-              const feeReference = await this.generateTransactionReference('FEE', tx);
+              const feeReference = await this.generateTransactionReference('', tx);
               const reference = await this.generateTransactionReference('', tx);
 
               systemTransaction = await tx.transaction.create({
@@ -5307,7 +5307,7 @@ export class WalletServiceService {
         }
 
         // 10. Créer les transactions
-        const reference = await this.generateTransactionReference('FID', tx);
+        const reference = await this.generateTransactionReference('', tx);
 
         const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
