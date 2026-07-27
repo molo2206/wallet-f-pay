@@ -622,10 +622,10 @@ export class WalletServiceService {
       data: { failed_pin_attempts: 0, pin_locked_until: null }
     });
 
-    // ✅ Récupérer le taux de change une seule fois (optimisé)
+    // ✅ Récupérer le taux de change
     const rate = await this.getExchangeRate(fromWallet.currency, toWallet.currency);
 
-    // ✅ Calculer le montant converti avec arrondi par défaut (floor)
+    // ✅ Calculer le montant converti
     const rawConvertedAmount = amount * rate;
     const convertedAmount = Math.floor(rawConvertedAmount * 100) / 100;
 
@@ -638,7 +638,6 @@ export class WalletServiceService {
       convertedAmount,
     });
 
-    // ✅ Vérifier que le montant converti est valide
     if (convertedAmount <= 0) {
       throw new RpcException({
         status: 'error',
@@ -647,10 +646,9 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Transaction rapide
+    // ✅ Transaction
     const result = await this.prisma.$transaction(
       async (tx) => {
-        // Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
@@ -660,30 +658,49 @@ export class WalletServiceService {
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
 
-        // Créer les transactions
         const reference = `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 
-        // ✅ Formater les valeurs pour l'affichage
-        const formattedAmount = amount.toFixed(2);
-        const formattedRate = rate.toFixed(4);
-        const formattedConvertedAmount = convertedAmount.toFixed(2);
+        // ✅ Utiliser la même méthode que topUp pour les descriptions
+        const amountStr = amount.toFixed(2);
+        const rateStr = rate.toFixed(4);
+        const convertedStr = convertedAmount.toFixed(2);
+        const fromCurrency = fromWallet.currency;
+        const toCurrency = toWallet.currency;
 
-        // ✅ DESCRIPTION CORRIGÉE - Passer tous les paramètres avec les bons noms
-        const debitDescription = description || this.i18nService.translate('wallet.conversion_debit', lang, {
-          amount: formattedAmount,
-          fromCurrency: fromWallet.currency,
-          toCurrency: toWallet.currency,
-          rate: formattedRate,
-          convertedAmount: formattedConvertedAmount,
-        });
+        // ✅ Construction des descriptions (comme dans topUp)
+        let debitDescription = description;
+        let creditDescription = description;
 
-        const creditDescription = description || this.i18nService.translate('wallet.conversion_credit', lang, {
-          amount: formattedAmount,
-          fromCurrency: fromWallet.currency,
-          toCurrency: toWallet.currency,
-          rate: formattedRate,
-          convertedAmount: formattedConvertedAmount,
-        });
+        if (!debitDescription) {
+          // Essayer avec la traduction
+          debitDescription = this.i18nService.translate('wallet.conversion_debit', lang, {
+            amount: amountStr,
+            fromCurrency: fromCurrency,
+            toCurrency: toCurrency,
+            rate: rateStr,
+            convertedAmount: convertedStr,
+          });
+          // Si la traduction retourne la clé ou contient encore {{, on construit manuellement
+          if (debitDescription.includes('{{') || debitDescription === 'wallet.conversion_debit') {
+            debitDescription = `Conversion de ${amountStr} ${fromCurrency} vers ${toCurrency} (taux ${rateStr}) : ${convertedStr} ${toCurrency}`;
+          }
+        }
+
+        if (!creditDescription) {
+          creditDescription = this.i18nService.translate('wallet.conversion_credit', lang, {
+            amount: amountStr,
+            fromCurrency: fromCurrency,
+            toCurrency: toCurrency,
+            rate: rateStr,
+            convertedAmount: convertedStr,
+          });
+          if (creditDescription.includes('{{') || creditDescription === 'wallet.conversion_credit') {
+            creditDescription = `Réception de conversion : ${amountStr} ${fromCurrency} -> ${convertedStr} ${toCurrency}`;
+          }
+        }
+
+        console.log('[WalletService] Debit description:', debitDescription);
+        console.log('[WalletService] Credit description:', creditDescription);
 
         const senderTx = await tx.transaction.create({
           data: {
@@ -757,7 +774,13 @@ export class WalletServiceService {
     }
 
     return {
-      message: this.i18nService.translate('wallet.conversion_success', lang),
+      message: this.i18nService.translate('wallet.conversion_success', lang, {
+        fromCurrency: fromWallet.currency,
+        toCurrency: toWallet.currency,
+        amount: amount.toFixed(2),
+        convertedAmount: convertedAmount.toFixed(2),
+        rate: rate.toFixed(4),
+      }),
       data: {
         fromWallet: this.toResponse(result.fromWallet),
         toWallet: this.toResponse(result.toWallet),
