@@ -1798,7 +1798,7 @@ export class UserServiceService {
         _count: { id: true },
       });
 
-      // ========== 4. CASH PAR CURRENCY AVEC DEBIT, CREDIT ET BALANCE ==========
+      // ========== 4. CASH PAR CURRENCY AVEC CREDIT, DEBIT ET BALANCE ==========
       const cashRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
@@ -1834,7 +1834,6 @@ export class UserServiceService {
         const currency = item.currency || 'N/A';
         cashMap.set(currency, {
           currency,
-          totalAmount: item._sum.amount || 0,
           count: item._count.id || 0,
           credit: 0,
           debit: 0,
@@ -1858,7 +1857,7 @@ export class UserServiceService {
       }
       const cash = Array.from(cashMap.values());
 
-      // ========== 5. MOBILE PAR CURRENCY AVEC DEBIT, CREDIT ET BALANCE ==========
+      // ========== 5. MOBILE PAR CURRENCY AVEC CREDIT, DEBIT ET BALANCE ==========
       const mobileRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
@@ -1894,7 +1893,6 @@ export class UserServiceService {
         const currency = item.currency || 'N/A';
         mobileMap.set(currency, {
           currency,
-          totalAmount: item._sum.amount || 0,
           count: item._count.id || 0,
           credit: 0,
           debit: 0,
