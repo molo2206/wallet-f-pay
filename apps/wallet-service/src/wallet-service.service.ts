@@ -663,22 +663,33 @@ export class WalletServiceService {
         // Créer les transactions
         const reference = `CONV_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 
+        // ✅ DESCRIPTION CORRIGÉE : Passer tous les paramètres
+        const debitDescription = description || this.i18nService.translate('wallet.conversion_debit', lang, {
+          amount: amount,
+          fromCurrency: fromWallet.currency,
+          toCurrency: toWallet.currency,
+          rate: rate,
+          convertedAmount: convertedAmount,
+        });
+
+        const creditDescription = description || this.i18nService.translate('wallet.conversion_credit', lang, {
+          amount: amount,
+          fromCurrency: fromWallet.currency,
+          toCurrency: toWallet.currency,
+          rate: rate,
+          convertedAmount: convertedAmount,
+        });
+
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
             userId: user.id,
             walletId: fromWallet.id,
-            amount,
+            amount: amount,
             type: 'TRANSFER',
             status: 'SUCCESS',
             reference: reference,
-            description: description || this.i18nService.translate('wallet.conversion_debit', lang, {
-              amount,
-              fromCurrency: fromWallet.currency,
-              toCurrency: toWallet.currency,
-              rate,
-              convertedAmount,
-            }),
+            description: debitDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
           },
@@ -693,13 +704,7 @@ export class WalletServiceService {
             type: 'DEPOSIT',
             status: 'SUCCESS',
             reference: reference,
-            description: description || this.i18nService.translate('wallet.conversion_credit', lang, {
-              amount,
-              fromCurrency: fromWallet.currency,
-              toCurrency: toWallet.currency,
-              rate,
-              convertedAmount,
-            }),
+            description: creditDescription,
             movement: 'CREDIT',
             currency: toWallet.currency,
           },
@@ -5299,7 +5304,7 @@ export class WalletServiceService {
             description: senderDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
-            paymentMethod:'MOBILE_MONEY',
+            paymentMethod: 'MOBILE_MONEY',
           },
         });
 
@@ -5315,7 +5320,7 @@ export class WalletServiceService {
             description: receiverDescription,
             movement: 'CREDIT',
             currency: targetWallet.currency,
-            paymentMethod:'MOBILE_MONEY',
+            paymentMethod: 'MOBILE_MONEY',
           },
         });
 
