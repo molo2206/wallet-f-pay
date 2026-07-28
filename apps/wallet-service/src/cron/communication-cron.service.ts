@@ -877,145 +877,145 @@ export class CommunicationCronService {
     }
 
     // ==================== RAPPEL SOLDE FAIBLE (15h) ====================
-    @Cron('0 15 * * *')
-    async remindLowBalance() {
-        if (this.isRunning) return;
-        this.isRunning = true;
-        try {
-            this.logger.log('Verification des soldes faibles');
+    // @Cron('0 15 * * *')
+    // async remindLowBalance() {
+    //     if (this.isRunning) return;
+    //     this.isRunning = true;
+    //     try {
+    //         this.logger.log('Verification des soldes faibles');
 
-            const users = await this.prisma.user.findMany({
-                where: {
-                    status: 'ACTIVE',
-                    deleted: false,
-                },
-                include: {
-                    wallets: {
-                        where: { isActive: true },
-                    },
-                    user_settings: true,
-                },
-            });
+    //         const users = await this.prisma.user.findMany({
+    //             where: {
+    //                 status: 'ACTIVE',
+    //                 deleted: false,
+    //             },
+    //             include: {
+    //                 wallets: {
+    //                     where: { isActive: true },
+    //                 },
+    //                 user_settings: true,
+    //             },
+    //         });
 
-            let sentCount = 0;
-            for (const user of users) {
-                const mainWallet = user.wallets?.sort((a, b) => a.balance - b.balance)[0];
-                if (!mainWallet || mainWallet.balance > 500) continue;
+    //         let sentCount = 0;
+    //         for (const user of users) {
+    //             const mainWallet = user.wallets?.sort((a, b) => a.balance - b.balance)[0];
+    //             if (!mainWallet || mainWallet.balance > 500) continue;
 
-                const settings = user.user_settings && user.user_settings.length > 0 ? user.user_settings[0] : null;
-                const lang = settings?.language || 'fr';
+    //             const settings = user.user_settings && user.user_settings.length > 0 ? user.user_settings[0] : null;
+    //             const lang = settings?.language || 'fr';
 
-                const title = this.t('cron.low_balance.title', lang);
-                const body = this.t('cron.low_balance.body', lang, {
-                    balance: mainWallet.balance || 0,
-                    currency: mainWallet.currency || 'CDF',
-                });
+    //             const title = this.t('cron.low_balance.title', lang);
+    //             const body = this.t('cron.low_balance.body', lang, {
+    //                 balance: mainWallet.balance || 0,
+    //                 currency: mainWallet.currency || 'CDF',
+    //             });
 
-                await this.notificationHelper.notify(
-                    user.id,
-                    NotificationType.WALLET,
-                    {
-                        title,
-                        message: body,
-                        balance: mainWallet.balance || 0,
-                        currency: mainWallet.currency || 'CDF',
-                    },
-                    'WALLET',
-                    mainWallet.id,
-                    lang,
-                );
+    //             await this.notificationHelper.notify(
+    //                 user.id,
+    //                 NotificationType.WALLET,
+    //                 {
+    //                     title,
+    //                     message: body,
+    //                     balance: mainWallet.balance || 0,
+    //                     currency: mainWallet.currency || 'CDF',
+    //                 },
+    //                 'WALLET',
+    //                 mainWallet.id,
+    //                 lang,
+    //             );
 
-                sentCount++;
-            }
+    //             sentCount++;
+    //         }
 
-            this.logger.log(`Rappels solde faible envoyes a ${sentCount} utilisateurs`);
-        } catch (error) {
-            this.logger.error('Erreur rappel solde faible:', error);
-        } finally {
-            this.isRunning = false;
-        }
-    }
+    //         this.logger.log(`Rappels solde faible envoyes a ${sentCount} utilisateurs`);
+    //     } catch (error) {
+    //         this.logger.error('Erreur rappel solde faible:', error);
+    //     } finally {
+    //         this.isRunning = false;
+    //     }
+    // }
 
     // ==================== RAPPEL TRANSACTIONS EN ATTENTE (14h) ====================
-    @Cron('0 14 * * *')
-    async remindPendingTransactions() {
-        if (this.isRunning) return;
-        this.isRunning = true;
-        try {
-            this.logger.log('Verification des transactions en attente');
+    // @Cron('0 14 * * *')
+    // async remindPendingTransactions() {
+    //     if (this.isRunning) return;
+    //     this.isRunning = true;
+    //     try {
+    //         this.logger.log('Verification des transactions en attente');
 
-            const transactions = await this.prisma.transaction.findMany({
-                where: {
-                    status: 'PENDING',
-                    createdAt: {
-                        lt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-                    },
-                },
-                include: {
-                    user: {
-                        include: {
-                            user_settings: true,
-                        },
-                    },
-                },
-            });
+    //         const transactions = await this.prisma.transaction.findMany({
+    //             where: {
+    //                 status: 'PENDING',
+    //                 createdAt: {
+    //                     lt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    //                 },
+    //             },
+    //             include: {
+    //                 user: {
+    //                     include: {
+    //                         user_settings: true,
+    //                     },
+    //                 },
+    //             },
+    //         });
 
-            const userTransactions = new Map<string, any[]>();
-            for (const tx of transactions) {
-                if (!tx.user) continue;
-                const list = userTransactions.get(tx.userId) || [];
-                list.push(tx);
-                userTransactions.set(tx.userId, list);
-            }
+    //         const userTransactions = new Map<string, any[]>();
+    //         for (const tx of transactions) {
+    //             if (!tx.user) continue;
+    //             const list = userTransactions.get(tx.userId) || [];
+    //             list.push(tx);
+    //             userTransactions.set(tx.userId, list);
+    //         }
 
-            let sentCount = 0;
-            for (const [userId, txs] of userTransactions) {
-                const user = txs[0].user;
-                const settings = user.user_settings && user.user_settings.length > 0 ? user.user_settings[0] : null;
-                const lang = settings?.language || 'fr';
+    //         let sentCount = 0;
+    //         for (const [userId, txs] of userTransactions) {
+    //             const user = txs[0].user;
+    //             const settings = user.user_settings && user.user_settings.length > 0 ? user.user_settings[0] : null;
+    //             const lang = settings?.language || 'fr';
 
-                const totalAmount = txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
-                const currency = txs[0]?.currency || 'CDF';
+    //             const totalAmount = txs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    //             const currency = txs[0]?.currency || 'CDF';
 
-                let body = '';
-                if (txs.length === 1) {
-                    body = this.t('cron.transaction_reminder.body_single', lang, {
-                        amount: txs[0].amount || 0,
-                        currency: currency,
-                    });
-                } else {
-                    body = this.t('cron.transaction_reminder.body_multiple', lang, {
-                        count: txs.length,
-                    });
-                }
+    //             let body = '';
+    //             if (txs.length === 1) {
+    //                 body = this.t('cron.transaction_reminder.body_single', lang, {
+    //                     amount: txs[0].amount || 0,
+    //                     currency: currency,
+    //                 });
+    //             } else {
+    //                 body = this.t('cron.transaction_reminder.body_multiple', lang, {
+    //                     count: txs.length,
+    //                 });
+    //             }
 
-                const title = this.t('cron.transaction_reminder.title', lang);
+    //             const title = this.t('cron.transaction_reminder.title', lang);
 
-                await this.notificationHelper.notify(
-                    userId,
-                    NotificationType.TRANSACTION,
-                    {
-                        title,
-                        message: body,
-                        amount: totalAmount,
-                        currency: currency,
-                        count: txs.length,
-                    },
-                    'TRANSACTION',
-                    txs[0].id,
-                    lang,
-                );
+    //             await this.notificationHelper.notify(
+    //                 userId,
+    //                 NotificationType.TRANSACTION,
+    //                 {
+    //                     title,
+    //                     message: body,
+    //                     amount: totalAmount,
+    //                     currency: currency,
+    //                     count: txs.length,
+    //                 },
+    //                 'TRANSACTION',
+    //                 txs[0].id,
+    //                 lang,
+    //             );
 
-                sentCount++;
-            }
+    //             sentCount++;
+    //         }
 
-            this.logger.log(`Rappels transactions envoyes a ${sentCount} utilisateurs`);
-        } catch (error) {
-            this.logger.error('Erreur rappel transactions:', error);
-        } finally {
-            this.isRunning = false;
-        }
-    }
+    //         this.logger.log(`Rappels transactions envoyes a ${sentCount} utilisateurs`);
+    //     } catch (error) {
+    //         this.logger.error('Erreur rappel transactions:', error);
+    //     } finally {
+    //         this.isRunning = false;
+    //     }
+    // }
 
     // ==================== BIENVENUE NOUVEAUX UTILISATEURS (8h) ====================
     @Cron('0 8 * * *')
