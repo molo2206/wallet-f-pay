@@ -173,7 +173,7 @@
   "wallet.admin_validation_required": "This international send requires administrative validation.",
   "wallet.transfer_confirmed": "Your international send of {{amount}} {{currency}} has been confirmed and the recipient has been notified.",
   "wallet.transfer_received_international": "You have received {{amount}} {{currency}} from {{fromName}} (international send confirmed).",
-  "wallet.transfer_pending_sms": "Send successful",
+  "wallet.transfer_pending_sms": "Hello {{full_name}}, your international send of {{amount}} {{currency}} is pending validation. You will receive confirmation once approved.",
   "wallet.transfer_confirmed_sms": "Hello {{full_name}}, your international send of {{amount}} {{currency}} has been validated. The recipient has been notified.",
   "wallet.transfer_received_confirmed_sms": "Hello {{full_name}}, you have received {{amount}} {{currency}} from {{fromName}} (international send confirmed). Balance: {{balance}} {{currency}}.",
   "wallet.transfer_international_otp_sent": "A validation code has been sent to the sender to confirm the international send.",

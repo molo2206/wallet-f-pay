@@ -173,7 +173,7 @@
   "wallet.admin_validation_required": "Upelekaji huu wa kimataifa unahitaji uthibitisho wa kiutawala.",
   "wallet.transfer_confirmed": "Upelekaji wako wa kimataifa wa {{amount}} {{currency}} umethibitishwa na mpokeaji amearifiwa.",
   "wallet.transfer_received_international": "Umepokea {{amount}} {{currency}} kutoka {{fromName}} (upelekaji wa kimataifa umethibitishwa).",
-  "wallet.transfer_pending_sms": "Uhamisho umefaulu",
+  "wallet.transfer_pending_sms": "Habari {{full_name}}, upelekaji wako wa kimataifa wa {{amount}} {{currency}} unasubiri uthibitisho. Utapata uthibitisho mara baada ya kuidhinishwa.",
   "wallet.transfer_confirmed_sms": "Habari {{full_name}}, upelekaji wako wa kimataifa wa {{amount}} {{currency}} umeidhinishwa. Mpokeaji amearifiwa.",
   "wallet.transfer_received_confirmed_sms": "Habari {{full_name}}, umepokea {{amount}} {{currency}} kutoka {{fromName}} (upelekaji wa kimataifa umethibitishwa). Salio: {{balance}} {{currency}}.",
   "wallet.transfer_international_otp_sent": "Msimbo wa uthibitisho umetumwa kwa mtumaji kuthibitisha upelekaji wa kimataifa.",
