@@ -18,6 +18,7 @@ export interface UserInfoDto {
   pin?: string | null;
   passwordStatus: string | null;
   pinstatus: boolean | null;
+  locked_by_admin: boolean | null;
   merchantCode?: string | null;
   businessName?: string | null;
   countryCode?: string | null;
@@ -26,6 +27,7 @@ export interface UserInfoDto {
   // ✅ AJOUTER TOUT ICI
   sessionId?: string | null;
   sessions?: SessionDto[];
+
   resources?: ResourcePermissionDto[];
   wallets?: WalletDto[];
   kyc?: KycDto;

@@ -1155,8 +1155,9 @@ export class UserServiceService {
     // Vérifier que l'utilisateur existe
     const userExist = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true },
+      select: { id: true, role: true, status: true },
     });
+
     if (!userExist) {
       throw new RpcException({
         status: 'error',
@@ -1195,7 +1196,7 @@ export class UserServiceService {
       });
     }
 
-    // Mapper vers l'enum Prisma (vérifier le nom exact de votre enum)
+    // Mapper vers l'enum Prisma
     let enumStatus: user_status;
     switch (normalized) {
       case 'ACTIVE':
@@ -1218,11 +1219,44 @@ export class UserServiceService {
         });
     }
 
-    // Mise à jour
+    // ✅ Préparer les données de mise à jour
+    const updateData: any = {
+      status: enumStatus,
+      updatedAt: new Date()
+    };
+
+    // ✅ Si le statut est BLOCKED, c'est un blocage par admin
+    if (normalized === 'BLOCKED') {
+      updateData.locked_by_admin = true;
+      updateData.locked_until = null; // Pas de déblocage auto
+      updateData.failed_login_attempts = 0;
+    }
+
+    // ✅ Si on passe de BLOCKED à un autre statut, réinitialiser locked_by_admin
+    if (userExist.status === user_status.BLOCKED && normalized !== 'BLOCKED') {
+      updateData.locked_by_admin = false;
+      updateData.locked_until = null;
+      updateData.failed_login_attempts = 0;
+    }
+
+    // ✅ Mise à jour
     const updatedUser = await this.prisma.user.update({
       where: { id },
-      data: { status: enumStatus, updatedAt: new Date() },
+      data: updateData,
     });
+
+    // ✅ Audit log
+    await this.logAudit(
+      requesterId,
+      `UPDATE_USER_STATUS_TO_${normalized}`,
+      {
+        targetUserId: id,
+        oldStatus: userExist.status,
+        newStatus: normalized,
+        lockedByAdmin: normalized === 'BLOCKED',
+      },
+      null,
+    );
 
     return {
       message: this.i18nService.translate('status_updated_success', lang),

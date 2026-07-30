@@ -68,6 +68,7 @@ model user {
   lifetime_points                                                   Int?                     @default(0)
   referred_by                                                       String?                  @db.VarChar(36)
   referral_count                                                    Int?                     @default(0)
+  locked_by_admin                                                   Boolean?                 @default(false)
   api_key                                                           api_key[]
   audit_log                                                         audit_log[]
   failed_transaction_log                                            failed_transaction_log[]
