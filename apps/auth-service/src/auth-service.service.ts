@@ -47,12 +47,7 @@ export class AuthServiceService {
     private readonly mailService: MailService,
     private readonly i18nService: I18nService,
     private readonly bankService: BankService,
-
   ) { }
-  private readonly MAX_LOGIN_ATTEMPTS_BEFORE_SUSPEND = 10;
-  private readonly MAX_LOGIN_ATTEMPTS_BEFORE_BLOCK = 15;
-  private readonly SUSPEND_DURATION_MINUTES = 5;
-  private readonly BLOCK_DURATION_MINUTES = 60;
 
   private normalizePhone(phone: string): string {
     return phone.replace(/[^0-9]/g, '');
@@ -535,7 +530,6 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
-
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
     ipAddress?: string,
@@ -544,14 +538,14 @@ export class AuthServiceService {
     const identifier = dto.identifier;
 
     try {
-      //  Normaliser l'identifiant si c'est un téléphone
+      // ✅ Normaliser l'identifiant si c'est un téléphone
       let normalizedIdentifier = identifier;
       if (identifier && /^[0-9+\s\-\.\(\)]+$/.test(identifier)) {
         normalizedIdentifier = this.normalizePhone(identifier);
       }
 
-      // Récupérer l'utilisateur
-      let user = await this.prisma.user.findFirst({
+      // ✅ Récupérer l'utilisateur avec toutes les variantes possibles
+      const user = await this.prisma.user.findFirst({
         where: {
           OR: [
             { phone: normalizedIdentifier },
@@ -585,7 +579,6 @@ export class AuthServiceService {
           kycStatus: true,
           countryCode: true,
           profileImage: true,
-          locked_by_admin: true,
         },
       });
 
@@ -619,84 +612,11 @@ export class AuthServiceService {
         });
       }
 
-      // ✅ VÉRIFICATION DU BLOCAGE
-
-      // 1️⃣ Blocage par ADMIN (ne se débloque pas automatiquement)
-      if (user.locked_by_admin === true) {
-        await logFailedLoginAttempt(
-          this.prisma,
-          user.id,
-          identifier,
-          ipAddress,
-          dto.userAgent,
-        );
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('account_blocked_by_admin', lang),
-          statusCode: 403,
-        });
-      }
-
-      // 2️⃣ Vérifier si le verrouillage automatique est expiré (déblocage auto)
-      if (user.locked_until && user.locked_until <= new Date() && user.status === user_status.SUSPENDED) {
-        // ✅ Déblocage automatique
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            status: user_status.ACTIVE,
-            failed_login_attempts: 0,
-            locked_until: null,
-          },
-        });
-
-        // Recharger l'utilisateur
-        const refreshedUser = await this.prisma.user.findUnique({
-          where: { id: user.id },
-          select: {
-            id: true,
-            email: true,
-            phone: true,
-            password: true,
-            full_name: true,
-            account_number: true,
-            branch: true,
-            role: true,
-            status: true,
-            deleted: true,
-            createdAt: true,
-            updatedAt: true,
-            fcmToken: true,
-            passwordStatus: true,
-            pinstatus: true,
-            merchantCode: true,
-            businessName: true,
-            failed_login_attempts: true,
-            locked_until: true,
-            pin: true,
-            kycStatus: true,
-            countryCode: true,
-            profileImage: true,
-            locked_by_admin: true,
-          },
-        });
-
-        if (!refreshedUser) {
-          throw new RpcException({
-            status: 'error',
-            message: 'User not found after refresh',
-            statusCode: 404,
-          });
-        }
-
-        user = refreshedUser;
-      }
-
-      // 3️⃣ Blocage automatique actif (tentatives échouées)
       if (user.locked_until && user.locked_until > new Date()) {
         const minutesLeft = Math.ceil(
           (user.locked_until.getTime() - Date.now()) / 60000,
         );
-        let message = this.i18nService.translate('account_locked_auto', lang);
+        let message = this.i18nService.translate('account_locked', lang);
         message = message.replace('{minutes}', minutesLeft.toString());
         await logFailedLoginAttempt(
           this.prisma,
@@ -708,8 +628,7 @@ export class AuthServiceService {
         throw new RpcException({ status: 'error', message, statusCode: 403 });
       }
 
-      // 4️⃣ Vérifier les autres statuts bloquants
-      if (user.status === user_status.BLOCKED) {
+      if (user.status !== user_status.ACTIVE) {
         await logFailedLoginAttempt(
           this.prisma,
           user.id,
@@ -719,36 +638,12 @@ export class AuthServiceService {
         );
         throw new RpcException({
           status: 'error',
-          message: this.i18nService.translate('account_blocked_permanent', lang),
-          statusCode: 403,
-        });
-      }
-
-      if (user.status === user_status.SUSPENDED && user.locked_until && user.locked_until > new Date()) {
-        const minutesLeft = Math.ceil(
-          (user.locked_until.getTime() - Date.now()) / 60000,
-        );
-        let message = this.i18nService.translate('account_suspended_auto', lang);
-        message = message.replace('{minutes}', minutesLeft.toString());
-        throw new RpcException({ status: 'error', message, statusCode: 403 });
-      }
-
-      if (!user.password) {
-        await logFailedLoginAttempt(
-          this.prisma,
-          user.id,
-          identifier,
-          ipAddress,
-          dto.userAgent,
-        );
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('user_no_password', lang),
+          message: this.i18nService.translate('account_inactive', lang),
           statusCode: 400,
         });
       }
 
-      // ✅ Maintenant user.password est garanti non-null
+      // ✅ Vérifier le mot de passe
       const isValidPassword = await bcrypt.compare(dto.password, user.password);
 
       if (!isValidPassword) {
@@ -756,13 +651,9 @@ export class AuthServiceService {
         let lockedUntil = user.locked_until;
         let newStatus: user_status = user.status;
 
-        // ✅ Logique de blocage automatique
-        if (newAttempts >= 5 && newAttempts < 10) {
-          lockedUntil = new Date(Date.now() + 5 * 60 * 1000);
-          newStatus = user_status.SUSPENDED;
-        } else if (newAttempts >= 10) {
-          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-          newStatus = user_status.SUSPENDED;
+        if (newAttempts >= 5) {
+          lockedUntil = new Date(Date.now() + 1 * 60 * 1000);
+          newStatus = user_status.BLOCKED;
         }
 
         await this.prisma.user.update({
@@ -771,7 +662,6 @@ export class AuthServiceService {
             failed_login_attempts: newAttempts,
             locked_until: lockedUntil,
             status: newStatus,
-            locked_by_admin: false,
           },
         });
 
@@ -781,52 +671,28 @@ export class AuthServiceService {
           identifier,
           ipAddress,
           dto.userAgent,
-          newAttempts,
-          lockedUntil,
         );
-
-        let errorMessage: string;
-        if (newAttempts >= 10) {
-          errorMessage = this.i18nService.translate('account_locked_auto', lang, {
-            minutes: 30,
-          });
-        } else if (newAttempts >= 5) {
-          const remaining = 10 - newAttempts;
-          errorMessage = this.i18nService.translate('account_suspended_auto', lang, {
-            attempts: remaining,
-            minutes: 5,
-          });
-        } else {
-          const remaining = 5 - newAttempts;
-          errorMessage = this.i18nService.translate('invalid_password', lang, {
-            attempts: remaining,
-          });
-        }
 
         throw new BadRequestException({
           status: 'error',
-          message: errorMessage,
+          message: this.i18nService.translate('invalid_password', lang),
           statusCode: 400,
         });
       }
 
-      // ✅ Succès : réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
           failed_login_attempts: 0,
           locked_until: null,
           status: user_status.ACTIVE,
-          locked_by_admin: false,
         },
       });
 
-      // ✅ Récupérer les ressources de l'utilisateur
       const userResources = await this.prisma.user_has_resources.findMany({
         where: { userId: user.id },
         include: { resources: true },
       });
-
       const resources = userResources.map((ur) => ({
         id: ur.resources.id,
         name: ur.resources.name,
@@ -842,7 +708,6 @@ export class AuthServiceService {
         expiresAt: ur.expiresAt,
       }));
 
-      // ✅ Récupérer les wallets
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -856,7 +721,6 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Récupérer les informations KYC
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -894,7 +758,6 @@ export class AuthServiceService {
         } : null,
       };
 
-      // ✅ Gestion du deviceId
       let deviceId = dto.fcmToken;
       if (!deviceId) {
         const fingerprint = `${dto.deviceInfo || ''}|${dto.platform || ''}|${ipAddress || ''}`;
@@ -904,7 +767,6 @@ export class AuthServiceService {
           .digest('hex');
       }
 
-      // ✅ Supprimer les anciennes sessions avec le même deviceId
       await this.prisma.sessions.deleteMany({
         where: {
           user_id: user.id,
@@ -913,7 +775,6 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Créer une nouvelle session
       const sessionToken = crypto.randomUUID();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
@@ -934,7 +795,6 @@ export class AuthServiceService {
       });
       const sessionId = createdSession.id;
 
-      // ✅ Enregistrer le token FCM
       if (dto.fcmToken && dto.fcmToken.trim()) {
         await this.prisma.device_tokens.upsert({
           where: { token: dto.fcmToken },
@@ -954,7 +814,6 @@ export class AuthServiceService {
         });
       }
 
-      // ✅ Récupérer toutes les sessions actives
       const sessions = await this.prisma.sessions.findMany({
         where: {
           user_id: user.id,
@@ -972,29 +831,12 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Générer les tokens JWT
-      const payload = {
-        sub: user.id,
-        userId: user.id,
-        email: user.email,
-        phone: user.phone,
-        full_name: user.full_name,
-        role: user.role,
-        status: user.status,
-        merchantCode: user.merchantCode,
-        sessionToken: sessionToken,
-      };
-
-      const accessToken = this.jwtService.sign(payload, {
-        expiresIn: '15m',
-      });
-
-      const refreshToken = this.jwtService.sign(
-        { sub: user.id, sessionToken },
-        { expiresIn: '7d' },
+      const result = this.generateJwt(
+        user,
+        sessionToken,
+        this.i18nService.translate('login_success', lang),
       );
 
-      // ✅ Audit log
       await this.logAuditWithDebounce(
         user.id,
         'LOGIN',
@@ -1002,11 +844,10 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ Retourner la réponse
       return {
-        accessToken,
-        refreshToken,
-        message: this.i18nService.translate('login_success', lang),
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        message: result.message,
         sessionId: sessionId,
         data: {
           id: user.id,
@@ -1028,7 +869,6 @@ export class AuthServiceService {
           profileImage: user.profileImage ?? null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
-          locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER CETTE LIGNE
           sessions: sessions,
           resources: resources,
           wallets: wallets,
@@ -1042,7 +882,6 @@ export class AuthServiceService {
       ) {
         throw error;
       }
-      console.error('[Login] Error:', error);
       throw new RpcException({
         status: 'error',
         message: error.message || 'Login failed',
@@ -1753,10 +1592,9 @@ export class AuthServiceService {
       pinstatus?: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
-      profileImage?: string | null;
-      kycStatus?: string;
-      countryCode?: string | null;
-      locked_by_admin?: boolean | null; // ✅ DÉJÀ PRÉSENT
+      profileImage?: string | null; // ✅ AJOUTER
+      kycStatus?: string; // ✅ AJOUTER
+      countryCode?: string | null; // ✅ AJOUTER
     },
     sessionToken: string,
     message?: string,
@@ -1772,10 +1610,9 @@ export class AuthServiceService {
       sessionToken,
       pin: user.pin || null,
       passwordStatus: user.passwordStatus,
-      profileImage: user.profileImage ?? null,
-      kycStatus: user.kycStatus || 'NOT_SUBMITTED',
-      countryCode: user.countryCode || 'CD',
-      locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER
+      profileImage: user.profileImage ?? null, // ✅ AJOUTER
+      kycStatus: user.kycStatus || 'NOT_SUBMITTED', // ✅ AJOUTER
+      countryCode: user.countryCode || 'CD', // ✅ AJOUTER
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -1807,10 +1644,9 @@ export class AuthServiceService {
         deleted: user.deleted || false,
         createdAt: user.createdAt || new Date(),
         updatedAt: user.updatedAt || new Date(),
-        profileImage: user.profileImage ?? null,
-        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
-        countryCode: user.countryCode || 'CD',
-        locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER ICI
+        profileImage: user.profileImage ?? null, // ✅ AJOUTER
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED', // ✅ AJOUTER
+        countryCode: user.countryCode || 'CD', // ✅ AJOUTER
       },
       message,
     };
