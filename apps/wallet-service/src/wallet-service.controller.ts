@@ -479,20 +479,21 @@ export class WalletServiceController {
     @Payload()
     data: {
       transactionId: string;
-      adminId?: string;  // 👈 Ajouté (optionnel pour les réconciliations auto)
+      adminId: string;  // 👈 REQUIS
+      adminPin: string; // 👈 REQUIS
       lang?: string;
     },
   ) {
     console.log('[WalletService] reconcile_transaction received:', {
       transactionId: data.transactionId,
-      adminId: data.adminId || 'AUTO',
+      adminId: data.adminId,
     });
 
     try {
-      // ✅ Passer adminId à la fonction
       const result = await this.walletService.reconcileTransaction(
         data.transactionId,
-        data.adminId  // 👈 Si undefined, la fonction le traitera comme NULL
+        data.adminId,
+        data.adminPin,
       );
 
       return {

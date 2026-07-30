@@ -2368,8 +2368,10 @@ export class ApiGatewayController {
   async reconcileTransaction(
     @CurrentUser() currentUser: any,
     @Param('transactionId') transactionId: string,
+    @Body() body: { pin: string },
     @Headers('lang') langHeader?: string,
   ) {
+    // ✅ Vérification des droits admin
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
@@ -2379,6 +2381,21 @@ export class ApiGatewayController {
     if (!transactionId) {
       throw new HttpException(
         'ID de transaction requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ Vérification du PIN
+    if (!body.pin || body.pin.length < 4) {
+      throw new HttpException(
+        'Le PIN est requis (4 chiffres minimum)',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!/^\d+$/.test(body.pin)) {
+      throw new HttpException(
+        'Le PIN doit contenir uniquement des chiffres',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -2394,6 +2411,7 @@ export class ApiGatewayController {
       {
         transactionId,
         adminId: currentUser.id,
+        adminPin: body.pin,
         lang,
       },
       'Échec de la réconciliation de la transaction',
