@@ -579,6 +579,7 @@ export class AuthServiceService {
           kycStatus: true,
           countryCode: true,
           profileImage: true,
+          locked_by_admin: true,
         },
       });
 
@@ -873,6 +874,7 @@ export class AuthServiceService {
           resources: resources,
           wallets: wallets,
           kyc: kyc,
+          locked_by_admin: user.locked_by_admin ?? false,
         },
       };
     } catch (error) {
