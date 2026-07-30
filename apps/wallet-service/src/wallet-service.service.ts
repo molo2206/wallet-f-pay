@@ -2863,14 +2863,27 @@ export class WalletServiceService {
         const newAttempts = (user.failed_pin_attempts || 0) + 1;
         let newStatus: user_status = user.status;
         let lockedUntil: Date | null = null;
+
+        // ✅ Logique de blocage automatique (comme le login)
         if (newAttempts >= 10) {
-          newStatus = user_status.BLOCKED;
+          // 🔒 Blocage de 30 minutes (se débloque automatiquement)
           lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+          newStatus = user_status.SUSPENDED; // ✅ Utiliser SUSPENDED au lieu de BLOCKED
+        } else if (newAttempts >= 5) {
+          // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
+          lockedUntil = null;
+          newStatus = user_status.ACTIVE;
         }
+
         await this.prisma.user.update({
           where: { id: userId },
-          data: { failed_pin_attempts: newAttempts, status: newStatus },
+          data: {
+            failed_pin_attempts: newAttempts,
+            status: newStatus,
+            pin_locked_until: lockedUntil, // ✅ Ajouter le verrouillage PIN
+          },
         });
+
         await logFailedLoginAttempt(
           this.prisma,
           user.id,
@@ -2880,16 +2893,40 @@ export class WalletServiceService {
           newAttempts,
           lockedUntil,
         );
+
+        // ✅ Message personnalisé selon le nombre de tentatives
+        let errorMessage: string;
+        if (newAttempts >= 10) {
+          errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
+            minutes: 30,
+          });
+        } else if (newAttempts >= 5) {
+          const remaining = 10 - newAttempts;
+          errorMessage = this.i18nService.translate('wallet.pin_incorrect_warning', lang, {
+            attempts: remaining,
+          });
+        } else {
+          const remaining = 5 - newAttempts;
+          errorMessage = this.i18nService.translate('wallet.pin_incorrect', lang, {
+            attempts: remaining,
+          });
+        }
+
         throw new RpcException({
           status: 'error',
-          message: this.i18nService.translate('wallet.pin_incorrect', lang),
+          message: errorMessage,
           statusCode: 401,
         });
       }
 
+      // ✅ Succès : réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: userId },
-        data: { failed_pin_attempts: 0 },
+        data: {
+          failed_pin_attempts: 0,
+          pin_locked_until: null,
+          status: user_status.ACTIVE,
+        },
       });
 
       // Récupérer ou créer le wallet
@@ -3208,10 +3245,18 @@ export class WalletServiceService {
       const newAttempts = (user.failed_pin_attempts || 0) + 1;
       let newStatus: user_status = user.status;
       let lockedUntil: Date | null = null;
+
+      // ✅ Logique de blocage automatique (comme le login)
       if (newAttempts >= 10) {
-        newStatus = user_status.BLOCKED;
+        // 🔒 Blocage de 30 minutes (se débloque automatiquement)
         lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        newStatus = user_status.SUSPENDED; // ✅ Utiliser SUSPENDED au lieu de BLOCKED
+      } else if (newAttempts >= 5) {
+        // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
+        lockedUntil = null;
+        newStatus = user_status.ACTIVE;
       }
+
       await this.prisma.user.update({
         where: { id: userId },
         data: {
@@ -3220,6 +3265,7 @@ export class WalletServiceService {
           pin_locked_until: lockedUntil,
         },
       });
+
       await logFailedLoginAttempt(
         this.prisma,
         user.id,
@@ -3229,16 +3275,40 @@ export class WalletServiceService {
         newAttempts,
         lockedUntil,
       );
+
+      // ✅ Message personnalisé selon le nombre de tentatives
+      let errorMessage: string;
+      if (newAttempts >= 10) {
+        errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
+          minutes: 30,
+        });
+      } else if (newAttempts >= 5) {
+        const remaining = 10 - newAttempts;
+        errorMessage = this.i18nService.translate('wallet.pin_incorrect_warning', lang, {
+          attempts: remaining,
+        });
+      } else {
+        const remaining = 5 - newAttempts;
+        errorMessage = this.i18nService.translate('wallet.pin_incorrect', lang, {
+          attempts: remaining,
+        });
+      }
+
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.pin_incorrect', lang),
+        message: errorMessage,
         statusCode: 401,
       });
     }
 
+    // ✅ Succès : réinitialiser les tentatives
     await this.prisma.user.update({
       where: { id: userId },
-      data: { failed_pin_attempts: 0, pin_locked_until: null },
+      data: {
+        failed_pin_attempts: 0,
+        pin_locked_until: null,
+        status: user_status.ACTIVE,
+      },
     });
 
     // Récupérer le wallet
@@ -3733,14 +3803,27 @@ export class WalletServiceService {
           const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
           let newStatus: user_status = fromUser.status;
           let lockedUntil: Date | null = null;
+
+          // ✅ Logique de blocage automatique (comme le login)
           if (newAttempts >= 10) {
-            newStatus = user_status.BLOCKED;
+            // 🔒 Blocage de 30 minutes (se débloque automatiquement)
             lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+            newStatus = user_status.SUSPENDED; // ✅ Utiliser SUSPENDED au lieu de BLOCKED
+          } else if (newAttempts >= 5) {
+            // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
+            lockedUntil = null;
+            newStatus = user_status.ACTIVE;
           }
+
           await tx.user.update({
             where: { id: fromUser.id },
-            data: { failed_pin_attempts: newAttempts, status: newStatus },
+            data: {
+              failed_pin_attempts: newAttempts,
+              status: newStatus,
+              pin_locked_until: lockedUntil, // ✅ Ajouter le verrouillage PIN
+            },
           });
+
           await logFailedLoginAttempt(
             this.prisma,
             fromUser.id,
@@ -3750,17 +3833,41 @@ export class WalletServiceService {
             newAttempts,
             lockedUntil,
           );
+
+          // ✅ Message personnalisé selon le nombre de tentatives
+          let errorMessage: string;
+          if (newAttempts >= 10) {
+            errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
+              minutes: 30,
+            });
+          } else if (newAttempts >= 5) {
+            const remaining = 10 - newAttempts;
+            errorMessage = this.i18nService.translate('wallet.pin_incorrect_warning', lang, {
+              attempts: remaining,
+            });
+          } else {
+            const remaining = 5 - newAttempts;
+            errorMessage = this.i18nService.translate('wallet.pin_incorrect', lang, {
+              attempts: remaining,
+            });
+          }
+
           throw new RpcException({
             status: 'error',
-            message: this.i18nService.translate('wallet.pin_incorrect', lang),
+            message: errorMessage,
             statusCode: 401,
           });
         }
+
+        // ✅ Succès : réinitialiser les tentatives
         await tx.user.update({
           where: { id: fromUser.id },
-          data: { failed_pin_attempts: 0 },
+          data: {
+            failed_pin_attempts: 0,
+            pin_locked_until: null,
+            status: user_status.ACTIVE,
+          },
         });
-
         // 4. Récupérer les frais internationaux dynamiques du PAYS DE L'EXPÉDITEUR
         let internationalFeePercentage = 0;
         let fee = 0;
@@ -4529,14 +4636,27 @@ export class WalletServiceService {
         const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
         let newStatus: user_status = fromUser.status;
         let lockedUntil: Date | null = null;
+
+        // ✅ Logique de blocage automatique (comme le login)
         if (newAttempts >= 10) {
-          newStatus = user_status.BLOCKED;
+          // 🔒 Blocage de 30 minutes (se débloque automatiquement)
           lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+          newStatus = user_status.SUSPENDED; // ✅ Utiliser SUSPENDED au lieu de BLOCKED
+        } else if (newAttempts >= 5) {
+          // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
+          lockedUntil = null;
+          newStatus = user_status.ACTIVE;
         }
+
         await this.prisma.user.update({
           where: { id: fromUser.id },
-          data: { failed_pin_attempts: newAttempts, status: newStatus },
+          data: {
+            failed_pin_attempts: newAttempts,
+            status: newStatus,
+            pin_locked_until: lockedUntil, // ✅ Ajouter le verrouillage PIN
+          },
         });
+
         await logFailedLoginAttempt(
           this.prisma,
           fromUser.id,
@@ -4546,15 +4666,40 @@ export class WalletServiceService {
           newAttempts,
           lockedUntil,
         );
+
+        // ✅ Message personnalisé selon le nombre de tentatives
+        let errorMessage: string;
+        if (newAttempts >= 10) {
+          errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
+            minutes: 30,
+          });
+        } else if (newAttempts >= 5) {
+          const remaining = 10 - newAttempts;
+          errorMessage = this.i18nService.translate('wallet.pin_incorrect_warning', lang, {
+            attempts: remaining,
+          });
+        } else {
+          const remaining = 5 - newAttempts;
+          errorMessage = this.i18nService.translate('wallet.pin_incorrect', lang, {
+            attempts: remaining,
+          });
+        }
+
         throw new RpcException({
           status: 'error',
-          message: this.i18nService.translate('wallet.pin_incorrect', lang),
+          message: errorMessage,
           statusCode: 401,
         });
       }
+
+      // ✅ Succès : réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: fromUser.id },
-        data: { failed_pin_attempts: 0 },
+        data: {
+          failed_pin_attempts: 0,
+          pin_locked_until: null,
+          status: user_status.ACTIVE,
+        },
       });
     }
 
@@ -5866,7 +6011,7 @@ export class WalletServiceService {
               duplicateTransactionId: duplicateSuccess.id,
               duplicateCreatedAt: duplicateSuccess.createdAt,
             }),
-            reconciled_by: adminId || null,  
+            reconciled_by: adminId || null,
             reconciled_at: new Date(),
           },
         });
