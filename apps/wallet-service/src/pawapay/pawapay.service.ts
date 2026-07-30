@@ -118,7 +118,7 @@ export class PawapayService {
     const clientReferenceId = `INV-${Date.now()}`;
     const metadata = [
       { orderId: `ORD-${Date.now()}` },
-      { customerId: 'customer@email.com', isPII: true },
+      { customerId: 'favorhelp31@gmail.com', isPII: true },
       { walletId: data.walletId },
     ];
 
@@ -199,7 +199,7 @@ export class PawapayService {
     ).then((r) => r.data);
   }
 
-  private async pollDepositStatus(depositId: string, signal?: AbortSignal, maxRetries = 10, intervalMs = 2000) {
+  private async pollDepositStatus(depositId: string, signal?: AbortSignal, maxRetries = 20, intervalMs = 4000) {
     const finalStatuses = ['COMPLETED', 'FAILED', 'CANCELED', 'EXPIRED', 'REJECTED'];
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       if (signal?.aborted) throw new Error('AbortError');
@@ -234,7 +234,7 @@ export class PawapayService {
     return lastValueFrom(this.httpService.get(url, { headers: this.headers, signal })).then((r) => r.data);
   }
 
-  private async pollPayoutStatus(payoutId: string, signal?: AbortSignal, maxRetries = 10, intervalMs = 2000) {
+  private async pollPayoutStatus(payoutId: string, signal?: AbortSignal, maxRetries = 20, intervalMs = 4000) {
     const finalStatuses = ['COMPLETED', 'FAILED', 'CANCELED', 'EXPIRED', 'REJECTED'];
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       if (signal?.aborted) {

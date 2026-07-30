@@ -590,7 +590,7 @@ export class WalletServiceService {
       const newAttempts = (user.failed_pin_attempts || 0) + 1;
       let newStatus = user.status;
       let lockedUntil: Date | null = null;
-      if (newAttempts >= 5) {
+      if (newAttempts >= 10) {
         newStatus = user_status.BLOCKED;
         lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
       }
@@ -998,7 +998,7 @@ export class WalletServiceService {
           const newAttempts = (admin.failed_pin_attempts || 0) + 1;
           let newStatus = admin.status;
           let lockedUntil: Date | null = null;
-          if (newAttempts >= 5) {
+          if (newAttempts >= 10) {
             newStatus = user_status.BLOCKED;
             lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
           }
@@ -1689,7 +1689,7 @@ export class WalletServiceService {
           const newAttempts = (admin.failed_pin_attempts || 0) + 1;
           let newStatus = admin.status;
           let lockedUntil: Date | null = null;
-          if (newAttempts >= 5) {
+          if (newAttempts >= 10) {
             newStatus = user_status.BLOCKED;
             lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
           }
@@ -2227,7 +2227,7 @@ export class WalletServiceService {
           const newAttempts = (admin.failed_pin_attempts || 0) + 1;
           let newStatus = admin.status;
           let lockedUntil: Date | null = null;
-          if (newAttempts >= 5) {
+          if (newAttempts >= 10) {
             newStatus = user_status.BLOCKED;
             lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
           }
@@ -2862,7 +2862,7 @@ export class WalletServiceService {
         const newAttempts = (user.failed_pin_attempts || 0) + 1;
         let newStatus: user_status = user.status;
         let lockedUntil: Date | null = null;
-        if (newAttempts >= 5) {
+        if (newAttempts >= 10) {
           newStatus = user_status.BLOCKED;
           lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
         }
@@ -3207,7 +3207,7 @@ export class WalletServiceService {
       const newAttempts = (user.failed_pin_attempts || 0) + 1;
       let newStatus: user_status = user.status;
       let lockedUntil: Date | null = null;
-      if (newAttempts >= 5) {
+      if (newAttempts >= 10) {
         newStatus = user_status.BLOCKED;
         lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
       }
@@ -3732,7 +3732,7 @@ export class WalletServiceService {
           const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
           let newStatus: user_status = fromUser.status;
           let lockedUntil: Date | null = null;
-          if (newAttempts >= 5) {
+          if (newAttempts >= 10) {
             newStatus = user_status.BLOCKED;
             lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
           }
@@ -4528,7 +4528,7 @@ export class WalletServiceService {
         const newAttempts = (fromUser.failed_pin_attempts || 0) + 1;
         let newStatus: user_status = fromUser.status;
         let lockedUntil: Date | null = null;
-        if (newAttempts >= 5) {
+        if (newAttempts >= 10) {
           newStatus = user_status.BLOCKED;
           lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
         }
@@ -5513,7 +5513,7 @@ export class WalletServiceService {
     const hashedPin = crypto.createHash('sha256').update(adminPin).digest('hex');
     if (admin.pin !== hashedPin) {
       const newAttempts = (admin.failed_pin_attempts || 0) + 1;
-      if (newAttempts >= 5) {
+      if (newAttempts >= 10) {
         await this.prisma.user.update({
           where: { id: admin.id },
           data: { failed_pin_attempts: newAttempts, status: user_status.BLOCKED },
@@ -5772,6 +5772,95 @@ export class WalletServiceService {
         fromWallet: this.toResponse(senderWallet),
         toWallet: this.toResponse(receiverWallet),
       },
+    };
+  }
+
+  async reconcileTransaction(
+    transactionId: string,
+    adminId?: string  // 👈 Optionnel (NULL pour auto)
+  ): Promise<{
+    updated: boolean;
+    message: string;
+    transaction?: any;
+    wallet?: any;
+  }> {
+    console.log(`[Réconciliation] Vérification de la transaction ${transactionId}`);
+
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+      include: { wallet: true, user: true },
+    });
+
+    if (!transaction) {
+      return { updated: false, message: 'Transaction non trouvée' };
+    }
+
+    if (transaction.status === 'SUCCESS') {
+      return { updated: false, message: 'Transaction déjà en succès' };
+    }
+
+    let reconciliationType = 'MANUAL';
+    let reason = '';
+
+    // ... vérifications existantes ...
+
+    // ✅ Enregistrer dans l'historique
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Mettre à jour la transaction
+      const updatedTx = await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'SUCCESS',
+          description: `${transaction.description} (Réconciliée)`,
+          updatedAt: new Date(),
+        },
+      });
+
+      // Audit log
+      await tx.audit_log.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: transaction.userId,
+          action: 'RECONCILIATION',
+          details: JSON.stringify({
+            transactionId: transaction.id,
+            oldStatus: transaction.status,
+            newStatus: 'SUCCESS',
+            reconciledBy: adminId || 'AUTO',
+          }),
+          ipAddress: 'system',
+          createdAt: new Date(),
+        },
+      });
+
+      // ✅ Enregistrer dans l'historique
+      await tx.reconciliation_history.create({
+        data: {
+          id: crypto.randomUUID(),
+          transaction_id: transaction.id,
+          user_id: transaction.userId,
+          wallet_id: transaction.walletId,
+          old_status: transaction.status,
+          new_status: 'SUCCESS',
+          reference: transaction.reference,
+          amount: transaction.amount,
+          currency: transaction.currency || 'CDF',
+          movement: transaction.movement,
+          reconciliation_type: reconciliationType,
+          reason: reason,
+          metadata: JSON.stringify({ ... }),
+          reconciled_by: adminId || null,  // 👈 NULL si auto
+          reconciled_at: new Date(),
+        },
+      });
+
+      return { transaction: updatedTx };
+    });
+
+    return {
+      updated: true,
+      message: `Transaction réconciliée${adminId ? ` par l'admin ${adminId}` : ' automatiquement'}`,
+      transaction: result.transaction,
     };
   }
   // ==================== ADMIN OPERATIONS (sans PIN) ====================

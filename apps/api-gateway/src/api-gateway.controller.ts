@@ -2362,6 +2362,45 @@ export class ApiGatewayController {
     );
     return response;
   }
+
+  @Post('admin/wallet/reconcile/:transactionId')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async reconcileTransaction(
+    @CurrentUser() currentUser: any,
+    @Param('transactionId') transactionId: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+
+    if (!transactionId) {
+      throw new HttpException(
+        'ID de transaction requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] reconcile_transaction:', {
+      transactionId,
+      adminId: currentUser.id,
+      lang,
+    });
+
+    return this.sendWalletMessage(
+      'reconcile_transaction',
+      {
+        transactionId,
+        adminId: currentUser.id,
+        lang,
+      },
+      'Échec de la réconciliation de la transaction',
+      HttpStatus.BAD_REQUEST,
+      120000,
+    );
+  }
   // ==================== SETTINGS ENDPOINTS ====================
 
   @Get('admin/settings/general')

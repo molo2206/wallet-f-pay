@@ -474,6 +474,41 @@ export class WalletServiceController {
     return this.walletService.linkAccount(data.accountNumber, data.requestId);
   }
 
+  @MessagePattern('reconcile_transaction')
+  async reconcileTransaction(
+    @Payload()
+    data: {
+      transactionId: string;
+      adminId?: string;  // 👈 Ajouté (optionnel pour les réconciliations auto)
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] reconcile_transaction received:', {
+      transactionId: data.transactionId,
+      adminId: data.adminId || 'AUTO',
+    });
+
+    try {
+      // ✅ Passer adminId à la fonction
+      const result = await this.walletService.reconcileTransaction(
+        data.transactionId,
+        data.adminId  // 👈 Si undefined, la fonction le traitera comme NULL
+      );
+
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      console.error('[WalletService] reconcile_transaction error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
   // ==================== ADMIN OPERATIONS (sans PIN) ====================
 
   @MessagePattern('admin_top_up')
