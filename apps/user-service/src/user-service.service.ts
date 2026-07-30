@@ -53,6 +53,7 @@ export class UserServiceService {
     try {
       await this.prisma.audit_log.create({
         data: {
+          id: crypto.randomUUID(), // ✅ AJOUTÉ
           userId,
           action,
           details: details ? JSON.stringify(details) : null,
@@ -64,7 +65,6 @@ export class UserServiceService {
       console.error('Audit log failed:', err);
     }
   }
-
   // ========================= CREATE USER =========================
   async createUser(
     data: CreateUserDto,
@@ -1599,7 +1599,10 @@ export class UserServiceService {
     });
     if (!settings) {
       settings = await this.prisma.user_settings.create({
-        data: { user_id: userId },
+        data: {
+          id: crypto.randomUUID(),
+          user_id: userId,
+        },
       });
     }
     return {
@@ -2077,6 +2080,7 @@ export class UserServiceService {
     try {
       const resource = await this.prisma.resources.create({
         data: {
+          id: crypto.randomUUID(),
           name: data.name,
           label: data.label,
           description: data.description,
@@ -2218,6 +2222,7 @@ export class UserServiceService {
 
       await this.prisma.user_has_resources.create({
         data: {
+          id: crypto.randomUUID(),
           userId: data.userId,
           resourceId: item.resourceId,
           branchId: data.branchId || null, // ✅ Utiliser le branchId du DTO
@@ -3175,6 +3180,7 @@ export class UserServiceService {
     if (!user) {
       throw new RpcException({ status: 'error', message: 'User not found', statusCode: 404 });
     }
+
 
     const expiresInDays = data.expiresInDays || 365;
     const expiresAt = new Date();

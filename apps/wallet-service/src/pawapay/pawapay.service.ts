@@ -650,6 +650,7 @@ export class PawapayService {
 
     const network = await this.prisma.network_provider.create({
       data: {
+        id: crypto.randomUUID(), // 👈 AJOUTER
         name: dto.name,
         currency: dto.currency,
         pourcentage_deposit: dto.pourcentage_deposit,

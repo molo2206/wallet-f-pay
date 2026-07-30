@@ -153,6 +153,7 @@ export class WalletServiceService {
     try {
       await this.prisma.audit_log.create({
         data: {
+          id: crypto.randomUUID(),
           userId,
           action,
           details: details ? JSON.stringify(details) : null,
@@ -5785,7 +5786,9 @@ export class WalletServiceService {
     wallet?: any;
   }> {
     console.log(`[Réconciliation] Vérification de la transaction ${transactionId}`);
+    console.log(`[Réconciliation] Admin: ${adminId || 'AUTO'}`);
 
+    // 1. Récupérer la transaction
     const transaction = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
       include: { wallet: true, user: true },
@@ -5802,65 +5805,239 @@ export class WalletServiceService {
     let reconciliationType = 'MANUAL';
     let reason = '';
 
-    // ... vérifications existantes ...
-
-    // ✅ Enregistrer dans l'historique
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Mettre à jour la transaction
-      const updatedTx = await tx.transaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: 'SUCCESS',
-          description: `${transaction.description} (Réconciliée)`,
-          updatedAt: new Date(),
-        },
-      });
-
-      // Audit log
-      await tx.audit_log.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: transaction.userId,
-          action: 'RECONCILIATION',
-          details: JSON.stringify({
-            transactionId: transaction.id,
-            oldStatus: transaction.status,
-            newStatus: 'SUCCESS',
-            reconciledBy: adminId || 'AUTO',
-          }),
-          ipAddress: 'system',
-          createdAt: new Date(),
-        },
-      });
-
-      // ✅ Enregistrer dans l'historique
-      await tx.reconciliation_history.create({
-        data: {
-          id: crypto.randomUUID(),
-          transaction_id: transaction.id,
-          user_id: transaction.userId,
-          wallet_id: transaction.walletId,
-          old_status: transaction.status,
-          new_status: 'SUCCESS',
-          reference: transaction.reference,
-          amount: transaction.amount,
-          currency: transaction.currency || 'CDF',
-          movement: transaction.movement,
-          reconciliation_type: reconciliationType,
-          reason: reason,
-          metadata: JSON.stringify({ ... }),
-          reconciled_by: adminId || null,  // 👈 NULL si auto
-          reconciled_at: new Date(),
-        },
-      });
-
-      return { transaction: updatedTx };
+    // 2. Vérifier si une transaction SUCCESS existe avec la même référence
+    const duplicateSuccess = await this.prisma.transaction.findFirst({
+      where: {
+        reference: transaction.reference,
+        status: 'SUCCESS',
+        userId: transaction.userId,
+      },
     });
 
+    if (duplicateSuccess) {
+      reconciliationType = 'DUPLICATE';
+      reason = 'Doublon trouvé avec la même référence';
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Mettre à jour la transaction
+        const updatedTx = await tx.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: 'SUCCESS',
+            description: `${transaction.description} (Réconciliée - doublon trouvé)`,
+            updatedAt: new Date(),
+          },
+        });
+
+        // Audit log
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: transaction.userId,
+            action: 'RECONCILIATION_DUPLICATE',
+            details: JSON.stringify({
+              transactionId: transaction.id,
+              oldStatus: transaction.status,
+              newStatus: 'SUCCESS',
+              duplicateTransactionId: duplicateSuccess.id,
+              reconciledBy: adminId || 'AUTO',
+            }),
+            ipAddress: 'system',
+            createdAt: new Date(),
+          },
+        });
+
+        // ✅ Historique avec adminId (NULL si auto)
+        await tx.reconciliation_history.create({
+          data: {
+            id: crypto.randomUUID(),
+            transaction_id: transaction.id,
+            user_id: transaction.userId,
+            wallet_id: transaction.walletId,
+            old_status: transaction.status,
+            new_status: 'SUCCESS',
+            reference: transaction.reference,
+            amount: transaction.amount,
+            currency: transaction.currency || 'CDF',
+            movement: transaction.movement,
+            reconciliation_type: reconciliationType,
+            reason: reason,
+            metadata: JSON.stringify({
+              duplicateTransactionId: duplicateSuccess.id,
+              duplicateCreatedAt: duplicateSuccess.createdAt,
+            }),
+            reconciled_by: adminId || null,  
+            reconciled_at: new Date(),
+          },
+        });
+
+        return { transaction: updatedTx };
+      });
+
+      return {
+        updated: true,
+        message: `Transaction réconciliée (${reconciliationType})${adminId ? ` par l'admin ${adminId}` : ' automatiquement'}`,
+        transaction: result.transaction,
+      };
+    }
+
+    // 3. Vérifier si le solde du wallet a déjà été augmenté
+    const wallet = await this.prisma.wallet.findUnique({
+      where: { id: transaction.walletId },
+    });
+
+    if (!wallet) {
+      return { updated: false, message: 'Wallet non trouvé' };
+    }
+
+    if (transaction.movement === 'CREDIT' && wallet.balance >= transaction.amount) {
+      reconciliationType = 'BALANCE';
+      reason = `Solde déjà crédité (${wallet.balance} ${wallet.currency})`;
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        const updatedTx = await tx.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: 'SUCCESS',
+            description: `${transaction.description} (Réconciliée - solde déjà crédité)`,
+            updatedAt: new Date(),
+          },
+        });
+
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: transaction.userId,
+            action: 'RECONCILIATION_BALANCE',
+            details: JSON.stringify({
+              transactionId: transaction.id,
+              oldStatus: transaction.status,
+              newStatus: 'SUCCESS',
+              walletBalance: wallet.balance,
+              reconciledBy: adminId || 'AUTO',
+            }),
+            ipAddress: 'system',
+            createdAt: new Date(),
+          },
+        });
+
+        // ✅ Historique
+        await tx.reconciliation_history.create({
+          data: {
+            id: crypto.randomUUID(),
+            transaction_id: transaction.id,
+            user_id: transaction.userId,
+            wallet_id: transaction.walletId,
+            old_status: transaction.status,
+            new_status: 'SUCCESS',
+            reference: transaction.reference,
+            amount: transaction.amount,
+            currency: transaction.currency || 'CDF',
+            movement: transaction.movement,
+            reconciliation_type: reconciliationType,
+            reason: reason,
+            metadata: JSON.stringify({
+              walletBalance: wallet.balance,
+              walletCurrency: wallet.currency,
+            }),
+            reconciled_by: adminId || null,  // 👈 NULL si auto
+            reconciled_at: new Date(),
+          },
+        });
+
+        return { transaction: updatedTx };
+      });
+
+      return {
+        updated: true,
+        message: `Transaction réconciliée (${reconciliationType})${adminId ? ` par l'admin ${adminId}` : ' automatiquement'}`,
+        transaction: result.transaction,
+      };
+    }
+
+    // 4. Vérifier si une transaction similaire existe
+    const similarTransaction = await this.prisma.transaction.findFirst({
+      where: {
+        walletId: transaction.walletId,
+        amount: transaction.amount,
+        movement: transaction.movement,
+        status: 'SUCCESS',
+        createdAt: {
+          gte: new Date(transaction.createdAt.getTime() - 5 * 60 * 1000),
+          lte: new Date(transaction.createdAt.getTime() + 5 * 60 * 1000),
+        },
+      },
+    });
+
+    if (similarTransaction) {
+      reconciliationType = 'SIMILAR';
+      reason = 'Transaction similaire trouvée dans un intervalle de 5 minutes';
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        const updatedTx = await tx.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: 'SUCCESS',
+            description: `${transaction.description} (Réconciliée - similaire trouvée)`,
+            updatedAt: new Date(),
+          },
+        });
+
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: transaction.userId,
+            action: 'RECONCILIATION_SIMILAR',
+            details: JSON.stringify({
+              transactionId: transaction.id,
+              oldStatus: transaction.status,
+              newStatus: 'SUCCESS',
+              similarTransactionId: similarTransaction.id,
+              reconciledBy: adminId || 'AUTO',
+            }),
+            ipAddress: 'system',
+            createdAt: new Date(),
+          },
+        });
+
+        // ✅ Historique
+        await tx.reconciliation_history.create({
+          data: {
+            id: crypto.randomUUID(),
+            transaction_id: transaction.id,
+            user_id: transaction.userId,
+            wallet_id: transaction.walletId,
+            old_status: transaction.status,
+            new_status: 'SUCCESS',
+            reference: transaction.reference,
+            amount: transaction.amount,
+            currency: transaction.currency || 'CDF',
+            movement: transaction.movement,
+            reconciliation_type: reconciliationType,
+            reason: reason,
+            metadata: JSON.stringify({
+              similarTransactionId: similarTransaction.id,
+              similarCreatedAt: similarTransaction.createdAt,
+            }),
+            reconciled_by: adminId || null,  // 👈 NULL si auto
+            reconciled_at: new Date(),
+          },
+        });
+
+        return { transaction: updatedTx };
+      });
+
+      return {
+        updated: true,
+        message: `Transaction réconciliée (${reconciliationType})${adminId ? ` par l'admin ${adminId}` : ' automatiquement'}`,
+        transaction: result.transaction,
+      };
+    }
+
+    // 5. Si tout échoue
     return {
-      updated: true,
-      message: `Transaction réconciliée${adminId ? ` par l'admin ${adminId}` : ' automatiquement'}`,
-      transaction: result.transaction,
+      updated: false,
+      message: 'Aucune condition de réconciliation remplie, transaction reste en FAILED',
     };
   }
   // ==================== ADMIN OPERATIONS (sans PIN) ====================

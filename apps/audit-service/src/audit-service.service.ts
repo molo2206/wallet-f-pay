@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAuditLogDto, GetAuditLogsDto } from '../dto/audit.dto';
 import { audit_log } from '@prisma/client';
+import { randomUUID } from 'crypto'; // ✅ AJOUTÉ
 
 @Injectable()
 export class AuditService {
@@ -25,6 +26,7 @@ export class AuditService {
     try {
       const logEntry = await this.prisma.audit_log.create({
         data: {
+          id: randomUUID(), // ✅ AJOUTÉ
           userId: data.userId ?? null,
           action: data.action,
           details: data.details ?? null,
@@ -102,6 +104,7 @@ export class AuditService {
     // Sinon, créer l'audit
     return this.log(data);
   }
+
   /**
    * Supprime un audit log par son ID
    * @param id Identifiant du log
@@ -208,6 +211,7 @@ export class AuditService {
       },
     };
   }
+
   /**
    * Récupère les actions disponibles (utile pour les filtres UI)
    * @returns Liste des actions uniques

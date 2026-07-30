@@ -156,7 +156,8 @@ export class ApiKeyGuard implements CanActivate {
                 data: { lastUsedAt: new Date() },
             });
 
-            userId = keyRecord.userId;
+            // ✅ Correction: userId = keyRecord.userId (string | null)
+            userId = keyRecord.userId ?? undefined;
             apiKeyRecord = keyRecord;
 
             // Extraire les permissions
@@ -170,9 +171,22 @@ export class ApiKeyGuard implements CanActivate {
                 permissionsArray = keyRecord.permissions;
             }
 
-            // ✅ Ajouter l'utilisateur complet à la requête (keyRecord.user existe car include: { user: true })
-            request.user = keyRecord.user;
-            request.apiKey = apiKeyRecord;
+            // ✅ Correction: Vérifier que keyRecord.user existe avant de l'utiliser
+            if (keyRecord.user) {
+                // ✅ Ajouter l'utilisateur complet à la requête
+                request.user = keyRecord.user;
+                request.apiKey = apiKeyRecord;
+
+                console.log('[ApiKeyGuard] ✅ Utilisateur trouvé (Base de données):', {
+                    id: keyRecord.user.id,
+                    full_name: keyRecord.user.full_name,
+                    phone: keyRecord.user.phone,
+                    merchantCode: keyRecord.user.merchantCode,
+                    role: keyRecord.user.role,
+                });
+            } else {
+                throw new UnauthorizedException('User not found for this API key');
+            }
 
             // ✅ Vérifier les permissions
             const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
@@ -182,14 +196,6 @@ export class ApiKeyGuard implements CanActivate {
                     throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
                 }
             }
-
-            console.log('[ApiKeyGuard] ✅ Utilisateur trouvé (Base de données):', {
-                id: keyRecord.user.id,
-                full_name: keyRecord.user.full_name,
-                phone: keyRecord.user.phone,
-                merchantCode: keyRecord.user.merchantCode,
-                role: keyRecord.user.role,
-            });
         }
 
         if (!userId) {
