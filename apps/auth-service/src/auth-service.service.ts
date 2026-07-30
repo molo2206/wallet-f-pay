@@ -1753,9 +1753,10 @@ export class AuthServiceService {
       pinstatus?: boolean | null;
       merchantCode: string | null;
       businessName: string | null;
-      profileImage?: string | null; // ✅ AJOUTER
-      kycStatus?: string; // ✅ AJOUTER
-      countryCode?: string | null; // ✅ AJOUTER
+      profileImage?: string | null;
+      kycStatus?: string;
+      countryCode?: string | null;
+      locked_by_admin?: boolean | null; // ✅ DÉJÀ PRÉSENT
     },
     sessionToken: string,
     message?: string,
@@ -1771,9 +1772,10 @@ export class AuthServiceService {
       sessionToken,
       pin: user.pin || null,
       passwordStatus: user.passwordStatus,
-      profileImage: user.profileImage ?? null, // ✅ AJOUTER
-      kycStatus: user.kycStatus || 'NOT_SUBMITTED', // ✅ AJOUTER
-      countryCode: user.countryCode || 'CD', // ✅ AJOUTER
+      profileImage: user.profileImage ?? null,
+      kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+      countryCode: user.countryCode || 'CD',
+      locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -1805,9 +1807,10 @@ export class AuthServiceService {
         deleted: user.deleted || false,
         createdAt: user.createdAt || new Date(),
         updatedAt: user.updatedAt || new Date(),
-        profileImage: user.profileImage ?? null, // ✅ AJOUTER
-        kycStatus: user.kycStatus || 'NOT_SUBMITTED', // ✅ AJOUTER
-        countryCode: user.countryCode || 'CD', // ✅ AJOUTER
+        profileImage: user.profileImage ?? null,
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+        countryCode: user.countryCode || 'CD',
+        locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER ICI
       },
       message,
     };
