@@ -1028,6 +1028,7 @@ export class AuthServiceService {
           profileImage: user.profileImage ?? null,
           kycStatus: user.kycStatus || 'NOT_SUBMITTED',
           countryCode: user.countryCode || 'CD',
+          locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER CETTE LIGNE
           sessions: sessions,
           resources: resources,
           wallets: wallets,
