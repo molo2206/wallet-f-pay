@@ -1386,8 +1386,8 @@ export class UserServiceService {
       });
 
     // ✅ Utiliser le mot de passe "Mdp2026@" (comme demandé)
-    const plainPassword = 'Mdp2026@';
-    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+    // const plainPassword = 'Mdp2026@';
+    // const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     // 🔐 Hasher le nouveau PIN
     const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
@@ -1396,30 +1396,29 @@ export class UserServiceService {
       data: {
         pin: hashedPin,
         pinstatus: true,
-        password: hashedPassword,
         passwordStatus: 'CHANGED'
       },
     });
 
     // 📱 Envoyer le SMS avec le même format que register
-    try {
-      const welcomeSms = this.i18nService.translate('welcome_sms', lang, {
-        full_name: updatedUser.full_name,
-        account_number: updatedUser.account_number,
-        phone: updatedUser.phone,
-        password: plainPassword, // ✅ "Mdp2026@"
-        pin: pin, // ✅ Le nouveau PIN
-      });
+    // try {
+    //   const welcomeSms = this.i18nService.translate('welcome_sms', lang, {
+    //     full_name: updatedUser.full_name,
+    //     account_number: updatedUser.account_number,
+    //     phone: updatedUser.phone,
+    //     password: plainPassword, // ✅ "Mdp2026@"
+    //     pin: pin, // ✅ Le nouveau PIN
+    //   });
 
-      await this.smsService.sendSms(
-        updatedUser.phone || '',
-        welcomeSms,
-        updatedUser.countryCode || ''
-      );
-      console.log(`✅ SMS envoyé à ${updatedUser.phone} avec mot de passe: ${plainPassword} et PIN: ${pin}`);
-    } catch (err) {
-      console.error('❌ Erreur SMS:', err);
-    }
+    //   await this.smsService.sendSms(
+    //     updatedUser.phone || '',
+    //     welcomeSms,
+    //     updatedUser.countryCode || ''
+    //   );
+    //   console.log(`✅ SMS envoyé à ${updatedUser.phone} avec mot de passe: ${plainPassword} et PIN: ${pin}`);
+    // } catch (err) {
+    //   console.error('❌ Erreur SMS:', err);
+    // }
 
     const { password, pin: _, ...safeUser } = updatedUser;
     return {
@@ -1502,7 +1501,6 @@ export class UserServiceService {
       data: safeUser,
     };
   }
-
   // ========================= VERIFY PIN =========================
   async verifyPin(
     userId: string,
@@ -1616,7 +1614,6 @@ export class UserServiceService {
       message: this.i18nService.translate('pin_valid', lang),
     };
   }
-
   //==============================user_settings====================
 
   async getUserSettings(
