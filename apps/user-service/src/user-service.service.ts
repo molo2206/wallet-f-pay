@@ -2987,9 +2987,9 @@ export class UserServiceService {
       });
     }
 
-    // 4. ✅ Récupérer profileImage du KYC
+    // 4. Récupérer profileImage du KYC
     const profileImageUrl = kyc.profileImage || null;
-    console.log(`[verifyKyc] 📷 ProfileImage du KYC: ${profileImageUrl}`);
+    console.log(`[verifyKyc] ProfileImage du KYC: ${profileImageUrl}`);
 
     // 5. Mettre à jour la soumission KYC
     const updatedKyc = await this.prisma.kyc_submission.update({
@@ -3006,12 +3006,12 @@ export class UserServiceService {
     // 6. Mettre à jour le statut KYC de l'utilisateur
     const userKycStatus = data.status === 'VERIFIED' ? 'VERIFIED' : 'REJECTED';
 
-    // 7. Mettre à jour le profileImage de l'utilisateur avec profileImage du KYC
+    // 7. Mettre à jour le profileImage de l'utilisateur
     let userUpdateData: any = { kycStatus: userKycStatus };
 
     if (data.status === 'VERIFIED' && profileImageUrl) {
       userUpdateData.profileImage = profileImageUrl;
-      console.log(`[verifyKyc] ✅ ProfileImage mis à jour pour l'utilisateur ${kyc.userId}: ${profileImageUrl}`);
+      console.log(`[verifyKyc] ProfileImage mis à jour pour l'utilisateur ${kyc.userId}: ${profileImageUrl}`);
     }
 
     await this.prisma.user.update({
@@ -3033,42 +3033,49 @@ export class UserServiceService {
       null,
     );
 
-    // 9. ✅ NOTIFICATION PUSH au lieu de SMS
+    // ============================================
+    // 9. NOTIFICATION PUSH (CORRIGÉE)
+    // ============================================
     try {
       const userFullName = kyc.user.full_name || 'Cher client';
 
-      const notificationType = data.status === 'VERIFIED'
-        ? NotificationType.KYC_VERIFIED
-        : NotificationType.KYC_REJECTED;
-
-      const notificationData = data.status === 'VERIFIED'
-        ? {
-          name: userFullName,
-          status: 'VERIFIED',
-          messageKey: 'kyc_verified_push',
-        }
-        : {
-          name: userFullName,
-          status: 'REJECTED',
-          reason: data.rejectionReason || 'Document non conforme',
-          messageKey: 'kyc_rejected_push',
-        };
-
-      await this.notificationHelper.notify(
-        kyc.userId,
-        notificationType,
-        notificationData,
-        'KYC',
-        kycId,
-        lang,
-      );
-
-      console.log(`[verifyKyc] ✅ Notification push envoyée à l'utilisateur ${kyc.userId}`);
+      if (data.status === 'VERIFIED') {
+        // ✅ Notification KYC VERIFIED
+        await this.notificationHelper.notify(
+          kyc.userId,
+          NotificationType.KYC_VERIFIED,
+          {
+            name: userFullName,
+            status: 'VERIFIED',
+          },
+          'KYC',
+          kycId,
+          lang,
+        );
+        console.log(`[verifyKyc] Notification KYC_VERIFIED envoyée à ${kyc.userId}`);
+      } else {
+        // ✅ Notification KYC REJECTED
+        await this.notificationHelper.notify(
+          kyc.userId,
+          NotificationType.KYC_REJECTED,
+          {
+            name: userFullName,
+            status: 'REJECTED',
+            reason: data.rejectionReason || 'Document non conforme',
+          },
+          'KYC',
+          kycId,
+          lang,
+        );
+        console.log(`[verifyKyc] Notification KYC_REJECTED envoyée à ${kyc.userId}`);
+      }
     } catch (err) {
       console.error('[KYC] Erreur envoi notification push:', err);
     }
 
-    // 10. Email de notification (optionnel - à garder ou supprimer)
+    // ============================================
+    // 10. EMAIL DE NOTIFICATION
+    // ============================================
     if (kyc.user.email) {
       try {
         const userFullName = kyc.user.full_name || 'Cher client';

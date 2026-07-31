@@ -20,7 +20,19 @@
   "notifications.transaction.title": "معاملة",
   "notifications.transaction.body": "معاملة بقيمة {{amount}} {{currency}}",
   "notifications.transfer.title": "تحويل",
-  "notifications.transfer.body": "تحويل بقيمة {{amount}} {{currency}-}",
+  "notifications.transfer.body": "تحويل بقيمة {{amount}} {{currency}}",
   "notifications.payment.title": "دفع",
-  "notifications.payment.body": "دفع بقيمة {{amount}} {{currency}}"
+  "notifications.payment.body": "دفع بقيمة {{amount}} {{currency}}",
+  "notifications.transfer_pending.title": "تحويل دولي قيد الانتظار",
+  "notifications.transfer_pending.body": "تحويلك بمبلغ {{amount}} {{currency}} قيد الانتظار للتحقق من قبل المسؤول.",
+  "notifications.transfer_confirmed.title": "تم تأكيد التحويل الدولي",
+  "notifications.transfer_confirmed.body": "تم التحقق من تحويلك بمبلغ {{amount}} {{currency}} بنجاح. تم إعلام المستلم.",
+  "notifications.kyc_verified.title": "تم التحقق من KYC",
+  "notifications.kyc_verified.body": "تم التحقق من طلب KYC الخاص بك بنجاح.",
+  "notifications.kyc_rejected.title": "تم رفض KYC",
+  "notifications.kyc_rejected.body": "تم رفض طلب KYC الخاص بك. السبب: {{reason}}",
+  "notifications.maintenance_fee.title": "رسوم الصيانة",
+  "notifications.maintenance_fee.body": "تم خصم رسوم صيانة بقيمة {{amount}} {{currency}} من حسابك ({{country}}).",
+  "notifications.maintenance_fee_debt.title": "ديون الصيانة",
+  "notifications.maintenance_fee_debt.body": "تم خصم رسوم صيانة بقيمة {{amount}} {{currency}}. رصيدك مدين بمبلغ {{debt}} {{currency}} ({{country}})."
 }

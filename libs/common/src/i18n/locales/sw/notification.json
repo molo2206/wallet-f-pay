@@ -22,5 +22,17 @@
   "notifications.transfer.title": "Uhamisho",
   "notifications.transfer.body": "Uhamisho wa {{amount}} {{currency}}",
   "notifications.payment.title": "Malipo",
-  "notifications.payment.body": "Malipo ya {{amount}} {{currency}}"
+  "notifications.payment.body": "Malipo ya {{amount}} {{currency}}",
+  "notifications.transfer_pending.title": "Uhamisho wa kimataifa unasubiri",
+  "notifications.transfer_pending.body": "Uhamisho wako wa {{amount}} {{currency}} unasubiri uthibitisho na msimamizi.",
+  "notifications.transfer_confirmed.title": "Uhamisho wa kimataifa umethibitishwa",
+  "notifications.transfer_confirmed.body": "Uhamisho wako wa {{amount}} {{currency}} umethibitishwa kwa mafanikio. Mpokeaji amearifiwa.",
+  "notifications.kyc_verified.title": "KYC imethibitishwa",
+  "notifications.kyc_verified.body": "Ombi lako la KYC limethibitishwa kwa mafanikio.",
+  "notifications.kyc_rejected.title": "KYC imekataliwa",
+  "notifications.kyc_rejected.body": "Ombi lako la KYC limekataliwa. Sababu: {{reason}}",
+  "notifications.maintenance_fee.title": "Ada ya matengenezo",
+  "notifications.maintenance_fee.body": "Ada ya matengenezo ya {{amount}} {{currency}} imetolewa kutoka akaunti yako ({{country}}).",
+  "notifications.maintenance_fee_debt.title": "Deni la matengenezo",
+  "notifications.maintenance_fee_debt.body": "Ada ya matengenezo ya {{amount}} {{currency}} imetolewa. Salio lako lina deni la {{debt}} {{currency}} ({{country}})."
 }

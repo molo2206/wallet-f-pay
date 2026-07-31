@@ -53,9 +53,9 @@ export async function notifyTransaction(
   try {
     canSendSms = await shouldSendSms(user.id);
     canSendPush = await shouldSendPush(user.id);
-    console.log(`[notifyTransaction] 📋 Préférences: SMS=${canSendSms}, Push=${canSendPush}`);
+    console.log(`[notifyTransaction]  Préférences: SMS=${canSendSms}, Push=${canSendPush}`);
   } catch (error) {
-    console.error(`[notifyTransaction] ❌ Erreur lors de la vérification des préférences:`, error);
+    console.error(`[notifyTransaction]  Erreur lors de la vérification des préférences:`, error);
     canSendSms = true;
     canSendPush = true;
   }
@@ -67,7 +67,7 @@ export async function notifyTransaction(
     const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
     console.log(`[notifyTransaction] 📱 Tentative d'envoi SMS à ${cleanPhone}`);
 
-    let smsKey: string = ''; // ✅ Initialisation avec valeur par défaut
+    let smsKey: string = '';
     const params: any = {
       full_name: defaultName,
       amount: defaultAmount,
@@ -115,11 +115,9 @@ export async function notifyTransaction(
 
       default:
         console.warn(`[notifyTransaction] ⚠️ Type SMS non reconnu: ${type}`);
-        // ✅ Si le type n'est pas reconnu, on sort de la fonction
         return;
     }
 
-    // ✅ Envoyer le SMS (smsKey est toujours défini)
     try {
       console.log(`[notifyTransaction] 📝 Clé SMS: ${smsKey}`);
       console.log(`[notifyTransaction] 📝 Paramètres:`, params);
@@ -127,26 +125,32 @@ export async function notifyTransaction(
       let smsText = i18nService.translate(smsKey, userLang, params);
       console.log(`[notifyTransaction] 📝 SMS traduit: ${smsText}`);
 
-      // ✅ Vérifier que le SMS n'est pas vide ou que la traduction a fonctionné
       if (!smsText || smsText === smsKey) {
         console.warn(`[notifyTransaction] ⚠️ Traduction manquante pour ${smsKey}, utilisation du fallback`);
 
         const fallbackMessages: Record<string, string> = {
-          'topup': `Bonjour ${defaultName}, Recharge ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Merci.`,
-          'cashout': `Bonjour ${defaultName}, Retrait ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-          'send_sent': `Bonjour ${defaultName}, Envoi ${defaultAmount} ${defaultCurrency} à ${params.toPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-          'send_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.fromPhone}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-          'send_pending': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Vous recevrez une confirmation une fois approuvé.`,
-          'send_confirmed': `Bonjour ${defaultName}, votre envoi international de ${defaultAmount} ${defaultCurrency} a été validé. Le destinataire a été notifié.`,
-          'pay_sent': `Bonjour ${defaultName}, Paiement ${defaultAmount} ${defaultCurrency} à ${params.merchantName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
-          'pay_received': `Bonjour ${defaultName}, Réception ${defaultAmount} ${defaultCurrency} de ${params.payerName}. Solde: ${defaultBalance} ${defaultCurrency}.`,
+          'topup': `Votre portefeuille a ete credite de ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci pour votre confiance.`,
+          'cashout': `Retrait de ${defaultAmount} ${defaultCurrency} effectue avec succes. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci d'utiliser F-Pay.`,
+          'send_sent': `Vous avez envoye ${defaultAmount} ${defaultCurrency} a ${params.toPhone || 'destinataire'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'send_received': `Vous avez recu ${defaultAmount} ${defaultCurrency} de ${params.fromPhone || 'expediteur'}. Solde disponible: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'send_pending': `Votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Ref: ${transaction?.reference || 'N/A'}. Vous recevrez une confirmation une fois approuve.`,
+          'send_confirmed': `Votre envoi international de ${defaultAmount} ${defaultCurrency} a ete valide. Ref: ${transaction?.reference || 'N/A'}. Le destinataire a ete notifie.`,
+          'pay_sent': `Paiement de ${defaultAmount} ${defaultCurrency} effectue chez ${params.merchantName || 'commercant'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'pay_received': `Vous avez recu ${defaultAmount} ${defaultCurrency} de ${params.payerName || 'client'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'conversion': `Conversion reussie: ${defaultAmount} ${defaultCurrency} vers ${wallet?.currency || 'devise'}. Ref: ${transaction?.reference || 'N/A'}. Solde mis a jour.`,
+          'failed': `Votre transaction de ${defaultAmount} ${defaultCurrency} n'a pas abouti. Ref: ${transaction?.reference || 'N/A'}. Verifiez vos informations ou contactez le support.`,
         };
+
+        smsText = fallbackMessages[type] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`;
 
         smsText = fallbackMessages[type] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}.`;
       }
 
-      // ✅ Envoyer le SMS
-      await smsService.sendSms(cleanPhone, smsText);
+      // ✅ Envoyer le SMS avec le countryCode de l'utilisateur
+      const countryCode = user?.countryCode || 'CD';
+      console.log(`[notifyTransaction] 📱 CountryCode pour SMS: ${countryCode}`);
+
+      await smsService.sendSms(cleanPhone, smsText, countryCode);
       console.log(`[notifyTransaction] ✅ SMS envoyé avec succès à ${cleanPhone}`);
 
     } catch (error) {
@@ -176,7 +180,6 @@ export async function notifyTransaction(
       timestamp: new Date().toISOString(),
     };
 
-    // ✅ Déterminer le type et les données Push
     switch (type) {
       case 'topup':
         pushType = NotificationType.TOP_UP_SUCCESS;
@@ -276,7 +279,6 @@ export async function notifyTransaction(
         break;
     }
 
-    // ✅ Envoyer la notification Push
     if (pushType) {
       try {
         console.log(`[notifyTransaction] 🔔 Type Push: ${pushType}`);

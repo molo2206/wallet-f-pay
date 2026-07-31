@@ -2841,6 +2841,7 @@ export class WalletServiceService {
           pin: true,
           status: true,
           failed_pin_attempts: true,
+          countryCode: true,
         },
       });
       if (!user)
@@ -3220,6 +3221,7 @@ export class WalletServiceService {
         role: true,
         status: true,
         failed_pin_attempts: true,
+        countryCode: true, // ✅ AJOUTÉ pour le SMS
       },
     });
 
@@ -3248,11 +3250,9 @@ export class WalletServiceService {
 
       // ✅ Logique de blocage automatique (comme le login)
       if (newAttempts >= 10) {
-        // 🔒 Blocage de 30 minutes (se débloque automatiquement)
         lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-        newStatus = user_status.SUSPENDED; // ✅ Utiliser SUSPENDED au lieu de BLOCKED
+        newStatus = user_status.SUSPENDED;
       } else if (newAttempts >= 5) {
-        // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
         lockedUntil = null;
         newStatus = user_status.ACTIVE;
       }
@@ -3276,7 +3276,6 @@ export class WalletServiceService {
         lockedUntil,
       );
 
-      // ✅ Message personnalisé selon le nombre de tentatives
       let errorMessage: string;
       if (newAttempts >= 10) {
         errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
@@ -3353,9 +3352,9 @@ export class WalletServiceService {
     const netAmount = Math.round((amount - feeAmount) * 100) / 100;
 
     console.log('[WalletService] Cashout calcul:', {
-      amount,        // 1.02 (montant demandé)
-      feeAmount,     // 0.02 (frais)
-      netAmount,     // 1.00 (net envoyé à PawaPay) ✅
+      amount,
+      feeAmount,
+      netAmount,
       payoutFee: fees.payoutFee,
     });
 
@@ -3375,8 +3374,7 @@ export class WalletServiceService {
     let pawaPayErrorDetails: any = null;
     let externalReference: string | undefined;
 
-    // ✅ Envoyer le NET à PawaPay (1.00)
-    const amountStr = netAmount.toString(); // "1.00" ✅
+    const amountStr = netAmount.toString();
     const pawapayData = {
       amount: amountStr,
       currency: wallet.currency,
@@ -3453,7 +3451,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount, // ✅ 1.02
+              amount: amount,
               type: 'WITHDRAW',
               status: 'FAILED',
               reference: await this.generateTransactionReference('', tx),
@@ -3511,7 +3509,6 @@ export class WalletServiceService {
             this.i18nService.translate('wallet.via_pawapay', lang, { provider }) +
             (externalReference ? ` Ref: ${externalReference}` : '');
 
-          // ✅ Débiter le montant demandé (amount) du solde
           const upd = await tx.wallet.update({
             where: { id: wallet.id },
             data: { balance: { decrement: amount }, updatedAt: new Date() },
@@ -3523,7 +3520,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount, // ✅ 1.02
+              amount: amount,
               type: 'WITHDRAW',
               status: 'SUCCESS',
               reference: reference,
@@ -3556,13 +3553,15 @@ export class WalletServiceService {
         const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
         const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
           full_name: user.full_name || '',
-          amount: amount.toFixed(2), // ✅ 1.02
+          amount: amount.toFixed(2),
           feePercent: fees.payoutFee,
           currency: wallet.currency || 'CDF',
           balance: updatedWallet.balance || 0,
         });
-        await this.smsService.sendSms(cleanPhone, smsText);
-        console.log(`[Cashout] SMS envoyé à ${cleanPhone}`);
+        // ✅ Envoyer SMS avec countryCode
+        const countryCode = user?.countryCode || 'CD';
+        await this.smsService.sendSms(cleanPhone, smsText, countryCode);
+        console.log(`[Cashout] SMS envoyé à ${cleanPhone} (${countryCode})`);
       } catch (err) {
         console.error('[Cashout] Erreur envoi SMS:', err);
       }
@@ -3591,7 +3590,7 @@ export class WalletServiceService {
     // ---------- 7. Retour ----------
     return {
       message: this.i18nService.translate('wallet.cashout_success', lang, {
-        amount: amount.toFixed(2), // ✅ 1.02
+        amount: amount.toFixed(2),
         feePercent: fees.payoutFee,
         currency: wallet.currency,
       }),
@@ -3804,13 +3803,10 @@ export class WalletServiceService {
           let newStatus: user_status = fromUser.status;
           let lockedUntil: Date | null = null;
 
-          // ✅ Logique de blocage automatique (comme le login)
           if (newAttempts >= 10) {
-            // 🔒 Blocage de 30 minutes (se débloque automatiquement)
             lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-            newStatus = user_status.SUSPENDED; // ✅ Utiliser SUSPENDED au lieu de BLOCKED
+            newStatus = user_status.SUSPENDED;
           } else if (newAttempts >= 5) {
-            // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
             lockedUntil = null;
             newStatus = user_status.ACTIVE;
           }
@@ -3820,7 +3816,7 @@ export class WalletServiceService {
             data: {
               failed_pin_attempts: newAttempts,
               status: newStatus,
-              pin_locked_until: lockedUntil, // ✅ Ajouter le verrouillage PIN
+              pin_locked_until: lockedUntil,
             },
           });
 
@@ -3834,7 +3830,6 @@ export class WalletServiceService {
             lockedUntil,
           );
 
-          // ✅ Message personnalisé selon le nombre de tentatives
           let errorMessage: string;
           if (newAttempts >= 10) {
             errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
@@ -3859,7 +3854,6 @@ export class WalletServiceService {
           });
         }
 
-        // ✅ Succès : réinitialiser les tentatives
         await tx.user.update({
           where: { id: fromUser.id },
           data: {
@@ -3868,15 +3862,21 @@ export class WalletServiceService {
             status: user_status.ACTIVE,
           },
         });
-        // 4. Récupérer les frais internationaux dynamiques du PAYS DE L'EXPÉDITEUR
+
+        // ============================================
+        // 4. CALCUL DES FRAIS INTERNATIONAUX
+        // ============================================
         let internationalFeePercentage = 0;
+        let withdrawalFeePercentage = 0;
         let fee = 0;
         let debitAmount = amount;
         let netAmount = amount;
+        let finalAmount = amount;
         let feeCurrency = fromWallet.currency;
+        let selectedReceiverNetwork: any = null; // ✅ Déclaration explicite
 
         if (isInternational) {
-          // ✅ Récupérer les frais du pays de l'expéditeur
+          // ✅ Récupérer les frais du pays expéditeur
           const senderCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3888,9 +3888,6 @@ export class WalletServiceService {
               international_transfer_fee: true,
               cash_percentage: true,
               momo_percentage: true,
-              deposit_fee: true,
-              withdrawal_fee: true,
-              maintenance_fee: true,
             },
           });
 
@@ -3903,67 +3900,106 @@ export class WalletServiceService {
             });
           }
 
-          // ✅ Utiliser international_transfer_fee du pays expéditeur
-          // Fallback: si international_transfer_fee est 0, utiliser cash_percentage ou momo_percentage
+          // ✅ Récupérer les networks du pays destinataire
+          const receiverNetworks = await tx.network_provider.findMany({
+            where: {
+              country_provider: {
+                OR: [
+                  { countryCode: receiverCountryCode },
+                  { code: receiverCountryCode },
+                ],
+              },
+            },
+          });
+
+          // ✅ Prendre le premier network destinataire (ou celui avec le plus grand pourcentage)
+          if (receiverNetworks.length > 0) {
+            selectedReceiverNetwork = receiverNetworks[0];
+            for (const network of receiverNetworks) {
+              if (network.pourcentage_payout && network.pourcentage_payout > (selectedReceiverNetwork.pourcentage_payout || 0)) {
+                selectedReceiverNetwork = network;
+              }
+            }
+          }
+
+          // ✅ Pourcentage international
           internationalFeePercentage = senderCountry.international_transfer_fee ||
             senderCountry.cash_percentage ||
             senderCountry.momo_percentage ||
             0;
 
-          console.log('[WalletService] Frais du pays expéditeur:', {
+          // ✅ Frais de retrait du destinataire
+          if (selectedReceiverNetwork && selectedReceiverNetwork.pourcentage_payout) {
+            withdrawalFeePercentage = selectedReceiverNetwork.pourcentage_payout;
+          } else {
+            withdrawalFeePercentage = 0;
+            console.warn('[WalletService] ⚠️ Aucun pourcentage_payout trouvé pour le network destinataire');
+          }
+
+          console.log('[WalletService] Frais internationaux:', {
             senderCountryCode,
-            international_transfer_fee: senderCountry.international_transfer_fee,
-            cash_percentage: senderCountry.cash_percentage,
-            momo_percentage: senderCountry.momo_percentage,
             internationalFeePercentage,
+            withdrawalFeePercentage,
+            receiverCountryCode,
+            receiverNetwork: selectedReceiverNetwork?.name || 'Aucun',
           });
 
           if (internationalFeePercentage > 0) {
             const percentageDecimal = internationalFeePercentage / 100;
 
-            // ✅ Le front envoie le montant BRUT (avec frais inclus)
-            // NET = BRUT / (1 + pourcentage)
+            // ✅ 1. Net = Montant total / (1 + pourcentage)
             netAmount = amount / (1 + percentageDecimal);
 
-            // ✅ Frais = BRUT - NET
+            // ✅ 2. Frais = Montant total - Net
             fee = amount - netAmount;
 
-            // ✅ Montant débité = BRUT
+            // ✅ 3. Montant débité = Montant total
             debitAmount = amount;
+
+            // ✅ 4. Montant reçu = Net + (Net × pourcentage_retrait)
+            const withdrawalDecimal = withdrawalFeePercentage / 100;
+            finalAmount = netAmount + (netAmount * withdrawalDecimal);
 
             feeCurrency = fromWallet.currency;
 
-            console.log('[WalletService] Frais internationaux appliqués:', {
-              percentage: internationalFeePercentage,
-              brutAmount: amount,
+            console.log('[WalletService] Calcul des frais:', {
+              amount,
+              internationalFeePercentage,
+              withdrawalFeePercentage,
               netAmount,
               fee,
+              finalAmount,
               debitAmount,
-              feeCurrency,
-              senderCountry: senderCountryCode,
+              receiverNetwork: selectedReceiverNetwork?.name,
             });
           } else {
             console.log('[WalletService] Aucun frais international configuré pour', senderCountryCode);
             netAmount = amount;
             fee = 0;
             debitAmount = amount;
+            finalAmount = amount;
           }
         } else {
           console.log('[WalletService] ✅ Même pays - Pas de frais');
           internationalFeePercentage = 0;
+          withdrawalFeePercentage = 0;
           fee = 0;
           debitAmount = amount;
           netAmount = amount;
+          finalAmount = amount;
         }
 
-        console.log('[WalletService] Fee calculation:', {
+        console.log('[WalletService] Résumé frais:', {
           isInternational,
           amount,
-          feePercentage: internationalFeePercentage,
+          internationalFeePercentage,
+          withdrawalFeePercentage,
           fee,
           debitAmount,
           netAmount,
+          finalAmount,
           senderCountryCode,
+          receiverCountryCode,
         });
 
         // 5. Récupérer les wallets du destinataire
@@ -4046,9 +4082,10 @@ export class WalletServiceService {
           balance: targetWallet.balance,
         });
 
-        // 6. Calculer le taux de change dynamique via USD (pivot)
+        // 6. Calculer le taux de change
         let exchangeRate = 1;
-        let convertedAmount = netAmount;
+        // ✅ Utiliser finalAmount (le montant reçu par le destinataire)
+        let convertedAmount = finalAmount;
 
         if (fromWallet.currency !== targetCurrency) {
           exchangeRate = await this.getExchangeRateViaPivot(
@@ -4057,11 +4094,12 @@ export class WalletServiceService {
             tx,
           );
 
-          convertedAmount = netAmount * exchangeRate;
-          console.log('[WalletService] Conversion du montant net (via pivot USD):', {
+          // ✅ Convertir le montant final (ce que le destinataire reçoit)
+          convertedAmount = finalAmount * exchangeRate;
+          console.log('[WalletService] Conversion du montant final:', {
             from: fromWallet.currency,
             to: targetCurrency,
-            netAmount,
+            finalAmount,
             rate: exchangeRate,
             convertedAmount,
           });
@@ -4101,23 +4139,8 @@ export class WalletServiceService {
 
         const feeAmount = fee || 0;
 
-        console.log('[WalletService] 🔍 DEBUG - Fee collection:', {
-          feeAmount,
-          feeCurrency,
-          fromWalletCurrency: fromWallet.currency,
-          targetCurrency,
-          exchangeRate,
-          netAmount,
-          convertedAmount,
-          amount,
-          isInternational,
-          internationalFeePercentage,
-          senderCountryCode,
-        });
-
         if (feeAmount > 0 && isInternational) {
           try {
-            // ✅ Récupérer l'utilisateur système
             systemUser = await tx.user.findFirst({
               where: {
                 email: 'system@fpay.com',
@@ -4138,7 +4161,6 @@ export class WalletServiceService {
               });
             }
 
-            // ✅ Chercher le wallet système dans la devise des frais
             systemWallet = await tx.wallet.findFirst({
               where: {
                 userId: systemUser.id,
@@ -4156,28 +4178,13 @@ export class WalletServiceService {
               });
             }
 
-            console.log('[WalletService] 🔍 DEBUG - System wallet found:', {
-              systemWalletId: systemWallet.id,
-              systemWalletCurrency: systemWallet.currency,
-              systemWalletBalance: systemWallet.balance,
-              feeAmountToCredit: feeAmount,
-            });
-
             if (systemWallet && systemWallet.id) {
-              // ✅ Créditer le wallet système avec les frais
-              const updatedSystemWallet = await tx.wallet.update({
+              await tx.wallet.update({
                 where: { id: systemWallet.id },
                 data: {
                   balance: { increment: feeAmount },
                   updatedAt: new Date()
                 },
-              });
-
-              console.log('[WalletService] 🔍 DEBUG - System wallet updated:', {
-                balanceBefore: systemWallet.balance,
-                balanceAfter: updatedSystemWallet.balance,
-                feeAmount: feeAmount,
-                currency: feeCurrency,
               });
 
               const feeReference = await this.generateTransactionReference('FEE', tx);
@@ -4200,13 +4207,10 @@ export class WalletServiceService {
                 },
               });
 
-              console.log(`[WalletService] ✅ Frais collectés: ${feeAmount} ${feeCurrency} (${internationalFeePercentage}%) dans le wallet système (${systemWallet.id})`);
+              console.log(`[WalletService] ✅ Frais collectés: ${feeAmount} ${feeCurrency} dans le wallet système`);
             }
           } catch (err) {
             console.error('[WalletService] ❌ Erreur lors de la collecte des frais:', err);
-            if (err instanceof RpcException) {
-              throw err;
-            }
             console.warn('[WalletService] ⚠️ La collecte des frais a échoué mais le transfert continue');
           }
         }
@@ -4307,8 +4311,10 @@ export class WalletServiceService {
           targetCurrency,
           fee: feeAmount,
           internationalFeePercentage,
+          withdrawalFeePercentage,
           debitAmount,
           netAmount,
+          finalAmount,
           receiverCountryCode,
           senderCountryCode,
           systemTransaction: systemTransaction ?? null,
@@ -4367,7 +4373,7 @@ export class WalletServiceService {
           result.senderTx,
           result.fromUser,
           result.fromWallet,
-          'send_sent',
+          'send_pending',
           {
             name: result.toUser.full_name ?? undefined,
             phone: result.toUser.phone ?? undefined,
@@ -4389,8 +4395,10 @@ export class WalletServiceService {
           rate: result.exchangeRate,
           fee: result.fee,
           feePercentage: result.internationalFeePercentage,
+          withdrawalFeePercentage: result.withdrawalFeePercentage,
           debitAmount: result.debitAmount,
           netAmount: result.netAmount,
+          finalAmount: result.finalAmount,
           fromCurrency: result.fromWallet.currency,
           countryCode: result.receiverCountryCode,
         }
@@ -6083,6 +6091,7 @@ export class WalletServiceService {
       transaction: result.transaction,
     };
   }
+
   // ==================== ADMIN OPERATIONS (sans PIN) ====================
   async getMerchantByCode(
     merchantCode: string,

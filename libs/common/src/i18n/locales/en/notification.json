@@ -17,11 +17,22 @@
   "notifications.cashout_success.body": "Withdrawal of {{amount}} {{currency}} made to your bank account",
   "notifications.default.title": "Notification",
   "notifications.default.body": "",
-
   "notifications.transaction.title": "Transaction",
   "notifications.transaction.body": "{{amount}} {{currency}} transaction",
   "notifications.transfer.title": "Transfer",
   "notifications.transfer.body": "{{amount}} {{currency}} transfer",
   "notifications.payment.title": "Payment",
-  "notifications.payment.body": "{{amount}} {{currency}} payment"
+  "notifications.payment.body": "{{amount}} {{currency}} payment",
+  "notifications.transfer_pending.title": "International transfer pending",
+  "notifications.transfer_pending.body": "Your transfer of {{amount}} {{currency}} is pending validation by an administrator.",
+  "notifications.transfer_confirmed.title": "International transfer confirmed",
+  "notifications.transfer_confirmed.body": "Your transfer of {{amount}} {{currency}} has been validated successfully. The recipient has been notified.",
+  "notifications.kyc_verified.title": "KYC verified",
+  "notifications.kyc_verified.body": "Your KYC request has been verified successfully.",
+  "notifications.kyc_rejected.title": "KYC rejected",
+  "notifications.kyc_rejected.body": "Your KYC request has been rejected. Reason: {{reason}}",
+  "notifications.maintenance_fee.title": "Maintenance fee",
+  "notifications.maintenance_fee.body": "A maintenance fee of {{amount}} {{currency}} has been deducted from your account ({{country}}).",
+  "notifications.maintenance_fee_debt.title": "Maintenance debt",
+  "notifications.maintenance_fee_debt.body": "A maintenance fee of {{amount}} {{currency}} has been deducted. Your balance is in debt of {{debt}} {{currency}} ({{country}})."
 }
