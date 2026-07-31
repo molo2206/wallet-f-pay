@@ -9,76 +9,11 @@ export class SmsService {
   private readonly sender = 'F-pay';
   private readonly apiUrl = 'https://lamsms.lafricamobile.com/api';
 
-  // Configuration des indicatifs par pays
-  private readonly countryCodes = {
-    CD: '243',
-    BJ: '229',
-  };
-
-  private normalizePhoneNumber(phoneNumber: string, countryCode: string = 'CD'): string | null {
-    let cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-    const prefix = this.countryCodes[countryCode] || '243';
-
-    // BENIN : format 229 + 01 + 9 chiffres = 13 chiffres
-    if (countryCode === 'BJ') {
-      if (cleanPhone.startsWith('229')) {
-        if (cleanPhone.startsWith('22901')) {
-          if (cleanPhone.length === 13) return cleanPhone;
-          console.error(`Numero Benin invalide: ${cleanPhone} (13 chiffres requis)`);
-          return null;
-        }
-        if (cleanPhone.startsWith('2290')) {
-          cleanPhone = cleanPhone.substring(0, 4) + '1' + cleanPhone.substring(4);
-          if (cleanPhone.length === 13) return cleanPhone;
-          console.error(`Numero Benin invalide: ${cleanPhone} (13 chiffres requis)`);
-          return null;
-        }
-        cleanPhone = cleanPhone.substring(0, 3) + '01' + cleanPhone.substring(3);
-        if (cleanPhone.length === 13) return cleanPhone;
-        console.error(`Numero Benin invalide: ${cleanPhone} (13 chiffres requis)`);
-        return null;
-      }
-
-      if (cleanPhone.startsWith('0')) {
-        cleanPhone = `22901${cleanPhone.substring(1)}`;
-      } else {
-        cleanPhone = `22901${cleanPhone}`;
-      }
-
-      if (cleanPhone.length === 13) return cleanPhone;
-      console.error(`Numero Benin invalide: ${cleanPhone} (13 chiffres requis)`);
-      return null;
-    }
-
-    // RDC : format 243 + 9 chiffres = 12 chiffres
-    if (cleanPhone.startsWith(prefix)) {
-      if (cleanPhone.length === 12) return cleanPhone;
-      console.error(`Numero RDC invalide: ${cleanPhone} (12 chiffres requis)`);
-      return null;
-    }
-
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = `${prefix}${cleanPhone.substring(1)}`;
-    } else {
-      cleanPhone = `${prefix}${cleanPhone}`;
-    }
-
-    if (cleanPhone.length === 12) return cleanPhone;
-    console.error(`Numero RDC invalide: ${cleanPhone} (12 chiffres requis)`);
-    return null;
-  }
-
-  async sendSms(phoneNumber: string, message: string, countryCode?: string): Promise<boolean> {
+  async sendSms(phoneNumber: string, message: string): Promise<boolean> {
     try {
-      const detectedCountry = countryCode || this.detectCountry(phoneNumber);
-      const cleanPhone = this.normalizePhoneNumber(phoneNumber, detectedCountry);
+      const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
 
-      if (!cleanPhone) {
-        console.error(`Numero invalide: ${phoneNumber}`);
-        return false;
-      }
-
-      console.log(`Numero normalise: ${cleanPhone} (${detectedCountry})`);
+      console.log(`Numero: ${cleanPhone}`);
 
       const payload = {
         accountid: this.accountId,
@@ -122,26 +57,20 @@ export class SmsService {
     }
   }
 
-  detectCountry(phoneNumber: string): string {
-    const clean = phoneNumber.replace(/[^0-9]/g, '');
-    if (clean.startsWith('229')) return 'BJ';
-    if (clean.startsWith('243')) return 'CD';
-    return 'CD';
+  async sendOtpSms(phoneNumber: string, otpCode: string): Promise<boolean> {
+    const message = `Votre code F-Pay est : ${otpCode}`;
+    return this.sendSms(phoneNumber, message);
   }
 
-  async sendOtpSms(phoneNumber: string, otpCode: string, countryCode?: string): Promise<boolean> {
-    return this.sendSms(phoneNumber, `Votre code F-Pay est : ${otpCode}`, countryCode);
-  }
-
-  async sendWelcomeSms(phoneNumber: string, fullName: string, accountNumber: string, countryCode?: string): Promise<boolean> {
-    return this.sendSms(phoneNumber, `Bienvenue sur F-Pay, ${fullName} ! Votre compte ${accountNumber} a ete cree avec succes.`, countryCode);
+  async sendWelcomeSms(phoneNumber: string, fullName: string, accountNumber: string): Promise<boolean> {
+    const message = `Bienvenue sur F-Pay, ${fullName} ! Votre compte ${accountNumber} a ete cree avec succes.`;
+    return this.sendSms(phoneNumber, message);
   }
 
   async sendBulkSms(
     recipients: {
       phone: string;
       message: string;
-      countryCode?: string;
     }[]
   ): Promise<{
     success: boolean;
@@ -152,11 +81,7 @@ export class SmsService {
 
     for (const recipient of recipients) {
       try {
-        const success = await this.sendSms(
-          recipient.phone,
-          recipient.message,
-          recipient.countryCode
-        );
+        const success = await this.sendSms(recipient.phone, recipient.message);
         results.push({
           phone: recipient.phone,
           status: success,
@@ -176,13 +101,5 @@ export class SmsService {
       success: allSuccess,
       results,
     };
-  }
-
-  async sendSmsAuto(phoneNumber: string, message: string): Promise<boolean> {
-    return this.sendSms(phoneNumber, message, this.detectCountry(phoneNumber));
-  }
-
-  async sendOtpSmsAuto(phoneNumber: string, otpCode: string): Promise<boolean> {
-    return this.sendOtpSms(phoneNumber, otpCode, this.detectCountry(phoneNumber));
   }
 }
