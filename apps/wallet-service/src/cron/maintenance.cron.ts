@@ -910,7 +910,7 @@ export class MaintenanceService {
                             isActive: true,
                         },
                     },
-                    transactions: {
+                    transaction: {
                         where: {
                             type: 'WITHDRAW',
                             status: 'PENDING',
@@ -940,7 +940,7 @@ export class MaintenanceService {
             const details: any[] = [];
 
             for (const user of usersWithDebts) {
-                const debtTransactions = user.transactions || [];
+                const debtTransactions = user.transaction || [];
 
                 if (debtTransactions.length === 0) continue;
 
@@ -1087,7 +1087,7 @@ export class MaintenanceService {
                     // ✅ Envoyer une notification de déblocage
                     try {
                         const userLang = user.countryCode === 'CD' ? 'fr' : 'en';
-                        const unblockTitle = this.t('wallet.maintenance.notification_title', userLang);
+                        const unblockTitle = this.t('wallet.maintenance.notification_title_blocked', userLang);
                         const unblockBody = this.t('wallet.maintenance.notification_body_unblocked', userLang);
 
                         await this.notificationHelper.notify(
@@ -1152,7 +1152,7 @@ export class MaintenanceService {
     }
 
     // ================================================================
-    // ✅ MÉTHODES PRIVÉES
+    // ✅ MÉTHODES PRIVÉES (inchangées)
     // ================================================================
 
     private async processUserMaintenance(
@@ -1374,7 +1374,7 @@ export class MaintenanceService {
                     },
                 });
 
-                // ✅ 2. Transaction utilisateur (DÉBIT) - AVEC TRADUCTION
+                // ✅ 2. Transaction utilisateur (DÉBIT)
                 const userTransaction = await tx.transaction.create({
                     data: {
                         id: crypto.randomUUID(),
@@ -1405,7 +1405,7 @@ export class MaintenanceService {
                     },
                 });
 
-                // ✅ 4. Transaction système (CRÉDIT) - AVEC TRADUCTION
+                // ✅ 4. Transaction système (CRÉDIT)
                 const systemTransaction = await tx.transaction.create({
                     data: {
                         id: crypto.randomUUID(),
@@ -1577,7 +1577,7 @@ export class MaintenanceService {
                     },
                 });
 
-                // ✅ 2. Transaction de collection (si montant > 0) - AVEC TRADUCTION
+                // ✅ 2. Transaction de collection (si montant > 0)
                 if (collectedAmount > 0) {
                     userTransaction = await tx.transaction.create({
                         data: {
@@ -1601,7 +1601,7 @@ export class MaintenanceService {
                     });
                 }
 
-                // ✅ 3. Transaction de dette (si montant > 0) - AVEC TRADUCTION
+                // ✅ 3. Transaction de dette (si montant > 0)
                 if (debtAmount > 0) {
                     debtTransaction = await tx.transaction.create({
                         data: {
@@ -1667,7 +1667,7 @@ export class MaintenanceService {
                     },
                 });
 
-                // ✅ 6. Transaction système - AVEC TRADUCTION
+                // ✅ 6. Transaction système
                 const debtInfo = debtAmount > 0 ? ` (dette: ${debtAmount} ${selectedWallet.currency}, ${newMonthsInDebt} mois)` : '';
                 const systemTransaction = await tx.transaction.create({
                     data: {
