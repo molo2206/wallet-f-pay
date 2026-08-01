@@ -191,5 +191,6 @@
   "wallet.transfer_confirmed_push": "Upelekaji wako wa {{amount}} {{currency}} umeidhinishwa.",
   "wallet.fee_collected": "Ada ya {{amount}} {{currency}} imekusanywa kwa mafanikio.",
   "wallet.debt_created": "Deni la {{amount}} {{currency}} limeundwa. Tafadhali lipa.",
-  "wallet.partial_payment": "Malipo ya sehemu ya {{amount}} {{currency}} yamefanywa. Imesalia: {{remaining}} {{currency}}."
+  "wallet.partial_payment": "Malipo ya sehemu ya {{amount}} {{currency}} yamefanywa. Imesalia: {{remaining}} {{currency}}.",
+  "wallet.maintenance.debt_prefix": "Deni la matengenezo"
 }

@@ -194,5 +194,6 @@
     "wallet.transfer_confirmed_push": "تمت الموافقة على إرسالك بمبلغ {{amount}} {{currency}}.",
     "wallet.fee_collected": "تم تحصيل رسوم بقيمة {{amount}} {{currency}} بنجاح",
     "wallet.debt_created": "تم إنشاء دين بقيمة {{amount}} {{currency}}. يرجى التسوية.",
-    "wallet.partial_payment": "تم سداد دفعة جزئية بقيمة {{amount}} {{currency}}. المتبقي: {{remaining}} {{currency}}."
+    "wallet.partial_payment": "تم سداد دفعة جزئية بقيمة {{amount}} {{currency}}. المتبقي: {{remaining}} {{currency}}.",
+    "wallet.maintenance.debt_prefix": "دين الصيانة"
 }

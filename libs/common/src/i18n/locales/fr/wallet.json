@@ -191,5 +191,6 @@
   "wallet.transfer_confirmed_push": "Votre envoi de {{amount}} {{currency}} a ete approuve.",
   "wallet.fee_collected": "Frais de {{amount}} {{currency}} collectes avec succes",
   "wallet.debt_created": "Dette de {{amount}} {{currency}} creee. Veuillez regulariser.",
-  "wallet.partial_payment": "Paiement partiel de {{amount}} {{currency}} effectue. Reste du: {{remaining}} {{currency}}."
+  "wallet.partial_payment": "Paiement partiel de {{amount}} {{currency}} effectue. Reste du: {{remaining}} {{currency}}.",
+  "wallet.maintenance.debt_prefix": "Dette de maintenance"
 }

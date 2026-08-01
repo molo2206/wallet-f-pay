@@ -194,5 +194,6 @@
     "wallet.transfer_confirmed_push": "Su envio de {{amount}} {{currency}} ha sido aprobado.",
     "wallet.fee_collected": "Comision de {{amount}} {{currency}} cobrada con exito",
     "wallet.debt_created": "Deuda de {{amount}} {{currency}} creada. Por favor regularice.",
-    "wallet.partial_payment": "Pago parcial de {{amount}} {{currency}} realizado. Resta: {{remaining}} {{currency}}."
+    "wallet.partial_payment": "Pago parcial de {{amount}} {{currency}} realizado. Resta: {{remaining}} {{currency}}.",
+    "wallet.maintenance.debt_prefix": "Deuda mantenimiento"
 }

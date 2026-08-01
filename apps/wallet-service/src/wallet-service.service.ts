@@ -2782,9 +2782,7 @@ export class WalletServiceService {
     }
     return code;
   }
-  /**
-   * Recharge un wallet via virement bancaire ou mobile money (PawaPay)
-   */
+
   async topUp(
     userId: string,
     amount: number,
@@ -2865,13 +2863,10 @@ export class WalletServiceService {
         let newStatus: user_status = user.status;
         let lockedUntil: Date | null = null;
 
-        // ✅ Logique de blocage automatique (comme le login)
         if (newAttempts >= 10) {
-          // 🔒 Blocage de 30 minutes (se débloque automatiquement)
           lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-          newStatus = user_status.SUSPENDED; // ✅ Utiliser SUSPENDED au lieu de BLOCKED
+          newStatus = user_status.SUSPENDED;
         } else if (newAttempts >= 5) {
-          // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
           lockedUntil = null;
           newStatus = user_status.ACTIVE;
         }
@@ -2881,7 +2876,7 @@ export class WalletServiceService {
           data: {
             failed_pin_attempts: newAttempts,
             status: newStatus,
-            pin_locked_until: lockedUntil, // ✅ Ajouter le verrouillage PIN
+            pin_locked_until: lockedUntil,
           },
         });
 
@@ -2895,7 +2890,6 @@ export class WalletServiceService {
           lockedUntil,
         );
 
-        // ✅ Message personnalisé selon le nombre de tentatives
         let errorMessage: string;
         if (newAttempts >= 10) {
           errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
@@ -2920,7 +2914,6 @@ export class WalletServiceService {
         });
       }
 
-      // ✅ Succès : réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: userId },
         data: {
@@ -2971,17 +2964,14 @@ export class WalletServiceService {
     }
 
     // ========== CALCUL DES FRAIS ==========
-    // Récupérer les frais de dépôt
     const fees = await this.getNetworkProviderFees(provider);
     const feeAmount = (amount * fees.depositFee) / 100;
-
-    // ✅ Net reçu par l'utilisateur (montant demandé - frais)
     const netAmount = Math.round((amount - feeAmount) * 100) / 100;
 
     console.log('[WalletService] Top-up calcul:', {
-      amount,        // 1.02 (montant demandé)
-      feeAmount,     // 0.02 (frais)
-      netAmount,     // 1.00 (net reçu par l'utilisateur) ✅
+      amount,
+      feeAmount,
+      netAmount,
       depositFee: fees.depositFee,
     });
 
@@ -2999,17 +2989,16 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Envoyer le MONTANT DEMANDÉ à PawaPay (1.02)
     const amountStr = amount.toString();
     const pawapayData = {
-      amount: amountStr, // ✅ 1.02 (montant demandé)
+      amount: amountStr,
       currency: wallet.currency,
       provider,
       phone,
       walletId: wallet.id,
     };
 
-    console.log('[WalletService] Appel PawaPay deposit (montant demandé):', pawapayData);
+    console.log('[WalletService] Appel PawaPay deposit:', pawapayData);
     try {
       const pawapayResponse = await this.pawapayService.createDepositSimple(pawapayData);
       console.log('[WalletService] Réponse PawaPay:', pawapayResponse);
@@ -3057,7 +3046,7 @@ export class WalletServiceService {
             id: crypto.randomUUID(),
             userId,
             walletId: wallet.id,
-            amount: netAmount, // ✅ Net (1.00)
+            amount: netAmount,
             type: 'DEPOSIT',
             status: 'FAILED',
             reference: await this.generateTransactionReference('', tx),
@@ -3081,6 +3070,9 @@ export class WalletServiceService {
     // 4. Succès : créditer le wallet et créer la transaction
     let updatedWallet: any;
     let transaction: any;
+    let debtsPaid = 0;
+    let totalDebtPaid = 0;
+
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         const description = this.i18nService.translate('wallet.transaction_description_deposit', lang)
@@ -3088,7 +3080,7 @@ export class WalletServiceService {
           + ` (frais ${fees.depositFee}% : ${feeAmount.toFixed(2)} ${wallet.currency} déduits) - Net crédité: ${netAmount.toFixed(2)} ${wallet.currency}`
           + ' ' + this.i18nService.translate('wallet.via_pawapay', lang, { provider });
 
-        // ✅ Créditer le NET (1.00)
+        // ✅ Créditer le NET
         const upd = await tx.wallet.update({
           where: { id: wallet.id },
           data: { balance: { increment: netAmount }, updatedAt: new Date() },
@@ -3099,7 +3091,7 @@ export class WalletServiceService {
             id: crypto.randomUUID(),
             userId,
             walletId: wallet.id,
-            amount: netAmount, // ✅ Net (1.00) - ENREGISTRÉ EN BASE
+            amount: netAmount,
             type: 'DEPOSIT',
             status: 'SUCCESS',
             reference: await this.generateTransactionReference('', tx),
@@ -3109,10 +3101,152 @@ export class WalletServiceService {
             currency: wallet.currency,
           },
         });
-        return { wallet: upd, transaction: txRecord };
-      });
+
+        // ============================================
+        // ✅ PAIEMENT AUTOMATIQUE DES DETTES DE MAINTENANCE
+        // ============================================
+        let currentBalance = upd.balance;
+        let debtPaidCount = 0;
+        let debtPaidTotal = 0;
+
+        // ✅ Récupérer le préfixe de dette dans la langue de l'utilisateur
+        const debtPrefix = this.i18nService.translate('wallet.maintenance.debt_prefix', lang);
+
+        // ✅ Récupérer les dettes en PENDING par description
+        const debtTransactions = await tx.transaction.findMany({
+          where: {
+            userId: userId,
+            walletId: wallet.id,
+            type: 'WITHDRAW',
+            status: 'PENDING',
+            description: {
+              startsWith: debtPrefix
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+
+        if (debtTransactions.length > 0) {
+          console.log(`[TopUp] ${debtTransactions.length} dettes de maintenance trouvées pour l'utilisateur ${userId}`);
+        }
+
+        for (const debt of debtTransactions) {
+          if (currentBalance >= debt.amount) {
+            // ✅ Payer la dette
+            await tx.transaction.update({
+              where: { id: debt.id },
+              data: {
+                status: 'SUCCESS',
+                description: `${debt.description} (Payée le ${new Date().toLocaleDateString()})`,
+                updatedAt: new Date(),
+              },
+            });
+
+            currentBalance -= debt.amount;
+            debtPaidTotal += debt.amount;
+            debtPaidCount++;
+
+            // ✅ Audit log
+            await tx.audit_log.create({
+              data: {
+                id: crypto.randomUUID(),
+                userId: userId,
+                action: 'MAINTENANCE_DEBT_PAID_AUTO',
+                details: JSON.stringify({
+                  debtId: debt.id,
+                  amount: debt.amount,
+                  currency: debt.currency,
+                  reference: debt.reference,
+                  remainingBalance: currentBalance,
+                  totalDebts: debtTransactions.length,
+                  source: 'TOPUP',
+                }),
+                createdAt: new Date(),
+              },
+            });
+
+            console.log(`✅ Dette ${debt.id} (${debt.reference}) payée via TopUp (${debt.amount} ${debt.currency})`);
+          }
+        }
+
+        // ✅ Mettre à jour le solde si des dettes ont été payées
+        if (debtPaidCount > 0) {
+          await tx.wallet.update({
+            where: { id: wallet.id },
+            data: {
+              balance: currentBalance,
+              updatedAt: new Date(),
+            },
+          });
+          upd.balance = currentBalance;
+        }
+
+        // ✅ Vérifier s'il reste des dettes
+        const remainingDebts = await tx.transaction.count({
+          where: {
+            userId: userId,
+            type: 'WITHDRAW',
+            status: 'PENDING',
+            description: {
+              startsWith: debtPrefix
+            },
+          },
+        });
+
+        // ✅ Si plus de dettes → débloquer
+        if (remainingDebts === 0) {
+          const userStatus = await tx.user.findUnique({
+            where: { id: userId },
+            select: { status: true },
+          });
+
+          if (userStatus?.status === 'BLOCKED') {
+            await tx.user.update({
+              where: { id: userId },
+              data: {
+                status: 'ACTIVE',
+                locked_until: null,
+                updatedAt: new Date(),
+              },
+            });
+
+            await tx.audit_log.create({
+              data: {
+                id: crypto.randomUUID(),
+                userId: userId,
+                action: 'ACCOUNT_UNBLOCKED_AUTO_DEBT_PAID',
+                details: JSON.stringify({
+                  reason: 'Toutes les dettes de maintenance ont été payées via TopUp',
+                  totalPaid: debtPaidTotal,
+                  debtsCount: debtPaidCount,
+                  date: new Date(),
+                  source: 'TOPUP',
+                }),
+                createdAt: new Date(),
+              },
+            });
+
+            console.log(`🔓 Utilisateur ${userId} débloqué (toutes les dettes payées via TopUp)`);
+          }
+        }
+
+        return {
+          wallet: upd,
+          transaction: txRecord,
+          debtPaidCount,
+          debtPaidTotal,
+          remainingDebts,
+        };
+      }, { timeout: 30000 });
+
       updatedWallet = result.wallet;
       transaction = result.transaction;
+      debtsPaid = result.debtPaidCount;
+      totalDebtPaid = result.debtPaidTotal;
+
+      if (debtsPaid > 0) {
+        console.log(`💰 ${debtsPaid} dette(s) payée(s) automatiquement (${totalDebtPaid} ${wallet.currency})`);
+      }
     } catch (error) {
       throw new RpcException({
         status: 'error',
@@ -3122,7 +3256,7 @@ export class WalletServiceService {
     }
 
     // 5. Audit et notifications
-    await this.logAudit(user.id, 'topUp', transaction, ipAddress || null);
+    await this.logAudit(user.id, 'topUp', { transaction, debtsPaid, totalDebtPaid }, ipAddress || null);
     try {
       await notifyTransaction(
         this.smsService,
@@ -3140,13 +3274,20 @@ export class WalletServiceService {
       console.error('[Notifications] topUp error:', err);
     }
 
+    // ✅ Message avec info sur les dettes payées
+    let successMessage = this.i18nService.translate('wallet.top_up_success', lang, {
+      amount: netAmount.toFixed(2),
+      feeAmount: feeAmount.toFixed(2),
+      feePercent: fees.depositFee,
+      currency: wallet.currency,
+    });
+
+    if (debtsPaid > 0) {
+      successMessage += ` (${debtsPaid} dette(s) de maintenance payée(s): ${totalDebtPaid.toFixed(2)} ${wallet.currency})`;
+    }
+
     return {
-      message: this.i18nService.translate('wallet.top_up_success', lang, {
-        amount: netAmount.toFixed(2), // ✅ 1.00 (Net reçu)
-        feeAmount: feeAmount.toFixed(2), // 0.02
-        feePercent: fees.depositFee, // 2
-        currency: wallet.currency,
-      }),
+      message: successMessage,
       data: {
         wallet: this.toResponse(updatedWallet),
         transaction,
@@ -3873,7 +4014,7 @@ export class WalletServiceService {
         let netAmount = amount;
         let finalAmount = amount;
         let feeCurrency = fromWallet.currency;
-        let selectedReceiverNetwork: any = null; // ✅ Déclaration explicite
+        let selectedReceiverNetwork: any = null;
 
         if (isInternational) {
           // ✅ Récupérer les frais du pays expéditeur
@@ -4084,7 +4225,6 @@ export class WalletServiceService {
 
         // 6. Calculer le taux de change
         let exchangeRate = 1;
-        // ✅ Utiliser finalAmount (le montant reçu par le destinataire)
         let convertedAmount = finalAmount;
 
         if (fromWallet.currency !== targetCurrency) {
@@ -4094,7 +4234,6 @@ export class WalletServiceService {
             tx,
           );
 
-          // ✅ Convertir le montant final (ce que le destinataire reçoit)
           convertedAmount = finalAmount * exchangeRate;
           console.log('[WalletService] Conversion du montant final:', {
             from: fromWallet.currency,
