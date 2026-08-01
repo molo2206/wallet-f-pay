@@ -10,18 +10,18 @@ export enum NotificationType {
   SYSTEM = 'system',
   WALLET = 'wallet',
 
-  // ✅ TRANSFERTS INTERNATIONAUX
+  //  TRANSFERTS INTERNATIONAUX
   TRANSFER_PENDING = 'transfer_pending',
   TRANSFER_CONFIRMED = 'transfer_confirmed',
 
-  // ✅ KYC
+  //  KYC
   KYC_VERIFIED = 'kyc_verified',
   KYC_REJECTED = 'kyc_rejected',
 
-  // ✅ MAINTENANCE
+  //  MAINTENANCE
   MAINTENANCE_FEE = 'maintenance_fee',
 
-  // ✅ NOUVEAUX TYPES DE COMMUNICATION AVEC LES UTILISATEURS
+  // NOUVEAUX TYPES DE COMMUNICATION AVEC LES UTILISATEURS
   ANNOUNCEMENT = 'announcement',           // Annonce générale
   PROMOTION = 'promotion',                  // Offre promotionnelle
   SURVEY = 'survey',                        // Sondage/Questionnaire
