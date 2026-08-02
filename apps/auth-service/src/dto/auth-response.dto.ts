@@ -1,6 +1,14 @@
 // dto/auth-response.dto.ts
 import { user_role, user_status } from '@prisma/client';
 
+export interface BranchInfoDto {
+  id: string;
+  name: string;
+  code: string;
+  countryId: string;
+  status: string;
+}
+
 export interface UserInfoDto {
   id: string;
   email: string | null;
@@ -9,6 +17,7 @@ export interface UserInfoDto {
   full_name: string | null;
   account_number: string | null;
   branchId: string | null;
+  branch?: BranchInfoDto | null; // ✅ AJOUT DE branch
   role: user_role;
   status: user_status;
   deleted: boolean | null;
@@ -24,10 +33,8 @@ export interface UserInfoDto {
   countryCode?: string | null;
   profileImage: string | null;
   kycStatus: string;
-  // ✅ AJOUTER TOUT ICI
   sessionId?: string | null;
   sessions?: SessionDto[];
-
   resources?: ResourcePermissionDto[];
   wallets?: WalletDto[];
   kyc?: KycDto;

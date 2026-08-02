@@ -900,6 +900,12 @@ export class WalletServiceService {
     };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
+  // ================================================================
+  // ADMIN TOP UP
+  // ================================================================
+
   async adminTopUp(
     dto: AdminTopUpDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
@@ -972,7 +978,6 @@ export class WalletServiceService {
           });
         }
 
-        // ✅ Vérifier que l'admin a un PIN
         if (!admin.pin) {
           throw new RpcException({
             status: 'error',
@@ -981,7 +986,6 @@ export class WalletServiceService {
           });
         }
 
-        // Vérifier si le PIN est bloqué
         if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
           const minutesLeft = Math.ceil(
             (admin.pin_locked_until.getTime() - Date.now()) / 60000,
@@ -993,7 +997,6 @@ export class WalletServiceService {
           });
         }
 
-        // Vérifier le PIN
         const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
         if (admin.pin !== hashedPin) {
           const newAttempts = (admin.failed_pin_attempts || 0) + 1;
@@ -1018,7 +1021,6 @@ export class WalletServiceService {
           });
         }
 
-        // Réinitialiser les tentatives de PIN
         await tx.user.update({
           where: { id: admin.id },
           data: { failed_pin_attempts: 0, pin_locked_until: null },
@@ -1052,7 +1054,7 @@ export class WalletServiceService {
           data: { balance: { increment: amount }, updatedAt: new Date() },
         });
 
-        // 4️⃣ Créer la transaction
+        // 4️⃣ Créer la transaction avec branchId
         const reference = await this.generateTransactionReference('', tx);
         const transaction = await tx.transaction.create({
           data: {
@@ -1067,6 +1069,7 @@ export class WalletServiceService {
             movement: 'CREDIT',
             currency: wallet.currency,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
+            branchId: user.branchId ?? null, // ✅ AJOUT DE LA BRANCHE
           },
         });
 
@@ -1130,6 +1133,10 @@ export class WalletServiceService {
       },
     };
   }
+
+  // ================================================================
+  // ADMIN CASHOUT
+  // ================================================================
 
   async adminCashout(
     dto: AdminCashoutDto,
@@ -1217,9 +1224,7 @@ export class WalletServiceService {
     const user = wallet.user; // Le client
 
     // ========== ÉTAPE 1 : Demande de retrait (sans OTP) ==========
-    // ✅ On ne vérifie PAS le PIN de l'admin ici
     if (!otpCode || otpCode.trim() === '') {
-      // Vérifier que l'admin a un PIN (pour la suite)
       if (!admin.pin) {
         throw new RpcException({
           status: 'error',
@@ -1228,14 +1233,11 @@ export class WalletServiceService {
         });
       }
 
-      // Créer une transaction en attente
       const reference = await this.generateTransactionReference();
 
-      // Générer un OTP (6 chiffres)
       const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
       const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-      // Désactiver les anciens OTP du client
       await this.prisma.otp.updateMany({
         where: {
           userId: user.id,
@@ -1245,7 +1247,6 @@ export class WalletServiceService {
         data: { isUsed: true },
       });
 
-      // Créer le nouvel OTP
       await this.prisma.otp.create({
         data: {
           id: crypto.randomUUID(),
@@ -1257,7 +1258,7 @@ export class WalletServiceService {
         },
       });
 
-      // Créer la transaction en attente
+      // ✅ Créer la transaction en attente avec branchId
       const pendingTransaction = await this.prisma.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -1271,6 +1272,7 @@ export class WalletServiceService {
           movement: 'DEBIT',
           currency: wallet.currency,
           paymentMethod: this.mapPaymentMethod(paymentMethod),
+          branchId: user.branchId ?? null, // ✅ AJOUT DE LA BRANCHE
           external_reference: JSON.stringify({
             otpCode: newOtpCode,
             expiresAt: otpExpiry,
@@ -1280,7 +1282,6 @@ export class WalletServiceService {
         },
       });
 
-      // ✅ Envoyer l'OTP par SMS au CLIENT
       try {
         const cleanPhone = user.phone?.replace(/[^0-9+]/g, '');
         if (cleanPhone) {
@@ -1298,7 +1299,6 @@ export class WalletServiceService {
         console.error('[AdminCashout] Erreur envoi SMS OTP:', err);
       }
 
-      // Audit log
       await this.logAudit(
         admin.id,
         'adminCashoutRequest',
@@ -1317,9 +1317,6 @@ export class WalletServiceService {
     }
 
     // ========== ÉTAPE 2 : Confirmation avec OTP + PIN ADMIN ==========
-    // ✅ ICI on vérifie le PIN de l'admin
-
-    // ✅ 1. Vérifier le PIN de l'admin
     if (!pin || pin.trim() === '') {
       throw new RpcException({
         status: 'error',
@@ -1344,7 +1341,6 @@ export class WalletServiceService {
       });
     }
 
-    // Vérifier si le PIN de l'admin est bloqué
     if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
       const minutesLeft = Math.ceil(
         (admin.pin_locked_until.getTime() - Date.now()) / 60000,
@@ -1356,7 +1352,6 @@ export class WalletServiceService {
       });
     }
 
-    // Vérifier le PIN de l'admin
     const hashedAdminPin = crypto.createHash('sha256').update(pin).digest('hex');
     if (admin.pin !== hashedAdminPin) {
       const newAttempts = (admin.failed_pin_attempts || 0) + 1;
@@ -1381,13 +1376,11 @@ export class WalletServiceService {
       });
     }
 
-    // Réinitialiser les tentatives de PIN de l'admin
     await this.prisma.user.update({
       where: { id: admin.id },
       data: { failed_pin_attempts: 0, pin_locked_until: null },
     });
 
-    // ✅ 2. Vérifier l'OTP du client
     if (otpCode.length < 4) {
       throw new RpcException({
         status: 'error',
@@ -1428,7 +1421,6 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ 3. Récupérer la transaction en attente
     const pendingTx = await this.prisma.transaction.findFirst({
       where: {
         userId: user.id,
@@ -1448,7 +1440,6 @@ export class WalletServiceService {
       });
     }
 
-    // Vérifier l'expiration de la transaction
     let otpExpiryData: Date | null = null;
     if (pendingTx.external_reference) {
       try {
@@ -1478,7 +1469,6 @@ export class WalletServiceService {
       });
     }
 
-    // ========== EXÉCUTER LA TRANSACTION ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
         const currentWallet = await tx.wallet.findFirst({
@@ -1553,7 +1543,6 @@ export class WalletServiceService {
       }
     );
 
-    // ========== SMS DE CONFIRMATION AU CLIENT ==========
     if (result.user.phone) {
       try {
         const cleanPhone = result.user.phone.replace(/[^0-9+]/g, '');
@@ -1570,7 +1559,6 @@ export class WalletServiceService {
       }
     }
 
-    // ========== NOTIFICATION PUSH AU CLIENT ==========
     await this.notificationHelper.notify(
       result.user.id,
       NotificationType.CASHOUT_SUCCESS,
@@ -1593,6 +1581,10 @@ export class WalletServiceService {
       },
     };
   }
+
+  // ================================================================
+  // ADMIN SEND
+  // ================================================================
 
   async adminSend(
     dto: AdminSendDto,
@@ -1641,10 +1633,8 @@ export class WalletServiceService {
       });
     }
 
-    // ========== TRANSACTION AVEC TIMEOUT ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
-        // 1️⃣ Vérifier le PIN de l'admin
         const admin = await tx.user.findFirst({
           where: { id: adminId },
           select: {
@@ -1714,7 +1704,6 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0, pin_locked_until: null },
         });
 
-        // 2️⃣ Récupérer le wallet source
         const fromWallet = await tx.wallet.findFirst({
           where: { id: fromWalletId },
           include: {
@@ -1728,6 +1717,7 @@ export class WalletServiceService {
                 status: true,
                 countryCode: true,
                 kycStatus: true,
+                branchId:true
               }
             }
           }
@@ -1756,7 +1746,6 @@ export class WalletServiceService {
 
         const fromUser = fromWallet.user;
 
-        // 3️⃣ Récupérer le destinataire par téléphone
         const toUser = await tx.user.findFirst({
           where: { phone: toPhone },
           select: {
@@ -1765,6 +1754,7 @@ export class WalletServiceService {
             phone: true,
             account_number: true,
             countryCode: true,
+            branchId: true,
           },
         });
         if (!toUser) {
@@ -1775,7 +1765,6 @@ export class WalletServiceService {
           });
         }
 
-        // 4️⃣ Déterminer les pays et si transfert international
         const senderCountryCode = fromUser.countryCode || 'CD';
         let receiverCountryCode = toUser.countryCode || 'CD';
 
@@ -1785,7 +1774,6 @@ export class WalletServiceService {
 
         const isInternational = senderCountryCode !== receiverCountryCode;
 
-        // ✅ VÉRIFICATION KYC POUR LES TRANSFERTS INTERNATIONAUX
         if (isInternational) {
           const kycStatus = fromUser.kycStatus || 'NOT_SUBMITTED';
 
@@ -1812,7 +1800,6 @@ export class WalletServiceService {
           }
         }
 
-        // 5️⃣ Récupérer les frais internationaux
         let internationalFeePercentage = 0;
         let fee = 0;
         let debitAmount = amount;
@@ -1827,7 +1814,6 @@ export class WalletServiceService {
           }
         }
 
-        // 6️⃣ Récupérer la devise du destinataire
         let targetCurrency: string = fromWallet.currency;
         let exchangeRate = 1;
         let convertedAmount = amount;
@@ -1908,7 +1894,6 @@ export class WalletServiceService {
           convertedAmount = amount;
         }
 
-        // 7️⃣ Récupérer ou créer le wallet du destinataire
         let toWallet = await tx.wallet.findFirst({
           where: {
             userId: toUser.id,
@@ -1937,7 +1922,6 @@ export class WalletServiceService {
           });
         }
 
-        // 8️⃣ Vérifier le solde
         if (fromWallet.balance < debitAmount) {
           throw new RpcException({
             status: 'error',
@@ -1946,7 +1930,6 @@ export class WalletServiceService {
           });
         }
 
-        // 9️⃣ Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
@@ -1956,7 +1939,6 @@ export class WalletServiceService {
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
         });
 
-        // 🔟 Construire les descriptions
         const toUserDisplay = toUser.full_name ? `${toUser.full_name} (${toUser.phone})` : toUser.phone;
         const fromUserDisplay = fromUser.full_name ? `${fromUser.full_name} (${fromUser.phone})` : fromUser.phone;
 
@@ -1973,10 +1955,10 @@ export class WalletServiceService {
           receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetCurrency}`;
         }
 
-        // 1️⃣1️⃣ Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
         const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
 
+        // ✅ Transaction de l'expéditeur avec branchId
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -1990,9 +1972,11 @@ export class WalletServiceService {
             description: senderDescription,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
             movement: 'DEBIT',
+            branchId: fromUser.branchId ?? null, // ✅ BRANCHE DE L'EXPÉDITEUR
           },
         });
 
+        // ✅ Transaction du destinataire avec branchId
         const receiverTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2005,10 +1989,10 @@ export class WalletServiceService {
             currency: targetCurrency,
             description: receiverDescription,
             movement: 'CREDIT',
+            branchId: toUser.branchId ?? null, // ✅ BRANCHE DU DESTINATAIRE
           },
         });
 
-        // 1️⃣2️⃣ Audit log
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
@@ -2044,8 +2028,6 @@ export class WalletServiceService {
       }
     );
 
-    // ========== SMS AUX DEUX PARTIES ==========
-    // ✅ CORRECTION : Les transferts internationaux n'envoient PAS de SMS au destinataire
     if (result.fromUser.phone) {
       try {
         const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
@@ -2062,7 +2044,6 @@ export class WalletServiceService {
       }
     }
 
-    // ✅ SMS au destinataire UNIQUEMENT si ce n'est pas un transfert international
     if (!result.isInternational && result.toUser.phone) {
       try {
         const cleanPhone = result.toUser.phone.replace(/[^0-9+]/g, '');
@@ -2081,10 +2062,7 @@ export class WalletServiceService {
       console.log('[AdminSend] 🌍 Transfert international admin en attente - Pas de SMS au destinataire');
     }
 
-    // ========== NOTIFICATIONS PUSH ==========
-    // ✅ CORRECTION : Les transferts internationaux n'envoient PAS de notification push au destinataire
     try {
-      // Notification à l'expéditeur
       await notifyTransaction(
         this.smsService, this.notificationHelper, this.i18nService,
         this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
@@ -2093,7 +2071,6 @@ export class WalletServiceService {
         { name: result.toUser.full_name ?? undefined, phone: result.toUser.phone ?? undefined }
       );
 
-      // ✅ Notification au destinataire UNIQUEMENT si ce n'est pas international
       if (!result.isInternational) {
         await notifyTransaction(
           this.smsService, this.notificationHelper, this.i18nService,
@@ -2131,6 +2108,10 @@ export class WalletServiceService {
       },
     };
   }
+
+  // ================================================================
+  // ADMIN PAY
+  // ================================================================
 
   async adminPay(
     dto: AdminPayDto,
@@ -2179,10 +2160,8 @@ export class WalletServiceService {
       });
     }
 
-    // ========== TRANSACTION AVEC TIMEOUT ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
-        // 1️⃣ Vérifier le PIN de l'admin
         const admin = await tx.user.findFirst({
           where: { id: adminId },
           select: {
@@ -2252,7 +2231,6 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0, pin_locked_until: null },
         });
 
-        // 2️⃣ Récupérer le wallet du payeur
         const fromWallet = await tx.wallet.findFirst({
           where: { id: fromWalletId },
           include: { user: true }
@@ -2281,7 +2259,6 @@ export class WalletServiceService {
 
         const fromUser = fromWallet.user;
 
-        // 3️⃣ Récupérer le commerçant par son merchantCode
         const toUser = await tx.user.findFirst({
           where: {
             merchantCode: merchantCode,
@@ -2292,7 +2269,8 @@ export class WalletServiceService {
             full_name: true,
             phone: true,
             role: true,
-            merchantCode: true
+            merchantCode: true,
+            branchId: true,
           }
         });
         if (!toUser) {
@@ -2303,7 +2281,6 @@ export class WalletServiceService {
           });
         }
 
-        // 4️⃣ Récupérer ou créer le wallet du commerçant
         let toWallet = await tx.wallet.findFirst({
           where: { userId: toUser.id, isActive: true }
         });
@@ -2327,7 +2304,6 @@ export class WalletServiceService {
           });
         }
 
-        // 5️⃣ Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
           where: { id: fromWallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
@@ -2337,8 +2313,9 @@ export class WalletServiceService {
           data: { balance: { increment: amount }, updatedAt: new Date() },
         });
 
-        // 6️⃣ Créer les transactions avec descriptions enrichies
         const reference = await this.generateTransactionReference('', tx);
+
+        // ✅ Transaction du payeur avec branchId
         const payerTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2357,9 +2334,11 @@ export class WalletServiceService {
             }),
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
             movement: 'DEBIT',
+            branchId: fromUser.branchId ?? null, // ✅ BRANCHE DU PAYEUR
           },
         });
 
+        // ✅ Transaction du commerçant avec branchId
         const merchantTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -2377,10 +2356,10 @@ export class WalletServiceService {
               payerPhone: fromUser.phone || 'N/A',
             }),
             movement: 'CREDIT',
+            branchId: toUser.branchId ?? null, // ✅ BRANCHE DU COMMERÇANT
           },
         });
 
-        // 7️⃣ Audit log
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
@@ -2400,7 +2379,6 @@ export class WalletServiceService {
       }
     );
 
-    // ========== SMS EN DEHORS DE LA TRANSACTION ==========
     if (result.fromUser.phone) {
       try {
         const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
@@ -2433,7 +2411,6 @@ export class WalletServiceService {
       }
     }
 
-    // ========== NOTIFICATIONS PUSH ==========
     try {
       await Promise.all([
         notifyTransaction(

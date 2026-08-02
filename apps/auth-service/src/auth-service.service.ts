@@ -121,8 +121,6 @@ export class AuthServiceService {
     await this.logAudit(userId, action, details, ipAddress);
   }
 
-  // apps/auth-service/src/auth-service.service.ts
-
   async register(data: RegisterUserDto, ipAddress?: string) {
     const phone = this.normalizePhone(data.phone);
     const lang = data.lang || 'fr';
@@ -272,7 +270,7 @@ export class AuthServiceService {
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
           profileImage: null,
-          branchId: data.branchId ?? null,
+          branchId: data.branchId ?? null, // ✅ AJOUT DE LA BRANCHE
         },
       });
 
@@ -496,7 +494,7 @@ export class AuthServiceService {
         where: { userId: user.id },
         include: {
           resources: true,
-          branch: { // ✅ INCLURE BRANCH
+          branch: {
             select: {
               id: true,
               name: true,
@@ -521,7 +519,7 @@ export class AuthServiceService {
         },
         grantedAt: ur.grantedAt,
         expiresAt: ur.expiresAt,
-        branch: ur.branch ? { // ✅ AJOUTER BRANCH DANS LA RÉPONSE
+        branch: ur.branch ? {
           id: ur.branch.id,
           name: ur.branch.name,
           code: ur.branch.code,
@@ -530,19 +528,17 @@ export class AuthServiceService {
         } : null,
       }));
 
-      // apps/auth-service/src/auth-service.service.ts
-
+      // ✅ Récupérer la branche de l'utilisateur
       let userBranch: {
         id: string;
         name: string;
         code: string;
         countryId: string;
-        status: branch_status | null;
+        status: string;
       } | null = null;
 
-      // ✅ Utiliser branchId (le champ dans la table)
       if (user.branchId) {
-        userBranch = await this.prisma.branch.findUnique({
+        const branch = await this.prisma.branch.findUnique({
           where: { id: user.branchId },
           select: {
             id: true,
@@ -552,6 +548,15 @@ export class AuthServiceService {
             status: true,
           },
         });
+        if (branch) {
+          userBranch = {
+            id: branch.id,
+            name: branch.name,
+            code: branch.code,
+            countryId: branch.countryId,
+            status: branch.status || user_status.ACTIVE,
+          };
+        }
       }
 
       return {
@@ -567,7 +572,7 @@ export class AuthServiceService {
           full_name: user.full_name,
           account_number: user.account_number,
           branchId: user.branchId ?? null,
-          branch: userBranch, // ✅ AJOUTER BRANCH DE L'UTILISATEUR
+          branch: userBranch, // ✅ AJOUT DE LA BRANCHE
           role: user.role,
           passwordStatus: user.passwordStatus,
           pinstatus: user.pinstatus,
@@ -582,7 +587,7 @@ export class AuthServiceService {
           countryCode: user.countryCode || 'CD',
           sessions: sessions,
           wallets: wallets,
-          resources: resources, // ✅ AJOUTER RESSOURCES AVEC BRANCH
+          resources: resources,
           kyc: kyc,
         },
       };
@@ -590,6 +595,8 @@ export class AuthServiceService {
       registerLocks.delete(key);
     }
   }
+
+  // apps/auth-service/src/auth-service.service.ts
 
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
@@ -779,7 +786,6 @@ export class AuthServiceService {
           newStatus = user_status.SUSPENDED;
         } else if (newAttempts >= 5) {
           // ⚠️ Avertissement à partir de 5 tentatives (pas de blocage)
-          // On laisse le compte ACTIVE mais on compte les tentatives
           lockedUntil = null;
           newStatus = user_status.ACTIVE;
         }
@@ -839,13 +845,12 @@ export class AuthServiceService {
         },
       });
 
-      // Dans votre méthode de récupération des ressources
-
+      // ✅ Récupérer les ressources de l'utilisateur avec BRANCH
       const userResources = await this.prisma.user_has_resources.findMany({
         where: { userId: user.id },
         include: {
           resources: true,
-          branch: { // ✅ INCLURE BRANCH
+          branch: {
             select: {
               id: true,
               name: true,
@@ -870,7 +875,7 @@ export class AuthServiceService {
         },
         grantedAt: ur.grantedAt,
         expiresAt: ur.expiresAt,
-        branch: ur.branch ? { // ✅ AJOUTER BRANCH
+        branch: ur.branch ? {
           id: ur.branch.id,
           name: ur.branch.name,
           code: ur.branch.code,
@@ -878,6 +883,37 @@ export class AuthServiceService {
           status: ur.branch.status,
         } : null,
       }));
+
+      // ✅ Récupérer la branche de l'utilisateur
+      let userBranch: {
+        id: string;
+        name: string;
+        code: string;
+        countryId: string;
+        status: string;
+      } | null = null;
+
+      if (user.branchId) {
+        const branch = await this.prisma.branch.findUnique({
+          where: { id: user.branchId },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            countryId: true,
+            status: true,
+          },
+        });
+        if (branch) {
+          userBranch = {
+            id: branch.id,
+            name: branch.name,
+            code: branch.code,
+            countryId: branch.countryId,
+            status: branch.status || branch_status.ACTIVE,
+          };
+        }
+      }
 
       // ✅ Récupérer les wallets
       const wallets = await this.prisma.wallet.findMany({
@@ -1024,7 +1060,7 @@ export class AuthServiceService {
         ipAddress ?? null,
       );
 
-      // ✅ Retourner la réponse
+      // ✅ Retourner la réponse avec branch
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -1038,6 +1074,7 @@ export class AuthServiceService {
           full_name: user.full_name,
           account_number: user.account_number,
           branchId: user.branchId ?? null,
+          branch: userBranch, // ✅ AJOUT DE LA BRANCHE
           role: user.role,
           passwordStatus: user.passwordStatus,
           pinstatus: user.pinstatus,
