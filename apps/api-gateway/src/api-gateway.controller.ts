@@ -4031,7 +4031,6 @@ export class ApiGatewayController {
     @CurrentUser() currentUser: any,
     @Body() body: {
       name: string;
-      code: string;
       address?: string;
       phone?: string;
       email?: string;
@@ -4049,9 +4048,7 @@ export class ApiGatewayController {
     if (!body.name) {
       throw new HttpException('Le nom de la branche est requis', HttpStatus.BAD_REQUEST);
     }
-    if (!body.code) {
-      throw new HttpException('Le code de la branche est requis', HttpStatus.BAD_REQUEST);
-    }
+
     if (!body.countryId) {
       throw new HttpException('L\'ID du pays est requis', HttpStatus.BAD_REQUEST);
     }

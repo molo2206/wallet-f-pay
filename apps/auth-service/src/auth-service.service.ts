@@ -508,7 +508,7 @@ export class AuthServiceService {
           fcmToken: user.fcmToken,
           full_name: user.full_name,
           account_number: user.account_number,
-          branch: user.branch,
+          branchId: user.branchId ?? null,
           role: user.role,
           passwordStatus: user.passwordStatus,
           pinstatus: user.pinstatus,
@@ -563,7 +563,7 @@ export class AuthServiceService {
           password: true,
           full_name: true,
           account_number: true,
-          branch: true,
+          branchId: true,
           role: true,
           status: true,
           deleted: true,
@@ -958,7 +958,7 @@ export class AuthServiceService {
           fcmToken: user.fcmToken,
           full_name: user.full_name,
           account_number: user.account_number,
-          branch: user.branch,
+          branchId: user.branchId ?? null,
           role: user.role,
           passwordStatus: user.passwordStatus,
           pinstatus: user.pinstatus,
@@ -1431,7 +1431,6 @@ export class AuthServiceService {
       full_name: bankResponse.customerName,
       account_number: bankResponse.accountNumber,
       phone: bankResponse.phone,
-      branch: bankResponse.branchName || null,
       email: bankResponse.email || null,
       status: 'ACTIVE',
       kyc_status: 'NOT_VERIFIED',
@@ -1685,7 +1684,7 @@ export class AuthServiceService {
       account_number?: string | null;
       phone?: string | null;
       full_name?: string | null;
-      branch?: string | null;
+      branchId?: string | null;
       status?: string;
       deleted?: boolean | null;
       createdAt?: Date;
@@ -1740,7 +1739,7 @@ export class AuthServiceService {
         fcmToken: user.fcmToken || null,
         full_name: user.full_name || null,
         account_number: user.account_number || null,
-        branch: user.branch || null,
+        branchId: user.branchId || null,
         role: user.role,
         passwordStatus: user.passwordStatus || null,
         pinstatus: user.pinstatus ?? null,

@@ -6243,7 +6243,7 @@ export class WalletServiceService {
         full_name: true,
         phone: true,
         account_number: true,
-        branch: true,
+        branchId: true,
         role: true,
         status: true,
         createdAt: true,

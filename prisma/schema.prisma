@@ -11,6 +11,7 @@ model transaction {
   id                     String                     @id @db.VarChar(36)
   userId                 String                     @db.VarChar(36)
   walletId               String                     @db.VarChar(36)
+  branchId               String?                    @db.VarChar(36)
   amount                 Float
   currency               String?                    @db.VarChar(11)
   type                   transaction_type?
@@ -25,10 +26,13 @@ model transaction {
   reconciliation_history reconciliation_history[]
   user                   user                       @relation(fields: [userId], references: [id], map: "Transaction_userId_fkey")
   wallet                 wallet                     @relation(fields: [walletId], references: [id], map: "Transaction_walletId_fkey")
+  branch                 branch?                    @relation(fields: [branchId], references: [id], onUpdate: Restrict, map: "fk_transaction_branch")
 
   @@index([userId], map: "Transaction_userId_fkey")
   @@index([walletId], map: "Transaction_walletId_fkey")
   @@index([paymentMethod], map: "idx_transaction_paymentMethod")
+  @@index([branchId], map: "idx_transaction_branchId")
+  @@index([createdAt], map: "idx_transaction_createdAt")
 }
 
 model user {
@@ -39,7 +43,7 @@ model user {
   full_name                                                         String?                  @db.VarChar(255)
   account_number                                                    String?                  @db.VarChar(50)
   merchantCode                                                      String?                  @db.VarChar(100)
-  branch                                                            String?                  @db.VarChar(50)
+  branchId                                                          String?                  @db.VarChar(36)
   role                                                              user_role                @default(USER)
   status                                                            user_status              @default(ACTIVE)
   deleted                                                           Boolean?                 @default(false)
@@ -80,6 +84,7 @@ model user {
   reconciliation_history_reconciliation_history_user_idTouser       reconciliation_history[] @relation("reconciliation_history_user_idTouser")
   sessions                                                          sessions[]
   transaction                                                       transaction[]
+  branch                                                            branch?                  @relation(fields: [branchId], references: [id], onUpdate: Restrict, map: "fk_user_branch")
   user                                                              user?                    @relation("userTouser", fields: [referred_by], references: [id], onUpdate: Restrict, map: "fk_user_referred_by")
   other_user                                                        user[]                   @relation("userTouser")
   user_has_resources                                                user_has_resources[]
@@ -89,6 +94,7 @@ model user {
   wallets                                                           wallet[]
 
   @@index([referred_by], map: "fk_user_referred_by")
+  @@index([branchId], map: "idx_user_branchId")
 }
 
 model wallet {
@@ -292,7 +298,7 @@ model failed_transaction_log {
 
 model resources {
   id                 String               @id @db.VarChar(36)
-  name               String
+  name               String               @unique(map: "resources_name_unique")
   label              String
   description        String?              @db.Text
   createdAt          DateTime             @default(now()) @db.DateTime(0)
@@ -317,6 +323,7 @@ model user_has_resources {
   resources  resources @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   user       user      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, resourceId, branchId], map: "user_has_resources_unique")
   @@index([resourceId], map: "user_has_resources_resourceId_fkey")
   @@index([userId], map: "user_has_resources_userId_fkey")
   @@index([branchId], map: "user_has_resources_branchId_fkey")
@@ -532,6 +539,8 @@ model branch {
   createdAt          DateTime             @default(now()) @db.DateTime(0)
   updatedAt          DateTime             @default(now()) @db.DateTime(0)
   country_provider   country_provider     @relation(fields: [countryId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_branch_country")
+  transaction        transaction[]
+  user               user[]
   user_has_resources user_has_resources[]
 
   @@index([countryId], map: "fk_branch_country")

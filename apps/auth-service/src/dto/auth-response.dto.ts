@@ -8,7 +8,7 @@ export interface UserInfoDto {
   password?: string | null;
   full_name: string | null;
   account_number: string | null;
-  branch: string | null;
+  branchId: string | null;
   role: user_role;
   status: user_status;
   deleted: boolean | null;

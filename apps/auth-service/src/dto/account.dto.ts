@@ -3,7 +3,6 @@
   full_name: string;
   account_number: string | null;
   phone: string;
-  branch: string | null;
   email: string | null;
   status: string;
   kyc_status: string;

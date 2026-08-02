@@ -141,7 +141,7 @@ export class UserServiceService {
         phone: data.phone,
         full_name: data.full_name,
         account_number: data.account_number || null,
-        branch: data.branch,
+
         password: hashedPassword,
         pin: hashedPin,
         pinstatus: true,
@@ -376,7 +376,7 @@ export class UserServiceService {
         phone: data.phone,
         full_name: data.full_name,
         account_number: data.account_number,
-        branch: data.branch,
+
         password: hashedPassword,
         role: roleEnum,
         status: user_status.ACTIVE,
@@ -473,7 +473,7 @@ export class UserServiceService {
       fcmToken: string | null;
       full_name: string | null;
       account_number: string | null;
-      branch: string | null;
+      branchId: string | null;
       role: string;
       passwordStatus: string | null;
       pinstatus: boolean | null;
@@ -503,8 +503,8 @@ export class UserServiceService {
         phone: true,
         full_name: true,
         account_number: true,
+        branchId: true,
         profileImage: true,
-        branch: true,
         role: true,
         status: true,
         deleted: true,
@@ -633,8 +633,9 @@ export class UserServiceService {
         phone: user.phone,
         fcmToken: user.fcmToken,
         full_name: user.full_name,
+        branchId: user.branchId,
         account_number: user.account_number,
-        branch: user.branch,
+
         role: user.role,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
@@ -667,7 +668,7 @@ export class UserServiceService {
       fcmToken: string | null;
       full_name: string | null;
       account_number: string | null;
-      branch: string | null;
+      branchId: string | null;
       role: string;
       passwordStatus: string | null;
       pinstatus: boolean | null;
@@ -697,7 +698,7 @@ export class UserServiceService {
         full_name: true,
         account_number: true,
         profileImage: true,
-        branch: true,
+        branchId: true,
         role: true,
         status: true,
         deleted: true,
@@ -785,7 +786,7 @@ export class UserServiceService {
         fcmToken: user.fcmToken,
         full_name: user.full_name,
         account_number: user.account_number,
-        branch: user.branch,
+        branchId: user.branchId,
         role: user.role,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
@@ -816,7 +817,7 @@ export class UserServiceService {
       fcmToken: string | null;
       full_name: string | null;
       account_number: string | null;
-      branch: string | null;
+      branchId: string | null;
       role: string;
       passwordStatus: string | null;
       pinstatus: boolean | null;
@@ -846,7 +847,7 @@ export class UserServiceService {
         full_name: true,
         account_number: true,
         profileImage: true,
-        branch: true,
+        branchId: true,
         role: true,
         status: true,
         deleted: true,
@@ -933,8 +934,8 @@ export class UserServiceService {
         phone: user.phone,
         fcmToken: user.fcmToken,
         full_name: user.full_name,
+        branchId: user.branchId,
         account_number: user.account_number,
-        branch: user.branch,
         role: user.role,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
@@ -1681,7 +1682,7 @@ export class UserServiceService {
       phone: user.phone,
       full_name: user.full_name,
       account_number: user.account_number,
-      branch: user.branch,
+      branchId: user.branchId ?? null, // ← AJOUT
       role: user.role,
       status: user.status,
       deleted: user.deleted ?? false,
@@ -2431,7 +2432,6 @@ export class UserServiceService {
       fcmToken: string | null;
       full_name: string | null;
       account_number: string | null;
-      branch: string | null;
       role: string;
       passwordStatus: string;
       pinstatus: boolean | null;
@@ -2581,7 +2581,6 @@ export class UserServiceService {
           fcmToken: true,
           full_name: true,
           account_number: true,
-          branch: true,
           role: true,
           passwordStatus: true,
           pinstatus: true,
@@ -2670,7 +2669,6 @@ export class UserServiceService {
           fcmToken: updatedUser.fcmToken,
           full_name: updatedUser.full_name,
           account_number: updatedUser.account_number,
-          branch: updatedUser.branch,
           role: updatedUser.role,
           passwordStatus: updatedUser.passwordStatus,
           pinstatus: updatedUser.pinstatus,
@@ -3248,7 +3246,7 @@ export class UserServiceService {
 
       // Compte bancaire
       account_number: user.account_number,
-      branch: user.branch,
+
 
       // Maintenance
       maintenance_fee: user.maintenance_fee,
@@ -3465,7 +3463,7 @@ export class UserServiceService {
         kycStatus: user.kycStatus,
         countryCode: user.countryCode,
         account_number: user.account_number,
-        branch: user.branch,
+
         maintenance_fee: user.maintenance_fee,
         is_maintenance_exempt: user.is_maintenance_exempt,
         name: data.name || existingKey.name,
@@ -3647,16 +3645,21 @@ export class UserServiceService {
 
   // ========================= BRANCH MANAGEMENT =========================
 
+  // apps/user-service/src/user-service.service.ts
+
+  // apps/user-service/src/user-service.service.ts
+
+  // apps/user-service/src/user-service.service.ts
+
   async createBranch(data: {
     name: string;
-    code: string;
     address?: string;
     phone?: string;
     email?: string;
     countryId: string;
-    status?: string;
-  }) {
-    // Vérifier que le pays existe
+    status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  }): Promise<{ message: string; data: any }> {
+    // 1️⃣ Vérifier que le pays existe
     const country = await this.prisma.country_provider.findUnique({
       where: { id: data.countryId },
     });
@@ -3668,40 +3671,105 @@ export class UserServiceService {
       });
     }
 
-    // Vérifier que le code est unique
-    const existing = await this.prisma.branch.findUnique({
-      where: { code: data.code },
+    // 2️⃣ Vérifier que le nom n'existe pas déjà dans ce pays
+    const existingByName = await this.prisma.branch.findFirst({
+      where: {
+        name: data.name,
+        countryId: data.countryId,
+      },
     });
-    if (existing) {
+    if (existingByName) {
       throw new RpcException({
         status: 'error',
-        message: `Branch with code ${data.code} already exists`,
+        message: `Branch with name "${data.name}" already exists in this country`,
         statusCode: 409,
       });
     }
 
-    // Dans la méthode createBranch
+    // 3️⃣ Générer un code unique automatiquement
+    let code: string = '';
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (!isUnique && attempts < maxAttempts) {
+      // Générer le code au format BR-XXXX
+      const lastBranch = await this.prisma.branch.findFirst({
+        orderBy: { createdAt: 'desc' },
+        select: { code: true },
+      });
+
+      let nextNumber = 1;
+      if (lastBranch && lastBranch.code) {
+        const match = lastBranch.code.match(/BR-(\d+)/);
+        if (match) {
+          nextNumber = parseInt(match[1], 10) + 1;
+        }
+      }
+
+      const formattedNumber = String(nextNumber).padStart(4, '0');
+      code = `BR-${formattedNumber}`;
+
+      // Vérifier l'unicité du code
+      const existing = await this.prisma.branch.findUnique({
+        where: { code },
+      });
+      if (!existing) {
+        isUnique = true;
+      }
+      attempts++;
+    }
+
+    if (!isUnique) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Unable to generate a unique branch code. Please try again.',
+        statusCode: 500,
+      });
+    }
+
+    // 4️⃣ Créer l'agence avec le code généré
     const branch = await this.prisma.branch.create({
       data: {
         id: crypto.randomUUID(),
         name: data.name,
-        code: data.code,
+        code: code,
         address: data.address || null,
         phone: data.phone || null,
         email: data.email || null,
         countryId: data.countryId,
-        status: (data.status || 'ACTIVE') as branch_status, // ✅ Cast vers le type enum
+        status: (data.status || 'ACTIVE') as branch_status,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
       include: {
-        country_provider: true,
+        country_provider: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            countryCode: true,
+          },
+        },
       },
     });
 
+    // 5️⃣ Compter les utilisateurs de cette agence (si nécessaire)
+    const userCount = await this.prisma.user.count({
+      where: { branchId: branch.id },
+    });
+
+    // 6️⃣ Formater la réponse
+    const responseData = {
+      ...branch,
+      _count: {
+        user: userCount, // ✅ Ajouter le compteur manuellement
+      },
+    };
+
     return {
       message: 'Branch created successfully',
-      data: branch,
+      data: responseData,
     };
   }
 

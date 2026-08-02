@@ -1,7 +1,9 @@
 // apps/auth-service/src/sms/sms.service.ts
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Inject } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
 import axios from 'axios';
+
 
 @Injectable()
 export class SmsService implements OnModuleInit {
@@ -21,7 +23,8 @@ export class SmsService implements OnModuleInit {
 
   private defaultCountry: any = null;
 
-  constructor(private readonly prisma: PrismaClient) { }
+  // ✅ CORRECTION: Utiliser PrismaService au lieu de PrismaClient
+  constructor(private readonly prisma: PrismaService) { }
 
   async onModuleInit() {
     await this.loadCountries();

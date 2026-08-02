@@ -7,7 +7,6 @@ export class UserResponseDto {
   phone: string | null;
   full_name: string | null;
   account_number: string | null;
-  branch: string | null;
   role: user_role;
   status: user_status;
   deleted: boolean;
@@ -15,7 +14,7 @@ export class UserResponseDto {
   updatedAt: Date;
   merchantCode: string | null;
   businessName: string | null;
-
+  branchId?: string | null; // ← AJOUT
   // Champs optionnels (ou obligatoires selon votre besoin)
   fcmToken?: string | null;
   passwordStatus?: user_passwordStatus | null;

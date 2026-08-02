@@ -17,6 +17,7 @@ import { MailModule } from 'apps/auth-service/src/email/email.module'; // ✅ IM
 import { ScheduleModule } from '@nestjs/schedule';
 import { MaintenanceService } from './cron/maintenance.cron';
 import { CommunicationCronService } from './cron/communication-cron.service';
+import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
 @Module({
   imports: [
     ScheduleModule.forRoot(), 
@@ -47,6 +48,7 @@ import { CommunicationCronService } from './cron/communication-cron.service';
     BankService,
     EncryptionService,
     PawapayService,
+     PrismaService,
     MaintenanceService,
     CommunicationCronService
   ],
