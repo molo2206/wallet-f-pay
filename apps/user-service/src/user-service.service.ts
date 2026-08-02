@@ -1966,7 +1966,6 @@ export class UserServiceService {
   }
 
   // apps/wallet-service/src/wallet-service.service.ts
-
   async getAdminDashboard(
     adminId: string,
     filters?: {
@@ -2023,7 +2022,7 @@ export class UserServiceService {
         }
       }
 
-      // ✅ SUPER_ADMIN ou canManage = true → voir toutes les branches
+      //  SUPER_ADMIN ou canManage = true → voir toutes les branches
       if (isSuperAdmin || hasManagePermission) {
         const allBranches = await this.prisma.branch.findMany({
           where: { status: 'ACTIVE' },
@@ -2031,16 +2030,16 @@ export class UserServiceService {
         });
         allowedBranchIds = allBranches.map(b => b.id);
       }
-      // ✅ canRead = true → voir uniquement SA branche
+      //  canRead = true → voir uniquement SA branche
       else if (hasReadPermission && admin.branchId) {
         allowedBranchIds = [admin.branchId];
       }
-      // ❌ Sinon, aucune branche autorisée
+      // Sinon, aucune branche autorisée
       else {
         allowedBranchIds = [];
       }
 
-      // 3️⃣ Si un branchId est passé en filtre, vérifier qu'il est autorisé
+      // Si un branchId est passé en filtre, vérifier qu'il est autorisé
       let targetBranchId = filters?.branchId;
       if (targetBranchId) {
         if (!allowedBranchIds.includes(targetBranchId)) {
@@ -2057,7 +2056,7 @@ export class UserServiceService {
         }
       }
 
-      // 4️⃣ Récupérer les branches disponibles pour l'admin
+      //  Récupérer les branches disponibles pour l'admin
       const availableBranches = await this.prisma.branch.findMany({
         where: {
           id: { in: allowedBranchIds },
@@ -2073,10 +2072,10 @@ export class UserServiceService {
         orderBy: { name: 'asc' }
       });
 
-      // 5️⃣ Construction du filtre des utilisateurs
+      //  Construction du filtre des utilisateurs
       const userWhere: any = { deleted: false };
 
-      // ✅ Filtrer par branche si l'admin a canRead (pas canManage)
+      // Filtrer par branche si l'admin a canRead (pas canManage)
       if (!isSuperAdmin && !hasManagePermission && hasReadPermission) {
         if (targetBranchId) {
           userWhere.branchId = targetBranchId;
@@ -2089,7 +2088,7 @@ export class UserServiceService {
         userWhere.countryCode = filters.countryCode.toUpperCase();
       }
 
-      // 6️⃣ Normalisation des dates
+      // Normalisation des dates
       let { startDate, endDate } = filters || {};
       if (startDate) {
         const start = new Date(startDate);
@@ -2124,13 +2123,13 @@ export class UserServiceService {
         dateFilter.lte = endDate;
       }
 
-      // 7️⃣ Construction du filtre des transactions
+      // Construction du filtre des transactions
       const transactionWhere: any = {};
       if (Object.keys(dateFilter).length > 0) {
         transactionWhere.createdAt = dateFilter;
       }
 
-      // ✅ Filtrer les transactions par branche si canRead (pas canManage)
+      // Filtrer les transactions par branche si canRead (pas canManage)
       if (!isSuperAdmin && !hasManagePermission && hasReadPermission) {
         if (targetBranchId) {
           transactionWhere.branchId = targetBranchId;
@@ -2499,9 +2498,7 @@ export class UserServiceService {
       });
     }
   }
-
   // ========================= RESOURCES MANAGEMENT =========================
-
   async createResource(data: CreateResourceDto) {
     try {
       const resource = await this.prisma.resources.create({

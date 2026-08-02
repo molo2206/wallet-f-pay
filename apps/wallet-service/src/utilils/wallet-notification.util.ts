@@ -1,8 +1,5 @@
-/* eslint-disable prefer-const */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 // apps/wallet-service/src/utils/wallet-notification.util.ts
+
 import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
 import { NotificationType } from 'apps/notification-service/src/type/notification-type';
 import { SmsService } from 'apps/auth-service/src/sms/sms.service';
@@ -53,9 +50,9 @@ export async function notifyTransaction(
   try {
     canSendSms = await shouldSendSms(user.id);
     canSendPush = await shouldSendPush(user.id);
-    console.log(`[notifyTransaction]  Préférences: SMS=${canSendSms}, Push=${canSendPush}`);
+    console.log(`[notifyTransaction] Préférences: SMS=${canSendSms}, Push=${canSendPush}`);
   } catch (error) {
-    console.error(`[notifyTransaction]  Erreur lors de la vérification des préférences:`, error);
+    console.error(`[notifyTransaction] Erreur lors de la vérification des préférences:`, error);
     canSendSms = true;
     canSendPush = true;
   }
@@ -73,6 +70,7 @@ export async function notifyTransaction(
       amount: defaultAmount,
       currency: defaultCurrency,
       balance: defaultBalance,
+      reference: transaction?.reference || 'N/A',
     };
 
     // ✅ Déterminer la clé SMS
@@ -87,12 +85,12 @@ export async function notifyTransaction(
 
       case 'send_sent':
         smsKey = 'wallet.transfer_sender_sms';
-        params.toPhone = counterparty?.phone || 'Destinataire';
+        params.recipient = counterparty?.name || 'Destinataire';
         break;
 
       case 'send_received':
         smsKey = 'wallet.transfer_receiver_sms';
-        params.fromPhone = counterparty?.phone || 'Expéditeur';
+        params.sender = counterparty?.name || 'Expéditeur';
         break;
 
       case 'send_pending':
@@ -113,6 +111,12 @@ export async function notifyTransaction(
         params.payerName = counterparty?.name || 'Client';
         break;
 
+      case 'convert':
+        smsKey = 'wallet.conversion_sms';
+        params.fromCurrency = transaction?.fromCurrency || 'CDF';
+        params.convertedAmount = transaction?.convertedAmount || defaultAmount;
+        break;
+
       default:
         console.warn(`[notifyTransaction] ⚠️ Type SMS non reconnu: ${type}`);
         return;
@@ -125,25 +129,42 @@ export async function notifyTransaction(
       let smsText = i18nService.translate(smsKey, userLang, params);
       console.log(`[notifyTransaction] 📝 SMS traduit: ${smsText}`);
 
-      if (!smsText || smsText === smsKey) {
+      // ✅ Vérifier si la traduction a fonctionné
+      if (!smsText || smsText === smsKey || smsText.includes('{{')) {
         console.warn(`[notifyTransaction] ⚠️ Traduction manquante pour ${smsKey}, utilisation du fallback`);
 
-        const fallbackMessages: Record<string, string> = {
+        // ✅ Définir le type des clés de fallback
+        type FallbackKey = 'topup' | 'cashout' | 'send_sent' | 'send_received' | 'send_pending' | 'send_confirmed' | 'pay_sent' | 'pay_received' | 'convert' | 'failed';
+
+        const fallbackMessages: Record<FallbackKey, string> = {
           'topup': `Votre portefeuille a ete credite de ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci pour votre confiance.`,
           'cashout': `Retrait de ${defaultAmount} ${defaultCurrency} effectue avec succes. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci d'utiliser F-Pay.`,
-          'send_sent': `Vous avez envoye ${defaultAmount} ${defaultCurrency} a ${params.toPhone || 'destinataire'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
-          'send_received': `Vous avez recu ${defaultAmount} ${defaultCurrency} de ${params.fromPhone || 'expediteur'}. Solde disponible: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'send_sent': `Vous avez envoye ${defaultAmount} ${defaultCurrency} a ${params.recipient || 'destinataire'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'send_received': `Vous avez recu ${defaultAmount} ${defaultCurrency} de ${params.sender || 'expediteur'}. Solde disponible: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
           'send_pending': `Votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Ref: ${transaction?.reference || 'N/A'}. Vous recevrez une confirmation une fois approuve.`,
           'send_confirmed': `Votre envoi international de ${defaultAmount} ${defaultCurrency} a ete valide. Ref: ${transaction?.reference || 'N/A'}. Le destinataire a ete notifie.`,
           'pay_sent': `Paiement de ${defaultAmount} ${defaultCurrency} effectue chez ${params.merchantName || 'commercant'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
           'pay_received': `Vous avez recu ${defaultAmount} ${defaultCurrency} de ${params.payerName || 'client'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
-          'conversion': `Conversion reussie: ${defaultAmount} ${defaultCurrency} vers ${wallet?.currency || 'devise'}. Ref: ${transaction?.reference || 'N/A'}. Solde mis a jour.`,
+          'convert': `Conversion reussie: ${defaultAmount} ${params.fromCurrency || 'CDF'} vers ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Solde mis a jour.`,
           'failed': `Votre transaction de ${defaultAmount} ${defaultCurrency} n'a pas abouti. Ref: ${transaction?.reference || 'N/A'}. Verifiez vos informations ou contactez le support.`,
         };
 
-        smsText = fallbackMessages[type] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`;
+        // ✅ Utiliser un mapping simple
+        const fallbackKeyMap: Record<string, FallbackKey> = {
+          'topup': 'topup',
+          'cashout': 'cashout',
+          'send_sent': 'send_sent',
+          'send_received': 'send_received',
+          'send_pending': 'send_pending',
+          'send_confirmed': 'send_confirmed',
+          'pay_sent': 'pay_sent',
+          'pay_received': 'pay_received',
+          'convert': 'convert',
+          'failed': 'failed',
+        };
 
-        smsText = fallbackMessages[type] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}.`;
+        const fallbackKey = fallbackKeyMap[type] || 'failed';
+        smsText = fallbackMessages[fallbackKey] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`;
       }
 
       // ✅ Envoyer le SMS avec le countryCode de l'utilisateur
@@ -297,14 +318,6 @@ export async function notifyTransaction(
 
       } catch (error) {
         console.error(`[notifyTransaction] ❌ Erreur lors de l'envoi du Push à ${user.id}:`, error);
-
-        if (user?.email) {
-          try {
-            console.log(`[notifyTransaction] 📧 Tentative d'envoi par email à ${user.email}`);
-          } catch (emailError) {
-            console.error(`[notifyTransaction] ❌ Erreur envoi email fallback:`, emailError);
-          }
-        }
       }
     }
   } else {
