@@ -283,14 +283,34 @@ export class UserServiceController {
 
   @MessagePattern('get_admin_dashboard')
   async getAdminDashboard(
-    @Payload() payload: { startDate?: string; endDate?: string; countryCode?: string },
+    @Payload() payload: {
+      adminId: string;
+      startDate?: string;
+      endDate?: string;
+      countryCode?: string;
+      branchId?: string;
+    },
   ) {
     const startDate = payload.startDate
       ? new Date(payload.startDate)
       : undefined;
     const endDate = payload.endDate ? new Date(payload.endDate) : undefined;
     const countryCode = payload.countryCode;
-    return this.userService.getAdminDashboard({ startDate, endDate, countryCode });
+    const branchId = payload.branchId;
+    const adminId = payload.adminId;
+
+    if (!adminId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Admin ID is required',
+        statusCode: 400,
+      });
+    }
+
+    return this.userService.getAdminDashboard(
+      adminId,
+      { startDate, endDate, countryCode, branchId }
+    );
   }
 
   // ==================== GESTION DES RESSOURCES ====================

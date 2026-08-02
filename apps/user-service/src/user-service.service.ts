@@ -1965,15 +1965,132 @@ export class UserServiceService {
     };
   }
 
-  async getAdminDashboard(filters?: {
-    startDate?: Date;
-    endDate?: Date;
-    countryCode?: string;
-  }) {
-    try {
-      let { startDate, endDate, countryCode } = filters || {};
+  // apps/wallet-service/src/wallet-service.service.ts
 
-      // ✅ Normalisation des dates
+  async getAdminDashboard(
+    adminId: string,
+    filters?: {
+      startDate?: Date;
+      endDate?: Date;
+      countryCode?: string;
+      branchId?: string;
+    }
+  ) {
+    try {
+      // 1️⃣ Récupérer l'admin et ses permissions
+      const admin = await this.prisma.user.findUnique({
+        where: { id: adminId },
+        select: {
+          id: true,
+          role: true,
+          branchId: true,
+          user_has_resources: {
+            where: {
+              resources: {
+                name: 'DASHBOARD'
+              }
+            },
+            select: {
+              canManage: true,
+              canRead: true,
+              branchId: true,
+            }
+          }
+        }
+      });
+
+      if (!admin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Admin not found',
+          statusCode: 404,
+        });
+      }
+
+      // 2️⃣ Déterminer les branches autorisées selon les permissions
+      let allowedBranchIds: string[] = [];
+      let isSuperAdmin = admin.role === 'SUPER_ADMIN';
+      let hasManagePermission = false;
+      let hasReadPermission = false;
+
+      for (const resource of admin.user_has_resources || []) {
+        if (resource.canManage) {
+          hasManagePermission = true;
+          break;
+        }
+        if (resource.canRead) {
+          hasReadPermission = true;
+        }
+      }
+
+      // ✅ SUPER_ADMIN ou canManage = true → voir toutes les branches
+      if (isSuperAdmin || hasManagePermission) {
+        const allBranches = await this.prisma.branch.findMany({
+          where: { status: 'ACTIVE' },
+          select: { id: true }
+        });
+        allowedBranchIds = allBranches.map(b => b.id);
+      }
+      // ✅ canRead = true → voir uniquement SA branche
+      else if (hasReadPermission && admin.branchId) {
+        allowedBranchIds = [admin.branchId];
+      }
+      // ❌ Sinon, aucune branche autorisée
+      else {
+        allowedBranchIds = [];
+      }
+
+      // 3️⃣ Si un branchId est passé en filtre, vérifier qu'il est autorisé
+      let targetBranchId = filters?.branchId;
+      if (targetBranchId) {
+        if (!allowedBranchIds.includes(targetBranchId)) {
+          throw new RpcException({
+            status: 'error',
+            message: 'You do not have permission to view this branch',
+            statusCode: 403,
+          });
+        }
+      } else {
+        // Si aucun branchId n'est passé, utiliser la première branche autorisée
+        if (allowedBranchIds.length === 1) {
+          targetBranchId = allowedBranchIds[0];
+        }
+      }
+
+      // 4️⃣ Récupérer les branches disponibles pour l'admin
+      const availableBranches = await this.prisma.branch.findMany({
+        where: {
+          id: { in: allowedBranchIds },
+          status: 'ACTIVE'
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          countryId: true,
+          status: true,
+        },
+        orderBy: { name: 'asc' }
+      });
+
+      // 5️⃣ Construction du filtre des utilisateurs
+      const userWhere: any = { deleted: false };
+
+      // ✅ Filtrer par branche si l'admin a canRead (pas canManage)
+      if (!isSuperAdmin && !hasManagePermission && hasReadPermission) {
+        if (targetBranchId) {
+          userWhere.branchId = targetBranchId;
+        } else if (admin.branchId) {
+          userWhere.branchId = admin.branchId;
+        }
+      }
+
+      if (filters?.countryCode) {
+        userWhere.countryCode = filters.countryCode.toUpperCase();
+      }
+
+      // 6️⃣ Normalisation des dates
+      let { startDate, endDate } = filters || {};
       if (startDate) {
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
@@ -1985,7 +2102,6 @@ export class UserServiceService {
         endDate = end;
       }
 
-      // Par défaut, on filtre sur la date actuelle
       const now = new Date();
       if (!startDate && !endDate) {
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -2000,7 +2116,6 @@ export class UserServiceService {
         );
       }
 
-      // Construction du filtre de date
       const dateFilter: any = {};
       if (startDate && !isNaN(startDate.getTime())) {
         dateFilter.gte = startDate;
@@ -2009,27 +2124,36 @@ export class UserServiceService {
         dateFilter.lte = endDate;
       }
 
-      // Filtre pour les transactions
+      // 7️⃣ Construction du filtre des transactions
       const transactionWhere: any = {};
       if (Object.keys(dateFilter).length > 0) {
         transactionWhere.createdAt = dateFilter;
       }
 
-      // 🔥 Filtre par pays (via l'utilisateur)
-      if (countryCode) {
+      // ✅ Filtrer les transactions par branche si canRead (pas canManage)
+      if (!isSuperAdmin && !hasManagePermission && hasReadPermission) {
+        if (targetBranchId) {
+          transactionWhere.branchId = targetBranchId;
+        } else if (admin.branchId) {
+          transactionWhere.branchId = admin.branchId;
+        }
+      }
+
+      if (filters?.countryCode) {
         transactionWhere.user = {
-          countryCode: countryCode.toUpperCase(),
+          countryCode: filters.countryCode.toUpperCase()
         };
       }
 
-      // Filtre pour les utilisateurs (permanent)
-      const userWhere: any = { deleted: false };
-      if (countryCode) {
-        userWhere.countryCode = countryCode.toUpperCase();
-      }
-
-      console.log('[Dashboard] Filters:', { startDate, endDate, countryCode });
-      console.log('[Dashboard] transactionWhere:', transactionWhere);
+      console.log('[Dashboard] Admin:', {
+        role: admin.role,
+        branchId: admin.branchId,
+        allowedBranchIds,
+        targetBranchId,
+        hasManagePermission,
+        hasReadPermission,
+        isSuperAdmin
+      });
 
       // ========== 1. MÉTRIQUES PRINCIPALES ==========
       const [
@@ -2048,7 +2172,9 @@ export class UserServiceService {
       ] = await Promise.all([
         this.prisma.user.count({ where: userWhere }),
         this.prisma.wallet.aggregate({
-          where: countryCode ? { user: { countryCode: countryCode.toUpperCase() } } : {},
+          where: {
+            user: userWhere
+          },
           _sum: { balance: true }
         }),
         this.prisma.transaction.count({ where: transactionWhere }),
@@ -2078,7 +2204,7 @@ export class UserServiceService {
         }),
       ]);
 
-      // ========== 2. VOLUME PAR CURRENCY (Transactions) ==========
+      // ========== 2. VOLUME PAR CURRENCY ==========
       const volume = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: transactionWhere,
@@ -2094,7 +2220,7 @@ export class UserServiceService {
         _count: { id: true },
       });
 
-      // ========== 4. CASH PAR CURRENCY AVEC CREDIT, DEBIT ET BALANCE ==========
+      // ========== 4. CASH PAR CURRENCY ==========
       const cashRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
@@ -2153,7 +2279,7 @@ export class UserServiceService {
       }
       const cash = Array.from(cashMap.values());
 
-      // ========== 5. MOBILE PAR CURRENCY AVEC CREDIT, DEBIT ET BALANCE ==========
+      // ========== 5. MOBILE PAR CURRENCY ==========
       const mobileRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
@@ -2220,31 +2346,30 @@ export class UserServiceService {
 
       // ========== 6. GRAPHIQUE VOLUME ==========
       let volumeChart: any[] = [];
-      if (countryCode) {
-        volumeChart = await this.prisma.$queryRaw`
-        SELECT DATE(t.createdAt) as date, SUM(t.amount) as volume, COUNT(*) as count
-        FROM transaction t
-        INNER JOIN user u ON t.userId = u.id
-        WHERE t.createdAt >= ${startDate}
-          AND t.createdAt <= ${endDate}
-          AND u.countryCode = ${countryCode.toUpperCase()}
-        GROUP BY DATE(t.createdAt)
-        ORDER BY date ASC
-      `;
-      } else {
-        volumeChart = await this.prisma.$queryRaw`
-        SELECT DATE(createdAt) as date, SUM(amount) as volume, COUNT(*) as count
-        FROM transaction
-        WHERE createdAt >= ${startDate}
-          AND createdAt <= ${endDate}
-        GROUP BY DATE(createdAt)
-        ORDER BY date ASC
-      `;
+      const dailyVolume = await this.prisma.transaction.groupBy({
+        by: ['createdAt'],
+        where: transactionWhere,
+        _sum: { amount: true },
+        _count: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const dailyMap = new Map();
+      for (const item of dailyVolume) {
+        const date = new Date(item.createdAt);
+        const dateKey = date.toISOString().split('T')[0];
+        if (!dailyMap.has(dateKey)) {
+          dailyMap.set(dateKey, { volume: 0, count: 0 });
+        }
+        const existing = dailyMap.get(dateKey);
+        existing.volume += item._sum.amount || 0;
+        existing.count += item._count.id || 0;
       }
-      volumeChart = volumeChart.map((v: any) => ({
-        ...v,
-        volume: Number(v.volume),
-        count: Number(v.count),
+
+      volumeChart = Array.from(dailyMap.entries()).map(([date, data]) => ({
+        date: new Date(date),
+        volume: data.volume,
+        count: data.count,
       }));
 
       // ========== 7. PAIEMENTS PAR TYPE ==========
@@ -2272,7 +2397,8 @@ export class UserServiceService {
       FROM user
       WHERE createdAt >= ${startDate}
         AND createdAt <= ${endDate}
-        ${countryCode ? Prisma.sql`AND countryCode = ${countryCode.toUpperCase()}` : Prisma.sql``}
+        ${(!isSuperAdmin && !hasManagePermission && hasReadPermission && (targetBranchId || admin.branchId)) ? Prisma.sql`AND branchId = ${targetBranchId || admin.branchId}` : Prisma.sql``}
+        ${filters?.countryCode ? Prisma.sql`AND countryCode = ${filters.countryCode.toUpperCase()}` : Prisma.sql``}
       GROUP BY month
       ORDER BY month ASC
     `;
@@ -2300,7 +2426,12 @@ export class UserServiceService {
       // ========== 9. PAYS DISPONIBLES ==========
       const availableCountries = await this.prisma.user.groupBy({
         by: ['countryCode'],
-        where: { deleted: false },
+        where: {
+          deleted: false,
+          ...((!isSuperAdmin && !hasManagePermission && hasReadPermission && (targetBranchId || admin.branchId))
+            ? { branchId: targetBranchId || admin.branchId }
+            : {})
+        },
         _count: { id: true },
       });
 
@@ -2311,8 +2442,10 @@ export class UserServiceService {
           filters: {
             startDate,
             endDate,
-            countryCode: countryCode || 'Tous',
+            countryCode: filters?.countryCode || null,
+            branchId: targetBranchId || null,
           },
+          availableBranches: availableBranches,
           availableCountries: availableCountries
             .filter(c => c.countryCode)
             .map(c => ({

@@ -2588,13 +2588,35 @@ export class ApiGatewayController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('countryCode') countryCode?: string,
+    @Query('branchId') branchId?: string, // ✅ AJOUT DU FILTRE PAR BRANCHE
   ) {
+    // 1️⃣ Vérification des droits
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
+
+    // 2️⃣ Logs pour le debugging
+    console.log('[Gateway] Admin Dashboard Request:', {
+      adminId: currentUser.id,
+      role: currentUser.role,
+      branchId: currentUser.branchId,
+      filters: { startDate, endDate, countryCode, branchId }
+    });
+
+    // 3️⃣ Construction du payload
+    const payload: any = {
+      adminId: currentUser.id,
+    };
+
+    if (startDate) payload.startDate = startDate;
+    if (endDate) payload.endDate = endDate;
+    if (countryCode) payload.countryCode = countryCode;
+    if (branchId) payload.branchId = branchId;
+
+    // 4️⃣ Envoi du message
     return this.sendUserMessage(
       'get_admin_dashboard',
-      { startDate, endDate, countryCode },
+      payload,
       'Failed to get dashboard',
       HttpStatus.INTERNAL_SERVER_ERROR,
     );
