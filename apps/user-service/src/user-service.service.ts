@@ -66,6 +66,8 @@ export class UserServiceService {
     }
   }
   // ========================= CREATE USER =========================
+  // apps/user-service/src/user-service.service.ts
+
   async createUser(
     data: CreateUserDto,
     ipAddress?: string,
@@ -101,7 +103,23 @@ export class UserServiceService {
         });
     }
 
-    // 3. Génération du code marchand si rôle MERCHANT
+    // 3. Vérifier que la branche existe si fournie
+    let branchId: string | null = null;
+    if (data.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: data.branchId },
+      });
+      if (!branch) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Branch not found',
+          statusCode: 404,
+        });
+      }
+      branchId = data.branchId;
+    }
+
+    // 4. Génération du code marchand si rôle MERCHANT
     const roleStr = data.role as string | undefined;
     let merchantCode: string | undefined = undefined;
     const isMerchant = roleStr === 'MERCHANT';
@@ -120,13 +138,13 @@ export class UserServiceService {
       }
     }
 
-    // 4. Convertir le rôle en enum Prisma
+    // 5. Convertir le rôle en enum Prisma
     let roleEnum: user_role = user_role.USER;
     if (isMerchant) roleEnum = user_role.MERCHANT;
     else if (roleStr === 'ADMIN') roleEnum = user_role.ADMIN;
     else if (roleStr === 'SUPER_ADMIN') roleEnum = user_role.SUPER_ADMIN;
 
-    // 5. Création de l'utilisateur
+    // 6. Création de l'utilisateur
     const defaultPassword = 'Fpay!026';
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
@@ -141,7 +159,7 @@ export class UserServiceService {
         phone: data.phone,
         full_name: data.full_name,
         account_number: data.account_number || null,
-
+        branchId: branchId,
         password: hashedPassword,
         pin: hashedPin,
         pinstatus: true,
@@ -160,7 +178,7 @@ export class UserServiceService {
       },
     });
 
-    // 6. Création des wallets basée sur le countryCode
+    // 7. Création des wallets basée sur le countryCode
     let walletsCreated = 0;
     let currenciesToCreate: string[] = [];
 
@@ -224,7 +242,39 @@ export class UserServiceService {
 
     console.log(`📊 ${walletsCreated} wallet(s) créé(s) pour l’utilisateur ${user.id}`);
 
-    // 7. SMS de bienvenue avec PIN (sans account_number)
+    // 8. Récupérer la branche pour la réponse
+    // ✅ CORRECTION 1: Définir le type explicite
+    let branchData: {
+      id: string;
+      name: string;
+      code: string;
+      countryId: string;
+      status: string;
+    } | null = null;
+
+    if (user.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          countryId: true,
+          status: true,
+        },
+      });
+      if (branch) {
+        branchData = {
+          id: branch.id,
+          name: branch.name,
+          code: branch.code,
+          countryId: branch.countryId,
+          status: branch.status || 'UNKNOWN',
+        };
+      }
+    }
+
+    // 9. SMS de bienvenue avec PIN
     if (data.phone) {
       const cleanPhone = data.phone.replace(/[^0-9+]/g, '');
       let smsText = this.i18nService.translate('welcome_sms', lang, {
@@ -246,7 +296,7 @@ export class UserServiceService {
       }
     }
 
-    // 8. Email de bienvenue
+    // 10. Email de bienvenue
     if (user.email) {
       try {
         const template = 'welcome-email.html';
@@ -288,6 +338,13 @@ export class UserServiceService {
           emailData.merchant_type_label = 'Type de commerce';
         }
 
+        // ✅ CORRECTION 2: Utiliser l'objet branchData correctement
+        if (branchData) {
+          emailData.branch_name = branchData.name;
+          emailData.branch_code = branchData.code;
+          emailData.branch_label = 'Agence';
+        }
+
         await this.mailService.sendHtmlEmail(
           user.email,
           emailTitle,
@@ -299,21 +356,28 @@ export class UserServiceService {
         console.error(`Erreur envoi email à ${user.email}:`, emailError);
       }
     }
-    // 9. Audit
+
+    // 11. Audit
     await this.logAudit(
       user.id,
       isMerchant ? 'CREATE_MERCHANT_COTE_ADMIN' : 'CREATE_USER_COTE_ADMIN',
-      { identifier: user, isMerchant, merchantCode },
+      { identifier: user, isMerchant, merchantCode, branchId },
       ipAddress ?? null,
     );
 
-    // 10. Retour
+    // 12. Retour avec la branche
+    const responseData = this.toResponse(user);
+
+    // ✅ CORRECTION 3: Ajouter branch dans le retour
     return {
       message: this.i18nService.translate(
         isMerchant ? 'merchant_created_success' : 'user_created_success',
         lang
       ),
-      data: this.toResponse(user),
+      data: {
+        ...responseData,
+        branch: branchData, // ✅ AJOUT DE LA BRANCHE
+      } as any, // ✅ Utiliser 'as any' pour éviter l'erreur de type
     };
   }
 
@@ -461,6 +525,8 @@ export class UserServiceService {
     };
   }
 
+  // apps/user-service/src/user-service.service.ts
+
   async getUser(
     id: string,
     lang: string = 'fr',
@@ -474,6 +540,13 @@ export class UserServiceService {
       full_name: string | null;
       account_number: string | null;
       branchId: string | null;
+      branch: {
+        id: string;
+        name: string;
+        code: string;
+        countryId: string;
+        status: string;
+      } | null;
       role: string;
       passwordStatus: string | null;
       pinstatus: boolean | null;
@@ -533,7 +606,7 @@ export class UserServiceService {
       });
     }
 
-    // ✅ Récupérer toutes les sessions actives
+    // ✅ Récupérer les sessions actives
     const sessions = await this.prisma.sessions.findMany({
       where: {
         user_id: user.id,
@@ -551,10 +624,21 @@ export class UserServiceService {
       },
     });
 
-    // Récupération des ressources (permissions)
+    // ✅ Récupérer les ressources (permissions)
     const userResources = await this.prisma.user_has_resources.findMany({
       where: { userId: user.id },
-      include: { resources: true },
+      include: {
+        resources: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            countryId: true,
+            status: true,
+          },
+        },
+      },
     });
 
     const resources = userResources.map((ur) => ({
@@ -570,9 +654,16 @@ export class UserServiceService {
       },
       grantedAt: ur.grantedAt,
       expiresAt: ur.expiresAt,
+      branch: ur.branch ? {
+        id: ur.branch.id,
+        name: ur.branch.name,
+        code: ur.branch.code,
+        countryId: ur.branch.countryId,
+        status: ur.branch.status,
+      } : null,
     }));
 
-    // Récupération des wallets de l'utilisateur
+    // ✅ Récupérer les wallets
     const wallets = await this.prisma.wallet.findMany({
       where: { userId: user.id, isActive: true },
       orderBy: { createdAt: 'asc' },
@@ -586,7 +677,38 @@ export class UserServiceService {
       },
     });
 
-    // ✅ Récupération des informations KYC
+    // ✅ Récupérer la branche de l'utilisateur
+    let userBranch: {
+      id: string;
+      name: string;
+      code: string;
+      countryId: string;
+      status: string;
+    } | null = null;
+
+    if (user.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          countryId: true,
+          status: true,
+        },
+      });
+      if (branch) {
+        userBranch = {
+          id: branch.id,
+          name: branch.name,
+          code: branch.code,
+          countryId: branch.countryId,
+          status: branch.status || 'INACTIVE',
+        };
+      }
+    }
+
+    // ✅ Récupérer les informations KYC
     const kycSubmission = await this.prisma.kyc_submission.findFirst({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
@@ -624,7 +746,6 @@ export class UserServiceService {
       } : null,
     };
 
-    // ✅ Retourner les données comme login (sans sessionId dans data)
     return {
       message: this.i18nService.translate('user_retrieved_success', lang),
       data: {
@@ -633,9 +754,9 @@ export class UserServiceService {
         phone: user.phone,
         fcmToken: user.fcmToken,
         full_name: user.full_name,
-        branchId: user.branchId,
         account_number: user.account_number,
-
+        branchId: user.branchId,
+        branch: userBranch, // ✅ AJOUT DE LA BRANCHE
         role: user.role,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
@@ -656,6 +777,10 @@ export class UserServiceService {
     };
   }
 
+  // ================================================================
+  // GET USER BY EMAIL
+  // ================================================================
+
   async getUserByEmail(
     email: string,
     lang: string = 'fr',
@@ -669,6 +794,13 @@ export class UserServiceService {
       full_name: string | null;
       account_number: string | null;
       branchId: string | null;
+      branch: {
+        id: string;
+        name: string;
+        code: string;
+        countryId: string;
+        status: string;
+      } | null;
       role: string;
       passwordStatus: string | null;
       pinstatus: boolean | null;
@@ -697,8 +829,8 @@ export class UserServiceService {
         phone: true,
         full_name: true,
         account_number: true,
-        profileImage: true,
         branchId: true,
+        profileImage: true,
         role: true,
         status: true,
         deleted: true,
@@ -725,6 +857,37 @@ export class UserServiceService {
         message: this.i18nService.translate('user_not_found', lang),
         statusCode: 404,
       });
+    }
+
+    // ✅ Récupérer la branche de l'utilisateur
+    let userBranch: {
+      id: string;
+      name: string;
+      code: string;
+      countryId: string;
+      status: string;
+    } | null = null;
+
+    if (user.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          countryId: true,
+          status: true,
+        },
+      });
+      if (branch) {
+        userBranch = {
+          id: branch.id,
+          name: branch.name,
+          code: branch.code,
+          countryId: branch.countryId,
+          status: branch.status || 'INACTIVE',
+        };
+      }
     }
 
     const wallets = await this.prisma.wallet.findMany({
@@ -787,6 +950,7 @@ export class UserServiceService {
         full_name: user.full_name,
         account_number: user.account_number,
         branchId: user.branchId,
+        branch: userBranch, // ✅ AJOUT DE LA BRANCHE
         role: user.role,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
@@ -805,6 +969,10 @@ export class UserServiceService {
     };
   }
 
+  // ================================================================
+  // GET USER BY PHONE
+  // ================================================================
+
   async getUserByPhone(
     phone: string,
     lang: string = 'fr',
@@ -818,6 +986,13 @@ export class UserServiceService {
       full_name: string | null;
       account_number: string | null;
       branchId: string | null;
+      branch: {
+        id: string;
+        name: string;
+        code: string;
+        countryId: string;
+        status: string;
+      } | null;
       role: string;
       passwordStatus: string | null;
       pinstatus: boolean | null;
@@ -846,8 +1021,8 @@ export class UserServiceService {
         phone: true,
         full_name: true,
         account_number: true,
-        profileImage: true,
         branchId: true,
+        profileImage: true,
         role: true,
         status: true,
         deleted: true,
@@ -874,6 +1049,37 @@ export class UserServiceService {
         message: this.i18nService.translate('user_not_found', lang),
         statusCode: 404,
       });
+    }
+
+    // ✅ Récupérer la branche de l'utilisateur
+    let userBranch: {
+      id: string;
+      name: string;
+      code: string;
+      countryId: string;
+      status: string;
+    } | null = null;
+
+    if (user.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          countryId: true,
+          status: true,
+        },
+      });
+      if (branch) {
+        userBranch = {
+          id: branch.id,
+          name: branch.name,
+          code: branch.code,
+          countryId: branch.countryId,
+          status: branch.status || 'INACTIVE',
+        };
+      }
     }
 
     const wallets = await this.prisma.wallet.findMany({
@@ -934,8 +1140,9 @@ export class UserServiceService {
         phone: user.phone,
         fcmToken: user.fcmToken,
         full_name: user.full_name,
-        branchId: user.branchId,
         account_number: user.account_number,
+        branchId: user.branchId,
+        branch: userBranch, // ✅ AJOUT DE LA BRANCHE
         role: user.role,
         passwordStatus: user.passwordStatus,
         pinstatus: user.pinstatus,
@@ -954,6 +1161,8 @@ export class UserServiceService {
     };
   }
 
+  // apps/user-service/src/user-service.service.ts
+
   async updateUser(
     id: string,
     data: UpdateUserDto,
@@ -971,7 +1180,23 @@ export class UserServiceService {
       });
     }
 
-    // 1️⃣ Vérification d'unicité du téléphone (si changement)
+    // ✅ 1️⃣ Vérifier que la branche existe si fournie
+    let branchId = existingUser.branchId;
+    if (data.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: data.branchId },
+      });
+      if (!branch) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Branch not found',
+          statusCode: 404,
+        });
+      }
+      branchId = data.branchId;
+    }
+
+    // 2️⃣ Vérification d'unicité du téléphone (si changement)
     if (data.phone && data.phone !== existingUser.phone) {
       const phoneExists = await this.prisma.user.findFirst({
         where: { phone: data.phone, id: { not: id } },
@@ -985,13 +1210,11 @@ export class UserServiceService {
       }
     }
 
-    // ✅ 2️⃣ Vérification du compte bancaire (si changement d'account_number)
-    // ✅ CORRECTION : Utiliser la table user au lieu de account
+    // 3️⃣ Vérification du compte bancaire (si changement d'account_number)
     if (
       data.account_number &&
       data.account_number !== existingUser.account_number
     ) {
-      // Vérifier si un autre utilisateur a déjà ce numéro de compte
       const existingUserWithAccount = await this.prisma.user.findFirst({
         where: {
           account_number: data.account_number,
@@ -1008,18 +1231,9 @@ export class UserServiceService {
           statusCode: 409,
         });
       }
-
-      // Vérifier que le nom complet correspond (optionnel)
-      const fullNameToCheck = data.full_name ?? existingUser.full_name;
-      // Vérifier que le téléphone correspond (si fourni)
-      const phoneToCheck = data.phone ?? existingUser.phone;
-
-      // ✅ Optionnel : Vérifier la cohérence avec la table account si elle existe
-      // Si vous avez vraiment besoin de vérifier avec la table account,
-      // vous devez d'abord créer la table account dans votre schéma Prisma
     }
 
-    // 3️⃣ Génération d'un code marchand si le rôle devient MERCHANT et qu'il n'en a pas déjà un
+    // 4️⃣ Génération d'un code marchand si le rôle devient MERCHANT et qu'il n'en a pas déjà un
     const newRole = data.role || existingUser.role;
     let merchantCode = existingUser.merchantCode;
     if (newRole === 'MERCHANT' && !merchantCode) {
@@ -1038,18 +1252,18 @@ export class UserServiceService {
       merchantCode = null;
     }
 
-    // 4️⃣ Préparation des données de mise à jour
+    // 5️⃣ Préparation des données de mise à jour
     const updateData: any = { updatedAt: new Date() };
+
     if (data.email) updateData.email = data.email.toLowerCase();
     if (data.phone) updateData.phone = data.phone;
     if (data.full_name) updateData.full_name = data.full_name;
     if (data.account_number) updateData.account_number = data.account_number;
-    if (data.branch) updateData.branch = data.branch;
+    if (branchId !== existingUser.branchId) updateData.branchId = branchId; // ✅ Mise à jour de la branche
     if (data.role) updateData.role = data.role;
     if (data.status) updateData.status = data.status;
     if (data.businessName) updateData.businessName = data.businessName;
-    if (merchantCode !== existingUser.merchantCode)
-      updateData.merchantCode = merchantCode;
+    if (merchantCode !== existingUser.merchantCode) updateData.merchantCode = merchantCode;
 
     // ✅ Nouveaux champs marchands
     if (data.merchantType !== undefined) {
@@ -1081,12 +1295,43 @@ export class UserServiceService {
       updateData.pinstatus = true;
     }
 
-    // 5️⃣ Mise à jour
+    // 6️⃣ Mise à jour
     try {
       const user = await this.prisma.user.update({
         where: { id },
         data: updateData,
       });
+
+      // ✅ 7️⃣ Récupérer la branche pour la réponse
+      let branchData: {
+        id: string;
+        name: string;
+        code: string;
+        countryId: string;
+        status: string;
+      } | null = null;
+
+      if (user.branchId) {
+        const branch = await this.prisma.branch.findUnique({
+          where: { id: user.branchId },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            countryId: true,
+            status: true,
+          },
+        });
+        if (branch) {
+          branchData = {
+            id: branch.id,
+            name: branch.name,
+            code: branch.code,
+            countryId: branch.countryId,
+            status: branch.status || 'INACTIVE',
+          };
+        }
+      }
 
       // SMS de confirmation
       const phoneToUse = data.phone || existingUser.phone;
@@ -1113,9 +1358,15 @@ export class UserServiceService {
         }
       }
 
+      // ✅ 8️⃣ Retour avec la branche
+      const responseData = this.toResponse(user);
+
       return {
         message: this.i18nService.translate('user_updated_success', lang),
-        data: this.toResponse(user),
+        data: {
+          ...responseData,
+          branch: branchData,
+        } as UserResponseDto,
       };
     } catch (error) {
       if (error.code === 'P2002') {
@@ -1675,6 +1926,8 @@ export class UserServiceService {
     };
   }
   // ========================= PRIVATE HELPER =========================
+  // apps/user-service/src/user-service.service.ts
+
   private toResponse(user: any): UserResponseDto {
     return {
       id: user.id,
@@ -1682,19 +1935,33 @@ export class UserServiceService {
       phone: user.phone,
       full_name: user.full_name,
       account_number: user.account_number,
-      branchId: user.branchId ?? null, // ← AJOUT
+      branchId: user.branchId ?? null,
       role: user.role,
       status: user.status,
       deleted: user.deleted ?? false,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
-      fcmToken: user.fcmToken,
-      passwordStatus: user.passwordStatus,
-      pinstatus: user.pinstatus,
+      fcmToken: user.fcmToken ?? null,
+      passwordStatus: user.passwordStatus ?? null,
+      pinstatus: user.pinstatus ?? null,
       merchantCode: user.merchantCode ?? null,
-      businessName: user.businessName,
-      failed_login_attempts: user.failed_login_attempts,
-      locked_until: user.locked_until,
+      businessName: user.businessName ?? null,
+      countryCode: user.countryCode ?? null,
+      merchantType: user.merchantType ?? null,
+      businessCategory: user.businessCategory ?? null,
+      businessAddress: user.businessAddress ?? null,
+      failed_login_attempts: user.failed_login_attempts ?? null,
+      locked_until: user.locked_until ?? null,
+      profileImage: user.profileImage ?? null,
+      kycStatus: user.kycStatus ?? null,
+      // ✅ Ajouter branch si disponible
+      branch: user.branch ? {
+        id: user.branch.id,
+        name: user.branch.name,
+        code: user.branch.code,
+        countryId: user.branch.countryId,
+        status: user.branch.status,
+      } : null,
     };
   }
 

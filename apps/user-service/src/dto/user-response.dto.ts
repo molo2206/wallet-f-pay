@@ -1,5 +1,4 @@
-/* eslint-disable prettier/prettier */
-import { user_passwordStatus, user_role, user_status } from '@prisma/client';
+// api-gateway/src/dto/user.dto.ts
 
 export class UserResponseDto {
   id: string;
@@ -7,18 +6,31 @@ export class UserResponseDto {
   phone: string | null;
   full_name: string | null;
   account_number: string | null;
-  role: user_role;
-  status: user_status;
+  branchId: string | null;
+  branch?: {
+    id: string;
+    name: string;
+    code: string;
+    countryId: string;
+    status: string;
+  } | null;
+  role: string;
+  status: string;
   deleted: boolean;
   createdAt: Date;
   updatedAt: Date;
-  merchantCode: string | null;
-  businessName: string | null;
-  branchId?: string | null; // ← AJOUT
-  // Champs optionnels (ou obligatoires selon votre besoin)
+  // ✅ AJOUTER CES PROPRIÉTÉS
   fcmToken?: string | null;
-  passwordStatus?: user_passwordStatus | null;
+  passwordStatus?: string | null;
   pinstatus?: boolean | null;
-  failed_login_attempts?: number;
+  merchantCode?: string | null;
+  businessName?: string | null;
+  countryCode?: string | null;
+  merchantType?: string | null;
+  businessCategory?: string | null;
+  businessAddress?: string | null;
+  profileImage?: string | null;
+  kycStatus?: string | null;
+  failed_login_attempts?: number | null;
   locked_until?: Date | null;
 }

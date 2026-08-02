@@ -102,5 +102,8 @@ export class UpdateUserDto {
   @IsString()
   countryCode?: string;
 
+  @IsOptional()
+  branchId?: string;
+
   lang?: string;
 }

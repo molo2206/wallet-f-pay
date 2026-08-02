@@ -37,13 +37,14 @@ export enum UserMerchantType {
   OTHER = 'OTHER',
 }
 
-// Pour créer un utilisateur
+// api-gateway/src/dto/user.dto.ts
+
 export class CreateUserDto {
   email?: string;
   phone?: string;
   full_name: string;
   account_number?: string;
-  branch?: string;
+  branchId?: string; // ✅ AJOUT DE branchId
   role?: UserRole;
   merchantCode?: string;
   lang?: string;
