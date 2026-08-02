@@ -25,3 +25,9 @@ export class GetBranchesDto {
   countryId?: string;
   status?: string;
 }
+
+
+export class DeleteBranchDto {
+  id: string;
+  permanent?: boolean; // false par défaut (soft delete)
+}

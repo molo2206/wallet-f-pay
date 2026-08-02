@@ -13,6 +13,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import {
+  branch_status,
   PrismaClient,
   user_role as PrismaUserRole,
   user_passwordStatus,
@@ -119,6 +120,8 @@ export class AuthServiceService {
     }
     await this.logAudit(userId, action, details, ipAddress);
   }
+
+  // apps/auth-service/src/auth-service.service.ts
 
   async register(data: RegisterUserDto, ipAddress?: string) {
     const phone = this.normalizePhone(data.phone);
@@ -260,7 +263,7 @@ export class AuthServiceService {
           id: crypto.randomUUID(),
           account_number: data.account_number || null,
           full_name: data.full_name,
-          phone: phone, // ✅ Utiliser la version normalisée
+          phone: phone,
           password: hashedPassword,
           role: 'USER',
           status: 'ACTIVE',
@@ -269,6 +272,7 @@ export class AuthServiceService {
           email: data.email ?? null,
           countryCode: data.countryCode ?? null,
           profileImage: null,
+          branchId: data.branchId ?? null,
         },
       });
 
@@ -367,18 +371,6 @@ export class AuthServiceService {
         });
       }
 
-      // try {
-      //   const welcomeSms = this.i18nService.translate('welcome_sms_begin', lang, {
-      //     full_name: user.full_name,
-      //     account_number: user.account_number,
-      //     phone: phone,
-      //     password: plainPassword,
-      //   });
-      //   await this.smsService.sendSms(phone, welcomeSms, data.countryCode);
-      // } catch (err) {
-      //   console.error('Erreur SMS bienvenue:', err);
-      // }
-
       if (user.email) {
         try {
           await this.mailService.sendHtmlEmail(
@@ -429,6 +421,7 @@ export class AuthServiceService {
         this.i18nService.translate('register_success', lang),
       );
 
+      // ✅ Récupérer les wallets
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -442,6 +435,7 @@ export class AuthServiceService {
         },
       });
 
+      // ✅ Récupérer les sessions
       const sessions = await this.prisma.sessions.findMany({
         where: {
           user_id: user.id,
@@ -459,6 +453,7 @@ export class AuthServiceService {
         },
       });
 
+      // ✅ Récupérer les informations KYC
       const kycSubmission = await this.prisma.kyc_submission.findFirst({
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
@@ -496,6 +491,69 @@ export class AuthServiceService {
         } : null,
       };
 
+      // ✅ Récupérer les ressources de l'utilisateur avec BRANCH
+      const userResources = await this.prisma.user_has_resources.findMany({
+        where: { userId: user.id },
+        include: {
+          resources: true,
+          branch: { // ✅ INCLURE BRANCH
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              countryId: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      const resources = userResources.map((ur) => ({
+        id: ur.resources.id,
+        name: ur.resources.name,
+        label: ur.resources.label,
+        permissions: {
+          canCreate: ur.canCreate,
+          canRead: ur.canRead,
+          canUpdate: ur.canUpdate,
+          canDelete: ur.canDelete,
+          canManage: ur.canManage,
+        },
+        grantedAt: ur.grantedAt,
+        expiresAt: ur.expiresAt,
+        branch: ur.branch ? { // ✅ AJOUTER BRANCH DANS LA RÉPONSE
+          id: ur.branch.id,
+          name: ur.branch.name,
+          code: ur.branch.code,
+          countryId: ur.branch.countryId,
+          status: ur.branch.status,
+        } : null,
+      }));
+
+      // apps/auth-service/src/auth-service.service.ts
+
+      let userBranch: {
+        id: string;
+        name: string;
+        code: string;
+        countryId: string;
+        status: branch_status | null;
+      } | null = null;
+
+      // ✅ Utiliser branchId (le champ dans la table)
+      if (user.branchId) {
+        userBranch = await this.prisma.branch.findUnique({
+          where: { id: user.branchId },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            countryId: true,
+            status: true,
+          },
+        });
+      }
+
       return {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
@@ -509,6 +567,7 @@ export class AuthServiceService {
           full_name: user.full_name,
           account_number: user.account_number,
           branchId: user.branchId ?? null,
+          branch: userBranch, // ✅ AJOUTER BRANCH DE L'UTILISATEUR
           role: user.role,
           passwordStatus: user.passwordStatus,
           pinstatus: user.pinstatus,
@@ -523,6 +582,7 @@ export class AuthServiceService {
           countryCode: user.countryCode || 'CD',
           sessions: sessions,
           wallets: wallets,
+          resources: resources, // ✅ AJOUTER RESSOURCES AVEC BRANCH
           kyc: kyc,
         },
       };
@@ -779,10 +839,22 @@ export class AuthServiceService {
         },
       });
 
-      // ✅ Récupérer les ressources de l'utilisateur
+      // Dans votre méthode de récupération des ressources
+
       const userResources = await this.prisma.user_has_resources.findMany({
         where: { userId: user.id },
-        include: { resources: true },
+        include: {
+          resources: true,
+          branch: { // ✅ INCLURE BRANCH
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              countryId: true,
+              status: true,
+            },
+          },
+        },
       });
 
       const resources = userResources.map((ur) => ({
@@ -798,6 +870,13 @@ export class AuthServiceService {
         },
         grantedAt: ur.grantedAt,
         expiresAt: ur.expiresAt,
+        branch: ur.branch ? { // ✅ AJOUTER BRANCH
+          id: ur.branch.id,
+          name: ur.branch.name,
+          code: ur.branch.code,
+          countryId: ur.branch.countryId,
+          status: ur.branch.status,
+        } : null,
       }));
 
       // ✅ Récupérer les wallets

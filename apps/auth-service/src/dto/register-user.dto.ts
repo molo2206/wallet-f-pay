@@ -48,5 +48,8 @@ export class RegisterUserDto {
   profileImage?: string; // ✅ AJOUTÉ - URL de la photo de profil
 
   @IsOptional()
+  branchId?: string;
+
+  @IsOptional()
   lang?: string;
 }

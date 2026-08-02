@@ -4094,6 +4094,32 @@ export class ApiGatewayController {
     );
   }
 
+  @Delete('admin/branches/:id')
+  async deleteBranch(
+    @CurrentUser() currentUser: any,
+    @Body() body: { permanent?: boolean },
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+    const lang = langHeader || 'fr';
+
+    // ✅ Vérifier que l'ID est présent
+    if (!currentUser?.id) {
+      throw new HttpException('ID de la branche requis', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.sendUserMessage(
+      'delete_branch',
+      {
+        id: currentUser.id,
+        permanent: body?.permanent || false,
+      },
+      'Échec de la suppression de la branche',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
   @Get('admin/branches')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getAllBranches(

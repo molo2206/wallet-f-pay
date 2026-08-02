@@ -748,6 +748,23 @@ export class UserServiceController {
     }
   }
 
+  @MessagePattern('delete_branch')
+  async deleteBranch(@Payload() data: {
+    id: string;
+    permanent?: boolean;
+  }) {
+    try {
+      return await this.userService.deleteBranch(data.id, data.permanent || false);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('get_branch')
   async getBranch(@Payload() data: { id: string }) {
     try {
