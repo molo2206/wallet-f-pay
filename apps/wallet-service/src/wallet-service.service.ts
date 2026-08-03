@@ -2440,15 +2440,27 @@ export class WalletServiceService {
   }
 
   // apps/wallet-service/src/wallet-service.service.ts
+  async listTransactions(params: {
+    userId: string;
+    page?: number;
+    limit?: number;
+    startDate?: Date;
+    endDate?: Date;
+    adminId?: string;
+    countryCode?: string; // ✅ AJOUT
+    branchId?: string; // ✅ AJOUT
+  }) {
+    const {
+      userId,
+      page = 1,
+      limit = 10,
+      startDate,
+      endDate,
+      adminId,
+      countryCode,
+      branchId: filterBranchId, // ✅ Filtrer par branche spécifique
+    } = params;
 
-  async listTransactions(
-    userId: string,
-    page: number = 1,
-    limit: number = 10,
-    startDate?: Date,
-    endDate?: Date,
-    adminId?: string,
-  ) {
     // ✅ Gestion des permissions pour admin
     let branchFilter: string | null = null;
     let hasManagePermission = false;
@@ -2456,7 +2468,13 @@ export class WalletServiceService {
     let isSuperAdmin = false;
     let allowedBranchIds: string[] = [];
 
-    if (adminId) {
+    // ✅ Si un branchId est fourni dans les filtres, il a priorité
+    if (filterBranchId) {
+      branchFilter = filterBranchId;
+      allowedBranchIds = [filterBranchId];
+    }
+    // ✅ Sinon, gérer les permissions de l'admin
+    else if (adminId) {
       const admin = await this.prisma.user.findUnique({
         where: { id: adminId },
         select: {
@@ -2532,8 +2550,11 @@ export class WalletServiceService {
 
     // ✅ Récupérer les pays disponibles
     let availableCountriesWhere: any = { deleted: false };
-    if (adminId && branchFilter && branchFilter !== 'none') {
+    if (branchFilter && branchFilter !== 'none') {
       availableCountriesWhere.branchId = branchFilter;
+    }
+    if (countryCode) {
+      availableCountriesWhere.countryCode = countryCode.toUpperCase();
     }
 
     const availableCountries = await this.prisma.user.groupBy({
@@ -2543,14 +2564,26 @@ export class WalletServiceService {
     });
 
     const skip = (page - 1) * limit;
-    const where: any = {
-      userId,
-      status: 'SUCCESS',
-    };
+    const where: any = { status: 'SUCCESS' };
 
+    // ✅ Si userId est fourni, filtrer par userId
+    if (userId) {
+      where.userId = userId;
+    }
+
+    // ✅ Filtrer par branche
     if (branchFilter && branchFilter !== 'none') {
       where.branchId = branchFilter;
-    } else if (branchFilter === 'none') {
+    }
+
+    // ✅ Filtrer par pays
+    if (countryCode) {
+      where.user = {
+        countryCode: countryCode.toUpperCase()
+      };
+    }
+
+    if (branchFilter === 'none') {
       return {
         message: 'Transactions retrieved successfully',
         data: {
@@ -2667,7 +2700,6 @@ export class WalletServiceService {
       }),
     );
 
-    // ✅ Structure retour inchangée, seulement ajout de availableBranches et availableCountries
     return {
       message: 'Transactions retrieved successfully',
       data: {

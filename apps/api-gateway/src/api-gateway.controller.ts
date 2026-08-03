@@ -1207,6 +1207,8 @@ export class ApiGatewayController {
     @Query('limit') limit?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('countryCode') countryCode?: string, // ✅ AJOUT
+    @Query('branchId') branchId?: string, // ✅ AJOUT
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
@@ -1215,7 +1217,7 @@ export class ApiGatewayController {
     if (startDate) start = new Date(startDate);
     if (endDate) end = new Date(endDate);
 
-    // ✅ Construction du payload avec adminId si l'utilisateur est ADMIN ou SUPER_ADMIN
+    // ✅ Construction du payload avec tous les filtres
     const payload: any = {
       userId: currentUser.id,
       page: pageNum,
@@ -1224,10 +1226,16 @@ export class ApiGatewayController {
       endDate: end,
     };
 
+    // ✅ Ajouter les filtres si présents
+    if (countryCode) payload.countryCode = countryCode;
+    if (branchId) payload.branchId = branchId;
+
     // ✅ Si l'utilisateur est ADMIN ou SUPER_ADMIN, ajouter adminId
     if (currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') {
       payload.adminId = currentUser.id;
     }
+
+    console.log('[Gateway] getTransactions - Payload:', payload);
 
     const response = await this.sendWalletMessage<any>(
       'list_transactions',

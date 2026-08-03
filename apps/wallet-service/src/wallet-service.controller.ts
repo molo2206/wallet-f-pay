@@ -135,8 +135,6 @@ export class WalletServiceController {
     }
   }
 
-  // apps/wallet-service/src/wallet-service.controller.ts
-
   @MessagePattern('list_transactions')
   async listTransactions(
     @Payload()
@@ -147,19 +145,23 @@ export class WalletServiceController {
       startDate?: Date;
       endDate?: Date;
       lang?: string;
-      adminId?: string; // ✅ AJOUT de adminId
+      adminId?: string;
+      countryCode?: string; // ✅ AJOUT
+      branchId?: string; // ✅ AJOUT
     },
   ) {
     console.log('[WalletService] list_transactions received:', data);
     try {
-      return await this.walletService.listTransactions(
-        data.userId,
-        data.page,
-        data.limit,
-        data.startDate,
-        data.endDate,
-        data.adminId, // ✅ Passage de adminId
-      );
+      return await this.walletService.listTransactions({
+        userId: data.userId,
+        page: data.page,
+        limit: data.limit,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        adminId: data.adminId,
+        countryCode: data.countryCode,
+        branchId: data.branchId,
+      });
     } catch (error) {
       console.error('[WalletService] list_transactions error:', error);
       const lang = data.lang || 'fr';
