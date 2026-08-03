@@ -4620,8 +4620,11 @@ export class UserServiceService {
             resources: true,
           },
         },
-        wallet: {  // 👈 INCLURE LES WALLETS
-          where: { isActive: true },
+        wallet: {
+          where: {
+            isActive: true,
+            isBranchWallet: true  // 👈 FILTRER UNIQUEMENT LES WALLETS DE CAISSE
+          },
           include: {
             user: {
               select: {
@@ -4717,8 +4720,11 @@ export class UserServiceService {
               countryCode: true,
             },
           },
-          wallet: {  // 👈 INCLURE LES WALLETS
-            where: { isActive: true },
+          wallet: {
+            where: {
+              isActive: true,
+              isBranchWallet: true  // 👈 FILTRER UNIQUEMENT LES WALLETS DE CAISSE
+            },
             include: {
               user: {
                 select: {
@@ -4789,6 +4795,7 @@ export class UserServiceService {
       },
     };
   }
+
   async getBranchesByCountry(countryCode: string) {
     const branches = await this.prisma.branch.findMany({
       where: {
@@ -4806,8 +4813,11 @@ export class UserServiceService {
             countryCode: true,
           },
         },
-        wallet: {  // 👈 INCLURE LES WALLETS
-          where: { isActive: true },
+        wallet: {
+          where: {
+            isActive: true,
+            isBranchWallet: true  // 👈 FILTRER UNIQUEMENT LES WALLETS DE CAISSE
+          },
           include: {
             user: {
               select: {
