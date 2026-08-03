@@ -3158,112 +3158,6 @@ export class WalletServiceService {
     };
   }
 
-  private async getExchangeRateViaPivot(
-    fromCurrency: string,
-    toCurrency: string,
-    tx: any,
-  ): Promise<number> {
-    if (fromCurrency === toCurrency) {
-      return 1;
-    }
-
-    // Cas USD vers autre devise
-    if (fromCurrency === 'USD') {
-      const rate = await tx.exchange_rate.findFirst({
-        where: {
-          from_currency: 'USD',
-          to_currency: toCurrency,
-        },
-      });
-      if (rate) {
-        console.log(`[ExchangeRate] USD → ${toCurrency}: ${rate.rate}`);
-        return rate.rate;
-      }
-      throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
-    }
-
-    // Cas autre devise vers USD
-    if (toCurrency === 'USD') {
-      const rate = await tx.exchange_rate.findFirst({
-        where: {
-          from_currency: fromCurrency,
-          to_currency: 'USD',
-        },
-      });
-      if (rate) {
-        console.log(`[ExchangeRate] ${fromCurrency} → USD: ${rate.rate}`);
-        return rate.rate;
-      }
-      const inverseRate = await tx.exchange_rate.findFirst({
-        where: {
-          from_currency: 'USD',
-          to_currency: fromCurrency,
-        },
-      });
-      if (inverseRate && inverseRate.rate > 0) {
-        const result = 1 / inverseRate.rate;
-        console.log(`[ExchangeRate] ${fromCurrency} → USD (via inverse): ${result}`);
-        return result;
-      }
-      throw new Error(`Taux de change ${fromCurrency} → USD non trouvé`);
-    }
-
-    // ✅ Cas général : passer par USD comme pivot
-    let rateFromToUsd: number | null = null;
-    const fromToUsd = await tx.exchange_rate.findFirst({
-      where: {
-        from_currency: fromCurrency,
-        to_currency: 'USD',
-      },
-    });
-    if (fromToUsd) {
-      rateFromToUsd = fromToUsd.rate;
-    } else {
-      const usdToFrom = await tx.exchange_rate.findFirst({
-        where: {
-          from_currency: 'USD',
-          to_currency: fromCurrency,
-        },
-      });
-      if (usdToFrom && usdToFrom.rate > 0) {
-        rateFromToUsd = 1 / usdToFrom.rate;
-      }
-    }
-
-    if (!rateFromToUsd) {
-      throw new Error(`Taux de change ${fromCurrency} → USD non trouvé`);
-    }
-
-    let rateUsdToTarget: number | null = null;
-    const usdToTarget = await tx.exchange_rate.findFirst({
-      where: {
-        from_currency: 'USD',
-        to_currency: toCurrency,
-      },
-    });
-    if (usdToTarget) {
-      rateUsdToTarget = usdToTarget.rate;
-    } else {
-      const targetToUsd = await tx.exchange_rate.findFirst({
-        where: {
-          from_currency: toCurrency,
-          to_currency: 'USD',
-        },
-      });
-      if (targetToUsd && targetToUsd.rate > 0) {
-        rateUsdToTarget = 1 / targetToUsd.rate;
-      }
-    }
-
-    if (!rateUsdToTarget) {
-      throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
-    }
-
-    const finalRate = rateFromToUsd * rateUsdToTarget;
-    console.log(`[ExchangeRate] ${fromCurrency} → ${toCurrency} (via USD): ${finalRate} (${rateFromToUsd} × ${rateUsdToTarget})`);
-    return finalRate;
-  }
-
   async pay(
     dto: PayDto,
     lang: string = 'fr',
@@ -3688,6 +3582,114 @@ export class WalletServiceService {
       },
     };
   }
+
+  private async getExchangeRateViaPivot(
+    fromCurrency: string,
+    toCurrency: string,
+    tx: any,
+  ): Promise<number> {
+    if (fromCurrency === toCurrency) {
+      return 1;
+    }
+
+    // Cas USD vers autre devise
+    if (fromCurrency === 'USD') {
+      const rate = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: 'USD',
+          to_currency: toCurrency,
+        },
+      });
+      if (rate) {
+        console.log(`[ExchangeRate] USD → ${toCurrency}: ${rate.rate}`);
+        return rate.rate;
+      }
+      throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
+    }
+
+    // Cas autre devise vers USD
+    if (toCurrency === 'USD') {
+      const rate = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: fromCurrency,
+          to_currency: 'USD',
+        },
+      });
+      if (rate) {
+        console.log(`[ExchangeRate] ${fromCurrency} → USD: ${rate.rate}`);
+        return rate.rate;
+      }
+      const inverseRate = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: 'USD',
+          to_currency: fromCurrency,
+        },
+      });
+      if (inverseRate && inverseRate.rate > 0) {
+        const result = 1 / inverseRate.rate;
+        console.log(`[ExchangeRate] ${fromCurrency} → USD (via inverse): ${result}`);
+        return result;
+      }
+      throw new Error(`Taux de change ${fromCurrency} → USD non trouvé`);
+    }
+
+    // ✅ Cas général : passer par USD comme pivot
+    let rateFromToUsd: number | null = null;
+    const fromToUsd = await tx.exchange_rate.findFirst({
+      where: {
+        from_currency: fromCurrency,
+        to_currency: 'USD',
+      },
+    });
+    if (fromToUsd) {
+      rateFromToUsd = fromToUsd.rate;
+    } else {
+      const usdToFrom = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: 'USD',
+          to_currency: fromCurrency,
+        },
+      });
+      if (usdToFrom && usdToFrom.rate > 0) {
+        rateFromToUsd = 1 / usdToFrom.rate;
+      }
+    }
+
+    if (!rateFromToUsd) {
+      throw new Error(`Taux de change ${fromCurrency} → USD non trouvé`);
+    }
+
+    let rateUsdToTarget: number | null = null;
+    const usdToTarget = await tx.exchange_rate.findFirst({
+      where: {
+        from_currency: 'USD',
+        to_currency: toCurrency,
+      },
+    });
+    if (usdToTarget) {
+      rateUsdToTarget = usdToTarget.rate;
+    } else {
+      const targetToUsd = await tx.exchange_rate.findFirst({
+        where: {
+          from_currency: toCurrency,
+          to_currency: 'USD',
+        },
+      });
+      if (targetToUsd && targetToUsd.rate > 0) {
+        rateUsdToTarget = 1 / targetToUsd.rate;
+      }
+    }
+
+    if (!rateUsdToTarget) {
+      throw new Error(`Taux de change USD → ${toCurrency} non trouvé`);
+    }
+
+    const finalRate = rateFromToUsd * rateUsdToTarget;
+    console.log(`[ExchangeRate] ${fromCurrency} → ${toCurrency} (via USD): ${finalRate} (${rateFromToUsd} × ${rateUsdToTarget})`);
+    return finalRate;
+  }
+
+
 
   async sendFidelity(
     dto: SendFidelityDto,
@@ -5880,19 +5882,23 @@ export class WalletServiceService {
       }
     }
 
-    // ========== NOTIFICATION PUSH AU CLIENT ==========
-    await this.notificationHelper.notify(
-      result.user.id,
-      NotificationType.TOP_UP_SUCCESS,
-      {
-        amount,
-        currency: result.wallet.currency || 'CDF',
-        balance: result.wallet.balance || 0
-      },
-      'TRANSACTION',
-      result.transaction.id,
-      lang,
-    );
+    // ========== NOTIFICATION PUSH AU PROPRIÉTAIRE DU COMPTE (LE CLIENT) ==========
+    try {
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.transaction,
+        result.user, // Le client (propriétaire du wallet)
+        result.wallet,
+        'topup',
+      );
+    } catch (err) {
+      console.error('[Notifications] adminTopUp error:', err);
+    }
 
     // ========== RETOUR ==========
     return {
@@ -6336,18 +6342,23 @@ export class WalletServiceService {
       }
     }
 
-    await this.notificationHelper.notify(
-      result.user.id,
-      NotificationType.CASHOUT_SUCCESS,
-      {
-        amount,
-        currency: result.wallet.currency || 'CDF',
-        balance: result.wallet.balance || 0
-      },
-      'TRANSACTION',
-      result.transaction.id,
-      lang,
-    );
+    // ========== NOTIFICATION PUSH AU PROPRIÉTAIRE DU COMPTE (LE CLIENT) ==========
+    try {
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.transaction,
+        result.user, // Le client (propriétaire du wallet)
+        result.wallet,
+        'cashout',
+      );
+    } catch (err) {
+      console.error('[Notifications] adminCashout error:', err);
+    }
 
     return {
       message: this.i18nService.translate('wallet.cashout_success', lang, {
@@ -6850,19 +6861,33 @@ export class WalletServiceService {
 
     // ========== NOTIFICATIONS PUSH ==========
     try {
+      // ✅ 1. Notification pour l'EXPÉDITEUR (le client qui envoie)
       await notifyTransaction(
-        this.smsService, this.notificationHelper, this.i18nService,
-        this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
-        result.senderTx, result.fromUser, result.fromWallet,
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.senderTx,
+        result.fromUser, // L'expéditeur
+        result.fromWallet,
         result.isInternational ? 'send_pending' : 'send_sent',
         { name: result.toUser.full_name ?? undefined, phone: result.toUser.phone ?? undefined }
       );
 
+      // ✅ 2. Notification pour le DESTINATAIRE (le client qui reçoit)
       if (!result.isInternational) {
         await notifyTransaction(
-          this.smsService, this.notificationHelper, this.i18nService,
-          this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
-          result.receiverTx, result.toUser, result.toWallet,
+          this.smsService,
+          this.notificationHelper,
+          this.i18nService,
+          this.shouldSendSms.bind(this),
+          this.shouldSendPush.bind(this),
+          this.getUserLanguage.bind(this),
+          result.receiverTx,
+          result.toUser, // Le destinataire
+          result.toWallet,
           'send_received',
           { name: result.fromUser.full_name ?? undefined, phone: result.fromUser.phone ?? undefined }
         );
@@ -7205,20 +7230,35 @@ export class WalletServiceService {
 
     // ========== NOTIFICATIONS PUSH ==========
     try {
-      await Promise.all([
-        notifyTransaction(
-          this.smsService, this.notificationHelper, this.i18nService,
-          this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
-          result.payerTx, result.fromUser, result.fromWallet, 'pay_sent',
-          { name: result.toUser.full_name ?? undefined, phone: result.toUser.phone ?? undefined }
-        ),
-        notifyTransaction(
-          this.smsService, this.notificationHelper, this.i18nService,
-          this.shouldSendSms.bind(this), this.shouldSendPush.bind(this), this.getUserLanguage.bind(this),
-          result.merchantTx, result.toUser, result.toWallet, 'pay_received',
-          { name: result.fromUser.full_name ?? undefined, phone: result.fromUser.phone ?? undefined }
-        ),
-      ]);
+      // ✅ 1. Notification pour le PAYEUR (le client qui paie)
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.payerTx,
+        result.fromUser, // Le payeur
+        result.fromWallet,
+        'pay_sent',
+        { name: result.toUser.full_name ?? undefined, phone: result.toUser.phone ?? undefined }
+      );
+
+      // ✅ 2. Notification pour le COMMERÇANT (celui qui reçoit le paiement)
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.merchantTx,
+        result.toUser, // Le commerçant
+        result.toWallet,
+        'pay_received',
+        { name: result.fromUser.full_name ?? undefined, phone: result.fromUser.phone ?? undefined }
+      );
     } catch (err) {
       console.error('[Notifications] adminPay error:', err);
     }
@@ -7237,6 +7277,7 @@ export class WalletServiceService {
       },
     };
   }
+
   async calculateInternationalTransferFees(
     amount: number,
     walletId: string,
