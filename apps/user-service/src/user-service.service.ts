@@ -1966,6 +1966,7 @@ export class UserServiceService {
   }
 
   // apps/wallet-service/src/wallet-service.service.ts
+
   async getAdminDashboard(
     adminId: string,
     filters?: {
@@ -2006,7 +2007,7 @@ export class UserServiceService {
         });
       }
 
-      // 2️⃣ Déterminer les branches autorisées selon les permissions
+      // 2️⃣ Déterminer les branches autorisées
       let allowedBranchIds: string[] = [];
       let isSuperAdmin = admin.role === 'SUPER_ADMIN';
       let hasManagePermission = false;
@@ -2022,24 +2023,22 @@ export class UserServiceService {
         }
       }
 
-      //  SUPER_ADMIN ou canManage = true → voir toutes les branches
       if (isSuperAdmin || hasManagePermission) {
         const allBranches = await this.prisma.branch.findMany({
           where: { status: 'ACTIVE' },
           select: { id: true }
         });
         allowedBranchIds = allBranches.map(b => b.id);
-      }
-      //  canRead = true → voir uniquement SA branche
-      else if (hasReadPermission && admin.branchId) {
+      } else if (hasReadPermission && admin.branchId) {
         allowedBranchIds = [admin.branchId];
-      }
-      // Sinon, aucune branche autorisée
-      else {
+      } else if (admin.branchId) {
+        // ✅ MÊME SANS PERMISSION, L'ADMIN VOIT SA BRANCHE
+        allowedBranchIds = [admin.branchId];
+      } else {
         allowedBranchIds = [];
       }
 
-      // Si un branchId est passé en filtre, vérifier qu'il est autorisé
+      // 3️⃣ Si un branchId est passé en filtre
       let targetBranchId = filters?.branchId;
       if (targetBranchId) {
         if (!allowedBranchIds.includes(targetBranchId)) {
@@ -2049,14 +2048,9 @@ export class UserServiceService {
             statusCode: 403,
           });
         }
-      } else {
-        // Si aucun branchId n'est passé, utiliser la première branche autorisée
-        if (allowedBranchIds.length === 1) {
-          targetBranchId = allowedBranchIds[0];
-        }
       }
 
-      //  Récupérer les branches disponibles pour l'admin
+      // 4️⃣ Récupérer les branches disponibles pour l'admin
       const availableBranches = await this.prisma.branch.findMany({
         where: {
           id: { in: allowedBranchIds },
@@ -2072,23 +2066,14 @@ export class UserServiceService {
         orderBy: { name: 'asc' }
       });
 
-      //  Construction du filtre des utilisateurs
+      // 5️⃣ Construction du filtre des utilisateurs
       const userWhere: any = { deleted: false };
-
-      // Filtrer par branche si l'admin a canRead (pas canManage)
-      if (!isSuperAdmin && !hasManagePermission && hasReadPermission) {
-        if (targetBranchId) {
-          userWhere.branchId = targetBranchId;
-        } else if (admin.branchId) {
-          userWhere.branchId = admin.branchId;
-        }
-      }
 
       if (filters?.countryCode) {
         userWhere.countryCode = filters.countryCode.toUpperCase();
       }
 
-      // Normalisation des dates
+      // 6️⃣ Normalisation des dates
       let { startDate, endDate } = filters || {};
       if (startDate) {
         const start = new Date(startDate);
@@ -2123,19 +2108,10 @@ export class UserServiceService {
         dateFilter.lte = endDate;
       }
 
-      // Construction du filtre des transactions
+      // 7️⃣ Construction du filtre des transactions
       const transactionWhere: any = {};
       if (Object.keys(dateFilter).length > 0) {
         transactionWhere.createdAt = dateFilter;
-      }
-
-      // Filtrer les transactions par branche si canRead (pas canManage)
-      if (!isSuperAdmin && !hasManagePermission && hasReadPermission) {
-        if (targetBranchId) {
-          transactionWhere.branchId = targetBranchId;
-        } else if (admin.branchId) {
-          transactionWhere.branchId = admin.branchId;
-        }
       }
 
       if (filters?.countryCode) {
@@ -2396,7 +2372,6 @@ export class UserServiceService {
       FROM user
       WHERE createdAt >= ${startDate}
         AND createdAt <= ${endDate}
-        ${(!isSuperAdmin && !hasManagePermission && hasReadPermission && (targetBranchId || admin.branchId)) ? Prisma.sql`AND branchId = ${targetBranchId || admin.branchId}` : Prisma.sql``}
         ${filters?.countryCode ? Prisma.sql`AND countryCode = ${filters.countryCode.toUpperCase()}` : Prisma.sql``}
       GROUP BY month
       ORDER BY month ASC
@@ -2425,12 +2400,7 @@ export class UserServiceService {
       // ========== 9. PAYS DISPONIBLES ==========
       const availableCountries = await this.prisma.user.groupBy({
         by: ['countryCode'],
-        where: {
-          deleted: false,
-          ...((!isSuperAdmin && !hasManagePermission && hasReadPermission && (targetBranchId || admin.branchId))
-            ? { branchId: targetBranchId || admin.branchId }
-            : {})
-        },
+        where: { deleted: false },
         _count: { id: true },
       });
 
