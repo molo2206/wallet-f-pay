@@ -5744,10 +5744,8 @@ export class WalletServiceService {
           });
         }
 
-        // ✅ SUPER_ADMIN n'a pas besoin de branche
         const isSuperAdmin = admin.role === 'SUPER_ADMIN';
 
-        // ✅ Vérifier que l'admin a une branche (sauf SUPER_ADMIN)
         if (!admin.branchId && !isSuperAdmin) {
           throw new RpcException({
             status: 'error',
@@ -5804,7 +5802,6 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0, pin_locked_until: null },
         });
 
-        // 2️⃣ Récupérer le wallet du client
         const wallet = await tx.wallet.findFirst({
           where: { id: walletId, isActive: true },
           include: { user: true }
@@ -5820,18 +5817,15 @@ export class WalletServiceService {
 
         const user = wallet.user;
 
-        // 3️⃣ CRÉDITER LE WALLET DU CLIENT
         const updatedWallet = await tx.wallet.update({
           where: { id: wallet.id },
           data: { balance: { increment: amount }, updatedAt: new Date() },
         });
 
-        // 4️⃣ GÉRER LA CAISSE DE L'AGENCE
         let branchWallet: any = null;
         let branchId: string | null = null;
 
         if (isSuperAdmin) {
-          // ✅ SUPER_ADMIN: On cherche la caisse de l'agence du client
           if (wallet.branchId) {
             try {
               branchWallet = await this.getBranchCashWallet(wallet.branchId, wallet.currency);
@@ -5843,14 +5837,12 @@ export class WalletServiceService {
             console.log('[SuperAdmin] Le client n\'a pas de branche, opération sans caisse');
           }
         } else {
-          // ✅ ADMIN normal: utiliser sa propre branche
           if (admin.branchId) {
             branchWallet = await this.getBranchCashWallet(admin.branchId, wallet.currency);
             branchId = admin.branchId;
           }
         }
 
-        // Créditer la caisse si elle existe
         if (branchWallet) {
           await tx.wallet.update({
             where: { id: branchWallet.id },
@@ -5858,7 +5850,6 @@ export class WalletServiceService {
           });
         }
 
-        // 5️⃣ CRÉER LA TRANSACTION DU CLIENT
         const reference = await this.generateTransactionReference('', tx);
         const transaction = await tx.transaction.create({
           data: {
@@ -5877,7 +5868,6 @@ export class WalletServiceService {
           },
         });
 
-        // 6️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_IN) si caisse existe
         if (branchWallet) {
           const cashReference = await this.generateTransactionReference('CASH', tx);
           await tx.transaction.create({
@@ -5899,7 +5889,6 @@ export class WalletServiceService {
           });
         }
 
-        // 7️⃣ Audit log
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
@@ -5934,25 +5923,7 @@ export class WalletServiceService {
       }
     );
 
-    // ========== ENVOYER LE SMS AU CLIENT ==========
-    if (result.user.phone) {
-      try {
-        const cleanPhone = result.user.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.top_up_sms', lang, {
-          full_name: result.user.full_name || '',
-          amount: amount,
-          currency: result.wallet.currency || 'CDF',
-          balance: result.wallet.balance || 0,
-          reference: result.transaction.reference || 'N/A',
-        });
-        await this.smsService.sendSms(cleanPhone, smsText);
-        console.log(`[AdminTopUp] SMS envoyé au client ${cleanPhone}`);
-      } catch (err) {
-        console.error('[AdminTopUp] Erreur envoi SMS:', err);
-      }
-    }
-
-    // ========== NOTIFICATION PUSH ==========
+    // ✅ UN SEUL ENVOI DE SMS ET PUSH VIA notifyTransaction
     try {
       await notifyTransaction(
         this.smsService,
@@ -5970,7 +5941,6 @@ export class WalletServiceService {
       console.error('[Notifications] adminTopUp error:', err);
     }
 
-    // ========== RETOUR ==========
     return {
       message: this.i18nService.translate('wallet.top_up_success', lang, {
         amount: amount,
@@ -6499,24 +6469,6 @@ export class WalletServiceService {
         maxWait: 30000,
       }
     );
-
-    // ========== SMS ET NOTIFICATIONS ==========
-    if (result.user.phone) {
-      try {
-        const cleanPhone = result.user.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
-          full_name: result.user.full_name || '',
-          amount: amount,
-          currency: result.wallet.currency || 'CDF',
-          balance: result.wallet.balance || 0,
-          reference: result.transaction.reference || 'N/A',
-        });
-        await this.smsService.sendSms(cleanPhone, smsText);
-        console.log(`[AdminCashout] SMS confirmation envoyé au client ${cleanPhone}`);
-      } catch (err) {
-        console.error('[AdminCashout] Erreur envoi SMS:', err);
-      }
-    }
 
     // ========== NOTIFICATION PUSH ==========
     try {
