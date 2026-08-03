@@ -1975,7 +1975,7 @@ export class WalletServiceService {
             description: senderDescription,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
             movement: 'DEBIT',
-            branchId: admin.branchId ?? null,, // ✅ BRANCHE DE L'EXPÉDITEUR
+            branchId: admin.branchId ?? null, // ✅ BRANCHE DE L'EXPÉDITEUR
           },
         });
 
