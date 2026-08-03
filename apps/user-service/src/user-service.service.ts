@@ -4465,7 +4465,7 @@ export class UserServiceService {
     }
 
     // 5️⃣ Récupérer les wallets mis à jour
-    const wallets = await this.prisma.wallet.findMany({
+    const wallets: any[] = await this.prisma.wallet.findMany({
       where: {
         branchId: id,
         isBranchWallet: true,
@@ -4499,7 +4499,7 @@ export class UserServiceService {
     const responseData = {
       ...branchWithoutCountry,
       country: country_provider,
-      wallets: wallets.map(w => ({
+      wallets: wallets.map((w: any) => ({
         id: w.id,
         currency: w.currency,
         balance: w.balance,
