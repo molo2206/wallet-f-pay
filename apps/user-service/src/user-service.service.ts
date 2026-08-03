@@ -1986,7 +1986,7 @@ export class UserServiceService {
           user_has_resources: {
             where: {
               resources: {
-                name: 'DASHBOARD'
+                name: 'dashboard'
               }
             },
             select: {
