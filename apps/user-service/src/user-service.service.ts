@@ -4349,7 +4349,8 @@ export class UserServiceService {
       });
 
       // 4b. Récupérer ou créer l'utilisateur caisse
-      let branchUser = branch.user[0];
+      // ✅ Utiliser "as any" pour éviter l'erreur de typage
+      let branchUser: any = branch.user[0];
 
       if (!branchUser) {
         // Créer l'utilisateur caisse s'il n'existe pas
