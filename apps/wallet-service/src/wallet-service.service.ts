@@ -7237,7 +7237,177 @@ export class WalletServiceService {
       },
     };
   }
+  async calculateInternationalTransferFees(
+    amount: number,
+    walletId: string,
+    countryCode: string,
+    paymentMethod: 'CASH' | 'MOBILE_MONEY' = 'CASH',
+  ): Promise<ApiResponse<any>> {
+    console.log('[WalletService] Calculating international transfer fees:', {
+      amount,
+      walletId,
+      countryCode,
+      paymentMethod,
+    });
 
+    // 1️⃣ Récupérer le wallet avec l'utilisateur
+    const wallet = await this.prisma.wallet.findFirst({
+      where: {
+        id: walletId
+      },
+      include: {
+        user: {
+          select: {
+            countryCode: true,
+            full_name: true,
+          },
+        },
+      },
+    });
+
+    if (!wallet) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Wallet non trouvé ou inactif',
+        statusCode: 404,
+      });
+    }
+
+    if (!wallet.user) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Utilisateur non trouvé pour ce wallet',
+        statusCode: 404,
+      });
+    }
+
+    const senderCountryCode = wallet.user.countryCode || 'CD';
+
+    // 2️⃣ Récupérer les informations des deux pays
+    const [senderCountry, receiverCountry] = await Promise.all([
+      this.prisma.country_provider.findFirst({
+        where: {
+          OR: [
+            { countryCode: senderCountryCode },
+            { code: senderCountryCode },
+          ],
+        },
+      }),
+      this.prisma.country_provider.findFirst({
+        where: {
+          OR: [
+            { countryCode: countryCode },
+            { code: countryCode },
+          ],
+        },
+      }),
+    ]);
+
+    if (!senderCountry) {
+      throw new RpcException({
+        status: 'error',
+        message: `Pays expéditeur non trouvé pour le code: ${senderCountryCode}`,
+        statusCode: 404,
+      });
+    }
+
+    if (!receiverCountry) {
+      throw new RpcException({
+        status: 'error',
+        message: `Pays destinataire non trouvé pour le code: ${countryCode}`,
+        statusCode: 404,
+      });
+    }
+
+    // 3️⃣ ✅ Seul l'expéditeur supporte les frais, le destinataire ne paie rien
+    let senderFee = 0;
+
+    if (paymentMethod === 'CASH') {
+      senderFee = senderCountry.cash_percentage || 0;
+    } else if (paymentMethod === 'MOBILE_MONEY') {
+      senderFee = senderCountry.momo_percentage || 0;
+    } else {
+      senderFee = senderCountry.international_transfer_fee || 0;
+    }
+
+    // ❌ Le destinataire ne paie pas de frais
+    const receiverFee = 0;
+
+    // 4️⃣ Calculer les montants des frais
+    const senderFeeAmount = (amount * senderFee) / 100;
+    const receiverFeeAmount = 0; // ✅ Le destinataire ne paie rien
+    const totalFeeAmount = senderFeeAmount;
+
+    // 5️⃣ Montant à débiter (montant + frais de l'expéditeur)
+    const debitAmount = amount + senderFeeAmount;
+
+    // 6️⃣ Récupérer la devise cible et le taux de change
+    let targetCurrency = receiverCountry.default_currency || wallet.currency;
+    let exchangeRate = 1;
+    let convertedAmount = amount;
+    let creditAmount = amount;
+
+    if (wallet.currency !== targetCurrency) {
+      const rate = await this.getExchangeRate(wallet.currency, targetCurrency);
+      exchangeRate = rate;
+      convertedAmount = amount * rate;
+    }
+
+    // 7️⃣ ✅ Le destinataire reçoit la totalité du montant converti (sans frais)
+    creditAmount = convertedAmount;
+
+    const result = {
+      senderCountryCode: senderCountry.countryCode || senderCountry.code,
+      senderCountryName: senderCountry.name,
+      receiverCountryCode: receiverCountry.countryCode || receiverCountry.code,
+      receiverCountryName: receiverCountry.name,
+      paymentMethod,
+      senderFeePercentage: senderFee,
+      receiverFeePercentage: 0, // ✅ Le destinataire ne paie pas
+      totalFeePercentage: senderFee,
+      senderFeeAmount,
+      receiverFeeAmount: 0,
+      totalFeeAmount,
+      debitAmount,
+      creditAmount,
+      currency: wallet.currency,
+      targetCurrency,
+      exchangeRate,
+      convertedAmount,
+      feeBreakdown: {
+        sender: {
+          countryCode: senderCountry.countryCode || senderCountry.code,
+          countryName: senderCountry.name,
+          cashPercentage: senderCountry.cash_percentage || 0,
+          momoPercentage: senderCountry.momo_percentage || 0,
+          internationalTransferFee: senderCountry.international_transfer_fee || 0,
+          appliedFee: senderFee,
+          feeAmount: senderFeeAmount,
+        },
+        receiver: {
+          countryCode: receiverCountry.countryCode || receiverCountry.code,
+          countryName: receiverCountry.name,
+          cashPercentage: 0, // ✅ Le destinataire ne paie pas
+          momoPercentage: 0, // ✅ Le destinataire ne paie pas
+          internationalTransferFee: 0, // ✅ Le destinataire ne paie pas
+          appliedFee: 0,
+          feeAmount: 0,
+        },
+      },
+    };
+
+    return {
+      message: 'Calcul des frais de transfert international effectué avec succès',
+      data: result,
+    };
+  }
+
+
+  // apps/wallet-service/src/wallet-service.service.ts
+
+  /**
+   * Récupère le dashboard d'un wallet
+   */
   async getWalletDashboard(
     userId: string,
     walletId?: string,
