@@ -11,7 +11,6 @@ model transaction {
   id                     String                     @id @db.VarChar(36)
   userId                 String                     @db.VarChar(36)
   walletId               String                     @db.VarChar(36)
-  branchId               String?                    @db.VarChar(36)
   amount                 Float
   currency               String?                    @db.VarChar(11)
   type                   transaction_type?
@@ -23,6 +22,7 @@ model transaction {
   movement               transaction_movement
   external_reference     String?                    @db.Text
   paymentMethod          transaction_paymentMethod? @default(CASH)
+  branchId               String?                    @db.VarChar(36)
   reconciliation_history reconciliation_history[]
   user                   user                       @relation(fields: [userId], references: [id], map: "Transaction_userId_fkey")
   wallet                 wallet                     @relation(fields: [walletId], references: [id], map: "Transaction_walletId_fkey")
@@ -43,7 +43,6 @@ model user {
   full_name                                                         String?                  @db.VarChar(255)
   account_number                                                    String?                  @db.VarChar(50)
   merchantCode                                                      String?                  @db.VarChar(100)
-  branchId                                                          String?                  @db.VarChar(36)
   role                                                              user_role                @default(USER)
   status                                                            user_status              @default(ACTIVE)
   deleted                                                           Boolean?                 @default(false)
@@ -73,6 +72,7 @@ model user {
   referred_by                                                       String?                  @db.VarChar(36)
   referral_count                                                    Int?                     @default(0)
   locked_by_admin                                                   Boolean?                 @default(false)
+  branchId                                                          String?                  @db.VarChar(36)
   api_key                                                           api_key[]
   audit_log                                                         audit_log[]
   failed_transaction_log                                            failed_transaction_log[]
@@ -107,12 +107,17 @@ model wallet {
   updatedAt              DateTime                 @default(now()) @db.DateTime(0)
   isDefault              Boolean                  @default(false)
   cashCode               String?                  @db.VarChar(255)
+  branchId               String?                  @db.VarChar(36)
+  isBranchWallet         Boolean?                 @default(false)
   failed_transaction_log failed_transaction_log[]
   reconciliation_history reconciliation_history[]
   transaction            transaction[]
+  branch                 branch?                  @relation(fields: [branchId], references: [id], onUpdate: Restrict, map: "Wallet_branchId_fkey")
   user                   user                     @relation(fields: [userId], references: [id], map: "Wallet_userId_fkey")
 
   @@index([userId], map: "Wallet_userId_fkey")
+  @@index([branchId], map: "Wallet_branchId_fkey")
+  @@index([isBranchWallet], map: "idx_wallet_is_branch")
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -542,6 +547,7 @@ model branch {
   transaction        transaction[]
   user               user[]
   user_has_resources user_has_resources[]
+  wallet             wallet[]
 
   @@index([countryId], map: "fk_branch_country")
 }
@@ -696,14 +702,6 @@ enum kyc_submission_status {
   REJECTED
 }
 
-enum transaction_type {
-  DEPOSIT
-  WITHDRAW
-  TRANSFER
-  PAYMENT
-  REFUND
-}
-
 enum operation_source_type {
   WALLET
   BANK_ACCOUNT
@@ -769,4 +767,15 @@ enum branch_status {
   ACTIVE
   INACTIVE
   SUSPENDED
+}
+
+enum transaction_type {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  PAYMENT
+  REFUND
+  CASH_IN
+  CASH_OUT
+  CASH_TRANSFER
 }

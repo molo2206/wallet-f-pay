@@ -2301,6 +2301,87 @@ export class ApiGatewayController {
     );
   }
 
+  @Post('admin/branches/transfer-cash')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async transferCashBetweenBranches(
+    @CurrentUser() currentUser: any,
+    @Body() body: {
+      fromWalletId: string;
+      toWalletId: string;
+      amount: number;
+      currency?: string;
+      reason?: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException(
+        'Accès interdit. Seul un administrateur peut effectuer des transferts de cash',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.fromWalletId) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.from_wallet_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.toWalletId) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.to_wallet_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.amount_positive', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (body.fromWalletId === body.toWalletId) {
+      throw new HttpException(
+        'Impossible de transférer vers le même wallet',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] transferCashBetweenBranches:', {
+      fromWalletId: body.fromWalletId,
+      toWalletId: body.toWalletId,
+      amount: body.amount,
+      currency: body.currency,
+      reason: body.reason,
+      adminId: currentUser.id,
+    });
+
+    return this.sendWalletMessage(
+      'transfer_cash_between_branches',
+      {
+        fromWalletId: body.fromWalletId,
+        toWalletId: body.toWalletId,
+        amount: body.amount,
+        adminId: currentUser.id,
+        currency: body.currency || 'CDF',
+        reason: body.reason,
+        lang,
+        ipAddress,
+      },
+      'Échec du transfert de cash entre agences',
+      HttpStatus.BAD_REQUEST,
+      120000,
+    );
+  }
+
+
   @Post('wallet/convert')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async convertCurrency(

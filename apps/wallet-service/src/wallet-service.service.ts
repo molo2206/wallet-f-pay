@@ -21,7 +21,7 @@ import {
 } from './dto/transaction.dto';
 import { SendDto, PayDto, SendFidelityDto } from './dto/wallet-operation.dto';
 import { ApiResponse } from './interfaces/api-response.interface';
-import { user_status, wallet_currency } from '@prisma/client';
+import { transaction_type, user_status, wallet_currency } from '@prisma/client';
 import { SmsService } from 'apps/auth-service/src/sms/sms.service';
 import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
 import { NotificationType } from 'apps/notification-service/src/type/notification-type';
@@ -5670,10 +5670,8 @@ export class WalletServiceService {
     return { message: 'Exchange rates retrieved successfully', data: rates };
   }
 
-  // apps/wallet-service/src/wallet-service.service.ts
-
   // ================================================================
-  // ADMIN TOP UP
+  // ADMIN TOP UP AVEC GESTION DE CAISSE
   // ================================================================
 
   async adminTopUp(
@@ -5723,7 +5721,7 @@ export class WalletServiceService {
       });
     }
 
-    // ========== TRANSACTION AVEC TIMEOUT AUGMENTÉ ==========
+    // ========== TRANSACTION ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
         // 1️⃣ Vérifier le PIN de l'admin
@@ -5746,6 +5744,15 @@ export class WalletServiceService {
             status: 'error',
             message: 'Admin non trouvé',
             statusCode: 404,
+          });
+        }
+
+        // ✅ Vérifier que l'admin a une branche
+        if (!admin.branchId) {
+          throw new RpcException({
+            status: 'error',
+            message: 'L\'admin n\'est pas associé à une agence',
+            statusCode: 400,
           });
         }
 
@@ -5797,11 +5804,12 @@ export class WalletServiceService {
           data: { failed_pin_attempts: 0, pin_locked_until: null },
         });
 
-        // 2️⃣ Récupérer le wallet avec son utilisateur
+        // 2️⃣ Récupérer le wallet du client
         const wallet = await tx.wallet.findFirst({
-          where: { id: walletId },
+          where: { id: walletId, isActive: true },
           include: { user: true }
         });
+
         if (!wallet) {
           throw new RpcException({
             status: 'error',
@@ -5809,23 +5817,24 @@ export class WalletServiceService {
             statusCode: 404,
           });
         }
-        if (!wallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403,
-          });
-        }
 
         const user = wallet.user;
 
-        // 3️⃣ Mettre à jour le wallet
-        const updated = await tx.wallet.update({
+        // 3️⃣ CRÉDITER LE WALLET DU CLIENT
+        const updatedWallet = await tx.wallet.update({
           where: { id: wallet.id },
           data: { balance: { increment: amount }, updatedAt: new Date() },
         });
 
-        // 4️⃣ Créer la transaction avec branchId
+        // 4️⃣ CRÉDITER LA CAISSE DE L'AGENCE (isBranchWallet = true)
+        const branchWallet = await this.getBranchCashWallet(admin.branchId, wallet.currency);
+
+        await tx.wallet.update({
+          where: { id: branchWallet.id },
+          data: { balance: { increment: amount }, updatedAt: new Date() },
+        });
+
+        // 5️⃣ CRÉER LA TRANSACTION DU CLIENT
         const reference = await this.generateTransactionReference('', tx);
         const transaction = await tx.transaction.create({
           data: {
@@ -5840,23 +5849,56 @@ export class WalletServiceService {
             movement: 'CREDIT',
             currency: wallet.currency,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
-            branchId: admin.branchId ?? null,
+            branchId: admin.branchId,
           },
         });
 
-        // 5️⃣ Audit log
+        // 6️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_IN)
+        const cashReference = await this.generateTransactionReference('CASH', tx);
+        await tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: branchWallet.userId,
+            walletId: branchWallet.id,
+            amount: amount,
+            type: 'CASH_IN',
+            status: 'SUCCESS',
+            reference: cashReference,
+            description: `Dépôt cash client ${user.full_name || user.id} - Réf: ${reference}`,
+            movement: 'CREDIT',
+            currency: wallet.currency,
+            paymentMethod: 'CASH',
+            branchId: admin.branchId,
+            external_reference: reference,
+          },
+        });
+
+        // 7️⃣ Audit log
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
             userId: admin.id,
             action: 'adminTopUp',
-            details: JSON.stringify({ transaction, targetUserId: user.id }),
+            details: JSON.stringify({
+              transaction,
+              targetUserId: user.id,
+              branchId: admin.branchId,
+              cashWalletId: branchWallet.id,
+              amount,
+              currency: wallet.currency,
+            }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
           },
         });
 
-        return { wallet: updated, transaction, user, admin };
+        return {
+          wallet: updatedWallet,
+          transaction,
+          user,
+          admin,
+          branchWallet,
+        };
       },
       {
         timeout: 30000,
@@ -5882,7 +5924,7 @@ export class WalletServiceService {
       }
     }
 
-    // ========== NOTIFICATION PUSH AU PROPRIÉTAIRE DU COMPTE (LE CLIENT) ==========
+    // ========== NOTIFICATION PUSH ==========
     try {
       await notifyTransaction(
         this.smsService,
@@ -5892,7 +5934,7 @@ export class WalletServiceService {
         this.shouldSendPush.bind(this),
         this.getUserLanguage.bind(this),
         result.transaction,
-        result.user, // Le client (propriétaire du wallet)
+        result.user,
         result.wallet,
         'topup',
       );
@@ -5914,10 +5956,6 @@ export class WalletServiceService {
       },
     };
   }
-
-  // ================================================================
-  // ADMIN CASHOUT
-  // ================================================================
 
   async adminCashout(
     dto: AdminCashoutDto,
@@ -5973,9 +6011,18 @@ export class WalletServiceService {
       });
     }
 
+    // ✅ Vérifier que l'admin a une branche
+    if (!admin.branchId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'admin n\'est pas associé à une agence',
+        statusCode: 400,
+      });
+    }
+
     // ✅ Vérifier que le wallet existe et a assez de solde
     const wallet = await this.prisma.wallet.findFirst({
-      where: { id: walletId },
+      where: { id: walletId, isActive: true },
       include: { user: true }
     });
 
@@ -5983,14 +6030,6 @@ export class WalletServiceService {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.wallet_not_found', lang),
-        statusCode: 404,
-      });
-    }
-
-    if (!wallet.isActive) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.wallet_inactive', lang),
         statusCode: 404,
       });
     }
@@ -6003,7 +6042,23 @@ export class WalletServiceService {
       });
     }
 
-    const user = wallet.user; // Le client
+    // ✅ VÉRIFIER LE SOLDE DE CAISSE DE L'AGENCE (isBranchWallet = true)
+    const branchWallet = await this.getBranchCashWallet(admin.branchId, wallet.currency);
+
+    if (branchWallet.balance < amount) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: admin.branchId }
+      });
+
+      throw new RpcException({
+        status: 'error',
+        message: `Solde de caisse insuffisant à l'agence ${branch?.name || admin.branchId}. 
+                Disponible: ${branchWallet.balance} ${wallet.currency}, Demandé: ${amount} ${wallet.currency}`,
+        statusCode: 400,
+      });
+    }
+
+    const user = wallet.user;
 
     // ========== ÉTAPE 1 : Demande de retrait (sans OTP) ==========
     if (!otpCode || otpCode.trim() === '') {
@@ -6040,7 +6095,7 @@ export class WalletServiceService {
         },
       });
 
-      // ✅ Créer la transaction en attente avec branchId
+      // ✅ Créer la transaction en attente
       const pendingTransaction = await this.prisma.transaction.create({
         data: {
           id: crypto.randomUUID(),
@@ -6050,11 +6105,11 @@ export class WalletServiceService {
           type: 'WITHDRAW',
           status: 'PENDING',
           reference: reference,
-          description: `Retrait admin (en attente de OTP client)`,
+          description: `Retrait admin (en attente de OTP client) - Agence ${admin.branchId}`,
           movement: 'DEBIT',
           currency: wallet.currency,
           paymentMethod: this.mapPaymentMethod(paymentMethod),
-          branchId: admin.branchId ?? null,
+          branchId: admin.branchId,
           external_reference: JSON.stringify({
             otpCode: newOtpCode,
             expiresAt: otpExpiry,
@@ -6084,7 +6139,7 @@ export class WalletServiceService {
       await this.logAudit(
         admin.id,
         'adminCashoutRequest',
-        { walletId, amount, transactionId: pendingTransaction.id, userId: user.id },
+        { walletId, amount, transactionId: pendingTransaction.id, userId: user.id, branchId: admin.branchId },
         ipAddress || null,
       );
 
@@ -6254,7 +6309,7 @@ export class WalletServiceService {
     const result = await this.prisma.$transaction(
       async (tx) => {
         const currentWallet = await tx.wallet.findFirst({
-          where: { id: walletId },
+          where: { id: walletId, isActive: true },
           include: { user: true }
         });
 
@@ -6266,14 +6321,6 @@ export class WalletServiceService {
           });
         }
 
-        if (!currentWallet.isActive) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.wallet_inactive', lang),
-            statusCode: 403,
-          });
-        }
-
         if (currentWallet.balance < amount) {
           throw new RpcException({
             status: 'error',
@@ -6282,17 +6329,64 @@ export class WalletServiceService {
           });
         }
 
-        const updated = await tx.wallet.update({
+        if (!admin.branchId) {
+          throw new RpcException({
+            status: 'error',
+            message: 'L\'admin n\'est pas associé à une agence',
+            statusCode: 400,
+          });
+        }
+        // ✅ VÉRIFIER À NOUVEAU LA CAISSE
+        const branchCashWallet = await this.getBranchCashWallet(admin.branchId, currentWallet.currency);
+
+        if (branchCashWallet.balance < amount) {
+          throw new RpcException({
+            status: 'error',
+            message: `Solde de caisse insuffisant. Disponible: ${branchCashWallet.balance} ${currentWallet.currency}`,
+            statusCode: 400,
+          });
+        }
+
+        // 1️⃣ DÉBITER LE WALLET DU CLIENT
+        const updatedWallet = await tx.wallet.update({
           where: { id: currentWallet.id },
           data: { balance: { decrement: amount }, updatedAt: new Date() },
         });
 
+        // 2️⃣ DÉBITER LA CAISSE DE L'AGENCE
+        await tx.wallet.update({
+          where: { id: branchCashWallet.id },
+          data: { balance: { decrement: amount }, updatedAt: new Date() },
+        });
+
+        // 3️⃣ METTRE À JOUR LA TRANSACTION DU CLIENT
         const transaction = await tx.transaction.update({
           where: { id: pendingTx.id },
           data: {
             status: 'SUCCESS',
-            description: `Retrait admin confirmé par le client (OTP) et admin (PIN)`,
+            description: `Retrait admin confirmé par le client (OTP) et admin (PIN) - Agence ${admin.branchId}`,
             updatedAt: new Date(),
+            branchId: admin.branchId,
+          },
+        });
+
+        // 4️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_OUT)
+        const cashReference = await this.generateTransactionReference('CASH', tx);
+        await tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: branchCashWallet.userId,
+            walletId: branchCashWallet.id,
+            amount: amount,
+            type: 'CASH_OUT',
+            status: 'SUCCESS',
+            reference: cashReference,
+            description: `Retrait cash client ${currentWallet.user.full_name || currentWallet.user.id} - Réf: ${transaction.reference}`,
+            movement: 'DEBIT',
+            currency: currentWallet.currency,
+            paymentMethod: 'CASH',
+            branchId: admin.branchId,
+            external_reference: transaction.id,
           },
         });
 
@@ -6310,14 +6404,18 @@ export class WalletServiceService {
               transaction,
               targetUserId: user.id,
               otpVerified: true,
-              adminPinVerified: true
+              adminPinVerified: true,
+              branchId: admin.branchId,
+              cashWalletId: branchCashWallet.id,
+              amount,
+              currency: currentWallet.currency,
             }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
           },
         });
 
-        return { wallet: updated, transaction, user };
+        return { wallet: updatedWallet, transaction, user };
       },
       {
         timeout: 30000,
@@ -6325,6 +6423,7 @@ export class WalletServiceService {
       }
     );
 
+    // ========== SMS ET NOTIFICATIONS ==========
     if (result.user.phone) {
       try {
         const cleanPhone = result.user.phone.replace(/[^0-9+]/g, '');
@@ -6342,7 +6441,7 @@ export class WalletServiceService {
       }
     }
 
-    // ========== NOTIFICATION PUSH AU PROPRIÉTAIRE DU COMPTE (LE CLIENT) ==========
+    // ========== NOTIFICATION PUSH ==========
     try {
       await notifyTransaction(
         this.smsService,
@@ -6352,7 +6451,7 @@ export class WalletServiceService {
         this.shouldSendPush.bind(this),
         this.getUserLanguage.bind(this),
         result.transaction,
-        result.user, // Le client (propriétaire du wallet)
+        result.user,
         result.wallet,
         'cashout',
       );
@@ -6374,10 +6473,6 @@ export class WalletServiceService {
       },
     };
   }
-
-  // ================================================================
-  // ADMIN SEND
-  // ================================================================
 
   async adminSend(
     dto: AdminSendDto,
@@ -6922,10 +7017,6 @@ export class WalletServiceService {
     };
   }
 
-  // ================================================================
-  // ADMIN PAY
-  // ================================================================
-
   async adminPay(
     dto: AdminPayDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
@@ -7278,6 +7369,428 @@ export class WalletServiceService {
     };
   }
 
+
+  // ================================================================
+  // TRANSFERT DE CASH ENTRE AGENCES
+  // ================================================================
+
+  async transferCashBetweenBranches(
+    dto: {
+      fromWalletId: string;
+      toWalletId: string;
+      amount: number;
+      adminId: string;
+      currency?: string;
+      reason?: string;
+      lang?: string;
+      ipAddress?: string;
+    }
+  ) {
+    const {
+      fromWalletId,
+      toWalletId,
+      amount,
+      adminId,
+      currency = 'CDF',
+      reason,
+      lang = 'fr',
+      ipAddress
+    } = dto;
+
+    console.log('[WalletService] Transfert cash entre agences:', { fromWalletId, toWalletId, amount, currency });
+
+    // ========== 1️⃣ RÉCUPÉRER LES WALLETS ==========
+    const [fromWallet, toWallet] = await Promise.all([
+      this.prisma.wallet.findFirst({
+        where: {
+          id: fromWalletId,
+          isActive: true,
+          currency: currency as wallet_currency,
+          isBranchWallet: true, // 👈 SEULEMENT LES WALLETS DE CAISSE
+        },
+        include: {
+          branch: true,
+          user: true,
+        },
+      }),
+      this.prisma.wallet.findFirst({
+        where: {
+          id: toWalletId,
+          isActive: true,
+          currency: currency as wallet_currency,
+          isBranchWallet: true, // 👈 SEULEMENT LES WALLETS DE CAISSE
+        },
+        include: {
+          branch: true,
+          user: true,
+        },
+      }),
+    ]);
+
+    // ========== 2️⃣ VALIDATIONS ==========
+    if (!fromWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: `Wallet source ${fromWalletId} non trouvé, inactif ou n'est pas un wallet de caisse`,
+        statusCode: 404,
+      });
+    }
+
+    if (!toWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: `Wallet destination ${toWalletId} non trouvé, inactif ou n'est pas un wallet de caisse`,
+        statusCode: 404,
+      });
+    }
+
+    // Vérifier que ce sont des wallets de caisse (branchId non null)
+    if (!fromWallet.branchId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet source n\'est pas un wallet de caisse d\'agence',
+        statusCode: 400,
+      });
+    }
+
+    if (!toWallet.branchId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet destination n\'est pas un wallet de caisse d\'agence',
+        statusCode: 400,
+      });
+    }
+
+    // Vérifier que les wallets sont dans la même devise
+    if (fromWallet.currency !== toWallet.currency) {
+      throw new RpcException({
+        status: 'error',
+        message: `Les devises ne correspondent pas: ${fromWallet.currency} vs ${toWallet.currency}`,
+        statusCode: 400,
+      });
+    }
+
+    // Vérifier que ce n'est pas le même wallet
+    if (fromWalletId === toWalletId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Impossible de transférer vers le même wallet',
+        statusCode: 400,
+      });
+    }
+
+    // Vérifier que les agences sont différentes
+    if (fromWallet.branchId === toWallet.branchId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Impossible de transférer entre deux wallets de la même agence',
+        statusCode: 400,
+      });
+    }
+
+    if (amount <= 0) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le montant doit être positif',
+        statusCode: 400,
+      });
+    }
+
+    // Vérifier le solde source
+    if (fromWallet.balance < amount) {
+      throw new RpcException({
+        status: 'error',
+        message: `Solde insuffisant. Disponible: ${fromWallet.balance} ${currency}, Demandé: ${amount} ${currency}`,
+        statusCode: 400,
+      });
+    }
+
+    // ========== 3️⃣ VÉRIFIER LES PERMISSIONS DE L'ADMIN ==========
+    const admin = await this.prisma.user.findFirst({
+      where: { id: adminId },
+      select: {
+        id: true,
+        role: true,
+        branchId: true,
+        full_name: true,
+      }
+    });
+
+    if (!admin) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Admin non trouvé',
+        statusCode: 404,
+      });
+    }
+
+    // ✅ SUPER_ADMIN peut transférer entre n'importe quelles agences
+    // ✅ ADMIN ne peut transférer que depuis son agence
+    if (admin.role === 'ADMIN') {
+      // Vérifier que le wallet source appartient à la branche de l'admin
+      if (fromWallet.branchId !== admin.branchId) {
+        throw new RpcException({
+          status: 'error',
+          message: `Vous ne pouvez transférer que depuis votre agence (${admin.branchId}). 
+                  Le wallet source appartient à l'agence ${fromWallet.branchId}`,
+          statusCode: 403,
+        });
+      }
+    } else if (admin.role !== 'SUPER_ADMIN') {
+      throw new RpcException({
+        status: 'error',
+        message: 'Seul un administrateur peut effectuer des transferts de cash entre agences',
+        statusCode: 403,
+      });
+    }
+
+    // ========== 4️⃣ EXÉCUTER LE TRANSFERT ==========
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Débiter le wallet source
+      const updatedFromWallet = await tx.wallet.update({
+        where: { id: fromWallet.id },
+        data: {
+          balance: { decrement: amount },
+          updatedAt: new Date()
+        },
+      });
+
+      // Créditer le wallet destination
+      const updatedToWallet = await tx.wallet.update({
+        where: { id: toWallet.id },
+        data: {
+          balance: { increment: amount },
+          updatedAt: new Date()
+        },
+      });
+
+      // Créer la transaction de transfert (débit)
+      const reference = await this.generateTransactionReference('TRF', tx);
+
+      const debitTx = await tx.transaction.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: fromWallet.userId,
+          walletId: fromWallet.id,
+          amount: amount,
+          type: 'CASH_TRANSFER', // ✅ Utiliser le type directement
+          status: 'SUCCESS',
+          reference: reference,
+          description: `Transfert cash vers ${toWallet.branch?.name || 'Agence'} ${reason ? `- ${reason}` : ''}`,
+          movement: 'DEBIT',
+          currency: currency,
+          paymentMethod: 'CASH',
+          branchId: fromWallet.branchId,
+          external_reference: toWallet.branchId,
+        },
+      });
+
+      // Créer la transaction de transfert (crédit)
+      const creditTx = await tx.transaction.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: toWallet.userId,
+          walletId: toWallet.id,
+          amount: amount,
+          type: 'CASH_TRANSFER', // ✅ Utiliser le type directement
+          status: 'SUCCESS',
+          reference: reference,
+          description: `Transfert cash depuis ${fromWallet.branch?.name || 'Agence'} ${reason ? `- ${reason}` : ''}`,
+          movement: 'CREDIT',
+          currency: currency,
+          paymentMethod: 'CASH',
+          branchId: toWallet.branchId,
+          external_reference: fromWallet.branchId,
+        },
+      });
+
+      // Audit log
+      await tx.audit_log.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: adminId,
+          action: 'cashTransferBetweenBranches',
+          details: JSON.stringify({
+            fromWalletId: fromWallet.id,
+            toWalletId: toWallet.id,
+            fromBranchId: fromWallet.branchId,
+            toBranchId: toWallet.branchId,
+            amount,
+            currency,
+            reason,
+            debitTx: debitTx.id,
+            creditTx: creditTx.id,
+            adminName: admin.full_name,
+            adminRole: admin.role,
+          }),
+          ipAddress: ipAddress || null,
+          createdAt: new Date(),
+        },
+      });
+
+      return {
+        debitTx,
+        creditTx,
+        fromWallet: updatedFromWallet,
+        toWallet: updatedToWallet
+      };
+    }, { timeout: 30000 });
+
+    // ========== 5️⃣ RETOUR ==========
+    return {
+      message: `Transfert de ${amount} ${currency} effectué avec succès de ${fromWallet.branch?.name || 'Agence source'} vers ${toWallet.branch?.name || 'Agence destination'}`,
+      data: {
+        fromWallet: {
+          id: result.fromWallet.id,
+          branchId: result.fromWallet.branchId,
+          branchName: fromWallet.branch?.name,
+          balance: result.fromWallet.balance,
+          currency: result.fromWallet.currency,
+          isBranchWallet: result.fromWallet.isBranchWallet,
+        },
+        toWallet: {
+          id: result.toWallet.id,
+          branchId: result.toWallet.branchId,
+          branchName: toWallet.branch?.name,
+          balance: result.toWallet.balance,
+          currency: result.toWallet.currency,
+          isBranchWallet: result.toWallet.isBranchWallet,
+        },
+        amount,
+        currency,
+        reference: result.debitTx.reference,
+        transaction: {
+          debit: result.debitTx,
+          credit: result.creditTx,
+        },
+      },
+    };
+  }
+
+
+  async getBranchCashWallet(branchId: string, currency: string = 'CDF'): Promise<any> {
+    // 1. Vérifier que la branche existe
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId }
+    });
+
+    if (!branch) {
+      throw new RpcException({
+        status: 'error',
+        message: `Agence ${branchId} non trouvée`,
+        statusCode: 404,
+      });
+    }
+
+    // 2. Trouver l'utilisateur caisse de cette agence
+    const branchUser = await this.prisma.user.findFirst({
+      where: {
+        branchId: branchId,
+        role: 'ADMIN',
+        OR: [
+          { email: { contains: `caisse.${branch.code.toLowerCase()}` } },
+          { full_name: { contains: `Caisse ${branch.name}` } }
+        ]
+      }
+    });
+
+    if (!branchUser) {
+      // Créer un compte caisse pour cette agence s'il n'existe pas
+      const newBranchUser = await this.prisma.user.create({
+        data: {
+          id: crypto.randomUUID(),
+          email: `caisse.${branch.code.toLowerCase()}@fpay.com`,
+          full_name: `Caisse ${branch.name}`,
+          phone: branch.phone || null,
+          account_number: `BR-${branch.code}`,
+          role: 'ADMIN',
+          status: 'ACTIVE',
+          branchId: branch.id,
+          password: null,
+          pinstatus: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      console.log(`✅ Compte caisse créé pour l'agence ${branch.name}`);
+
+      // 3. Trouver ou créer le wallet pour l'utilisateur caisse
+      let wallet = await this.prisma.wallet.findFirst({
+        where: {
+          userId: newBranchUser.id,
+          branchId: branchId,
+          currency: currency as wallet_currency,
+          isActive: true,
+        },
+      });
+
+      if (!wallet) {
+        wallet = await this.prisma.wallet.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: newBranchUser.id,
+            branchId: branchId,
+            currency: currency as wallet_currency,
+            balance: 0,
+            isActive: true,
+            isDefault: false,
+          },
+        });
+        console.log(`Wallet de caisse créé pour ${branch.name} (${currency})`);
+      }
+
+      return wallet;
+    }
+
+    // 3. Trouver ou créer le wallet pour l'utilisateur caisse existant
+    let wallet = await this.prisma.wallet.findFirst({
+      where: {
+        userId: branchUser.id,
+        branchId: branchId,
+        currency: currency as wallet_currency,
+        isActive: true,
+      },
+    });
+
+    if (!wallet) {
+      wallet = await this.prisma.wallet.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: branchUser.id,
+          branchId: branchId,
+          currency: currency as wallet_currency,
+          balance: 0,
+          isActive: true,
+          isDefault: false,
+        },
+      });
+      console.log(`Wallet de caisse créé pour ${branch.name} (${currency})`);
+    }
+
+    return wallet;
+  }
+
+  async checkBranchCashBalance(branchId: string, amount: number, currency: string = 'CDF'): Promise<any> {
+    const branchWallet = await this.getBranchCashWallet(branchId, currency);
+
+    if (branchWallet.balance < amount) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: branchId }
+      });
+
+      throw new RpcException({
+        status: 'error',
+        message: `Solde de caisse insuffisant à l'agence ${branch?.name || branchId}. 
+                  Disponible: ${branchWallet.balance} ${currency}, Demandé: ${amount} ${currency}`,
+        statusCode: 400,
+      });
+    }
+
+    return branchWallet;
+  }
+
+
   async calculateInternationalTransferFees(
     amount: number,
     walletId: string,
@@ -7443,12 +7956,6 @@ export class WalletServiceService {
     };
   }
 
-
-  // apps/wallet-service/src/wallet-service.service.ts
-
-  /**
-   * Récupère le dashboard d'un wallet
-   */
   async getWalletDashboard(
     userId: string,
     walletId?: string,

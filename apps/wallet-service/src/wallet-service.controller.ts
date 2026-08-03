@@ -538,6 +538,43 @@ export class WalletServiceController {
     return this.walletService.adminPay(data);
   }
 
+  @MessagePattern('transfer_cash_between_branches')
+  async transferCashBetweenBranches(
+    @Payload()
+    data: {
+      fromWalletId: string;
+      toWalletId: string;
+      amount: number;
+      adminId: string;
+      currency?: string;
+      reason?: string;
+      lang?: string;
+      ipAddress?: string;
+    }
+  ) {
+    console.log('[WalletService] transfer_cash_between_branches received:', data);
+    try {
+      return await this.walletService.transferCashBetweenBranches({
+        fromWalletId: data.fromWalletId,
+        toWalletId: data.toWalletId,
+        amount: data.amount,
+        adminId: data.adminId,
+        currency: data.currency || 'CDF',
+        reason: data.reason,
+        lang: data.lang || 'fr',
+        ipAddress: data.ipAddress,
+      });
+    } catch (error) {
+      console.error('[WalletService] transfer_cash_between_branches error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('convert_currency')
   async convertCurrency(@Payload() data: ConvertCurrencyDto & { lang?: string }, ipAddress: string) {
     console.log('[WalletService] convert_currency received:', data);
