@@ -4255,11 +4255,20 @@ export class UserServiceService {
     countryId?: string;
     status?: string;
   }) {
-    // 1️⃣ Vérifier que la branche existe
+    // 1️⃣ Vérifier que la branche existe avec ses relations
     const branch = await this.prisma.branch.findUnique({
       where: { id },
       include: {
-        country_provider: true,
+        country_provider: {
+          include: {
+            country_currency: {
+              select: { currency_code: true }
+            },
+            network_provider: {
+              select: { currency: true }
+            }
+          }
+        },
         user: {
           where: {
             role: 'ADMIN',
@@ -4321,134 +4330,10 @@ export class UserServiceService {
     if (data.countryId !== undefined) updateData.countryId = data.countryId;
     if (data.status !== undefined) updateData.status = data.status as branch_status;
 
-    // 4️⃣ Exécuter la mise à jour avec transaction si changement de pays
-    let updated;
-
-    if (countryChanged && branch.user && branch.user.length > 0) {
-      // 🔥 Transaction pour mettre à jour la branche et les wallets
-      updated = await this.prisma.$transaction(async (tx) => {
-        // 4a. Mettre à jour la branche
-        const updatedBranch = await tx.branch.update({
-          where: { id },
-          data: updateData,
-          include: {
-            country_provider: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-                countryCode: true,
-              },
-            },
-          },
-        });
-
-        // 4b. Récupérer l'utilisateur caisse
-        const branchUser = branch.user[0];
-
-        if (branchUser) {
-          // 4c. Récupérer les devises du nouveau pays
-          const currenciesToCreate: string[] = [];
-
-          // Devises depuis country_currency
-          if (newCountry.country_currency && newCountry.country_currency.length > 0) {
-            for (const cc of newCountry.country_currency) {
-              if (cc.currency_code && !currenciesToCreate.includes(cc.currency_code)) {
-                currenciesToCreate.push(cc.currency_code);
-              }
-            }
-          }
-
-          // Devises depuis network_provider
-          if (newCountry.network_provider && newCountry.network_provider.length > 0) {
-            for (const network of newCountry.network_provider) {
-              if (network.currency) {
-                const currencies = network.currency.split(',').map(c => c.trim());
-                for (const currency of currencies) {
-                  if (currency && !currenciesToCreate.includes(currency)) {
-                    currenciesToCreate.push(currency);
-                  }
-                }
-              }
-            }
-          }
-
-          // Devise par défaut
-          if (newCountry.default_currency && !currenciesToCreate.includes(newCountry.default_currency)) {
-            currenciesToCreate.push(newCountry.default_currency);
-          }
-
-          if (currenciesToCreate.length === 0) {
-            currenciesToCreate.push('CDF');
-          }
-
-          // 4d. Désactiver les anciens wallets
-          await tx.wallet.updateMany({
-            where: {
-              userId: branchUser.id,
-              branchId: branch.id,
-              isBranchWallet: true,
-              currency: {
-                notIn: currenciesToCreate as wallet_currency[]
-              }
-            },
-            data: {
-              isActive: false,
-              updatedAt: new Date()
-            }
-          });
-
-          // 4e. Récupérer les wallets actifs existants
-          const existingWallets = await tx.wallet.findMany({
-            where: {
-              userId: branchUser.id,
-              branchId: branch.id,
-              isBranchWallet: true,
-              isActive: true,
-            }
-          });
-
-          const existingCurrencies = existingWallets.map(w => w.currency);
-
-          // 4f. Créer les wallets manquants
-          for (const currency of currenciesToCreate) {
-            if (!existingCurrencies.includes(currency as wallet_currency)) {
-              await tx.wallet.create({
-                data: {
-                  id: crypto.randomUUID(),
-                  userId: branchUser.id,
-                  branchId: branch.id,
-                  currency: currency as wallet_currency,
-                  balance: 0,
-                  isActive: true,
-                  isDefault: false,
-                  isBranchWallet: true,
-                  cashCode: `CASH-${branch.code}-${currency}-${Date.now()}`,
-                }
-              });
-              console.log(`✅ Wallet créé pour ${branch.name} (${currency})`);
-            }
-          }
-
-          // 4g. Mettre à jour l'email du compte caisse si le nom change
-          if (data.name) {
-            const newEmail = `caisse.${branch.code.toLowerCase()}@fpay.com`;
-            await tx.user.update({
-              where: { id: branchUser.id },
-              data: {
-                email: newEmail,
-                full_name: `Caisse ${data.name}`,
-                updatedAt: new Date()
-              }
-            });
-          }
-        }
-
-        return updatedBranch;
-      }, { timeout: 30000 });
-    } else {
-      // 🔥 Simple mise à jour
-      updated = await this.prisma.branch.update({
+    // 4️⃣ Exécuter la mise à jour avec transaction
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // 4a. Mettre à jour la branche
+      const updatedBranch = await tx.branch.update({
         where: { id },
         data: updateData,
         include: {
@@ -4462,7 +4347,184 @@ export class UserServiceService {
           },
         },
       });
-    }
+
+      // 4b. Récupérer ou créer l'utilisateur caisse
+      let branchUser = branch.user[0];
+
+      if (!branchUser) {
+        // Créer l'utilisateur caisse s'il n'existe pas
+        const branchAccountNumber = `BR-${branch.code}`;
+        const branchEmail = data.email || `caisse.${branch.code.toLowerCase()}@fpay.com`;
+
+        branchUser = await tx.user.create({
+          data: {
+            id: crypto.randomUUID(),
+            email: branchEmail,
+            full_name: `Caisse ${data.name || branch.name}`,
+            phone: data.phone || branch.phone || null,
+            account_number: branchAccountNumber,
+            role: 'ADMIN',
+            status: 'ACTIVE',
+            branchId: branch.id,
+            password: null,
+            pinstatus: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+        console.log(`✅ Compte caisse créé pour l'agence ${branch.name}`);
+      }
+
+      // 4c. Récupérer les devises du pays
+      let currenciesToCreate: string[] = [];
+
+      // Si changement de pays, utiliser les devises du nouveau pays
+      if (countryChanged && newCountry) {
+        // Devises depuis country_currency
+        if (newCountry.country_currency && newCountry.country_currency.length > 0) {
+          for (const cc of newCountry.country_currency) {
+            if (cc.currency_code && !currenciesToCreate.includes(cc.currency_code)) {
+              currenciesToCreate.push(cc.currency_code);
+            }
+          }
+        }
+
+        // Devises depuis network_provider
+        if (newCountry.network_provider && newCountry.network_provider.length > 0) {
+          for (const network of newCountry.network_provider) {
+            if (network.currency) {
+              const currencies = network.currency.split(',').map(c => c.trim());
+              for (const currency of currencies) {
+                if (currency && !currenciesToCreate.includes(currency)) {
+                  currenciesToCreate.push(currency);
+                }
+              }
+            }
+          }
+        }
+
+        // Devise par défaut
+        if (newCountry.default_currency && !currenciesToCreate.includes(newCountry.default_currency)) {
+          currenciesToCreate.push(newCountry.default_currency);
+        }
+      } else {
+        // Utiliser les devises du pays actuel
+        const currentCountry = await tx.country_provider.findUnique({
+          where: { id: branch.countryId },
+          include: {
+            country_currency: {
+              select: { currency_code: true }
+            },
+            network_provider: {
+              select: { currency: true }
+            }
+          }
+        });
+
+        if (currentCountry) {
+          if (currentCountry.country_currency && currentCountry.country_currency.length > 0) {
+            for (const cc of currentCountry.country_currency) {
+              if (cc.currency_code && !currenciesToCreate.includes(cc.currency_code)) {
+                currenciesToCreate.push(cc.currency_code);
+              }
+            }
+          }
+
+          if (currentCountry.network_provider && currentCountry.network_provider.length > 0) {
+            for (const network of currentCountry.network_provider) {
+              if (network.currency) {
+                const currencies = network.currency.split(',').map(c => c.trim());
+                for (const currency of currencies) {
+                  if (currency && !currenciesToCreate.includes(currency)) {
+                    currenciesToCreate.push(currency);
+                  }
+                }
+              }
+            }
+          }
+
+          if (currentCountry.default_currency && !currenciesToCreate.includes(currentCountry.default_currency)) {
+            currenciesToCreate.push(currentCountry.default_currency);
+          }
+        }
+      }
+
+      if (currenciesToCreate.length === 0) {
+        currenciesToCreate.push('CDF');
+      }
+
+      console.log(`📊 Devises pour l'agence ${branch.name}:`, currenciesToCreate);
+
+      // 4d. Récupérer les wallets existants du compte caisse
+      const existingWallets = await tx.wallet.findMany({
+        where: {
+          userId: branchUser.id,
+          branchId: branch.id,
+          isBranchWallet: true,
+        },
+      });
+
+      const existingCurrencies = existingWallets.map(w => w.currency);
+
+      // 4e. Créer les wallets manquants
+      let createdCount = 0;
+      for (const currency of currenciesToCreate) {
+        if (!existingCurrencies.includes(currency as wallet_currency)) {
+          await tx.wallet.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: branchUser.id,
+              branchId: branch.id,
+              currency: currency as wallet_currency,
+              balance: 0,
+              isActive: true,
+              isDefault: false,
+              isBranchWallet: true,
+              cashCode: `CASH-${branch.code}-${currency}-${Date.now()}`,
+            },
+          });
+          createdCount++;
+          console.log(`✅ Wallet créé pour ${branch.name} (${currency})`);
+        }
+      }
+
+      // 4f. Si changement de pays, désactiver les wallets des devises supprimées
+      if (countryChanged) {
+        await tx.wallet.updateMany({
+          where: {
+            userId: branchUser.id,
+            branchId: branch.id,
+            isBranchWallet: true,
+            currency: {
+              notIn: currenciesToCreate as wallet_currency[]
+            }
+          },
+          data: {
+            isActive: false,
+            updatedAt: new Date()
+          }
+        });
+      }
+
+      // 4g. Mettre à jour l'email du compte caisse si le nom change
+      if (data.name && branchUser) {
+        const newEmail = `caisse.${branch.code.toLowerCase()}@fpay.com`;
+        await tx.user.update({
+          where: { id: branchUser.id },
+          data: {
+            email: newEmail,
+            full_name: `Caisse ${data.name}`,
+            updatedAt: new Date()
+          }
+        });
+      }
+
+      if (createdCount > 0) {
+        console.log(`📊 ${createdCount} nouveau(x) wallet(s) créé(s) pour l'agence ${branch.name}`);
+      }
+
+      return updatedBranch;
+    }, { timeout: 30000 });
 
     // 5️⃣ Récupérer les wallets mis à jour
     const wallets: any[] = await this.prisma.wallet.findMany({
@@ -4525,7 +4587,9 @@ export class UserServiceService {
     return {
       message: countryChanged
         ? 'Branch updated successfully with new wallets'
-        : 'Branch updated successfully',
+        : wallets.length > 0
+          ? 'Branch updated successfully'
+          : 'Branch updated successfully but no wallets created',
       data: responseData,
     };
   }
