@@ -5670,10 +5670,6 @@ export class WalletServiceService {
     return { message: 'Exchange rates retrieved successfully', data: rates };
   }
 
-  // ================================================================
-  // ADMIN TOP UP AVEC GESTION DE CAISSE
-  // ================================================================
-
   async adminTopUp(
     dto: AdminTopUpDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
@@ -5731,6 +5727,7 @@ export class WalletServiceService {
             id: true,
             pin: true,
             status: true,
+            role: true,
             failed_pin_attempts: true,
             pin_locked_until: true,
             full_name: true,
@@ -5747,8 +5744,11 @@ export class WalletServiceService {
           });
         }
 
-        // ✅ Vérifier que l'admin a une branche
-        if (!admin.branchId) {
+        // ✅ SUPER_ADMIN n'a pas besoin de branche
+        const isSuperAdmin = admin.role === 'SUPER_ADMIN';
+
+        // ✅ Vérifier que l'admin a une branche (sauf SUPER_ADMIN)
+        if (!admin.branchId && !isSuperAdmin) {
           throw new RpcException({
             status: 'error',
             message: 'L\'admin n\'est pas associé à une agence',
@@ -5759,7 +5759,7 @@ export class WalletServiceService {
         if (!admin.pin) {
           throw new RpcException({
             status: 'error',
-            message: 'Admin n\'a pas de PIN défini. Veuillez définir un PIN avant d\'effectuer cette opération.',
+            message: 'Admin n\'a pas de PIN défini.',
             statusCode: 400,
           });
         }
@@ -5826,13 +5826,37 @@ export class WalletServiceService {
           data: { balance: { increment: amount }, updatedAt: new Date() },
         });
 
-        // 4️⃣ CRÉDITER LA CAISSE DE L'AGENCE (isBranchWallet = true)
-        const branchWallet = await this.getBranchCashWallet(admin.branchId, wallet.currency);
+        // 4️⃣ GÉRER LA CAISSE DE L'AGENCE
+        let branchWallet: any = null;
+        let branchId: string | null = null;
 
-        await tx.wallet.update({
-          where: { id: branchWallet.id },
-          data: { balance: { increment: amount }, updatedAt: new Date() },
-        });
+        if (isSuperAdmin) {
+          // ✅ SUPER_ADMIN: On cherche la caisse de l'agence du client
+          if (wallet.branchId) {
+            try {
+              branchWallet = await this.getBranchCashWallet(wallet.branchId, wallet.currency);
+              branchId = wallet.branchId;
+            } catch (error) {
+              console.log('[SuperAdmin] Pas de caisse trouvée pour la branche du client:', wallet.branchId);
+            }
+          } else {
+            console.log('[SuperAdmin] Le client n\'a pas de branche, opération sans caisse');
+          }
+        } else {
+          // ✅ ADMIN normal: utiliser sa propre branche
+          if (admin.branchId) {
+            branchWallet = await this.getBranchCashWallet(admin.branchId, wallet.currency);
+            branchId = admin.branchId;
+          }
+        }
+
+        // Créditer la caisse si elle existe
+        if (branchWallet) {
+          await tx.wallet.update({
+            where: { id: branchWallet.id },
+            data: { balance: { increment: amount }, updatedAt: new Date() },
+          });
+        }
 
         // 5️⃣ CRÉER LA TRANSACTION DU CLIENT
         const reference = await this.generateTransactionReference('', tx);
@@ -5849,29 +5873,31 @@ export class WalletServiceService {
             movement: 'CREDIT',
             currency: wallet.currency,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
-            branchId: admin.branchId,
+            branchId: branchId || admin.branchId,
           },
         });
 
-        // 6️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_IN)
-        const cashReference = await this.generateTransactionReference('CASH', tx);
-        await tx.transaction.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId: branchWallet.userId,
-            walletId: branchWallet.id,
-            amount: amount,
-            type: 'CASH_IN',
-            status: 'SUCCESS',
-            reference: cashReference,
-            description: `Dépôt cash client ${user.full_name || user.id} - Réf: ${reference}`,
-            movement: 'CREDIT',
-            currency: wallet.currency,
-            paymentMethod: 'CASH',
-            branchId: admin.branchId,
-            external_reference: reference,
-          },
-        });
+        // 6️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_IN) si caisse existe
+        if (branchWallet) {
+          const cashReference = await this.generateTransactionReference('CASH', tx);
+          await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: branchWallet.userId,
+              walletId: branchWallet.id,
+              amount: amount,
+              type: 'CASH_IN',
+              status: 'SUCCESS',
+              reference: cashReference,
+              description: `Dépôt cash client ${user.full_name || user.id} - Réf: ${reference}`,
+              movement: 'CREDIT',
+              currency: wallet.currency,
+              paymentMethod: 'CASH',
+              branchId: branchId || admin.branchId,
+              external_reference: reference,
+            },
+          });
+        }
 
         // 7️⃣ Audit log
         await tx.audit_log.create({
@@ -5882,10 +5908,11 @@ export class WalletServiceService {
             details: JSON.stringify({
               transaction,
               targetUserId: user.id,
-              branchId: admin.branchId,
-              cashWalletId: branchWallet.id,
+              branchId: branchId || admin.branchId,
+              cashWalletId: branchWallet?.id || null,
               amount,
               currency: wallet.currency,
+              isSuperAdmin,
             }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
@@ -5898,6 +5925,7 @@ export class WalletServiceService {
           user,
           admin,
           branchWallet,
+          isSuperAdmin,
         };
       },
       {
@@ -5996,6 +6024,7 @@ export class WalletServiceService {
         full_name: true,
         phone: true,
         branchId: true,
+        role: true,
         pin: true,
         status: true,
         failed_pin_attempts: true,
@@ -6011,8 +6040,11 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Vérifier que l'admin a une branche
-    if (!admin.branchId) {
+    // ✅ SUPER_ADMIN n'a pas besoin de branche
+    const isSuperAdmin = admin.role === 'SUPER_ADMIN';
+
+    // ✅ Vérifier que l'admin a une branche (sauf SUPER_ADMIN)
+    if (!admin.branchId && !isSuperAdmin) {
       throw new RpcException({
         status: 'error',
         message: 'L\'admin n\'est pas associé à une agence',
@@ -6042,17 +6074,39 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ VÉRIFIER LE SOLDE DE CAISSE DE L'AGENCE (isBranchWallet = true)
-    const branchWallet = await this.getBranchCashWallet(admin.branchId, wallet.currency);
+    // ✅ VÉRIFIER LE SOLDE DE CAISSE
+    let branchWallet: any = null;
+    let branchId: string | null = null;
 
-    if (branchWallet.balance < amount) {
+    if (isSuperAdmin) {
+      // ✅ SUPER_ADMIN: Utiliser la caisse de l'agence du client si elle existe
+      if (wallet.branchId) {
+        try {
+          branchWallet = await this.getBranchCashWallet(wallet.branchId, wallet.currency);
+          branchId = wallet.branchId;
+        } catch (error) {
+          console.log('[SuperAdmin] Pas de caisse trouvée pour la branche du client:', wallet.branchId);
+        }
+      } else {
+        console.log('[SuperAdmin] Le client n\'a pas de branche, retrait sans vérification de caisse');
+      }
+    } else {
+      // ✅ ADMIN normal: utiliser sa propre branche
+      if (admin.branchId) {
+        branchWallet = await this.getBranchCashWallet(admin.branchId, wallet.currency);
+        branchId = admin.branchId;
+      }
+    }
+
+    // Vérifier le solde de caisse (seulement si un wallet de caisse existe)
+    if (branchWallet && branchWallet.balance < amount) {
       const branch = await this.prisma.branch.findUnique({
-        where: { id: admin.branchId }
+        where: { id: branchId! }
       });
 
       throw new RpcException({
         status: 'error',
-        message: `Solde de caisse insuffisant à l'agence ${branch?.name || admin.branchId}. 
+        message: `Solde de caisse insuffisant à l'agence ${branch?.name || branchId}. 
                 Disponible: ${branchWallet.balance} ${wallet.currency}, Demandé: ${amount} ${wallet.currency}`,
         statusCode: 400,
       });
@@ -6105,16 +6159,17 @@ export class WalletServiceService {
           type: 'WITHDRAW',
           status: 'PENDING',
           reference: reference,
-          description: `Retrait admin (en attente de OTP client) - Agence ${admin.branchId}`,
+          description: `Retrait admin (en attente de OTP client) - ${isSuperAdmin ? 'Super Admin' : 'Agence ' + admin.branchId}`,
           movement: 'DEBIT',
           currency: wallet.currency,
           paymentMethod: this.mapPaymentMethod(paymentMethod),
-          branchId: admin.branchId,
+          branchId: branchId || admin.branchId,
           external_reference: JSON.stringify({
             otpCode: newOtpCode,
             expiresAt: otpExpiry,
             adminId: adminId,
-            attempts: 0
+            attempts: 0,
+            isSuperAdmin,
           }),
         },
       });
@@ -6139,7 +6194,14 @@ export class WalletServiceService {
       await this.logAudit(
         admin.id,
         'adminCashoutRequest',
-        { walletId, amount, transactionId: pendingTransaction.id, userId: user.id, branchId: admin.branchId },
+        {
+          walletId,
+          amount,
+          transactionId: pendingTransaction.id,
+          userId: user.id,
+          branchId: branchId || admin.branchId,
+          isSuperAdmin,
+        },
         ipAddress || null,
       );
 
@@ -6329,17 +6391,27 @@ export class WalletServiceService {
           });
         }
 
-        if (!admin.branchId) {
-          throw new RpcException({
-            status: 'error',
-            message: 'L\'admin n\'est pas associé à une agence',
-            statusCode: 400,
-          });
-        }
-        // ✅ VÉRIFIER À NOUVEAU LA CAISSE
-        const branchCashWallet = await this.getBranchCashWallet(admin.branchId, currentWallet.currency);
+        // ✅ RÉCUPÉRER LA CAISSE
+        let branchCashWallet: any = null;
+        let cashBranchId: string | null = null;
 
-        if (branchCashWallet.balance < amount) {
+        if (isSuperAdmin) {
+          if (currentWallet.branchId) {
+            try {
+              branchCashWallet = await this.getBranchCashWallet(currentWallet.branchId, currentWallet.currency);
+              cashBranchId = currentWallet.branchId;
+            } catch (error) {
+              console.log('[SuperAdmin] Pas de caisse trouvée pour la branche du client:', currentWallet.branchId);
+            }
+          }
+        } else {
+          if (admin.branchId) {
+            branchCashWallet = await this.getBranchCashWallet(admin.branchId, currentWallet.currency);
+            cashBranchId = admin.branchId;
+          }
+        }
+
+        if (branchCashWallet && branchCashWallet.balance < amount) {
           throw new RpcException({
             status: 'error',
             message: `Solde de caisse insuffisant. Disponible: ${branchCashWallet.balance} ${currentWallet.currency}`,
@@ -6353,42 +6425,46 @@ export class WalletServiceService {
           data: { balance: { decrement: amount }, updatedAt: new Date() },
         });
 
-        // 2️⃣ DÉBITER LA CAISSE DE L'AGENCE
-        await tx.wallet.update({
-          where: { id: branchCashWallet.id },
-          data: { balance: { decrement: amount }, updatedAt: new Date() },
-        });
+        // 2️⃣ DÉBITER LA CAISSE (si elle existe)
+        if (branchCashWallet) {
+          await tx.wallet.update({
+            where: { id: branchCashWallet.id },
+            data: { balance: { decrement: amount }, updatedAt: new Date() },
+          });
+        }
 
         // 3️⃣ METTRE À JOUR LA TRANSACTION DU CLIENT
         const transaction = await tx.transaction.update({
           where: { id: pendingTx.id },
           data: {
             status: 'SUCCESS',
-            description: `Retrait admin confirmé par le client (OTP) et admin (PIN) - Agence ${admin.branchId}`,
+            description: `Retrait admin confirmé par le client (OTP) et admin (PIN) - ${isSuperAdmin ? 'Super Admin' : 'Agence ' + admin.branchId}`,
             updatedAt: new Date(),
-            branchId: admin.branchId,
+            branchId: cashBranchId || admin.branchId,
           },
         });
 
-        // 4️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_OUT)
-        const cashReference = await this.generateTransactionReference('CASH', tx);
-        await tx.transaction.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId: branchCashWallet.userId,
-            walletId: branchCashWallet.id,
-            amount: amount,
-            type: 'CASH_OUT',
-            status: 'SUCCESS',
-            reference: cashReference,
-            description: `Retrait cash client ${currentWallet.user.full_name || currentWallet.user.id} - Réf: ${transaction.reference}`,
-            movement: 'DEBIT',
-            currency: currentWallet.currency,
-            paymentMethod: 'CASH',
-            branchId: admin.branchId,
-            external_reference: transaction.id,
-          },
-        });
+        // 4️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_OUT) si caisse existe
+        if (branchCashWallet) {
+          const cashReference = await this.generateTransactionReference('CASH', tx);
+          await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: branchCashWallet.userId,
+              walletId: branchCashWallet.id,
+              amount: amount,
+              type: 'CASH_OUT',
+              status: 'SUCCESS',
+              reference: cashReference,
+              description: `Retrait cash client ${currentWallet.user.full_name || currentWallet.user.id} - Réf: ${transaction.reference}`,
+              movement: 'DEBIT',
+              currency: currentWallet.currency,
+              paymentMethod: 'CASH',
+              branchId: cashBranchId || admin.branchId,
+              external_reference: transaction.id,
+            },
+          });
+        }
 
         await tx.otp.update({
           where: { id: otpRecord.id },
@@ -6405,10 +6481,11 @@ export class WalletServiceService {
               targetUserId: user.id,
               otpVerified: true,
               adminPinVerified: true,
-              branchId: admin.branchId,
-              cashWalletId: branchCashWallet.id,
+              branchId: cashBranchId || admin.branchId,
+              cashWalletId: branchCashWallet?.id || null,
               amount,
               currency: currentWallet.currency,
+              isSuperAdmin,
             }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
