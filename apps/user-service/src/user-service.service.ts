@@ -2032,7 +2032,6 @@ export class UserServiceService {
       } else if (hasReadPermission && admin.branchId) {
         allowedBranchIds = [admin.branchId];
       } else if (admin.branchId) {
-        // ✅ MÊME SANS PERMISSION, L'ADMIN VOIT SA BRANCHE
         allowedBranchIds = [admin.branchId];
       } else {
         allowedBranchIds = [];
@@ -2066,7 +2065,7 @@ export class UserServiceService {
         orderBy: { name: 'asc' }
       });
 
-      // 5️⃣ Construction du filtre des utilisateurs
+      // 5️⃣ Construction du filtre des utilisateurs - PAS DE FILTRE BRANCH
       const userWhere: any = { deleted: false };
 
       if (filters?.countryCode) {
@@ -2108,10 +2107,17 @@ export class UserServiceService {
         dateFilter.lte = endDate;
       }
 
-      // 7️⃣ Construction du filtre des transactions
+      // 7️⃣ Construction du filtre des transactions - AVEC FILTRE BRANCH
       const transactionWhere: any = {};
       if (Object.keys(dateFilter).length > 0) {
         transactionWhere.createdAt = dateFilter;
+      }
+
+      // ✅ FILTRE PAR BRANCHE SUR LES TRANSACTIONS SEULEMENT
+      if (targetBranchId) {
+        transactionWhere.branchId = targetBranchId;
+      } else if (allowedBranchIds.length === 1) {
+        transactionWhere.branchId = allowedBranchIds[0];
       }
 
       if (filters?.countryCode) {
@@ -2366,7 +2372,7 @@ export class UserServiceService {
         count: p._count.type || 0,
       }));
 
-      // ========== 8. CROISSANCE DES UTILISATEURS ==========
+      // ========== 8. CROISSANCE DES UTILISATEURS - PAS DE FILTRE BRANCH ==========
       let userGrowth = await this.prisma.$queryRaw`
       SELECT DATE_FORMAT(createdAt, '%Y-%m') as month, COUNT(*) as newUsers
       FROM user
@@ -2397,7 +2403,7 @@ export class UserServiceService {
           : 0,
       };
 
-      // ========== 9. PAYS DISPONIBLES ==========
+      // ========== 9. PAYS DISPONIBLES - PAS DE FILTRE BRANCH ==========
       const availableCountries = await this.prisma.user.groupBy({
         by: ['countryCode'],
         where: { deleted: false },
