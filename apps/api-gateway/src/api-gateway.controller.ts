@@ -1214,15 +1214,24 @@ export class ApiGatewayController {
     let end: Date | undefined;
     if (startDate) start = new Date(startDate);
     if (endDate) end = new Date(endDate);
+
+    // ✅ Construction du payload avec adminId si l'utilisateur est ADMIN ou SUPER_ADMIN
+    const payload: any = {
+      userId: currentUser.id,
+      page: pageNum,
+      limit: limitNum,
+      startDate: start,
+      endDate: end,
+    };
+
+    // ✅ Si l'utilisateur est ADMIN ou SUPER_ADMIN, ajouter adminId
+    if (currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN') {
+      payload.adminId = currentUser.id;
+    }
+
     const response = await this.sendWalletMessage<any>(
       'list_transactions',
-      {
-        userId: currentUser.id,
-        page: pageNum,
-        limit: limitNum,
-        startDate: start,
-        endDate: end,
-      },
+      payload,
       'Failed to get transactions',
       HttpStatus.BAD_REQUEST,
     );

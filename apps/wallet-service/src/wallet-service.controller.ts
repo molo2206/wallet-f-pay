@@ -135,6 +135,8 @@ export class WalletServiceController {
     }
   }
 
+  // apps/wallet-service/src/wallet-service.controller.ts
+
   @MessagePattern('list_transactions')
   async listTransactions(
     @Payload()
@@ -145,6 +147,7 @@ export class WalletServiceController {
       startDate?: Date;
       endDate?: Date;
       lang?: string;
+      adminId?: string; // ✅ AJOUT de adminId
     },
   ) {
     console.log('[WalletService] list_transactions received:', data);
@@ -155,6 +158,7 @@ export class WalletServiceController {
         data.limit,
         data.startDate,
         data.endDate,
+        data.adminId, // ✅ Passage de adminId
       );
     } catch (error) {
       console.error('[WalletService] list_transactions error:', error);
