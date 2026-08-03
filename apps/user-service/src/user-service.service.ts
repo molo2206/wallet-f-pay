@@ -4182,8 +4182,12 @@ export class UserServiceService {
       currenciesToCreate.push('CDF');
     }
 
+    console.log(`📊 Devises à créer pour l'agence ${branch.name}:`, currenciesToCreate);
+
     // 7️⃣ CRÉER LES WALLETS POUR CHAQUE DEVISE
-    const wallets = [];
+    // ✅ SOLUTION: Créer directement le tableau avec les wallets
+    const createdWallets = [];
+
     for (const currency of currenciesToCreate) {
       const wallet = await this.prisma.wallet.create({
         data: {
@@ -4198,9 +4202,11 @@ export class UserServiceService {
           cashCode: `CASH-${branch.code}-${currency}-${Date.now()}`,
         },
       });
-      wallets.push(wallet);
+      createdWallets.push(wallet);
       console.log(`✅ Wallet créé pour ${branch.name} (${currency})`);
     }
+
+    console.log(`📊 ${createdWallets.length} wallet(s) créé(s) pour l'agence ${branch.name}`);
 
     // 8️⃣ Compter les utilisateurs
     const userCount = await this.prisma.user.count({
@@ -4220,23 +4226,23 @@ export class UserServiceService {
         account_number: branchUser.account_number,
         phone: branchUser.phone,
       },
-      wallets: wallets.map(w => ({
+      wallets: createdWallets.map((w: any) => ({
         id: w.id,
         currency: w.currency,
         balance: w.balance,
         isActive: w.isActive,
-        isBranchWallet: w.isBranchWallet,
+        isBranchWallet: w.isBranchWallet || false,
         createdAt: w.createdAt,
         updatedAt: w.updatedAt,
       })),
       _count: {
         users: userCount,
-        wallets: wallets.length,
+        wallets: createdWallets.length,
       },
     };
 
     return {
-      message: `Branch created successfully with ${wallets.length} wallet(s)`,
+      message: `Branch created successfully with ${createdWallets.length} wallet(s)`,
       data: responseData,
     };
   }
@@ -4424,7 +4430,7 @@ export class UserServiceService {
             }
           }
 
-          // 4g. Mettre à jour l'email du compte caisse
+          // 4g. Mettre à jour l'email du compte caisse si le nom change
           if (data.name) {
             const newEmail = `caisse.${branch.code.toLowerCase()}@fpay.com`;
             await tx.user.update({
@@ -4498,7 +4504,7 @@ export class UserServiceService {
         currency: w.currency,
         balance: w.balance,
         isActive: w.isActive,
-        isBranchWallet: w.isBranchWallet,
+        isBranchWallet: w.isBranchWallet || false,
         createdAt: w.createdAt,
         updatedAt: w.updatedAt,
         user: w.user ? {
@@ -4523,7 +4529,6 @@ export class UserServiceService {
       data: responseData,
     };
   }
-
 
   async getBranch(id: string) {
     const branch = await this.prisma.branch.findUnique({
