@@ -4185,8 +4185,8 @@ export class UserServiceService {
     console.log(`📊 Devises à créer pour l'agence ${branch.name}:`, currenciesToCreate);
 
     // 7️⃣ CRÉER LES WALLETS POUR CHAQUE DEVISE
-    // ✅ SOLUTION: Créer directement le tableau avec les wallets
-    const createdWallets = [];
+    // ✅ SOLUTION CORRECTE: Typer explicitement avec any[]
+    const createdWallets: any[] = [];
 
     for (const currency of currenciesToCreate) {
       const wallet = await this.prisma.wallet.create({
