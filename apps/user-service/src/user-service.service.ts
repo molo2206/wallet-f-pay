@@ -4028,11 +4028,11 @@ export class UserServiceService {
       where: { id: data.countryId },
       include: {
         country_currency: {
-          include: {
-            currency: true,
-          },
+          select: { currency_code: true }
         },
-        network_provider: true,
+        network_provider: {
+          select: { currency: true }
+        }
       },
     });
 
@@ -4044,7 +4044,7 @@ export class UserServiceService {
       });
     }
 
-    // 2️⃣ Vérifier que le nom n'existe pas déjà dans ce pays
+    // 2️⃣ Vérifier que le nom n'existe pas déjà
     const existingByName = await this.prisma.branch.findFirst({
       where: {
         name: data.name,
@@ -4059,7 +4059,7 @@ export class UserServiceService {
       });
     }
 
-    // 3️⃣ Générer un code unique automatiquement
+    // 3️⃣ Générer un code unique
     let code: string = '';
     let isUnique = false;
     let attempts = 0;
@@ -4125,44 +4125,28 @@ export class UserServiceService {
       },
     });
 
-    // 5️⃣ CRÉER UN COMPTE SPÉCIFIQUE POUR LA BRANCHE (CAISSE)
+    // 5️⃣ CRÉER LE COMPTE CAISSE
     const branchAccountNumber = `BR-${branch.code}`;
     const branchEmail = data.email || `caisse.${branch.code.toLowerCase()}@fpay.com`;
 
-    // Vérifier si un compte existe déjà avec cet email
-    let branchUser = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: branchEmail },
-          { account_number: branchAccountNumber }
-        ]
+    const branchUser = await this.prisma.user.create({
+      data: {
+        id: crypto.randomUUID(),
+        email: branchEmail,
+        full_name: `Caisse ${branch.name}`,
+        phone: data.phone || null,
+        account_number: branchAccountNumber,
+        role: 'ADMIN',
+        status: 'ACTIVE',
+        branchId: branch.id,
+        password: null,
+        pinstatus: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 
-    if (!branchUser) {
-      // Créer un utilisateur dédié à cette agence
-      branchUser = await this.prisma.user.create({
-        data: {
-          id: crypto.randomUUID(),
-          email: branchEmail,
-          full_name: `Caisse ${branch.name}`,
-          phone: data.phone || null,
-          account_number: branchAccountNumber,
-          role: 'ADMIN',
-          status: 'ACTIVE',
-          branchId: branch.id,
-          password: null,
-          pinstatus: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
-      console.log(`✅ Compte caisse créé pour l'agence ${branch.name}: ${branchEmail}`);
-    } else {
-      console.log(`ℹ️ Compte caisse existe déjà pour l'agence ${branch.name}`);
-    }
-
-    // 6️⃣ Récupérer les devises du pays
+    // 6️⃣ RÉCUPÉRER LES DEVISES DU PAYS
     const currenciesToCreate: string[] = [];
 
     // A. Devises depuis country_currency
@@ -4193,80 +4177,37 @@ export class UserServiceService {
       currenciesToCreate.push(country.default_currency);
     }
 
-    // Si aucune devise trouvée, utiliser CDF par défaut
+    // Si aucune devise trouvée, utiliser CDF
     if (currenciesToCreate.length === 0) {
-      console.warn(`Aucune devise trouvée pour le pays ${country.name}, utilisation de CDF`);
       currenciesToCreate.push('CDF');
     }
 
-    console.log(`📊 Devises à créer pour l'agence ${branch.name}:`, currenciesToCreate);
-
-    // 7️⃣ Créer les wallets de caisse pour chaque devise AVEC isBranchWallet = true
-    let walletsCreated = 0;
-
+    // 7️⃣ CRÉER LES WALLETS POUR CHAQUE DEVISE
+    const wallets = [];
     for (const currency of currenciesToCreate) {
-      try {
-        // Vérifier si un wallet existe déjà pour cette devise
-        const existingWallet = await this.prisma.wallet.findFirst({
-          where: {
-            branchId: branch.id,
-            currency: currency as wallet_currency,
-            userId: branchUser.id,
-          },
-        });
-
-        if (!existingWallet) {
-          await this.prisma.wallet.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId: branchUser.id,
-              branchId: branch.id,
-              currency: currency as wallet_currency,
-              balance: 0,
-              isActive: true,
-              isDefault: false,
-              isBranchWallet: true, // 👈 MARQUER COMME WALLET DE CAISSE
-            },
-          });
-          console.log(`✅ Wallet de caisse créé pour l'agence ${branch.name} (${currency})`);
-          walletsCreated++;
-        } else {
-          console.log(`ℹ️ Wallet de caisse ${currency} existe déjà pour l'agence ${branch.name}`);
-        }
-      } catch (err) {
-        console.error(`❌ Échec création wallet de caisse (${currency}):`, err);
-      }
+      const wallet = await this.prisma.wallet.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: branchUser.id,
+          branchId: branch.id,
+          currency: currency as wallet_currency,
+          balance: 0,
+          isActive: true,
+          isDefault: false,
+          isBranchWallet: true,
+          cashCode: `CASH-${branch.code}-${currency}-${Date.now()}`,
+        },
+      });
+      wallets.push(wallet);
+      console.log(`✅ Wallet créé pour ${branch.name} (${currency})`);
     }
 
-    console.log(`📊 ${walletsCreated} wallet(s) de caisse créé(s) pour l'agence ${branch.name}`);
-
-    // 8️⃣ Compter les utilisateurs de cette agence
+    // 8️⃣ Compter les utilisateurs
     const userCount = await this.prisma.user.count({
       where: { branchId: branch.id },
     });
 
-    // 9️⃣ Récupérer les wallets de caisse créés
-    const cashWallets = await this.prisma.wallet.findMany({
-      where: {
-        branchId: branch.id,
-        userId: branchUser.id,
-        isBranchWallet: true, // 👈 FILTRER LES WALLETS DE CAISSE
-      },
-      select: {
-        id: true,
-        currency: true,
-        balance: true,
-        isActive: true,
-        isBranchWallet: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: {
-        currency: 'asc',
-      },
-    });
-
-    // 🔟 Formater la réponse
+    // 9️⃣ Formater la réponse
     const { country_provider, ...branchWithoutCountry } = branch;
 
     const responseData = {
@@ -4279,15 +4220,23 @@ export class UserServiceService {
         account_number: branchUser.account_number,
         phone: branchUser.phone,
       },
-      cashWallets: cashWallets,
+      wallets: wallets.map(w => ({
+        id: w.id,
+        currency: w.currency,
+        balance: w.balance,
+        isActive: w.isActive,
+        isBranchWallet: w.isBranchWallet,
+        createdAt: w.createdAt,
+        updatedAt: w.updatedAt,
+      })),
       _count: {
         users: userCount,
-        cashWallets: cashWallets.length,
+        wallets: wallets.length,
       },
     };
 
     return {
-      message: `Branch created successfully with ${cashWallets.length} cash wallet(s)`,
+      message: `Branch created successfully with ${wallets.length} wallet(s)`,
       data: responseData,
     };
   }
@@ -4304,16 +4253,11 @@ export class UserServiceService {
     const branch = await this.prisma.branch.findUnique({
       where: { id },
       include: {
-        wallet: {
-          where: {
-            isActive: true,
-            isBranchWallet: true, // 👈 Seulement les wallets de caisse
-          },
-        },
+        country_provider: true,
         user: {
           where: {
             role: 'ADMIN',
-            email: { contains: `caisse.` }
+            email: { contains: 'caisse.' }
           },
           include: {
             wallets: {
@@ -4342,6 +4286,9 @@ export class UserServiceService {
         include: {
           country_currency: {
             select: { currency_code: true }
+          },
+          network_provider: {
+            select: { currency: true }
           }
         }
       });
@@ -4390,37 +4337,53 @@ export class UserServiceService {
           },
         });
 
-        // 4b. Récupérer l'utilisateur caisse de la branche
-        const branchUser = await tx.user.findFirst({
-          where: {
-            branchId: branch.id,
-            role: 'ADMIN',
-            email: { contains: `caisse.` }
-          }
-        });
+        // 4b. Récupérer l'utilisateur caisse
+        const branchUser = branch.user[0];
 
         if (branchUser) {
           // 4c. Récupérer les devises du nouveau pays
-          const currencies = newCountry.country_currency.map(c => c.currency_code);
+          const currenciesToCreate: string[] = [];
 
-          // Ajouter la devise par défaut si présente
-          if (newCountry.default_currency && !currencies.includes(newCountry.default_currency)) {
-            currencies.push(newCountry.default_currency);
+          // Devises depuis country_currency
+          if (newCountry.country_currency && newCountry.country_currency.length > 0) {
+            for (const cc of newCountry.country_currency) {
+              if (cc.currency_code && !currenciesToCreate.includes(cc.currency_code)) {
+                currenciesToCreate.push(cc.currency_code);
+              }
+            }
           }
 
-          // Si aucune devise trouvée, utiliser CDF
-          if (currencies.length === 0) {
-            currencies.push('CDF');
+          // Devises depuis network_provider
+          if (newCountry.network_provider && newCountry.network_provider.length > 0) {
+            for (const network of newCountry.network_provider) {
+              if (network.currency) {
+                const currencies = network.currency.split(',').map(c => c.trim());
+                for (const currency of currencies) {
+                  if (currency && !currenciesToCreate.includes(currency)) {
+                    currenciesToCreate.push(currency);
+                  }
+                }
+              }
+            }
           }
 
-          // 4d. Désactiver les anciens wallets qui ne sont plus dans les devises du pays
+          // Devise par défaut
+          if (newCountry.default_currency && !currenciesToCreate.includes(newCountry.default_currency)) {
+            currenciesToCreate.push(newCountry.default_currency);
+          }
+
+          if (currenciesToCreate.length === 0) {
+            currenciesToCreate.push('CDF');
+          }
+
+          // 4d. Désactiver les anciens wallets
           await tx.wallet.updateMany({
             where: {
               userId: branchUser.id,
               branchId: branch.id,
               isBranchWallet: true,
               currency: {
-                notIn: currencies as wallet_currency[]
+                notIn: currenciesToCreate as wallet_currency[]
               }
             },
             data: {
@@ -4429,7 +4392,7 @@ export class UserServiceService {
             }
           });
 
-          // 4e. Créer les nouveaux wallets pour les devises manquantes
+          // 4e. Récupérer les wallets actifs existants
           const existingWallets = await tx.wallet.findMany({
             where: {
               userId: branchUser.id,
@@ -4441,7 +4404,8 @@ export class UserServiceService {
 
           const existingCurrencies = existingWallets.map(w => w.currency);
 
-          for (const currency of currencies) {
+          // 4f. Créer les wallets manquants
+          for (const currency of currenciesToCreate) {
             if (!existingCurrencies.includes(currency as wallet_currency)) {
               await tx.wallet.create({
                 data: {
@@ -4452,16 +4416,16 @@ export class UserServiceService {
                   balance: 0,
                   isActive: true,
                   isDefault: false,
-                  isBranchWallet: true, // 👈 MARQUER COMME WALLET DE CAISSE
+                  isBranchWallet: true,
                   cashCode: `CASH-${branch.code}-${currency}-${Date.now()}`,
                 }
               });
-              console.log(`✅ Wallet de caisse créé pour ${branch.name} (${currency})`);
+              console.log(`✅ Wallet créé pour ${branch.name} (${currency})`);
             }
           }
 
-          // 4f. Mettre à jour l'email du compte caisse si le code de la branche a changé
-          if (data.name && branch.code) {
+          // 4g. Mettre à jour l'email du compte caisse
+          if (data.name) {
             const newEmail = `caisse.${branch.code.toLowerCase()}@fpay.com`;
             await tx.user.update({
               where: { id: branchUser.id },
@@ -4477,7 +4441,7 @@ export class UserServiceService {
         return updatedBranch;
       }, { timeout: 30000 });
     } else {
-      // 🔥 Simple mise à jour sans transaction
+      // 🔥 Simple mise à jour
       updated = await this.prisma.branch.update({
         where: { id },
         data: updateData,
@@ -4494,8 +4458,8 @@ export class UserServiceService {
       });
     }
 
-    // 5️⃣ Récupérer les wallets de caisse mis à jour
-    const cashWallets = await this.prisma.wallet.findMany({
+    // 5️⃣ Récupérer les wallets mis à jour
+    const wallets = await this.prisma.wallet.findMany({
       where: {
         branchId: id,
         isBranchWallet: true,
@@ -4515,47 +4479,46 @@ export class UserServiceService {
       orderBy: { currency: 'asc' },
     });
 
-    // 6️⃣ Compter les utilisateurs
+    // 6️⃣ Compter les utilisateurs et transactions
     const userCount = await this.prisma.user.count({
       where: { branchId: id },
     });
 
-    // 7️⃣ Compter les transactions
     const transactionCount = await this.prisma.transaction.count({
       where: { branchId: id },
     });
 
-    // 8️⃣ Formater la réponse
+    // 7️⃣ Formater la réponse
     const { country_provider, ...branchWithoutCountry } = updated;
     const responseData = {
       ...branchWithoutCountry,
       country: country_provider,
-      cashWallets: cashWallets.map(wallet => ({
-        id: wallet.id,
-        currency: wallet.currency,
-        balance: wallet.balance,
-        isActive: wallet.isActive,
-        isBranchWallet: wallet.isBranchWallet,
-        createdAt: wallet.createdAt,
-        updatedAt: wallet.updatedAt,
-        user: wallet.user ? {
-          id: wallet.user.id,
-          full_name: wallet.user.full_name,
-          email: wallet.user.email,
-          phone: wallet.user.phone,
-          account_number: wallet.user.account_number,
+      wallets: wallets.map(w => ({
+        id: w.id,
+        currency: w.currency,
+        balance: w.balance,
+        isActive: w.isActive,
+        isBranchWallet: w.isBranchWallet,
+        createdAt: w.createdAt,
+        updatedAt: w.updatedAt,
+        user: w.user ? {
+          id: w.user.id,
+          full_name: w.user.full_name,
+          email: w.user.email,
+          phone: w.user.phone,
+          account_number: w.user.account_number,
         } : null,
       })),
       _count: {
         users: userCount,
         transactions: transactionCount,
-        cashWallets: cashWallets.length,
+        wallets: wallets.length,
       },
     };
 
     return {
       message: countryChanged
-        ? 'Branch updated successfully with new cash wallets'
+        ? 'Branch updated successfully with new wallets'
         : 'Branch updated successfully',
       data: responseData,
     };
@@ -4587,6 +4550,30 @@ export class UserServiceService {
             resources: true,
           },
         },
+        wallet: {  // 👈 INCLURE LES WALLETS
+          where: { isActive: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                email: true,
+                phone: true,
+                account_number: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+          },
+        },
+        transaction: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -4598,61 +4585,32 @@ export class UserServiceService {
       });
     }
 
-    // ✅ Récupérer les wallets de la branche (avec isBranchWallet)
-    const wallets = await this.prisma.wallet.findMany({
-      where: {
-        branchId: branch.id,
-        isActive: true,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            full_name: true,
-            email: true,
-            phone: true,
-            account_number: true,
-          },
-        },
-      },
-      orderBy: { currency: 'asc' },
-    });
-
-    // ✅ Compter les utilisateurs de cette branche
-    const userCount = await this.prisma.user.count({
-      where: { branchId: branch.id },
-    });
-
-    // ✅ Compter les transactions de cette branche
-    const transactionCount = await this.prisma.transaction.count({
-      where: { branchId: branch.id },
-    });
-
     // ✅ Formater la réponse avec country et wallets
-    const { country_provider, ...branchWithoutCountry } = branch;
+    const { country_provider, wallet, user, transaction, ...branchWithoutCountry } = branch;
+
     const responseData = {
       ...branchWithoutCountry,
       country: country_provider,
-      wallets: wallets.map(wallet => ({
-        id: wallet.id,
-        currency: wallet.currency,
-        balance: wallet.balance,
-        isActive: wallet.isActive,
-        isBranchWallet: wallet.isBranchWallet, // 👈 INCLURE isBranchWallet
-        createdAt: wallet.createdAt,
-        updatedAt: wallet.updatedAt,
-        user: wallet.user ? {
-          id: wallet.user.id,
-          full_name: wallet.user.full_name,
-          email: wallet.user.email,
-          phone: wallet.user.phone,
-          account_number: wallet.user.account_number,
+      wallets: wallet.map(w => ({
+        id: w.id,
+        currency: w.currency,
+        balance: w.balance,
+        isActive: w.isActive,
+        isBranchWallet: w.isBranchWallet || false,
+        createdAt: w.createdAt,
+        updatedAt: w.updatedAt,
+        user: w.user ? {
+          id: w.user.id,
+          full_name: w.user.full_name,
+          email: w.user.email,
+          phone: w.user.phone,
+          account_number: w.user.account_number,
         } : null,
       })),
       _count: {
-        users: userCount,
-        transactions: transactionCount,
-        wallets: wallets.length,
+        users: user.length,
+        transactions: transaction.length,
+        wallets: wallet.length,
       },
     };
 
@@ -4689,7 +4647,7 @@ export class UserServiceService {
               countryCode: true,
             },
           },
-          wallet: {
+          wallet: {  // 👈 INCLURE LES WALLETS
             where: { isActive: true },
             include: {
               user: {
@@ -4731,7 +4689,7 @@ export class UserServiceService {
           currency: w.currency,
           balance: w.balance,
           isActive: w.isActive,
-          isBranchWallet: w.isBranchWallet, // 👈 INCLURE isBranchWallet
+          isBranchWallet: w.isBranchWallet || false,
           createdAt: w.createdAt,
           updatedAt: w.updatedAt,
           user: w.user ? {
@@ -4761,7 +4719,6 @@ export class UserServiceService {
       },
     };
   }
-
   async getBranchesByCountry(countryCode: string) {
     const branches = await this.prisma.branch.findMany({
       where: {
@@ -4779,7 +4736,7 @@ export class UserServiceService {
             countryCode: true,
           },
         },
-        wallet: {
+        wallet: {  // 👈 INCLURE LES WALLETS
           where: { isActive: true },
           include: {
             user: {
@@ -4819,7 +4776,7 @@ export class UserServiceService {
           currency: w.currency,
           balance: w.balance,
           isActive: w.isActive,
-          isBranchWallet: w.isBranchWallet, // 👈 INCLURE isBranchWallet
+          isBranchWallet: w.isBranchWallet || false,
           createdAt: w.createdAt,
           updatedAt: w.updatedAt,
           user: w.user ? {
