@@ -64,7 +64,27 @@ export async function notifyTransaction(
     const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
     console.log(`[notifyTransaction] 📱 Tentative d'envoi SMS à ${cleanPhone}`);
 
-    let smsKey: string = '';
+    // ✅ MAP DES TYPES VERS LES CLÉS SMS
+    const smsKeyMap: Record<string, string> = {
+      'topup': 'wallet.top_up_sms',
+      'cashout': 'wallet.cashout_sms',
+      'send_sent': 'wallet.transfer_sender_sms',
+      'send_received': 'wallet.transfer_receiver_sms',
+      'send_pending': 'wallet.transfer_pending_sms',
+      'send_confirmed': 'wallet.transfer_confirmed_sms',
+      'pay_sent': 'wallet.payment_payer_sms',
+      'pay_received': 'wallet.payment_merchant_sms',
+      'convert': 'wallet.conversion_sms',
+      'failed': 'wallet.failed_sms',
+    };
+
+    const smsKey = smsKeyMap[type];
+    if (!smsKey) {
+      console.warn(`[notifyTransaction] ⚠️ Type SMS non reconnu: ${type}`);
+      return;
+    }
+
+    // ✅ CONSTRUIRE LES PARAMÈTRES
     const params: any = {
       full_name: defaultName,
       amount: defaultAmount,
@@ -73,101 +93,64 @@ export async function notifyTransaction(
       reference: transaction?.reference || 'N/A',
     };
 
-    // ✅ Déterminer la clé SMS
+    // ✅ AJOUTER LES PARAMÈTRES SPÉCIFIQUES
     switch (type) {
-      case 'topup':
-        smsKey = 'wallet.top_up_sms';
-        break;
-
-      case 'cashout':
-        smsKey = 'wallet.cashout_sms';
-        break;
-
       case 'send_sent':
-        smsKey = 'wallet.transfer_sender_sms';
         params.recipient = counterparty?.name || 'Destinataire';
         break;
-
       case 'send_received':
-        smsKey = 'wallet.transfer_receiver_sms';
         params.sender = counterparty?.name || 'Expéditeur';
         break;
-
       case 'send_pending':
-        smsKey = 'wallet.transfer_pending_sms';
+        params.recipient = counterparty?.name || 'Destinataire';
         break;
-
       case 'send_confirmed':
-        smsKey = 'wallet.transfer_confirmed_sms';
+        params.recipient = counterparty?.name || 'Destinataire';
         break;
-
       case 'pay_sent':
-        smsKey = 'wallet.payment_payer_sms';
         params.merchantName = counterparty?.name || 'Commerçant';
         break;
-
       case 'pay_received':
-        smsKey = 'wallet.payment_merchant_sms';
         params.payerName = counterparty?.name || 'Client';
         break;
-
       case 'convert':
-        smsKey = 'wallet.conversion_sms';
         params.fromCurrency = transaction?.fromCurrency || 'CDF';
         params.convertedAmount = transaction?.convertedAmount || defaultAmount;
         break;
-
       default:
-        console.warn(`[notifyTransaction] ⚠️ Type SMS non reconnu: ${type}`);
-        return;
+        break;
     }
 
     try {
       console.log(`[notifyTransaction] 📝 Clé SMS: ${smsKey}`);
       console.log(`[notifyTransaction] 📝 Paramètres:`, params);
 
+      // ✅ TRADUIRE LE SMS
       let smsText = i18nService.translate(smsKey, userLang, params);
       console.log(`[notifyTransaction] 📝 SMS traduit: ${smsText}`);
 
-      // ✅ Vérifier si la traduction a fonctionné
+      // ✅ VÉRIFIER SI LA TRADUCTION A FONCTIONNÉ
       if (!smsText || smsText === smsKey || smsText.includes('{{')) {
-        console.warn(`[notifyTransaction] ⚠️ Traduction manquante pour ${smsKey}, utilisation du fallback`);
+        console.warn(`[notifyTransaction] ⚠️ Traduction manquante pour ${smsKey}, utilisation du fallback en français`);
 
-        // ✅ Définir le type des clés de fallback
-        type FallbackKey = 'topup' | 'cashout' | 'send_sent' | 'send_received' | 'send_pending' | 'send_confirmed' | 'pay_sent' | 'pay_received' | 'convert' | 'failed';
-
-        const fallbackMessages: Record<FallbackKey, string> = {
-          'topup': `Votre portefeuille a ete credite de ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci pour votre confiance.`,
-          'cashout': `Retrait de ${defaultAmount} ${defaultCurrency} effectue avec succes. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci d'utiliser F-Pay.`,
-          'send_sent': `Vous avez envoye ${defaultAmount} ${defaultCurrency} a ${params.recipient || 'destinataire'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
-          'send_received': `Vous avez recu ${defaultAmount} ${defaultCurrency} de ${params.sender || 'expediteur'}. Solde disponible: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
-          'send_pending': `Votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Ref: ${transaction?.reference || 'N/A'}. Vous recevrez une confirmation une fois approuve.`,
-          'send_confirmed': `Votre envoi international de ${defaultAmount} ${defaultCurrency} a ete valide. Ref: ${transaction?.reference || 'N/A'}. Le destinataire a ete notifie.`,
-          'pay_sent': `Paiement de ${defaultAmount} ${defaultCurrency} effectue chez ${params.merchantName || 'commercant'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
-          'pay_received': `Vous avez recu ${defaultAmount} ${defaultCurrency} de ${params.payerName || 'client'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
-          'convert': `Conversion reussie: ${defaultAmount} ${params.fromCurrency || 'CDF'} vers ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Solde mis a jour.`,
-          'failed': `Votre transaction de ${defaultAmount} ${defaultCurrency} n'a pas abouti. Ref: ${transaction?.reference || 'N/A'}. Verifiez vos informations ou contactez le support.`,
+        // ✅ FALLBACK EN FRANÇAIS
+        const fallbackMessages: Record<string, string> = {
+          'wallet.top_up_sms': `Votre portefeuille a été crédité de ${defaultAmount} ${defaultCurrency}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci pour votre confiance.`,
+          'wallet.cashout_sms': `Retrait de ${defaultAmount} ${defaultCurrency} effectué avec succès. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Merci d'utiliser F-Pay.`,
+          'wallet.transfer_sender_sms': `Vous avez envoyé ${defaultAmount} ${defaultCurrency} à ${params.recipient || 'destinataire'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'wallet.transfer_receiver_sms': `Vous avez reçu ${defaultAmount} ${defaultCurrency} de ${params.sender || 'expéditeur'}. Solde disponible: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'wallet.transfer_pending_sms': `Votre envoi international de ${defaultAmount} ${defaultCurrency} est en attente de validation. Ref: ${transaction?.reference || 'N/A'}. Vous recevrez une confirmation une fois approuvé.`,
+          'wallet.transfer_confirmed_sms': `Votre envoi international de ${defaultAmount} ${defaultCurrency} a été validé. Ref: ${transaction?.reference || 'N/A'}. Le destinataire a été notifié.`,
+          'wallet.payment_payer_sms': `Paiement de ${defaultAmount} ${defaultCurrency} effectué chez ${params.merchantName || 'commerçant'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'wallet.payment_merchant_sms': `Vous avez reçu ${defaultAmount} ${defaultCurrency} de ${params.payerName || 'client'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'wallet.conversion_sms': `Conversion réussie: ${defaultAmount} ${params.fromCurrency || 'CDF'} = ${params.convertedAmount || defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Solde mis à jour.`,
+          'wallet.failed_sms': `Votre transaction de ${defaultAmount} ${defaultCurrency} n'a pas abouti. Ref: ${transaction?.reference || 'N/A'}. Vérifiez vos informations ou contactez le support.`,
         };
 
-        // ✅ Utiliser un mapping simple
-        const fallbackKeyMap: Record<string, FallbackKey> = {
-          'topup': 'topup',
-          'cashout': 'cashout',
-          'send_sent': 'send_sent',
-          'send_received': 'send_received',
-          'send_pending': 'send_pending',
-          'send_confirmed': 'send_confirmed',
-          'pay_sent': 'pay_sent',
-          'pay_received': 'pay_received',
-          'convert': 'convert',
-          'failed': 'failed',
-        };
-
-        const fallbackKey = fallbackKeyMap[type] || 'failed';
-        smsText = fallbackMessages[fallbackKey] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`;
+        smsText = fallbackMessages[smsKey] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`;
       }
 
-      // ✅ Envoyer le SMS avec le countryCode de l'utilisateur
+      // ✅ ENVOYER LE SMS
       const countryCode = user?.countryCode || 'CD';
       console.log(`[notifyTransaction] 📱 CountryCode pour SMS: ${countryCode}`);
 
@@ -201,106 +184,97 @@ export async function notifyTransaction(
       timestamp: new Date().toISOString(),
     };
 
-    switch (type) {
-      case 'topup':
-        pushType = NotificationType.TOP_UP_SUCCESS;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          balance: defaultBalance,
-          full_name: defaultName,
-        };
-        break;
+    // ✅ MAP DES TYPES VERS LES NOTIFICATIONS PUSH
+    const pushTypeMap: Record<string, NotificationType> = {
+      'topup': NotificationType.TOP_UP_SUCCESS,
+      'cashout': NotificationType.CASHOUT_SUCCESS,
+      'send_sent': NotificationType.TRANSFER_SENT,
+      'send_received': NotificationType.TRANSFER_RECEIVED,
+      'send_pending': NotificationType.TRANSFER_PENDING,
+      'send_confirmed': NotificationType.TRANSFER_CONFIRMED,
+      'pay_sent': NotificationType.PAYMENT_SENT,
+      'pay_received': NotificationType.PAYMENT_RECEIVED,
+    };
 
-      case 'cashout':
-        pushType = NotificationType.CASHOUT_SUCCESS;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          balance: defaultBalance,
-          full_name: defaultName,
-        };
-        break;
-
-      case 'send_sent':
-        pushType = NotificationType.TRANSFER_SENT;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          balance: defaultBalance,
-          toName: counterparty?.name || 'Destinataire',
-          toPhone: counterparty?.phone || '',
-          full_name: defaultName,
-        };
-        break;
-
-      case 'send_received':
-        pushType = NotificationType.TRANSFER_RECEIVED;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          balance: defaultBalance,
-          fromName: counterparty?.name || 'Expéditeur',
-          fromPhone: counterparty?.phone || '',
-          full_name: defaultName,
-        };
-        break;
-
-      case 'send_pending':
-        pushType = NotificationType.TRANSFER_PENDING;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          toName: counterparty?.name || 'Destinataire',
-          toPhone: counterparty?.phone || '',
-          full_name: defaultName,
-          status: 'PENDING',
-        };
-        break;
-
-      case 'send_confirmed':
-        pushType = NotificationType.TRANSFER_CONFIRMED;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          balance: defaultBalance,
-          toName: counterparty?.name || 'Destinataire',
-          toPhone: counterparty?.phone || '',
-          full_name: defaultName,
-          status: 'COMPLETED',
-        };
-        break;
-
-      case 'pay_sent':
-        pushType = NotificationType.PAYMENT_SENT;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          balance: defaultBalance,
-          merchantName: counterparty?.name || 'Commerçant',
-          merchantPhone: counterparty?.phone || '',
-          full_name: defaultName,
-        };
-        break;
-
-      case 'pay_received':
-        pushType = NotificationType.PAYMENT_RECEIVED;
-        pushData = {
-          amount: defaultAmount,
-          currency: defaultCurrency,
-          balance: defaultBalance,
-          customerName: counterparty?.name || 'Client',
-          customerPhone: counterparty?.phone || '',
-          full_name: defaultName,
-        };
-        break;
-
-      default:
-        console.warn(`[notifyTransaction] ⚠️ Type Push non reconnu: ${type}`);
-        break;
-    }
+    pushType = pushTypeMap[type] || null;
 
     if (pushType) {
+      // ✅ CONSTRUIRE LES DONNÉES PUSH
+      switch (type) {
+        case 'topup':
+        case 'cashout':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            full_name: defaultName,
+          };
+          break;
+        case 'send_sent':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            toName: counterparty?.name || 'Destinataire',
+            toPhone: counterparty?.phone || '',
+            full_name: defaultName,
+          };
+          break;
+        case 'send_received':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            fromName: counterparty?.name || 'Expéditeur',
+            fromPhone: counterparty?.phone || '',
+            full_name: defaultName,
+          };
+          break;
+        case 'send_pending':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            toName: counterparty?.name || 'Destinataire',
+            toPhone: counterparty?.phone || '',
+            full_name: defaultName,
+            status: 'PENDING',
+          };
+          break;
+        case 'send_confirmed':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            toName: counterparty?.name || 'Destinataire',
+            toPhone: counterparty?.phone || '',
+            full_name: defaultName,
+            status: 'COMPLETED',
+          };
+          break;
+        case 'pay_sent':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            merchantName: counterparty?.name || 'Commerçant',
+            merchantPhone: counterparty?.phone || '',
+            full_name: defaultName,
+          };
+          break;
+        case 'pay_received':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            customerName: counterparty?.name || 'Client',
+            customerPhone: counterparty?.phone || '',
+            full_name: defaultName,
+          };
+          break;
+        default:
+          break;
+      }
+
       try {
         console.log(`[notifyTransaction] 🔔 Type Push: ${pushType}`);
         console.log(`[notifyTransaction] 🔔 Données Push:`, pushData);
@@ -319,6 +293,8 @@ export async function notifyTransaction(
       } catch (error) {
         console.error(`[notifyTransaction] ❌ Erreur lors de l'envoi du Push à ${user.id}:`, error);
       }
+    } else {
+      console.warn(`[notifyTransaction] ⚠️ Type Push non reconnu: ${type}`);
     }
   } else {
     console.log(`[notifyTransaction] ⚠️ Push non envoyé: canSendPush=${canSendPush}`);

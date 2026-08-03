@@ -967,6 +967,7 @@ export class WalletServiceService {
             pin_locked_until: true,
             full_name: true,
             phone: true,
+            branchId: true,
           }
         });
 
@@ -1069,7 +1070,7 @@ export class WalletServiceService {
             movement: 'CREDIT',
             currency: wallet.currency,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
-            branchId: user.branchId ?? null, // ✅ AJOUT DE LA BRANCHE
+            branchId: admin.branchId ?? null, // ✅ AJOUT DE LA BRANCHE
           },
         });
 
@@ -1176,6 +1177,7 @@ export class WalletServiceService {
         id: true,
         full_name: true,
         phone: true,
+        branchId: true,
         pin: true,
         status: true,
         failed_pin_attempts: true,
@@ -1272,7 +1274,7 @@ export class WalletServiceService {
           movement: 'DEBIT',
           currency: wallet.currency,
           paymentMethod: this.mapPaymentMethod(paymentMethod),
-          branchId: user.branchId ?? null, // ✅ AJOUT DE LA BRANCHE
+          branchId: admin.branchId ?? null, // ✅ AJOUT DE LA BRANCHE
           external_reference: JSON.stringify({
             otpCode: newOtpCode,
             expiresAt: otpExpiry,
@@ -1645,6 +1647,7 @@ export class WalletServiceService {
             pin_locked_until: true,
             full_name: true,
             phone: true,
+            branchId: true,
           }
         });
 
@@ -1972,7 +1975,7 @@ export class WalletServiceService {
             description: senderDescription,
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
             movement: 'DEBIT',
-            branchId: fromUser.branchId ?? null, // ✅ BRANCHE DE L'EXPÉDITEUR
+            branchId: admin.branchId ?? null,, // ✅ BRANCHE DE L'EXPÉDITEUR
           },
         });
 
@@ -2172,6 +2175,7 @@ export class WalletServiceService {
             pin_locked_until: true,
             full_name: true,
             phone: true,
+            branchId: true,
           }
         });
 
@@ -2334,7 +2338,7 @@ export class WalletServiceService {
             }),
             paymentMethod: this.mapPaymentMethod(dto.paymentMethod),
             movement: 'DEBIT',
-            branchId: fromUser.branchId ?? null, // ✅ BRANCHE DU PAYEUR
+            branchId: admin.branchId ?? null, // ✅ BRANCHE DE L'ADMIN
           },
         });
 
