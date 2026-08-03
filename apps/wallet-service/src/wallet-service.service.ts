@@ -1717,7 +1717,7 @@ export class WalletServiceService {
                 status: true,
                 countryCode: true,
                 kycStatus: true,
-                branchId:true
+                branchId: true
               }
             }
           }
@@ -2439,18 +2439,141 @@ export class WalletServiceService {
     };
   }
 
+  // apps/wallet-service/src/wallet-service.service.ts
+
   async listTransactions(
     userId: string,
     page: number = 1,
     limit: number = 10,
     startDate?: Date,
     endDate?: Date,
+    adminId?: string,
   ) {
+    // ✅ Gestion des permissions pour admin
+    let branchFilter: string | null = null;
+    let hasManagePermission = false;
+    let hasReadPermission = false;
+    let isSuperAdmin = false;
+    let allowedBranchIds: string[] = [];
+
+    if (adminId) {
+      const admin = await this.prisma.user.findUnique({
+        where: { id: adminId },
+        select: {
+          id: true,
+          role: true,
+          branchId: true,
+          user_has_resources: {
+            where: {
+              resources: {
+                name: 'transactions'
+              }
+            },
+            select: {
+              canManage: true,
+              canRead: true,
+              branchId: true,
+            }
+          }
+        }
+      });
+
+      if (admin) {
+        isSuperAdmin = admin.role === 'SUPER_ADMIN';
+
+        for (const resource of admin.user_has_resources || []) {
+          if (resource.canManage) {
+            hasManagePermission = true;
+            break;
+          }
+          if (resource.canRead) {
+            hasReadPermission = true;
+          }
+        }
+
+        if (isSuperAdmin || hasManagePermission) {
+          const allBranches = await this.prisma.branch.findMany({
+            where: { status: 'ACTIVE' },
+            select: { id: true }
+          });
+          allowedBranchIds = allBranches.map(b => b.id);
+          branchFilter = null;
+        }
+        else if (hasReadPermission && admin.branchId) {
+          allowedBranchIds = [admin.branchId];
+          branchFilter = admin.branchId;
+        }
+        else if (admin.branchId) {
+          allowedBranchIds = [admin.branchId];
+          branchFilter = admin.branchId;
+        }
+        else {
+          allowedBranchIds = [];
+          branchFilter = 'none';
+        }
+      }
+    }
+
+    // ✅ Récupérer les branches disponibles
+    const availableBranches = await this.prisma.branch.findMany({
+      where: {
+        id: { in: allowedBranchIds },
+        status: 'ACTIVE'
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        countryId: true,
+        status: true,
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    // ✅ Récupérer les pays disponibles
+    let availableCountriesWhere: any = { deleted: false };
+    if (adminId && branchFilter && branchFilter !== 'none') {
+      availableCountriesWhere.branchId = branchFilter;
+    }
+
+    const availableCountries = await this.prisma.user.groupBy({
+      by: ['countryCode'],
+      where: availableCountriesWhere,
+      _count: { id: true },
+    });
+
     const skip = (page - 1) * limit;
     const where: any = {
       userId,
       status: 'SUCCESS',
     };
+
+    if (branchFilter && branchFilter !== 'none') {
+      where.branchId = branchFilter;
+    } else if (branchFilter === 'none') {
+      return {
+        message: 'Transactions retrieved successfully',
+        data: {
+          data: [],
+          total: 0,
+          page,
+          limit,
+          analytics: {
+            totalCredit: 0,
+            totalDebit: 0,
+          },
+          availableBranches: availableBranches,
+          availableCountries: availableCountries
+            .filter(c => c.countryCode)
+            .map(c => ({
+              code: c.countryCode,
+              count: c._count.id,
+            }))
+            .sort((a, b) => b.count - a.count),
+        },
+      };
+    }
+
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = startDate;
@@ -2460,6 +2583,7 @@ export class WalletServiceService {
         where.createdAt.lte = endOfDay;
       }
     }
+
     const [transactions, total, creditSum, debitSum] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
@@ -2477,12 +2601,15 @@ export class WalletServiceService {
         _sum: { amount: true },
       }),
     ]);
+
     const totalCredit = creditSum._sum.amount || 0;
     const totalDebit = debitSum._sum.amount || 0;
+
     const enrichedTransactions = await Promise.all(
       transactions.map(async (tx) => {
         let full_name: string | null = null;
         let phone: string | null = null;
+
         if (tx.type === 'TRANSFER' && tx.movement === 'DEBIT') {
           const toMatch = tx.description?.match(/\[TO:([^\]]+)\]/);
           const receiverId = toMatch?.[1];
@@ -2525,9 +2652,11 @@ export class WalletServiceService {
             full_name = customerMatch[1];
           }
         }
+
         const cleanDescription =
           tx.description?.replace(/\[TO:[^\]]+\]|\[FROM:[^\]]+\]/, '').trim() ||
           tx.description;
+
         const { description, ...rest } = tx;
         return {
           ...rest,
@@ -2537,6 +2666,8 @@ export class WalletServiceService {
         };
       }),
     );
+
+    // ✅ Structure retour inchangée, seulement ajout de availableBranches et availableCountries
     return {
       message: 'Transactions retrieved successfully',
       data: {
@@ -2548,6 +2679,14 @@ export class WalletServiceService {
           totalCredit,
           totalDebit,
         },
+        availableBranches: availableBranches,
+        availableCountries: availableCountries
+          .filter(c => c.countryCode)
+          .map(c => ({
+            code: c.countryCode,
+            count: c._count.id,
+          }))
+          .sort((a, b) => b.count - a.count),
       },
     };
   }
