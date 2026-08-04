@@ -6351,6 +6351,15 @@ export class WalletServiceService {
       });
     }
 
+    // ✅ Vérifier que le PIN est fourni
+    if (!pin || pin.trim() === '') {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le PIN de l\'admin est requis.',
+        statusCode: 400,
+      });
+    }
+
     // ✅ Vérifier que l'admin existe
     const admin = await this.prisma.user.findFirst({
       where: { id: adminId },
@@ -6386,6 +6395,36 @@ export class WalletServiceService {
         statusCode: 400,
       });
     }
+
+    // ✅ Vérifier le PIN de l'admin (pin est déjà vérifié plus haut)
+    const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+    if (admin.pin !== hashedPin) {
+      const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+      let newStatus = admin.status;
+      let lockedUntil: Date | null = null;
+      if (newAttempts >= 5) {
+        newStatus = user_status.BLOCKED;
+        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+      }
+      await this.prisma.user.update({
+        where: { id: admin.id },
+        data: {
+          failed_pin_attempts: newAttempts,
+          status: newStatus,
+          pin_locked_until: lockedUntil
+        },
+      });
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_incorrect', lang),
+        statusCode: 401,
+      });
+    }
+
+    await this.prisma.user.update({
+      where: { id: admin.id },
+      data: { failed_pin_attempts: 0, pin_locked_until: null },
+    });
 
     // ✅ Vérifier que le wallet existe et a assez de solde
     const wallet = await this.prisma.wallet.findFirst({
@@ -6451,55 +6490,6 @@ export class WalletServiceService {
 
     // ========== ÉTAPE 1 : Demande de retrait (sans OTP) ==========
     if (!otpCode || otpCode.trim() === '') {
-      if (!admin.pin) {
-        throw new RpcException({
-          status: 'error',
-          message: 'L\'admin n\'a pas de PIN défini.',
-          statusCode: 400,
-        });
-      }
-
-      // ✅ Vérifier le PIN de l'admin
-      if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
-        const minutesLeft = Math.ceil(
-          (admin.pin_locked_until.getTime() - Date.now()) / 60000,
-        );
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
-          statusCode: 403,
-        });
-      }
-
-      const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
-      if (admin.pin !== hashedPin) {
-        const newAttempts = (admin.failed_pin_attempts || 0) + 1;
-        let newStatus = admin.status;
-        let lockedUntil: Date | null = null;
-        if (newAttempts >= 5) {
-          newStatus = user_status.BLOCKED;
-          lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-        }
-        await this.prisma.user.update({
-          where: { id: admin.id },
-          data: {
-            failed_pin_attempts: newAttempts,
-            status: newStatus,
-            pin_locked_until: lockedUntil
-          },
-        });
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('wallet.pin_incorrect', lang),
-          statusCode: 401,
-        });
-      }
-
-      await this.prisma.user.update({
-        where: { id: admin.id },
-        data: { failed_pin_attempts: 0, pin_locked_until: null },
-      });
-
       // ✅ Générer l'OTP
       const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
       const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
@@ -6566,69 +6556,15 @@ export class WalletServiceService {
     }
 
     // ========== ÉTAPE 2 : Confirmation avec OTP + PIN ADMIN ==========
-    if (!pin || pin.trim() === '') {
+
+    // ✅ Vérifier l'OTP
+    if (!otpCode || otpCode.trim() === '') {
       throw new RpcException({
         status: 'error',
-        message: 'Le PIN de l\'admin est requis pour valider la transaction.',
+        message: 'Le code OTP est requis pour valider la transaction.',
         statusCode: 400,
       });
     }
-
-    if (pin.length < 4) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.pin_min_length', lang),
-        statusCode: 400,
-      });
-    }
-
-    if (!/^\d+$/.test(pin)) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.pin_digits_only', lang),
-        statusCode: 400,
-      });
-    }
-
-    if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
-      const minutesLeft = Math.ceil(
-        (admin.pin_locked_until.getTime() - Date.now()) / 60000,
-      );
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
-        statusCode: 404,
-      });
-    }
-
-    const hashedAdminPin = crypto.createHash('sha256').update(pin).digest('hex');
-    if (admin.pin !== hashedAdminPin) {
-      const newAttempts = (admin.failed_pin_attempts || 0) + 1;
-      let newStatus = admin.status;
-      let lockedUntil: Date | null = null;
-      if (newAttempts >= 5) {
-        newStatus = user_status.BLOCKED;
-        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-      }
-      await this.prisma.user.update({
-        where: { id: admin.id },
-        data: {
-          failed_pin_attempts: newAttempts,
-          status: newStatus,
-          pin_locked_until: lockedUntil
-        },
-      });
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.pin_incorrect', lang),
-        statusCode: 404,
-      });
-    }
-
-    await this.prisma.user.update({
-      where: { id: admin.id },
-      data: { failed_pin_attempts: 0, pin_locked_until: null },
-    });
 
     if (otpCode.length < 4) {
       throw new RpcException({
@@ -6646,6 +6582,7 @@ export class WalletServiceService {
       });
     }
 
+    // ✅ Vérifier l'OTP dans la base
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
         userId: user.id,
