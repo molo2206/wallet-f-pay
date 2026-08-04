@@ -2981,26 +2981,33 @@ export class WalletServiceService {
         }
 
         // 8. Mettre à jour les soldes
-        const updatedFrom = await tx.wallet.update({
-          where: { id: fromWallet.id },
-          data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
-        });
-
+        // ✅ NE PAS DÉBITER POUR INTERNATIONAL - seulement pour national
+        let updatedFrom: any = fromWallet;
         let updatedTo: any = null;
+
         if (!isInternational) {
+          // ✅ Transfert national: débiter immédiatement
+          updatedFrom = await tx.wallet.update({
+            where: { id: fromWallet.id },
+            data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
+          });
+
           updatedTo = await tx.wallet.update({
             where: { id: targetWallet.id },
             data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
           });
+          console.log('[WalletService] ✅ Transfert national - Expéditeur débité, destinataire crédité');
         } else {
+          // ✅ Transfert international: NE PAS TOUCHER À LA BALANCE
           updatedTo = targetWallet;
+          console.log('[WalletService] 🌍 Transfert international - Balance non modifiée, en attente de validation');
         }
 
-        // 9. COLLECTER LES FRAIS
+        // 9. COLLECTER LES FRAIS (UNIQUEMENT pour national)
         let systemTransaction: any = null;
         const feeAmount = fee || 0;
 
-        if (feeAmount > 0 && isInternational) {
+        if (feeAmount > 0 && !isInternational) {
           try {
             const systemUser = await tx.user.findFirst({
               where: { email: 'system@fpay.com' },
@@ -3065,7 +3072,7 @@ export class WalletServiceService {
         // 11. Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
 
-        // ✅ Transaction de l'expéditeur
+        // ✅ Transaction de l'expéditeur (toujours créée)
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -3099,6 +3106,7 @@ export class WalletServiceService {
         // ✅ Transaction du destinataire (UNIQUEMENT pour transfert national)
         let receiverTx: any = null;
         if (!isInternational) {
+          // ✅ Transfert national: créer la transaction destinataire
           receiverTx = await tx.transaction.create({
             data: {
               id: crypto.randomUUID(),
@@ -3114,8 +3122,10 @@ export class WalletServiceService {
               currency: targetCurrency,
             },
           });
+          console.log('[WalletService] ✅ Transfert national - Transaction destinataire créée');
         } else {
-          console.log('[WalletService] 🌍 Transfert international - Transaction expéditeur en PENDING, en attente de validation');
+          // ✅ Transfert international: NE PAS CRÉER LA TRANSACTION DESTINATAIRE
+          console.log('[WalletService] 🌍 Transfert international - Transaction destinataire NON créée, en attente de validation');
         }
 
         await this.logAudit(toUser.id, 'transfer', updatedTo, ipAddress || null);
@@ -7222,8 +7232,6 @@ export class WalletServiceService {
         }
 
         // 9. Mettre à jour les soldes
-        // ✅ NE PAS DÉBITER POUR INTERNATIONAL - seulement pour national
-        // ✅ Correction: typer avec any pour éviter l'erreur TypeScript
         let updatedFrom: any = fromWallet;
         let updatedTo: any = null;
 
@@ -7241,7 +7249,6 @@ export class WalletServiceService {
           console.log('[AdminSend] ✅ Transfert national - Expéditeur débité, destinataire crédité');
         } else {
           // ✅ Transfert international: NE PAS TOUCHER À LA BALANCE
-          // La balance sera débitée lors de la validation
           updatedTo = targetWallet;
           console.log('[AdminSend] 🌍 Transfert international - Balance non modifiée, en attente de validation');
         }
@@ -7250,7 +7257,6 @@ export class WalletServiceService {
         let systemTransaction: any = null;
         const feeAmount = fee || 0;
 
-        // ✅ Pour national, collecter les frais immédiatement
         if (feeAmount > 0 && !isInternational) {
           try {
             const systemUser = await tx.user.findFirst({
@@ -7316,7 +7322,7 @@ export class WalletServiceService {
         // 12. Créer les transactions
         const reference = await this.generateTransactionReference('', tx);
 
-        // ✅ Transaction de l'expéditeur
+        // ✅ Transaction de l'expéditeur (toujours créée)
         const senderTx = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -7348,9 +7354,10 @@ export class WalletServiceService {
           },
         });
 
-        // ✅ Transaction du destinataire
+        // ✅ Transaction du destinataire (UNIQUEMENT pour transfert national)
         let receiverTx: any = null;
         if (!isInternational) {
+          // ✅ Transfert national: créer la transaction destinataire
           receiverTx = await tx.transaction.create({
             data: {
               id: crypto.randomUUID(),
@@ -7366,24 +7373,11 @@ export class WalletServiceService {
               branchId: toUser.branchId ?? null,
             },
           });
+          console.log('[AdminSend] ✅ Transfert national - Transaction destinataire créée');
         } else {
-          // ✅ Transaction destinataire en PENDING pour international
-          receiverTx = await tx.transaction.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId: toUser.id,
-              walletId: targetWallet.id,
-              amount: convertedAmount,
-              type: 'DEPOSIT',
-              status: 'PENDING',
-              reference: reference,
-              currency: targetCurrency,
-              description: receiverDescription,
-              movement: 'CREDIT',
-              branchId: toUser.branchId ?? null,
-            },
-          });
-          console.log('[AdminSend] 🌍 Transfert international admin - Transaction expéditeur et destinataire en PENDING, en attente de validation');
+          // ✅ Transfert international: NE PAS CRÉER LA TRANSACTION DESTINATAIRE
+          // Elle sera créée lors de la validation
+          console.log('[AdminSend] 🌍 Transfert international - Transaction destinataire NON créée, en attente de validation');
         }
 
         await tx.audit_log.create({
