@@ -997,7 +997,6 @@ export class WalletServiceService {
     let availableCountries: any[] = [];
 
     if (adminId) {
-      // ✅ Seulement pour les admins
       availableBranches = await this.prisma.branch.findMany({
         where: {
           id: { in: allowedBranchIds },
@@ -1013,7 +1012,6 @@ export class WalletServiceService {
         orderBy: { name: 'asc' }
       });
 
-      // ✅ ALTERNATIVE : Utiliser findMany avec distinct
       let availableCountriesWhere: any = { deleted: false };
       if (branchFilter && branchFilter !== 'none') {
         availableCountriesWhere.branchId = branchFilter;
@@ -1022,7 +1020,6 @@ export class WalletServiceService {
         availableCountriesWhere.countryCode = countryCode.toUpperCase();
       }
 
-      // ✅ Récupérer les countryCode distincts
       const users = await this.prisma.user.findMany({
         where: availableCountriesWhere,
         select: {
@@ -1031,7 +1028,6 @@ export class WalletServiceService {
         distinct: ['countryCode'],
       });
 
-      // ✅ Compter les utilisateurs par pays
       availableCountries = await Promise.all(
         users
           .filter(u => u.countryCode)
@@ -1049,12 +1045,17 @@ export class WalletServiceService {
           })
       );
 
-      // Trier par nombre décroissant
       availableCountries.sort((a, b) => b.count - a.count);
     }
 
     const skip = (page - 1) * limit;
-    const where: any = { status: 'SUCCESS' };
+
+    // ✅ FILTRE: Exclure les transactions de caisse
+    const where: any = {
+      type: {
+        notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+      }
+    };
 
     // ✅ FILTRE PRIORITAIRE : userId (TOUJOURS appliqué)
     if (userId) {
@@ -1132,7 +1133,6 @@ export class WalletServiceService {
           let full_name: string | null = null;
           let phone: string | null = null;
 
-          // Extraire les informations des transactions
           if (tx.type === 'TRANSFER' && tx.movement === 'DEBIT') {
             const toMatch = tx.description?.match(/\[TO:([^\]]+)\]/);
             const receiverId = toMatch?.[1];
@@ -1203,7 +1203,6 @@ export class WalletServiceService {
       },
     };
 
-    // ✅ Ajouter les branches et pays UNIQUEMENT pour les admins
     if (adminId) {
       responseData.availableBranches = availableBranches;
       responseData.availableCountries = availableCountries;
@@ -1224,9 +1223,9 @@ export class WalletServiceService {
     startDate?: Date;
     endDate?: Date;
     search?: string;
-    adminId?: string;      // ✅ AJOUT
-    branchId?: string;     // ✅ AJOUT
-    countryCode?: string;  // ✅ AJOUT
+    adminId?: string;
+    branchId?: string;
+    countryCode?: string;
   }) {
     const {
       page = 1,
@@ -1243,18 +1242,22 @@ export class WalletServiceService {
     } = params;
 
     const skip = (page - 1) * limit;
-    const where: any = {};
+
+    // ✅ FILTRE: Exclure les transactions de caisse
+    const where: any = {
+      type: {
+        notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+      }
+    };
 
     // ✅ LOGIQUE DE FILTRAGE POUR ADMIN
     let branchFilter: string | null = null;
     let isAdminRequest = false;
 
-    // ✅ Si un branchId est fourni dans les filtres, il a priorité
     if (filterBranchId) {
       branchFilter = filterBranchId;
       isAdminRequest = true;
     }
-    // ✅ Gérer les permissions de l'admin UNIQUEMENT si adminId est fourni
     else if (adminId) {
       isAdminRequest = true;
       const admin = await this.prisma.user.findUnique({
@@ -1294,15 +1297,12 @@ export class WalletServiceService {
         }
 
         if (isSuperAdmin || hasManagePermission) {
-          // Super Admin ou avec permission manage -> voit tout
           branchFilter = null;
         }
         else if ((hasReadPermission || admin.branchId) && admin.branchId) {
-          // Admin avec permission read ou simple admin -> voit sa branche
           branchFilter = admin.branchId;
         }
         else {
-          // Admin sans branche -> ne voit rien
           branchFilter = 'none';
         }
       }
@@ -1311,10 +1311,7 @@ export class WalletServiceService {
     // ✅ APPLIQUER LES FILTRES
 
     // 1️⃣ Filtrer par utilisateur
-    // Si adminId est fourni et userId est différent, l'admin voit les transactions des autres
     if (userId) {
-      // Si c'est une requête admin et que userId est différent de adminId
-      // ou si c'est un utilisateur normal
       if (!isAdminRequest || userId !== adminId) {
         where.userId = userId;
       }
@@ -1325,7 +1322,6 @@ export class WalletServiceService {
       if (branchFilter && branchFilter !== 'none') {
         where.branchId = branchFilter;
       } else if (branchFilter === 'none') {
-        // Admin sans permission -> retour vide
         return {
           message: 'All transactions retrieved successfully',
           data: {
@@ -1345,10 +1341,12 @@ export class WalletServiceService {
       };
     }
 
-    // 4️⃣ Filtrer par type
-    if (type) where.type = type;
+    // 4️⃣ Filtrer par type (si explicitement demandé et différent des types de caisse)
+    if (type) {
+      where.type = type;
+    }
 
-    // 5️⃣ Filtrer par statut
+    // 5️⃣ Filtrer par statut (seulement si explicitement demandé)
     if (status) where.status = status;
 
     // 6️⃣ Filtrer par date
@@ -1432,7 +1430,13 @@ export class WalletServiceService {
     endDate?: Date,
     search?: string,
   ) {
-    const where: any = {};
+    // ✅ FILTRE: Exclure les transactions de caisse
+    const where: any = {
+      type: {
+        notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+      }
+    };
+
     if (userId) where.userId = userId;
     if (type) where.type = type;
     if (status) where.status = status;
@@ -1486,7 +1490,13 @@ export class WalletServiceService {
     endDate?: Date,
     search?: string,
   ) {
-    const where: any = {};
+    // ✅ FILTRE: Exclure les transactions de caisse
+    const where: any = {
+      type: {
+        notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+      }
+    };
+
     if (userId) where.userId = userId;
     if (type) where.type = type;
     if (status) where.status = status;
@@ -1510,6 +1520,7 @@ export class WalletServiceService {
         },
       ];
     }
+
     const transactions = await this.prisma.transaction.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -1519,6 +1530,7 @@ export class WalletServiceService {
         },
       },
     });
+
     const total = transactions.length;
     return {
       message: 'All transactions retrieved successfully',
@@ -6943,6 +6955,7 @@ export class WalletServiceService {
           });
         }
 
+        // ✅ Vérifier le solde MAIS NE PAS DÉBITER pour international
         if (fromWallet.balance < amount) {
           throw new RpcException({
             status: 'error',
@@ -7210,26 +7223,35 @@ export class WalletServiceService {
         }
 
         // 9. Mettre à jour les soldes
-        const updatedFrom = await tx.wallet.update({
-          where: { id: fromWallet.id },
-          data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
-        });
-
+        // ✅ NE PAS DÉBITER POUR INTERNATIONAL - seulement pour national
+        let updatedFrom = fromWallet;
         let updatedTo: any = null;
+
         if (!isInternational) {
+          // ✅ Transfert national: débiter immédiatement
+          updatedFrom = await tx.wallet.update({
+            where: { id: fromWallet.id },
+            data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
+          });
+
           updatedTo = await tx.wallet.update({
             where: { id: targetWallet.id },
             data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
           });
         } else {
+          // ✅ Transfert international: NE PAS TOUCHER À LA BALANCE
+          // La balance sera débitée lors de la validation
+          console.log('[AdminSend] 🌍 Transfert international - Balance non modifiée, en attente de validation');
           updatedTo = targetWallet;
         }
 
-        // 10. COLLECTER LES FRAIS
+        // 10. COLLECTER LES FRAIS (UNIQUEMENT pour national ou validation)
         let systemTransaction: any = null;
         const feeAmount = fee || 0;
 
-        if (feeAmount > 0 && isInternational) {
+        // ✅ Pour national, collecter les frais immédiatement
+        // Pour international, les frais seront collectés lors de la validation
+        if (feeAmount > 0 && !isInternational) {
           try {
             const systemUser = await tx.user.findFirst({
               where: { email: 'system@fpay.com' },
@@ -7261,7 +7283,7 @@ export class WalletServiceService {
                     type: 'DEPOSIT',
                     status: 'SUCCESS',
                     reference: feeReference,
-                    description: `Frais de transfert international (${internationalFeePercentage}%)`,
+                    description: `Frais de transfert (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id}`,
                     movement: 'CREDIT',
                     currency: feeCurrency,
                     paymentMethod: 'MOBILE_MONEY',
@@ -7326,7 +7348,7 @@ export class WalletServiceService {
           },
         });
 
-        // ✅ Transaction du destinataire (UNIQUEMENT pour transfert national)
+        // ✅ Transaction du destinataire
         let receiverTx: any = null;
         if (!isInternational) {
           receiverTx = await tx.transaction.create({
@@ -7345,7 +7367,23 @@ export class WalletServiceService {
             },
           });
         } else {
-          console.log('[AdminSend] 🌍 Transfert international admin - Transaction expéditeur en PENDING, en attente de validation');
+          // ✅ Transaction destinataire en PENDING pour international
+          receiverTx = await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: toUser.id,
+              walletId: targetWallet.id,
+              amount: convertedAmount,
+              type: 'DEPOSIT',
+              status: 'PENDING',
+              reference: reference,
+              currency: targetCurrency,
+              description: receiverDescription,
+              movement: 'CREDIT',
+              branchId: toUser.branchId ?? null,
+            },
+          });
+          console.log('[AdminSend] 🌍 Transfert international admin - Transaction expéditeur et destinataire en PENDING, en attente de validation');
         }
 
         await tx.audit_log.create({
