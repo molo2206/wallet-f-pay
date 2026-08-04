@@ -1215,21 +1215,143 @@ export class WalletServiceService {
     };
   }
 
-  async listAllTransactions(
-    page: number = 1,
-    limit: number = 10,
-    userId?: string,
-    type?: string,
-    status?: string,
-    startDate?: Date,
-    endDate?: Date,
-    search?: string,
-  ) {
+  async listAllTransactions(params: {
+    page?: number;
+    limit?: number;
+    userId?: string;
+    type?: string;
+    status?: string;
+    startDate?: Date;
+    endDate?: Date;
+    search?: string;
+    adminId?: string;      // ✅ AJOUT
+    branchId?: string;     // ✅ AJOUT
+    countryCode?: string;  // ✅ AJOUT
+  }) {
+    const {
+      page = 1,
+      limit = 10,
+      userId,
+      type,
+      status,
+      startDate,
+      endDate,
+      search,
+      adminId,
+      branchId: filterBranchId,
+      countryCode,
+    } = params;
+
     const skip = (page - 1) * limit;
     const where: any = {};
-    if (userId) where.userId = userId;
+
+    // ✅ LOGIQUE DE FILTRAGE POUR ADMIN
+    let branchFilter: string | null = null;
+    let isAdminRequest = false;
+
+    // ✅ Si un branchId est fourni dans les filtres, il a priorité
+    if (filterBranchId) {
+      branchFilter = filterBranchId;
+      isAdminRequest = true;
+    }
+    // ✅ Gérer les permissions de l'admin UNIQUEMENT si adminId est fourni
+    else if (adminId) {
+      isAdminRequest = true;
+      const admin = await this.prisma.user.findUnique({
+        where: { id: adminId },
+        select: {
+          id: true,
+          role: true,
+          branchId: true,
+          user_has_resources: {
+            where: {
+              resources: {
+                name: 'transactions'
+              }
+            },
+            select: {
+              canManage: true,
+              canRead: true,
+              branchId: true,
+            }
+          }
+        }
+      });
+
+      if (admin) {
+        const isSuperAdmin = admin.role === 'SUPER_ADMIN';
+        let hasManagePermission = false;
+        let hasReadPermission = false;
+
+        for (const resource of admin.user_has_resources || []) {
+          if (resource.canManage) {
+            hasManagePermission = true;
+            break;
+          }
+          if (resource.canRead) {
+            hasReadPermission = true;
+          }
+        }
+
+        if (isSuperAdmin || hasManagePermission) {
+          // Super Admin ou avec permission manage -> voit tout
+          branchFilter = null;
+        }
+        else if ((hasReadPermission || admin.branchId) && admin.branchId) {
+          // Admin avec permission read ou simple admin -> voit sa branche
+          branchFilter = admin.branchId;
+        }
+        else {
+          // Admin sans branche -> ne voit rien
+          branchFilter = 'none';
+        }
+      }
+    }
+
+    // ✅ APPLIQUER LES FILTRES
+
+    // 1️⃣ Filtrer par utilisateur
+    // Si adminId est fourni et userId est différent, l'admin voit les transactions des autres
+    if (userId) {
+      // Si c'est une requête admin et que userId est différent de adminId
+      // ou si c'est un utilisateur normal
+      if (!isAdminRequest || userId !== adminId) {
+        where.userId = userId;
+      }
+    }
+
+    // 2️⃣ Filtrer par branche (pour les admins)
+    if (isAdminRequest) {
+      if (branchFilter && branchFilter !== 'none') {
+        where.branchId = branchFilter;
+      } else if (branchFilter === 'none') {
+        // Admin sans permission -> retour vide
+        return {
+          message: 'All transactions retrieved successfully',
+          data: {
+            data: [],
+            total: 0,
+            page,
+            limit,
+          },
+        };
+      }
+    }
+
+    // 3️⃣ Filtrer par pays (pour les admins)
+    if (isAdminRequest && countryCode) {
+      where.user = {
+        countryCode: countryCode.toUpperCase()
+      };
+    }
+
+    // 4️⃣ Filtrer par type
     if (type) where.type = type;
+
+    // 5️⃣ Filtrer par statut
     if (status) where.status = status;
+
+    // 6️⃣ Filtrer par date
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = startDate;
@@ -1239,6 +1361,8 @@ export class WalletServiceService {
         where.createdAt.lte = endOfDay;
       }
     }
+
+    // 7️⃣ Recherche
     if (search && search.trim() !== '') {
       const searchTerm = search.trim();
       where.OR = [
@@ -1254,6 +1378,7 @@ export class WalletServiceService {
         },
       ];
     }
+
     const [transactions, total] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
@@ -1262,12 +1387,32 @@ export class WalletServiceService {
         take: limit,
         include: {
           user: {
-            select: { full_name: true, account_number: true, phone: true },
+            select: {
+              id: true,
+              full_name: true,
+              account_number: true,
+              phone: true,
+              branchId: true,
+            },
+          },
+          wallet: {
+            select: {
+              id: true,
+              currency: true,
+            },
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
           },
         },
       }),
       this.prisma.transaction.count({ where }),
     ]);
+
     return {
       message: 'All transactions retrieved successfully',
       data: {

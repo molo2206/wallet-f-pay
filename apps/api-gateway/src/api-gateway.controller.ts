@@ -1285,27 +1285,43 @@ export class ApiGatewayController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('search') search?: string,
+    @Query('branchId') branchId?: string,      // ✅ AJOUT
+    @Query('countryCode') countryCode?: string, // ✅ AJOUT
   ) {
+    // ✅ Vérification des droits
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
+
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
+
+    // ✅ Construction du payload avec tous les filtres
+    const payload: any = {
+      page: pageNum,
+      limit: limitNum,
+      adminId: currentUser.id, // ✅ AJOUT : L'ID de l'admin connecté
+    };
+
+    // ✅ Ajouter les filtres optionnels
+    if (userId) payload.userId = userId;
+    if (type) payload.type = type;
+    if (status) payload.status = status;
+    if (startDate) payload.startDate = startDate;
+    if (endDate) payload.endDate = endDate;
+    if (search) payload.search = search;
+    if (branchId) payload.branchId = branchId;      // ✅ AJOUT
+    if (countryCode) payload.countryCode = countryCode; // ✅ AJOUT
+
+    console.log('[API Gateway] getAllTransactions - Payload:', payload);
+
     const response = await this.sendWalletMessage<any>(
       'list_all_transactions',
-      {
-        page: pageNum,
-        limit: limitNum,
-        userId,
-        type,
-        status,
-        startDate,
-        endDate,
-        search,
-      },
+      payload,
       'Échec de la récupération des transactions',
       HttpStatus.BAD_REQUEST,
     );
+
     return response;
   }
 
@@ -2315,7 +2331,7 @@ export class ApiGatewayController {
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
-    
+
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException(
         'Accès interdit. Seul un administrateur peut effectuer des transferts de cash',

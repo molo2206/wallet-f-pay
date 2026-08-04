@@ -223,22 +223,30 @@ export class WalletServiceController {
       endDate?: string;
       search?: string;
       lang?: string;
+      adminId?: string;      // ✅ AJOUT
+      branchId?: string;     // ✅ AJOUT
+      countryCode?: string;  // ✅ AJOUT
     },
   ) {
     console.log('[WalletService] list_all_transactions received:', data);
     try {
       const startDate = data.startDate ? new Date(data.startDate) : undefined;
       const endDate = data.endDate ? new Date(data.endDate) : undefined;
-      return await this.walletService.listAllTransactions(
-        data.page,
-        data.limit,
-        data.userId,
-        data.type,
-        data.status,
-        startDate,
-        endDate,
-        data.search,
-      );
+
+      // ✅ Passer tous les paramètres
+      return await this.walletService.listAllTransactions({
+        page: data.page,
+        limit: data.limit,
+        userId: data.userId,
+        type: data.type,
+        status: data.status,
+        startDate: startDate,
+        endDate: endDate,
+        search: data.search,
+        adminId: data.adminId,        // ✅ AJOUT
+        branchId: data.branchId,      // ✅ AJOUT
+        countryCode: data.countryCode, // ✅ AJOUT
+      });
     } catch (error) {
       console.error('[WalletService] list_all_transactions error:', error);
       const lang = data.lang || 'fr';
@@ -249,7 +257,6 @@ export class WalletServiceController {
       });
     }
   }
-
   @MessagePattern('list_all_transactions_unpaginated')
   async listAllTransactionsUnpaginated(
     @Payload()
