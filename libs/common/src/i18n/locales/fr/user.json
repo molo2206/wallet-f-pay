@@ -71,5 +71,20 @@
   "kyc_verified_push": "Votre demande KYC a ete verifiee avec succes !",
   "kyc_rejected_push": "Votre demande KYC a ete rejetee. Raison: {{reason}}",
   "kyc_verified_push_title": "KYC Verifie",
-  "kyc_rejected_push_title": "KYC Rejete"
+  "kyc_rejected_push_title": "KYC Rejete",
+  "backup_create_success": "Backup créé avec succès",
+  "backup_create_failed": "Échec de la création du backup",
+  "backup_list_success": "Liste des backups récupérée avec succès",
+  "backup_list_failed": "Échec de la récupération de la liste des backups",
+  "backup_restore_success": "Base de données restaurée avec succès",
+  "backup_restore_failed": "Échec de la restauration du backup",
+  "backup_delete_success": "Backup supprimé avec succès",
+  "backup_delete_failed": "Échec de la suppression du backup",
+  "backup_download_success": "Backup téléchargé avec succès",
+  "backup_download_failed": "Échec du téléchargement du backup",
+  "backup_file_required": "Le nom du fichier est requis",
+  "backup_auto_success": "Backup automatique déclenché avec succès",
+  "backup_auto_failed": "Échec du déclenchement du backup automatique",
+  "backup_restore_upload_success": "Base de données restaurée depuis le fichier uploadé",
+  "backup_restore_upload_failed": "Échec de la restauration depuis le fichier uploadé"
 }

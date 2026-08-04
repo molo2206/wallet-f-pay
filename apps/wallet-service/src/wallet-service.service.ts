@@ -2074,9 +2074,9 @@ export class WalletServiceService {
     // ✅ Message avec info sur les dettes payées
     let successMessage = this.i18nService.translate('wallet.top_up_success', lang, {
       amount: netAmount.toFixed(2),
-      feeAmount: feeAmount.toFixed(2),
-      feePercent: fees.depositFee,
-      currency: wallet.currency,
+      currency: wallet.currency || 'CDF',
+      balance: updatedWallet.balance.toFixed(2),
+      reference: transaction.reference || 'N/A',
     });
 
     if (debtsPaid > 0) {
@@ -2091,7 +2091,6 @@ export class WalletServiceService {
       },
     };
   }
-
   async cashout(
     userId: string,
     dto: {
@@ -2529,8 +2528,9 @@ export class WalletServiceService {
     return {
       message: this.i18nService.translate('wallet.cashout_success', lang, {
         amount: amount.toFixed(2),
-        feePercent: fees.payoutFee,
-        currency: wallet.currency,
+        currency: wallet.currency || 'CDF',
+        balance: updatedWallet.balance.toFixed(2),
+        reference: transaction.reference || 'N/A',
       }),
       data: {
         wallet: this.toResponse(updatedWallet),
@@ -3583,90 +3583,99 @@ export class WalletServiceService {
     }, { timeout: 30000 });
 
     // ========== SMS ET NOTIFICATIONS ==========
-    try {
-      // ✅ 1. Envoyer les SMS (comme dans send)
-      if (result.fromUser.phone) {
-        try {
-          const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
-          const smsText = this.i18nService.translate('wallet.payment_payer_sms', lang, {
-            full_name: result.fromUser.full_name || '',
-            amount: amount,
-            currency: result.fromWallet.currency || 'CDF',
-            merchantName: result.toUser.full_name || '',
-            balance: result.fromWallet.balance || 0,
-          });
-          await this.smsService.sendSms(cleanPhone, smsText);
-          console.log('[Pay] ✅ SMS envoyé au payeur');
-        } catch (err) {
-          console.error('[Pay] Erreur envoi SMS au payeur:', err);
-        }
-      }
+    // try {
+    //   // ✅ 1. Envoyer les SMS (comme dans send)
+    //   if (result.fromUser.phone) {
+    //     try {
+    //       const cleanPhone = result.fromUser.phone.replace(/[^0-9+]/g, '');
+    //       const smsText = this.i18nService.translate('wallet.payment_payer_sms', lang, {
+    //         full_name: result.fromUser.full_name || '',
+    //         amount: amount,
+    //         currency: result.fromWallet.currency || 'CDF',
+    //         merchantName: result.toUser.full_name || '',
+    //         balance: result.fromWallet.balance || 0,
+    //       });
+    //       await this.smsService.sendSms(cleanPhone, smsText);
+    //       console.log('[Pay] ✅ SMS envoyé au payeur');
+    //     } catch (err) {
+    //       console.error('[Pay] Erreur envoi SMS au payeur:', err);
+    //     }
+    //   }
 
-      if (result.toUser.phone) {
-        try {
-          const cleanPhone = result.toUser.phone.replace(/[^0-9+]/g, '');
-          const smsText = this.i18nService.translate('wallet.payment_merchant_sms', lang, {
-            full_name: result.toUser.full_name || '',
-            amount: amount,
-            currency: result.merchantWallet.currency || 'CDF',
-            payerName: result.fromUser.full_name || '',
-            balance: result.merchantWallet.balance || 0,
-          });
-          await this.smsService.sendSms(cleanPhone, smsText);
-          console.log('[Pay] ✅ SMS envoyé au commerçant');
-        } catch (err) {
-          console.error('[Pay] Erreur envoi SMS au commerçant:', err);
-        }
-      }
+    //   if (result.toUser.phone) {
+    //     try {
+    //       const cleanPhone = result.toUser.phone.replace(/[^0-9+]/g, '');
+    //       const smsText = this.i18nService.translate('wallet.payment_merchant_sms', lang, {
+    //         full_name: result.toUser.full_name || '',
+    //         amount: amount,
+    //         currency: result.merchantWallet.currency || 'CDF',
+    //         payerName: result.fromUser.full_name || '',
+    //         balance: result.merchantWallet.balance || 0,
+    //       });
+    //       await this.smsService.sendSms(cleanPhone, smsText);
+    //       console.log('[Pay] ✅ SMS envoyé au commerçant');
+    //     } catch (err) {
+    //       console.error('[Pay] Erreur envoi SMS au commerçant:', err);
+    //     }
+    //   }
 
-      // ✅ 2. Envoyer les notifications push (comme dans send)
-      await Promise.all([
-        notifyTransaction(
-          this.smsService,
-          this.notificationHelper,
-          this.i18nService,
-          this.shouldSendSms.bind(this),
-          this.shouldSendPush.bind(this),
-          this.getUserLanguage.bind(this),
-          result.payerTx,
-          result.fromUser,
-          result.fromWallet,
-          'pay_sent',
-          {
-            name: result.toUser.full_name ?? undefined,
-            phone: result.toUser.phone ?? undefined,
-          },
-        ),
-        notifyTransaction(
-          this.smsService,
-          this.notificationHelper,
-          this.i18nService,
-          this.shouldSendSms.bind(this),
-          this.shouldSendPush.bind(this),
-          this.getUserLanguage.bind(this),
-          result.merchantTx,
-          result.toUser,
-          result.merchantWallet,
-          'pay_received',
-          {
-            name: result.fromUser.full_name ?? undefined,
-            phone: result.fromUser.phone ?? undefined,
-          },
-        ),
-      ]);
-      console.log('[Pay] ✅ Notifications push envoyées');
-    } catch (err) {
-      console.error('[Notifications] Pay notification error:', err);
-    }
+    //   // ✅ 2. Envoyer les notifications push (comme dans send)
+    //   await Promise.all([
+    //     notifyTransaction(
+    //       this.smsService,
+    //       this.notificationHelper,
+    //       this.i18nService,
+    //       this.shouldSendSms.bind(this),
+    //       this.shouldSendPush.bind(this),
+    //       this.getUserLanguage.bind(this),
+    //       result.payerTx,
+    //       result.fromUser,
+    //       result.fromWallet,
+    //       'pay_sent',
+    //       {
+    //         name: result.toUser.full_name ?? undefined,
+    //         phone: result.toUser.phone ?? undefined,
+    //       },
+    //     ),
+    //     notifyTransaction(
+    //       this.smsService,
+    //       this.notificationHelper,
+    //       this.i18nService,
+    //       this.shouldSendSms.bind(this),
+    //       this.shouldSendPush.bind(this),
+    //       this.getUserLanguage.bind(this),
+    //       result.merchantTx,
+    //       result.toUser,
+    //       result.merchantWallet,
+    //       'pay_received',
+    //       {
+    //         name: result.fromUser.full_name ?? undefined,
+    //         phone: result.fromUser.phone ?? undefined,
+    //       },
+    //     ),
+    //   ]);
+    //   console.log('[Pay] ✅ Notifications push envoyées');
+    // } catch (err) {
+    //   console.error('[Notifications] Pay notification error:', err);
+    // }
 
     return {
-      message: this.i18nService.translate('wallet.payment_success', lang),
+      message: this.i18nService.translate('wallet.payment_success', lang, {
+        amount: amount.toFixed(2),
+        currency: result.fromWallet.currency || 'CDF',
+        merchantName: result.toUser.full_name || 'Commerçant',
+        balance: result.fromWallet.balance.toFixed(2),
+        reference: result.payerTx.reference || 'N/A',
+        fee: fee.toFixed(2),
+        creditAmount: creditAmount.toFixed(2),
+      }),
       data: {
         wallet: this.toResponse(result.fromWallet),
         transaction: result.payerTx,
       },
     };
   }
+
 
   private async getExchangeRateViaPivot(
     fromCurrency: string,

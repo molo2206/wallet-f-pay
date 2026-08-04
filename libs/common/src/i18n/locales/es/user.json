@@ -1,7 +1,7 @@
 {
   "email_already_exists": "El correo electrónico ya existe",
   "phone_already_exists": "El número de teléfono ya existe",
-  "user_already_exists_with_phone_and_role": "Ya existe un usuario con rol {role} con este número de teléfono.",
+  "user_already_exists_with_phone_and_role": "Ya existe un usuario con rol {{role}} con este número de teléfono.",
   "account_not_found": "Cuenta bancaria {{account}} no encontrada",
   "name_mismatch": "El nombre completo debe coincidir con la cuenta",
   "phone_mismatch": "El número de teléfono debe coincidir con la cuenta",
@@ -71,5 +71,20 @@
   "kyc_verified_push": "¡Su solicitud KYC ha sido verificada con éxito!",
   "kyc_rejected_push": "Su solicitud KYC ha sido rechazada. Razón: {{reason}}",
   "kyc_verified_push_title": "KYC Verificado",
-  "kyc_rejected_push_title": "KYC Rechazado"
+  "kyc_rejected_push_title": "KYC Rechazado",
+  "backup_create_success": "Copia de seguridad creada con éxito",
+  "backup_create_failed": "Error al crear la copia de seguridad",
+  "backup_list_success": "Lista de copias de seguridad recuperada con éxito",
+  "backup_list_failed": "Error al recuperar la lista de copias de seguridad",
+  "backup_restore_success": "Base de datos restaurada con éxito",
+  "backup_restore_failed": "Error al restaurar la copia de seguridad",
+  "backup_delete_success": "Copia de seguridad eliminada con éxito",
+  "backup_delete_failed": "Error al eliminar la copia de seguridad",
+  "backup_download_success": "Copia de seguridad descargada con éxito",
+  "backup_download_failed": "Error al descargar la copia de seguridad",
+  "backup_file_required": "El nombre del archivo es requerido",
+  "backup_auto_success": "Copia de seguridad automática activada con éxito",
+  "backup_auto_failed": "Error al activar la copia de seguridad automática",
+  "backup_restore_upload_success": "Base de datos restaurada desde el archivo subido",
+  "backup_restore_upload_failed": "Error al restaurar desde el archivo subido"
 }

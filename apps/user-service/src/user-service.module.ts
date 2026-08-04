@@ -1,6 +1,7 @@
 // apps/user-service/src/user-service.module.ts
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { ConfigModule, ConfigService } from '@nestjs/config'; // ✅ AJOUTER ConfigService
 import { UserServiceController } from './user-service.controller';
 import { UserServiceService } from './user-service.service';
 import { PrismaService } from './prisma/prisma.service';
@@ -8,9 +9,14 @@ import { SmsService } from 'apps/auth-service/src/sms/sms.service';
 import { MailModule } from 'apps/auth-service/src/email/email.module';
 import { I18nModule } from '../../../libs/common/src/i18n/i18n.module';
 import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
+import { BackupService } from './backup/backup.service';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
     MailModule,
     I18nModule,
     ClientsModule.register([
@@ -33,7 +39,9 @@ import { NotificationHelper } from 'apps/notification-service/src/helpers/Notifi
     PrismaService,
     SmsService,
     NotificationHelper,
+    BackupService,
+    ConfigService, // ✅ AJOUTER ConfigService dans les providers
   ],
   exports: [UserServiceService, PrismaService],
 })
-export class UserServiceModule {}
+export class UserServiceModule { }

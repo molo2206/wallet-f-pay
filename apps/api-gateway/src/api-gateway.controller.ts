@@ -4379,13 +4379,8 @@ export class ApiGatewayController {
     );
   }
 
-  // apps/api-gateway/src/api-gateway.controller.ts
-
   // ==================== VALIDATION TRANSFERT INTERNATIONAL ====================
 
-  /**
-   * Valide un transfert international en attente (Admin uniquement)
-   */
   @Post('admin/wallet/validate-transfer')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async validateInternationalTransfer(
@@ -4455,6 +4450,232 @@ export class ApiGatewayController {
       this.i18nService.translate('wallet.transfer_validation_failed', lang),
       HttpStatus.BAD_REQUEST,
       120000,
+    );
+  }
+
+  // ================================================================
+  // BACKUP MANAGEMENT (ADMIN ONLY)
+  // ================================================================
+
+  // ✅ Modifier les endpoints backup pour utiliser sendUserMessage
+  @Post('admin/backup/create')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async createBackup(
+    @CurrentUser() currentUser: any,
+    @Body() body: { compressed?: boolean },
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+    console.log('[API Gateway] createBackup:', { adminId: currentUser.id, compressed: body?.compressed || false });
+
+    // ✅ Utiliser sendUserMessage au lieu de sendWalletMessage
+    return this.sendUserMessage(
+      'backup_create',
+      { compressed: body?.compressed || false },
+      this.i18nService.translate('user.backup_create_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      300000,
+    );
+  }
+
+  @Get('admin/backup/list')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getBackupsList(
+    @CurrentUser() currentUser: any,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+    console.log('[API Gateway] getBackupsList:', { adminId: currentUser.id });
+
+    // ✅ Utiliser sendUserMessage
+    return this.sendUserMessage(
+      'backup_list',
+      {},
+      this.i18nService.translate('user.backup_list_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Post('admin/backup/restore/:fileName')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async restoreBackup(
+    @CurrentUser() currentUser: any,
+    @Param('fileName') fileName: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+
+    if (!fileName) {
+      throw new HttpException(
+        this.i18nService.translate('user.backup_file_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] restoreBackup:', { adminId: currentUser.id, fileName });
+
+    // ✅ Utiliser sendUserMessage
+    return this.sendUserMessage(
+      'backup_restore',
+      { fileName },
+      this.i18nService.translate('user.backup_restore_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      300000,
+    );
+  }
+
+  @Delete('admin/backup/:fileName')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async deleteBackup(
+    @CurrentUser() currentUser: any,
+    @Param('fileName') fileName: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+
+    if (!fileName) {
+      throw new HttpException(
+        this.i18nService.translate('user.backup_file_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] deleteBackup:', { adminId: currentUser.id, fileName });
+
+    // ✅ Utiliser sendUserMessage
+    return this.sendUserMessage(
+      'backup_delete',
+      { fileName },
+      this.i18nService.translate('user.backup_delete_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Get('admin/backup/download/:fileName')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async downloadBackup(
+    @CurrentUser() currentUser: any,
+    @Param('fileName') fileName: string,
+    @Res() res: Response,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+
+    if (!fileName) {
+      throw new HttpException(
+        this.i18nService.translate('user.backup_file_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] downloadBackup:', { adminId: currentUser.id, fileName });
+
+    try {
+      // ✅ Utiliser sendUserMessage
+      const result = await this.sendUserMessage<{ filePath: string; fileName: string }>(
+        'backup_download',
+        { fileName },
+        this.i18nService.translate('user.backup_download_failed', lang),
+        HttpStatus.BAD_REQUEST,
+        300000,
+      );
+
+      const filePath = result.filePath;
+      const fileName2 = result.fileName;
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName2}"`);
+
+      const fs = require('fs');
+      const stream = fs.createReadStream(filePath);
+      stream.pipe(res);
+
+    } catch (error) {
+      console.error('[API Gateway] downloadBackup error:', error);
+      throw new HttpException(
+        error.message || this.i18nService.translate('user.backup_download_failed', lang),
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('admin/backup/restore-upload')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async restoreFromUpload(
+    @CurrentUser() currentUser: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+
+    if (!file) {
+      throw new HttpException(
+        this.i18nService.translate('user.backup_file_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] restoreFromUpload:', {
+      adminId: currentUser.id,
+      fileName: file.originalname,
+      fileSize: file.size
+    });
+
+    // ✅ Utiliser sendUserMessage
+    return this.sendUserMessage(
+      'backup_restore_upload',
+      { file },
+      this.i18nService.translate('user.backup_restore_upload_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      300000,
+    );
+  }
+
+  @Post('admin/backup/auto')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async triggerAutoBackup(
+    @CurrentUser() currentUser: any,
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
+    const lang = langHeader || 'fr';
+    console.log('[API Gateway] triggerAutoBackup:', { adminId: currentUser.id });
+
+    // ✅ Utiliser sendUserMessage
+    return this.sendUserMessage(
+      'backup_auto',
+      {},
+      this.i18nService.translate('user.backup_auto_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      300000,
     );
   }
   //=====================================================================================================================

@@ -20,10 +20,13 @@ import { CreateResourceDto } from './resources/dto/create-resource.dto';
 import { UpsertAppSettingsDto } from './dto/app-settings.dto';
 // ✅ AJOUTER LES IMPORTS DES BRANCHES
 import { CreateBranchDto, UpdateBranchDto, GetBranchesDto } from './dto/branch.dto';
+import { BackupService } from './backup/backup.service';
 
 @Controller()
 export class UserServiceController {
-  constructor(private readonly userService: UserServiceService) { }
+  constructor(private readonly userService: UserServiceService,
+    private readonly backupService: BackupService
+  ) { }
 
   // ==================== COMMANDES AVEC TRADUCTION ====================
 
@@ -817,6 +820,120 @@ export class UserServiceController {
     try {
       return await this.userService.getBranchesByCountry(data.countryCode);
     } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  // apps/wallet-service/src/wallet-service.controller.ts
+
+  // ================================================================
+  // BACKUP MANAGEMENT
+  // ================================================================
+
+  @MessagePattern('backup_create')
+  async createBackup(@Payload() data: { compressed?: boolean }) {
+    console.log('[WalletService] backup_create received:', data);
+    try {
+      if (data?.compressed) {
+        return await this.backupService.createCompressedBackup();
+      }
+      return await this.backupService.createBackup();
+    } catch (error) {
+      console.error('[WalletService] backup_create error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_list')
+  async getBackupsList() {
+    console.log('[WalletService] backup_list received');
+    try {
+      return await this.backupService.getBackupsList();
+    } catch (error) {
+      console.error('[WalletService] backup_list error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_restore')
+  async restoreBackup(@Payload() data: { fileName: string }) {
+    console.log('[WalletService] backup_restore received:', data.fileName);
+    try {
+      return await this.backupService.restoreBackup(data.fileName);
+    } catch (error) {
+      console.error('[WalletService] backup_restore error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_delete')
+  async deleteBackup(@Payload() data: { fileName: string }) {
+    console.log('[WalletService] backup_delete received:', data.fileName);
+    try {
+      return await this.backupService.deleteBackup(data.fileName);
+    } catch (error) {
+      console.error('[WalletService] backup_delete error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_download')
+  async downloadBackup(@Payload() data: { fileName: string }) {
+    console.log('[WalletService] backup_download received:', data.fileName);
+    try {
+      return await this.backupService.downloadBackup(data.fileName);
+    } catch (error) {
+      console.error('[WalletService] backup_download error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_restore_upload')
+  async restoreFromUpload(@Payload() data: { file: Express.Multer.File }) {
+    console.log('[WalletService] backup_restore_upload received');
+    try {
+      return await this.backupService.restoreFromUpload(data.file);
+    } catch (error) {
+      console.error('[WalletService] backup_restore_upload error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_auto')
+  async triggerAutoBackup() {
+    console.log('[WalletService] backup_auto received');
+    try {
+      return await this.backupService.autoBackup();
+    } catch (error) {
+      console.error('[WalletService] backup_auto error:', error);
       throw new RpcException({
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown error',

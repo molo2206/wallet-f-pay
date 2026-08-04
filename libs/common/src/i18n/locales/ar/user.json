@@ -71,5 +71,20 @@
   "kyc_verified_push": "تم التحقق من طلب KYC الخاص بك بنجاح!",
   "kyc_rejected_push": "تم رفض طلب KYC الخاص بك. السبب: {{reason}}",
   "kyc_verified_push_title": "تم التحقق من KYC",
-  "kyc_rejected_push_title": "تم رفض KYC"
+  "kyc_rejected_push_title": "تم رفض KYC",
+  "backup_create_success": "تم إنشاء النسخة الاحتياطية بنجاح",
+  "backup_create_failed": "فشل إنشاء النسخة الاحتياطية",
+  "backup_list_success": "تم استرجاع قائمة النسخ الاحتياطية بنجاح",
+  "backup_list_failed": "فشل استرجاع قائمة النسخ الاحتياطية",
+  "backup_restore_success": "تم استعادة قاعدة البيانات بنجاح",
+  "backup_restore_failed": "فشل استعادة النسخة الاحتياطية",
+  "backup_delete_success": "تم حذف النسخة الاحتياطية بنجاح",
+  "backup_delete_failed": "فشل حذف النسخة الاحتياطية",
+  "backup_download_success": "تم تحميل النسخة الاحتياطية بنجاح",
+  "backup_download_failed": "فشل تحميل النسخة الاحتياطية",
+  "backup_file_required": "اسم الملف مطلوب",
+  "backup_auto_success": "تم تشغيل النسخة الاحتياطية التلقائية بنجاح",
+  "backup_auto_failed": "فشل تشغيل النسخة الاحتياطية التلقائية",
+  "backup_restore_upload_success": "تم استعادة قاعدة البيانات من الملف المرفوع بنجاح",
+  "backup_restore_upload_failed": "فشل استعادة قاعدة البيانات من الملف المرفوع"
 }
