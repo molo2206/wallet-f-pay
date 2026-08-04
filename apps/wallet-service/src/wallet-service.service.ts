@@ -6351,15 +6351,6 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Vérifier que le PIN est fourni
-    if (!pin || pin.trim() === '') {
-      throw new RpcException({
-        status: 'error',
-        message: 'Le PIN de l\'admin est requis.',
-        statusCode: 400,
-      });
-    }
-
     // ✅ Vérifier que l'admin existe
     const admin = await this.prisma.user.findFirst({
       where: { id: adminId },
@@ -6395,36 +6386,6 @@ export class WalletServiceService {
         statusCode: 400,
       });
     }
-
-    // ✅ Vérifier le PIN de l'admin (pin est déjà vérifié plus haut)
-    const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
-    if (admin.pin !== hashedPin) {
-      const newAttempts = (admin.failed_pin_attempts || 0) + 1;
-      let newStatus = admin.status;
-      let lockedUntil: Date | null = null;
-      if (newAttempts >= 5) {
-        newStatus = user_status.BLOCKED;
-        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-      }
-      await this.prisma.user.update({
-        where: { id: admin.id },
-        data: {
-          failed_pin_attempts: newAttempts,
-          status: newStatus,
-          pin_locked_until: lockedUntil
-        },
-      });
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.pin_incorrect', lang),
-        statusCode: 401,
-      });
-    }
-
-    await this.prisma.user.update({
-      where: { id: admin.id },
-      data: { failed_pin_attempts: 0, pin_locked_until: null },
-    });
 
     // ✅ Vérifier que le wallet existe et a assez de solde
     const wallet = await this.prisma.wallet.findFirst({
@@ -6490,7 +6451,16 @@ export class WalletServiceService {
 
     // ========== ÉTAPE 1 : Demande de retrait (sans OTP) ==========
     if (!otpCode || otpCode.trim() === '') {
-      // ✅ Générer l'OTP
+      if (!admin.pin) {
+        throw new RpcException({
+          status: 'error',
+          message: 'L\'admin n\'a pas de PIN défini.',
+          statusCode: 400,
+        });
+      }
+
+      const reference = await this.generateTransactionReference();
+
       const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
       const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -6514,7 +6484,31 @@ export class WalletServiceService {
         },
       });
 
-      // ✅ Envoyer l'OTP par SMS
+      // ✅ Créer la transaction en attente
+      const pendingTransaction = await this.prisma.transaction.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: user.id,
+          walletId: wallet.id,
+          amount,
+          type: 'WITHDRAW',
+          status: 'PENDING',
+          reference: reference,
+          description: `Retrait admin (en attente de OTP client) - ${isSuperAdmin ? 'Super Admin' : 'Agence ' + admin.branchId}`,
+          movement: 'DEBIT',
+          currency: wallet.currency,
+          paymentMethod: this.mapPaymentMethod(paymentMethod),
+          branchId: branchId || admin.branchId,
+          external_reference: JSON.stringify({
+            otpCode: newOtpCode,
+            expiresAt: otpExpiry,
+            adminId: adminId,
+            attempts: 0,
+            isSuperAdmin,
+          }),
+        },
+      });
+
       try {
         const cleanPhone = user.phone?.replace(/[^0-9+]/g, '');
         if (cleanPhone) {
@@ -6538,6 +6532,7 @@ export class WalletServiceService {
         {
           walletId,
           amount,
+          transactionId: pendingTransaction.id,
           userId: user.id,
           branchId: branchId || admin.branchId,
           isSuperAdmin,
@@ -6545,10 +6540,10 @@ export class WalletServiceService {
         ipAddress || null,
       );
 
-      // ✅ Retourner SANS transaction (juste l'OTP)
       return {
         message: this.i18nService.translate('wallet.cashout_otp_sent_client', lang),
         data: {
+          transactionId: pendingTransaction.id,
           requiresOtp: true,
           message: 'Un code OTP a été envoyé par SMS au client. Veuillez le saisir pour confirmer le retrait.',
         },
@@ -6556,15 +6551,69 @@ export class WalletServiceService {
     }
 
     // ========== ÉTAPE 2 : Confirmation avec OTP + PIN ADMIN ==========
-
-    // ✅ Vérifier l'OTP
-    if (!otpCode || otpCode.trim() === '') {
+    if (!pin || pin.trim() === '') {
       throw new RpcException({
         status: 'error',
-        message: 'Le code OTP est requis pour valider la transaction.',
+        message: 'Le PIN de l\'admin est requis pour valider la transaction.',
         statusCode: 400,
       });
     }
+
+    if (pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!/^\d+$/.test(pin)) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_digits_only', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
+      const minutesLeft = Math.ceil(
+        (admin.pin_locked_until.getTime() - Date.now()) / 60000,
+      );
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+        statusCode: 404,
+      });
+    }
+
+    const hashedAdminPin = crypto.createHash('sha256').update(pin).digest('hex');
+    if (admin.pin !== hashedAdminPin) {
+      const newAttempts = (admin.failed_pin_attempts || 0) + 1;
+      let newStatus = admin.status;
+      let lockedUntil: Date | null = null;
+      if (newAttempts >= 5) {
+        newStatus = user_status.BLOCKED;
+        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+      }
+      await this.prisma.user.update({
+        where: { id: admin.id },
+        data: {
+          failed_pin_attempts: newAttempts,
+          status: newStatus,
+          pin_locked_until: lockedUntil
+        },
+      });
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_incorrect', lang),
+        statusCode: 404,
+      });
+    }
+
+    await this.prisma.user.update({
+      where: { id: admin.id },
+      data: { failed_pin_attempts: 0, pin_locked_until: null },
+    });
 
     if (otpCode.length < 4) {
       throw new RpcException({
@@ -6582,7 +6631,6 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Vérifier l'OTP dans la base
     const otpRecord = await this.prisma.otp.findFirst({
       where: {
         userId: user.id,
@@ -6607,62 +6655,105 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ VÉRIFIER QUE LE WALLET A ENCORE LE SOLDE
-    const currentWallet = await this.prisma.wallet.findFirst({
-      where: { id: walletId, isActive: true },
-      include: { user: true }
+    const pendingTx = await this.prisma.transaction.findFirst({
+      where: {
+        userId: user.id,
+        walletId: wallet.id,
+        amount: amount,
+        type: 'WITHDRAW',
+        status: 'PENDING',
+      },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!currentWallet) {
+    if (!pendingTx) {
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.wallet_not_found', lang),
+        message: 'Aucune transaction en attente trouvée. Veuillez faire une nouvelle demande.',
         statusCode: 404,
       });
     }
 
-    if (currentWallet.balance < amount) {
+    let otpExpiryData: Date | null = null;
+    if (pendingTx.external_reference) {
+      try {
+        const data = JSON.parse(pendingTx.external_reference);
+        otpExpiryData = data.expiresAt ? new Date(data.expiresAt) : null;
+      } catch (e) {
+        console.error('Erreur parsing external_reference:', e);
+      }
+    }
+
+    if (otpExpiryData && new Date() > otpExpiryData) {
+      await this.prisma.transaction.update({
+        where: { id: pendingTx.id },
+        data: {
+          status: 'CANCELLED',
+          description: 'Retrait annulé - OTP expiré'
+        },
+      });
+      await this.prisma.otp.update({
+        where: { id: otpRecord.id },
+        data: { isUsed: true },
+      });
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        message: 'L\'OTP a expiré. Veuillez refaire la demande.',
         statusCode: 400,
       });
     }
 
-    // ✅ VÉRIFIER LA CAISSE À NOUVEAU
-    let branchCashWallet: any = null;
-    let cashBranchId: string | null = null;
-
-    if (isSuperAdmin) {
-      if (currentWallet.branchId) {
-        try {
-          branchCashWallet = await this.getBranchCashWallet(currentWallet.branchId, currentWallet.currency);
-          cashBranchId = currentWallet.branchId;
-        } catch (error) {
-          console.log('[SuperAdmin] Pas de caisse trouvée pour la branche du client:', currentWallet.branchId);
-        }
-      }
-    } else {
-      if (admin.branchId) {
-        branchCashWallet = await this.getBranchCashWallet(admin.branchId, currentWallet.currency);
-        cashBranchId = admin.branchId;
-      }
-    }
-
-    if (branchCashWallet && branchCashWallet.balance < amount) {
-      throw new RpcException({
-        status: 'error',
-        message: `Solde de caisse insuffisant. Disponible: ${branchCashWallet.balance} ${currentWallet.currency}`,
-        statusCode: 400,
-      });
-    }
-
-    // ✅ TOUTES LES VÉRIFICATIONS SONT PASSÉES - CRÉER LA TRANSACTION MAINTENANT
-    const reference = await this.generateTransactionReference();
-
-    // ✅ Exécuter la transaction complète
     const result = await this.prisma.$transaction(
       async (tx) => {
+        const currentWallet = await tx.wallet.findFirst({
+          where: { id: walletId, isActive: true },
+          include: { user: true }
+        });
+
+        if (!currentWallet) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.wallet_not_found', lang),
+            statusCode: 404,
+          });
+        }
+
+        if (currentWallet.balance < amount) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+            statusCode: 400,
+          });
+        }
+
+        // ✅ RÉCUPÉRER LA CAISSE
+        let branchCashWallet: any = null;
+        let cashBranchId: string | null = null;
+
+        if (isSuperAdmin) {
+          if (currentWallet.branchId) {
+            try {
+              branchCashWallet = await this.getBranchCashWallet(currentWallet.branchId, currentWallet.currency);
+              cashBranchId = currentWallet.branchId;
+            } catch (error) {
+              console.log('[SuperAdmin] Pas de caisse trouvée pour la branche du client:', currentWallet.branchId);
+            }
+          }
+        } else {
+          if (admin.branchId) {
+            branchCashWallet = await this.getBranchCashWallet(admin.branchId, currentWallet.currency);
+            cashBranchId = admin.branchId;
+          }
+        }
+
+        if (branchCashWallet && branchCashWallet.balance < amount) {
+          throw new RpcException({
+            status: 'error',
+            message: `Solde de caisse insuffisant. Disponible: ${branchCashWallet.balance} ${currentWallet.currency}`,
+            statusCode: 400,
+          });
+        }
+
         // 1️⃣ DÉBITER LE WALLET DU CLIENT
         const updatedWallet = await tx.wallet.update({
           where: { id: currentWallet.id },
@@ -6677,27 +6768,14 @@ export class WalletServiceService {
           });
         }
 
-        // 3️⃣ CRÉER LA TRANSACTION DU CLIENT (SUCCESS directement)
-        const transaction = await tx.transaction.create({
+        // 3️⃣ METTRE À JOUR LA TRANSACTION DU CLIENT
+        const transaction = await tx.transaction.update({
+          where: { id: pendingTx.id },
           data: {
-            id: crypto.randomUUID(),
-            userId: user.id,
-            walletId: wallet.id,
-            amount,
-            type: 'WITHDRAW',
             status: 'SUCCESS',
-            reference: reference,
             description: `Retrait admin confirmé par le client (OTP) et admin (PIN) - ${isSuperAdmin ? 'Super Admin' : 'Agence ' + admin.branchId}`,
-            movement: 'DEBIT',
-            currency: wallet.currency,
-            paymentMethod: this.mapPaymentMethod(paymentMethod),
+            updatedAt: new Date(),
             branchId: cashBranchId || admin.branchId,
-            external_reference: JSON.stringify({
-              adminId: adminId,
-              otpCode: otpCode,
-              isSuperAdmin,
-              validatedAt: new Date().toISOString(),
-            }),
           },
         });
 
@@ -6723,13 +6801,11 @@ export class WalletServiceService {
           });
         }
 
-        // 5️⃣ MARQUER L'OTP COMME UTILISÉ
         await tx.otp.update({
           where: { id: otpRecord.id },
           data: { isUsed: true },
         });
 
-        // 6️⃣ AUDIT LOG
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
@@ -6758,24 +6834,6 @@ export class WalletServiceService {
         maxWait: 30000,
       }
     );
-
-    // ========== SMS DE CONFIRMATION ==========
-    if (result.user.phone) {
-      try {
-        const cleanPhone = result.user.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
-          full_name: result.user.full_name || '',
-          amount: amount,
-          currency: result.wallet.currency || 'CDF',
-          balance: result.wallet.balance || 0,
-          reference: result.transaction.reference || 'N/A',
-        });
-        await this.smsService.sendSms(cleanPhone, smsText);
-        console.log(`[AdminCashout] SMS confirmation envoyé au client ${cleanPhone}`);
-      } catch (err) {
-        console.error('[AdminCashout] Erreur envoi SMS:', err);
-      }
-    }
 
     // ========== NOTIFICATION PUSH ==========
     try {
