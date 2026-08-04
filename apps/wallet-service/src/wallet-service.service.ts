@@ -6955,7 +6955,6 @@ export class WalletServiceService {
           });
         }
 
-        // ✅ Vérifier le solde MAIS NE PAS DÉBITER pour international
         if (fromWallet.balance < amount) {
           throw new RpcException({
             status: 'error',
@@ -7224,7 +7223,8 @@ export class WalletServiceService {
 
         // 9. Mettre à jour les soldes
         // ✅ NE PAS DÉBITER POUR INTERNATIONAL - seulement pour national
-        let updatedFrom = fromWallet;
+        // ✅ Correction: typer avec any pour éviter l'erreur TypeScript
+        let updatedFrom: any = fromWallet;
         let updatedTo: any = null;
 
         if (!isInternational) {
@@ -7238,19 +7238,19 @@ export class WalletServiceService {
             where: { id: targetWallet.id },
             data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
           });
+          console.log('[AdminSend] ✅ Transfert national - Expéditeur débité, destinataire crédité');
         } else {
           // ✅ Transfert international: NE PAS TOUCHER À LA BALANCE
           // La balance sera débitée lors de la validation
-          console.log('[AdminSend] 🌍 Transfert international - Balance non modifiée, en attente de validation');
           updatedTo = targetWallet;
+          console.log('[AdminSend] 🌍 Transfert international - Balance non modifiée, en attente de validation');
         }
 
-        // 10. COLLECTER LES FRAIS (UNIQUEMENT pour national ou validation)
+        // 10. COLLECTER LES FRAIS (UNIQUEMENT pour national)
         let systemTransaction: any = null;
         const feeAmount = fee || 0;
 
         // ✅ Pour national, collecter les frais immédiatement
-        // Pour international, les frais seront collectés lors de la validation
         if (feeAmount > 0 && !isInternational) {
           try {
             const systemUser = await tx.user.findFirst({
