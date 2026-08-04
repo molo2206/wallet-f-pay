@@ -4393,6 +4393,7 @@ export class ApiGatewayController {
     @Body() body: {
       transactionId: string;
       pin: string;
+      status: 'SUCCESS' | 'FAILED' | 'CANCELLED'; // ✅ AJOUT
     },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
@@ -4426,9 +4427,18 @@ export class ApiGatewayController {
       );
     }
 
+    // ✅ Vérifier que le status est valide
+    if (!body.status || !['SUCCESS', 'FAILED', 'CANCELLED'].includes(body.status)) {
+      throw new HttpException(
+        'Le statut doit être SUCCESS, FAILED ou CANCELLED',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     console.log('[API Gateway] validate_international_transfer:', {
       transactionId: body.transactionId,
       adminId: currentUser.id,
+      status: body.status,
       lang,
     });
 
@@ -4438,6 +4448,7 @@ export class ApiGatewayController {
         transactionId: body.transactionId,
         adminId: currentUser.id,
         adminPin: body.pin,
+        status: body.status, // ✅ PASSER LE STATUS
         lang,
         ipAddress,
       },

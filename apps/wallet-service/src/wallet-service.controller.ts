@@ -814,6 +814,7 @@ export class WalletServiceController {
       transactionId: string;
       adminId: string;
       adminPin: string;
+      status: 'SUCCESS' | 'FAILED' | 'CANCELLED'; // ✅ AJOUT
       lang?: string;
       ipAddress?: string;
     },
@@ -821,6 +822,7 @@ export class WalletServiceController {
     console.log('[WalletService] validate_international_transfer received:', {
       transactionId: data.transactionId,
       adminId: data.adminId,
+      status: data.status,
       lang: data.lang,
     });
 
@@ -829,6 +831,7 @@ export class WalletServiceController {
         data.transactionId,
         data.adminId,
         data.adminPin,
+        data.status, // ✅ PASSER LE STATUS
         data.lang || 'fr',
         data.ipAddress,
       );
