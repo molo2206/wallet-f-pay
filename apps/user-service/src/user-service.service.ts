@@ -2065,7 +2065,7 @@ export class UserServiceService {
         orderBy: { name: 'asc' }
       });
 
-      // 5️⃣ Construction du filtre des utilisateurs - PAS DE FILTRE BRANCH
+      // 5️⃣ Construction du filtre des utilisateurs
       const userWhere: any = { deleted: false };
 
       if (filters?.countryCode) {
@@ -2107,8 +2107,14 @@ export class UserServiceService {
         dateFilter.lte = endDate;
       }
 
-      // 7️⃣ Construction du filtre des transactions - AVEC FILTRE BRANCH
-      const transactionWhere: any = {};
+      // 7️⃣ Construction du filtre des transactions - AVEC FILTRE BRANCH ET EXCLUSION CASH
+      const transactionWhere: any = {
+        // ✅ EXCLURE LES TRANSACTIONS DE CAISSE
+        type: {
+          notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+        }
+      };
+
       if (Object.keys(dateFilter).length > 0) {
         transactionWhere.createdAt = dateFilter;
       }
@@ -2202,12 +2208,18 @@ export class UserServiceService {
       });
 
       // ========== 4. CASH PAR CURRENCY ==========
+      // ✅ EXCLURE CASH_IN, CASH_OUT, CASH_TRANSFER des transactions CASH
+      const cashWhere = {
+        ...transactionWhere,
+        paymentMethod: 'CASH',
+        type: {
+          notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+        }
+      };
+
       const cashRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
-        where: {
-          ...transactionWhere,
-          paymentMethod: 'CASH'
-        },
+        where: cashWhere,
         _sum: { amount: true },
         _count: { id: true },
       });
@@ -2215,8 +2227,7 @@ export class UserServiceService {
       const cashCreditRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
-          ...transactionWhere,
-          paymentMethod: 'CASH',
+          ...cashWhere,
           movement: 'CREDIT'
         },
         _sum: { amount: true },
@@ -2225,8 +2236,7 @@ export class UserServiceService {
       const cashDebitRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
         where: {
-          ...transactionWhere,
-          paymentMethod: 'CASH',
+          ...cashWhere,
           movement: 'DEBIT'
         },
         _sum: { amount: true },
@@ -2372,7 +2382,7 @@ export class UserServiceService {
         count: p._count.type || 0,
       }));
 
-      // ========== 8. CROISSANCE DES UTILISATEURS - PAS DE FILTRE BRANCH ==========
+      // ========== 8. CROISSANCE DES UTILISATEURS ==========
       let userGrowth = await this.prisma.$queryRaw`
       SELECT DATE_FORMAT(createdAt, '%Y-%m') as month, COUNT(*) as newUsers
       FROM user
@@ -2403,7 +2413,7 @@ export class UserServiceService {
           : 0,
       };
 
-      // ========== 9. PAYS DISPONIBLES - PAS DE FILTRE BRANCH ==========
+      // ========== 9. PAYS DISPONIBLES ==========
       const availableCountries = await this.prisma.user.groupBy({
         by: ['countryCode'],
         where: { deleted: false },
