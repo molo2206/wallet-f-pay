@@ -900,7 +900,6 @@ export class WalletServiceService {
     };
   }
 
-  // apps/wallet-service/src/wallet-service.service.ts
   async listTransactions(params: {
     userId: string;
     page?: number;
@@ -908,8 +907,8 @@ export class WalletServiceService {
     startDate?: Date;
     endDate?: Date;
     adminId?: string;
-    countryCode?: string; // ✅ AJOUT
-    branchId?: string; // ✅ AJOUT
+    countryCode?: string;
+    branchId?: string;
   }) {
     const {
       userId,
@@ -919,10 +918,10 @@ export class WalletServiceService {
       endDate,
       adminId,
       countryCode,
-      branchId: filterBranchId, // ✅ Filtrer par branche spécifique
+      branchId: filterBranchId,
     } = params;
 
-    // ✅ Gestion des permissions pour admin
+    // ✅ LOGIQUE DE FILTRAGE
     let branchFilter: string | null = null;
     let hasManagePermission = false;
     let hasReadPermission = false;
@@ -934,7 +933,7 @@ export class WalletServiceService {
       branchFilter = filterBranchId;
       allowedBranchIds = [filterBranchId];
     }
-    // ✅ Sinon, gérer les permissions de l'admin
+    // ✅ Gérer les permissions de l'admin UNIQUEMENT si adminId est fourni
     else if (adminId) {
       const admin = await this.prisma.user.findUnique({
         where: { id: adminId },
@@ -993,81 +992,83 @@ export class WalletServiceService {
       }
     }
 
-    // ✅ Récupérer les branches disponibles
-    const availableBranches = await this.prisma.branch.findMany({
-      where: {
-        id: { in: allowedBranchIds },
-        status: 'ACTIVE'
-      },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        countryId: true,
-        status: true,
-      },
-      orderBy: { name: 'asc' }
-    });
+    // ✅ Récupérer les branches disponibles (pour les admins uniquement)
+    let availableBranches: any[] = [];
+    let availableCountries: any[] = [];
 
-    // ✅ Récupérer les pays disponibles
-    let availableCountriesWhere: any = { deleted: false };
-    if (branchFilter && branchFilter !== 'none') {
-      availableCountriesWhere.branchId = branchFilter;
-    }
-    if (countryCode) {
-      availableCountriesWhere.countryCode = countryCode.toUpperCase();
-    }
+    if (adminId) {
+      // ✅ Seulement pour les admins
+      availableBranches = await this.prisma.branch.findMany({
+        where: {
+          id: { in: allowedBranchIds },
+          status: 'ACTIVE'
+        },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          countryId: true,
+          status: true,
+        },
+        orderBy: { name: 'asc' }
+      });
 
-    const availableCountries = await this.prisma.user.groupBy({
-      by: ['countryCode'],
-      where: availableCountriesWhere,
-      _count: { id: true },
-    });
+      let availableCountriesWhere: any = { deleted: false };
+      if (branchFilter && branchFilter !== 'none') {
+        availableCountriesWhere.branchId = branchFilter;
+      }
+      if (countryCode) {
+        availableCountriesWhere.countryCode = countryCode.toUpperCase();
+      }
+
+      availableCountries = await this.prisma.user.groupBy({
+        by: ['countryCode'],
+        where: availableCountriesWhere,
+        _count: { id: true },
+      });
+    }
 
     const skip = (page - 1) * limit;
     const where: any = { status: 'SUCCESS' };
 
-    // ✅ Si userId est fourni, filtrer par userId
+    // ✅ FILTRE PRIORITAIRE : userId (TOUJOURS appliqué)
+    // C'est le filtre le plus important pour les utilisateurs normaux
     if (userId) {
       where.userId = userId;
     }
 
-    // ✅ Filtrer par branche
-    if (branchFilter && branchFilter !== 'none') {
-      where.branchId = branchFilter;
+    // ✅ FILTRE BRANCHE (UNIQUEMENT pour les admins)
+    // Seulement si adminId est fourni ET que userId n'est pas le même que l'admin
+    if (adminId && userId !== adminId) {
+      if (branchFilter && branchFilter !== 'none') {
+        where.branchId = branchFilter;
+      } else if (branchFilter === 'none') {
+        return {
+          message: 'Transactions retrieved successfully',
+          data: {
+            data: [],
+            total: 0,
+            page,
+            limit,
+            analytics: {
+              totalCredit: 0,
+              totalDebit: 0,
+            },
+            availableBranches: [],
+            availableCountries: [],
+          },
+        };
+      }
     }
 
-    // ✅ Filtrer par pays
-    if (countryCode) {
+    // ✅ FILTRE PAYS (UNIQUEMENT pour les admins)
+    if (adminId && countryCode) {
       where.user = {
         countryCode: countryCode.toUpperCase()
       };
     }
 
-    if (branchFilter === 'none') {
-      return {
-        message: 'Transactions retrieved successfully',
-        data: {
-          data: [],
-          total: 0,
-          page,
-          limit,
-          analytics: {
-            totalCredit: 0,
-            totalDebit: 0,
-          },
-          availableBranches: availableBranches,
-          availableCountries: availableCountries
-            .filter(c => c.countryCode)
-            .map(c => ({
-              code: c.countryCode,
-              count: c._count.id,
-            }))
-            .sort((a, b) => b.count - a.count),
-        },
-      };
-    }
-
+    // ✅ FILTRE DATE
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = startDate;
@@ -1099,88 +1100,101 @@ export class WalletServiceService {
     const totalCredit = creditSum._sum.amount || 0;
     const totalDebit = debitSum._sum.amount || 0;
 
-    const enrichedTransactions = await Promise.all(
-      transactions.map(async (tx) => {
-        let full_name: string | null = null;
-        let phone: string | null = null;
+    // ✅ Enrichir les transactions (uniquement si userId est fourni)
+    let enrichedTransactions = transactions;
 
-        if (tx.type === 'TRANSFER' && tx.movement === 'DEBIT') {
-          const toMatch = tx.description?.match(/\[TO:([^\]]+)\]/);
-          const receiverId = toMatch?.[1];
-          if (receiverId) {
-            const receiver = await this.prisma.user.findUnique({
-              where: { id: receiverId },
-              select: { full_name: true, phone: true },
-            });
-            if (receiver) {
-              full_name = receiver.full_name;
-              phone = receiver.phone;
+    if (userId) {
+      enrichedTransactions = await Promise.all(
+        transactions.map(async (tx) => {
+          let full_name: string | null = null;
+          let phone: string | null = null;
+
+          // Extraire les informations des transactions
+          if (tx.type === 'TRANSFER' && tx.movement === 'DEBIT') {
+            const toMatch = tx.description?.match(/\[TO:([^\]]+)\]/);
+            const receiverId = toMatch?.[1];
+            if (receiverId) {
+              const receiver = await this.prisma.user.findUnique({
+                where: { id: receiverId },
+                select: { full_name: true, phone: true },
+              });
+              if (receiver) {
+                full_name = receiver.full_name;
+                phone = receiver.phone;
+              }
+            }
+          } else if (tx.type === 'TRANSFER' && tx.movement === 'CREDIT') {
+            const fromMatch = tx.description?.match(/\[FROM:([^\]]+)\]/);
+            const senderId = fromMatch?.[1];
+            if (senderId) {
+              const sender = await this.prisma.user.findUnique({
+                where: { id: senderId },
+                select: { full_name: true, phone: true },
+              });
+              if (sender) {
+                full_name = sender.full_name;
+                phone = sender.phone;
+              }
+            }
+          } else if (tx.type === 'PAYMENT' && tx.movement === 'DEBIT') {
+            const merchantMatch = tx.description?.match(
+              /Paiement à (.+?) \(([^)]+)\)/,
+            );
+            if (merchantMatch) {
+              full_name = merchantMatch[1];
+              phone = merchantMatch[2];
+            }
+          } else if (tx.type === 'PAYMENT' && tx.movement === 'CREDIT') {
+            const customerMatch = tx.description?.match(
+              /Reçu de [A-Z0-9]+ \(([^)]+)\)/,
+            );
+            if (customerMatch) {
+              full_name = customerMatch[1];
             }
           }
-        } else if (tx.type === 'TRANSFER' && tx.movement === 'CREDIT') {
-          const fromMatch = tx.description?.match(/\[FROM:([^\]]+)\]/);
-          const senderId = fromMatch?.[1];
-          if (senderId) {
-            const sender = await this.prisma.user.findUnique({
-              where: { id: senderId },
-              select: { full_name: true, phone: true },
-            });
-            if (sender) {
-              full_name = sender.full_name;
-              phone = sender.phone;
-            }
-          }
-        } else if (tx.type === 'PAYMENT' && tx.movement === 'DEBIT') {
-          const merchantMatch = tx.description?.match(
-            /Paiement à (.+?) \(([^)]+)\)/,
-          );
-          if (merchantMatch) {
-            full_name = merchantMatch[1];
-            phone = merchantMatch[2];
-          }
-        } else if (tx.type === 'PAYMENT' && tx.movement === 'CREDIT') {
-          const customerMatch = tx.description?.match(
-            /Reçu de [A-Z0-9]+ \(([^)]+)\)/,
-          );
-          if (customerMatch) {
-            full_name = customerMatch[1];
-          }
-        }
 
-        const cleanDescription =
-          tx.description?.replace(/\[TO:[^\]]+\]|\[FROM:[^\]]+\]/, '').trim() ||
-          tx.description;
+          const cleanDescription =
+            tx.description?.replace(/\[TO:[^\]]+\]|\[FROM:[^\]]+\]/, '').trim() ||
+            tx.description;
 
-        const { description, ...rest } = tx;
-        return {
-          ...rest,
-          description: cleanDescription,
-          full_name,
-          phone,
-        };
-      }),
-    );
+          const { description, ...rest } = tx;
+          return {
+            ...rest,
+            description: cleanDescription,
+            full_name,
+            phone,
+          };
+        }),
+      );
+    }
+
+    // ✅ FORMATER LA RÉPONSE
+    const responseData: any = {
+      data: enrichedTransactions,
+      total,
+      page,
+      limit,
+      analytics: {
+        totalCredit,
+        totalDebit,
+      },
+    };
+
+    // ✅ Ajouter les branches et pays UNIQUEMENT pour les admins
+    if (adminId) {
+      responseData.availableBranches = availableBranches;
+      responseData.availableCountries = availableCountries
+        .filter(c => c.countryCode)
+        .map(c => ({
+          code: c.countryCode,
+          count: c._count.id,
+        }))
+        .sort((a, b) => b.count - a.count);
+    }
 
     return {
       message: 'Transactions retrieved successfully',
-      data: {
-        data: enrichedTransactions,
-        total,
-        page,
-        limit,
-        analytics: {
-          totalCredit,
-          totalDebit,
-        },
-        availableBranches: availableBranches,
-        availableCountries: availableCountries
-          .filter(c => c.countryCode)
-          .map(c => ({
-            code: c.countryCode,
-            count: c._count.id,
-          }))
-          .sort((a, b) => b.count - a.count),
-      },
+      data: responseData,
     };
   }
 
