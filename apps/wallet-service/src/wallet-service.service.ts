@@ -1013,6 +1013,7 @@ export class WalletServiceService {
         orderBy: { name: 'asc' }
       });
 
+      // ✅ ALTERNATIVE : Utiliser findMany avec distinct
       let availableCountriesWhere: any = { deleted: false };
       if (branchFilter && branchFilter !== 'none') {
         availableCountriesWhere.branchId = branchFilter;
@@ -1021,24 +1022,46 @@ export class WalletServiceService {
         availableCountriesWhere.countryCode = countryCode.toUpperCase();
       }
 
-      availableCountries = await this.prisma.user.groupBy({
-        by: ['countryCode'],
+      // ✅ Récupérer les countryCode distincts
+      const users = await this.prisma.user.findMany({
         where: availableCountriesWhere,
-        _count: { id: true },
+        select: {
+          countryCode: true,
+        },
+        distinct: ['countryCode'],
       });
+
+      // ✅ Compter les utilisateurs par pays
+      availableCountries = await Promise.all(
+        users
+          .filter(u => u.countryCode)
+          .map(async (u) => {
+            const count = await this.prisma.user.count({
+              where: {
+                ...availableCountriesWhere,
+                countryCode: u.countryCode,
+              },
+            });
+            return {
+              code: u.countryCode,
+              count,
+            };
+          })
+      );
+
+      // Trier par nombre décroissant
+      availableCountries.sort((a, b) => b.count - a.count);
     }
 
     const skip = (page - 1) * limit;
     const where: any = { status: 'SUCCESS' };
 
     // ✅ FILTRE PRIORITAIRE : userId (TOUJOURS appliqué)
-    // C'est le filtre le plus important pour les utilisateurs normaux
     if (userId) {
       where.userId = userId;
     }
 
     // ✅ FILTRE BRANCHE (UNIQUEMENT pour les admins)
-    // Seulement si adminId est fourni ET que userId n'est pas le même que l'admin
     if (adminId && userId !== adminId) {
       if (branchFilter && branchFilter !== 'none') {
         where.branchId = branchFilter;
@@ -1183,13 +1206,7 @@ export class WalletServiceService {
     // ✅ Ajouter les branches et pays UNIQUEMENT pour les admins
     if (adminId) {
       responseData.availableBranches = availableBranches;
-      responseData.availableCountries = availableCountries
-        .filter(c => c.countryCode)
-        .map(c => ({
-          code: c.countryCode,
-          count: c._count.id,
-        }))
-        .sort((a, b) => b.count - a.count);
+      responseData.availableCountries = availableCountries;
     }
 
     return {
