@@ -64,6 +64,9 @@ import { PermissionsApi_Key } from './permissions/decorator';
 import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
 import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { UploadedFile, UploadedFiles } from '@nestjs/common';
+import * as crypto from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
@@ -3838,44 +3841,718 @@ export class ApiGatewayController {
     return response;
   }
 
+  // apps/api-gateway/src/api-gateway.controller.ts
+
   @Post('auth/link-user')
   async loginWithOtp(
     @Body() body: {
       phone: string;
       password: string;
-      otpCode?: string;
+      clientId?: string;
       lang?: string;
+      autoOpen?: boolean;
     },
     @Ip() ipAddress: string,
+    @Res() res: Response,
   ) {
+    // ✅ Si phone et password ne sont pas fournis → Retourner l'URL
+    if (!body || !body.phone || !body.password) {
+      const clientId = body?.clientId || 'web-client';
+      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const authCode = crypto.randomBytes(32).toString('hex');
+
+      const redirectUrl = new URL('/oauth/login', appUrl);
+      redirectUrl.searchParams.set('client_id', clientId);
+      redirectUrl.searchParams.set('code', authCode);
+      redirectUrl.searchParams.set('redirect_uri', `${appUrl}/oauth/callback`);
+
+      console.log('[OAuth] URL de la page:', redirectUrl.toString());
+
+      return res.json({
+        status: 'success',
+        message: 'Page OAuth',
+        url: redirectUrl.toString(),
+        openInBrowser: redirectUrl.toString()
+      });
+    }
+
+    // ✅ Traitement de la connexion
     const lang = body.lang || 'fr';
+    const clientId = body.clientId || 'web-client';
+    const redirectUri = `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
 
-    if (!body.phone) {
-      throw new HttpException('Le numéro de téléphone est requis', HttpStatus.BAD_REQUEST);
+    console.log('[OAuth] Traitement de la connexion pour:', body.phone);
+
+    try {
+      // ✅ Définir le type attendu
+      interface LinkUserResponse {
+        accessToken: string;
+        refreshToken: string;
+        message: string;
+        sessionId?: string;
+        oauthRedirectUrl?: string;
+        data: {
+          id: string;
+          email: string | null;
+          phone: string | null;
+          full_name: string | null;
+          role: string;
+          status: string;
+          profileImage: string | null;
+          kycStatus: string;
+          countryCode: string | null;
+          accessToken: string;
+          refreshToken: string;
+          tokenType: string;
+          expiresIn: number;
+          [key: string]: any; // Pour les propriétés supplémentaires
+        };
+      }
+
+      const result = await this.sendAuthMessage<LinkUserResponse>(
+        'link_user',
+        {
+          phone: body.phone,
+          password: body.password,
+          clientId: clientId,
+          redirectUri: redirectUri,
+          lang,
+          ipAddress,
+        },
+        'Login failed',
+        HttpStatus.BAD_REQUEST,
+      );
+
+      // ✅ Maintenant result est typé
+      return res.json({
+        status: 'success',
+        message: 'Connexion réussie',
+        data: result.data,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        sessionId: result.sessionId,
+        oauthRedirectUrl: result.oauthRedirectUrl
+      });
+
+    } catch (error) {
+      console.error('[OAuth] Erreur:', error);
+      return res.status(400).json({
+        status: 'error',
+        message: error.message || 'Erreur de connexion'
+      });
     }
-
-    if (!body.password) {
-      throw new HttpException('Le mot de passe est requis', HttpStatus.BAD_REQUEST);
-    }
-
-    return this.sendAuthMessage(
-      'link_user',
-      {
-        phone: body.phone,
-        password: body.password,
-        otpCode: body.otpCode,
-        lang,
-        ipAddress,
-      },
-      'Login failed',
-      HttpStatus.BAD_REQUEST,
-    );
   }
-  // ==================== KYC ENDPOINTS ====================
 
-  /**
-   * Soumettre une demande KYC avec upload de fichiers
-   */
+  // apps/api-gateway/src/api-gateway.controller.ts
+
+  // ============================================================
+  //  MÉTHODES UTILITAIRES POUR LES URLs
+  // ============================================================
+
+  private getAppUrl(): string {
+    const env = process.env.NODE_ENV || 'development';
+
+    switch (env) {
+      case 'production':
+        return process.env.APP_URL || 'https://api-prod.f-pay.app';
+      case 'test':
+        return process.env.APP_URL || 'https://f-pay.favorhelp.com';
+      case 'development':
+      default:
+        return process.env.APP_URL || 'http://localhost:3000';
+    }
+  }
+
+  private getFrontendUrl(): string {
+    const env = process.env.NODE_ENV || 'development';
+
+    switch (env) {
+      case 'production':
+        return process.env.FRONTEND_URL || 'https://f-pay.app';
+      case 'test':
+        return process.env.FRONTEND_URL || 'https://f-pay.favorhelp.com';
+      case 'development':
+      default:
+        return process.env.FRONTEND_URL || 'http://localhost:4200';
+    }
+  }
+
+  private getOAuthCallbackUrl(): string {
+    const env = process.env.NODE_ENV || 'development';
+
+    switch (env) {
+      case 'production':
+        return process.env.OAUTH_CALLBACK_URL || 'https://api-prod.f-pay.app/oauth/callback';
+      case 'test':
+        return process.env.OAUTH_CALLBACK_URL || 'https://f-pay.favorhelp.com/oauth/callback';
+      case 'development':
+      default:
+        return process.env.OAUTH_CALLBACK_URL || 'http://localhost:3000/oauth/callback';
+    }
+  }
+
+  private getMobileCallbackUrl(): string {
+    return process.env.MOBILE_CALLBACK_URL || 'fpay://callback';
+  }
+
+  // ============================================================
+  //  FONCTION 1: GET /auth/open
+  // ============================================================
+
+  @Get('auth/open')
+  async openOAuthPage(@Res() res: Response) {
+    const appUrl = this.getAppUrl();
+    const oauthCallbackUrl = this.getOAuthCallbackUrl();
+    const authCode = crypto.randomBytes(32).toString('hex');
+
+    const redirectUrl = new URL('/oauth/login', appUrl);
+    redirectUrl.searchParams.set('client_id', 'web-client');
+    redirectUrl.searchParams.set('code', authCode);
+    redirectUrl.searchParams.set('redirect_uri', oauthCallbackUrl);
+
+    console.log('[OAuth] Environnement:', process.env.NODE_ENV || 'development');
+    console.log('[OAuth] APP_URL:', appUrl);
+    console.log('[OAuth] OAUTH_CALLBACK_URL:', oauthCallbackUrl);
+    console.log('[OAuth] Ouverture de la page:', redirectUrl.toString());
+
+    return res.redirect(HttpStatus.FOUND, redirectUrl.toString());
+  }
+
+  // ============================================================
+  //  FONCTION 2: GET /oauth/login
+  // ============================================================
+
+  @Get('oauth/login')
+  async oauthLoginPage(
+    @Query() query: {
+      code?: string;
+      client_id?: string;
+      redirect_uri?: string;
+      access_token?: string;
+      refresh_token?: string;
+      user_id?: string;
+      error?: string;
+      lang?: string;
+    },
+    @Res() res: Response,
+  ) {
+    try {
+      const appUrl = this.getAppUrl();
+      const frontendUrl = this.getFrontendUrl();
+      const oauthCallbackUrl = this.getOAuthCallbackUrl();
+      const mobileCallbackUrl = this.getMobileCallbackUrl();
+      const env = process.env.NODE_ENV || 'development';
+      const envLabel = env === 'production' ? 'PRODUCTION' : env === 'test' ? 'TEST' : 'LOCAL';
+
+      const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
+
+      if (fs.existsSync(filePath)) {
+        let html = fs.readFileSync(filePath, 'utf8');
+
+        html = html.replace(/{{APP_URL}}/g, appUrl);
+        html = html.replace(/{{FRONTEND_URL}}/g, frontendUrl);
+        html = html.replace(/{{OAUTH_CALLBACK_URL}}/g, oauthCallbackUrl);
+        html = html.replace(/{{MOBILE_CALLBACK_URL}}/g, mobileCallbackUrl);
+        html = html.replace(/{{ENV}}/g, env);
+        html = html.replace(/{{ENV_LABEL}}/g, envLabel);
+
+        return res.set('Content-Type', 'text/html').send(html);
+      }
+
+      return res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion F-Pay</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: white;
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.15);
+            border: 1px solid rgba(10, 28, 242, 0.08);
+        }
+        .logo { text-align: center; margin-bottom: 32px; }
+        .logo .icon {
+            width: 72px;
+            height: 72px;
+            background: #0A1CF2;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        .logo h1 { font-size: 28px; color: #1a1a2e; letter-spacing: -0.5px; }
+        .logo h1 .f { color: #0A1CF2; }
+        .logo h1 .pay { color: #FFB81C; }
+        .logo p { color: #6b7280; font-size: 14px; margin-top: 4px; }
+        .env-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }
+        .env-badge.local { background: #10b981; color: white; }
+        .env-badge.test { background: #f59e0b; color: white; }
+        .env-badge.production { background: #ef4444; color: white; }
+        .header { margin-bottom: 28px; }
+        .header h2 { font-size: 20px; color: #1a1a2e; margin-bottom: 6px; }
+        .header p { color: #6b7280; font-size: 14px; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 500; color: #1a1a2e; margin-bottom: 6px; }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #fafafa;
+            color: #1a1a2e;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #0A1CF2;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.1);
+        }
+        .form-group input::placeholder { color: #9ca3af; }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #0A1CF2;
+            color: white;
+            transition: all 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(10, 28, 242, 0.35); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn .spinner { display: none; }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: none; }
+        .btn .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+        .message.show { display: block; }
+        .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .message.success { background: #f0fdf4; color: #059669; border: 1px solid #bbf7d0; }
+        .message.info { background: #eff6ff; color: #0A1CF2; border: 1px solid rgba(10, 28, 242, 0.2); }
+        .links { text-align: center; margin-top: 20px; font-size: 14px; color: #6b7280; }
+        .links a { color: #0A1CF2; text-decoration: none; font-weight: 500; }
+        .links a:hover { text-decoration: underline; }
+        .links .divider { color: #e5e7eb; margin: 0 8px; }
+        .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
+        .footer a { color: #6b7280; text-decoration: none; }
+        .footer a:hover { color: #0A1CF2; }
+        #successState {
+            display: none;
+            text-align: center;
+            padding: 20px 0;
+        }
+        #successState .success-icon { font-size: 64px; margin-bottom: 16px; }
+        #successState h2 { color: #1a1a2e; margin-bottom: 8px; }
+        #successState p { color: #6b7280; margin-bottom: 8px; }
+        #successState .user-info {
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+            text-align: left;
+            border: 1px solid #e5e7eb;
+        }
+        #successState .user-info .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #successState .user-info .info-row:last-child { border-bottom: none; }
+        #successState .user-info .label { color: #6b7280; font-size: 13px; }
+        #successState .user-info .value { color: #1a1a2e; font-weight: 500; font-size: 13px; }
+
+        @media (prefers-color-scheme: dark) {
+            body { background: #1a1a2e; }
+            .container { background: #1e293b; border-color: rgba(255, 255, 255, 0.05); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+            .logo h1 { color: #f1f5f9; }
+            .logo p { color: #94a3b8; }
+            .header h2 { color: #f1f5f9; }
+            .header p { color: #94a3b8; }
+            .form-group label { color: #f1f5f9; }
+            .form-group input { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+            .form-group input:focus { background: #1e293b; border-color: #0A1CF2; box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2); }
+            .form-group input::placeholder { color: #64748b; }
+            .links { color: #94a3b8; }
+            .links a { color: #93c5fd; }
+            .footer { color: #64748b; }
+            .footer a { color: #94a3b8; }
+            .footer a:hover { color: #93c5fd; }
+            .message.error { background: #451a1a; color: #fca5a5; border-color: #7f1d1d; }
+            .message.success { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
+            .message.info { background: #1e3a5f; color: #93c5fd; border-color: #1e40af; }
+            #successState h2 { color: #f1f5f9; }
+            #successState p { color: #94a3b8; }
+            #successState .user-info { background: #1e293b; border-color: #334155; }
+            #successState .user-info .info-row { border-color: #334155; }
+            #successState .user-info .value { color: #f1f5f9; }
+        }
+
+        @media (max-width: 520px) {
+            .container { padding: 32px 20px; }
+            .logo h1 { font-size: 24px; }
+            .btn { font-size: 15px; padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="icon">F</div>
+            <h1><span class="f">F</span><span class="pay">Pay</span></h1>
+            <p>Solutions de paiement securisees</p>
+            <div><span class="env-badge ${env}">${envLabel}</span></div>
+        </div>
+
+        <div id="loginState">
+            <div class="header">
+                <h2>Connexion a F-Pay</h2>
+                <p>Connectez-vous pour continuer</p>
+            </div>
+            <div class="message" id="message">
+                <span id="messageText">Message</span>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Numero de telephone</label>
+                    <input type="tel" id="phone" placeholder="+243 999 999 999" required>
+                </div>
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="password" placeholder="Votre mot de passe" required>
+                </div>
+                <button type="submit" class="btn" id="submitBtn">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Se connecter</span>
+                </button>
+            </form>
+            <div class="links">
+                <a href="#">Mot de passe oublie ?</a>
+                <span class="divider">|</span>
+                <a href="#">Creer un compte</a>
+            </div>
+        </div>
+
+        <div id="successState">
+            <div class="success-icon">✅</div>
+            <h2>Connexion reussie !</h2>
+            <p>Vous etes maintenant connecte a F-Pay.</p>
+            <div class="user-info" id="userInfo">
+                <div class="info-row">
+                    <span class="label">ID utilisateur</span>
+                    <span class="value" id="userId">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Telephone</span>
+                    <span class="value" id="userPhone">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Nom complet</span>
+                    <span class="value" id="userFullName">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Role</span>
+                    <span class="value" id="userRole">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Statut</span>
+                    <span class="value" id="userStatus">-</span>
+                </div>
+            </div>
+            <button class="btn" onclick="handleRedirect()" style="margin-top: 16px;">
+                Continuer →
+            </button>
+        </div>
+
+        <div class="footer">
+            <span>Connexion securisee • </span>
+            <a href="#">Conditions d'utilisation</a>
+            <span> • </span>
+            <a href="#">Politique de confidentialite</a>
+        </div>
+    </div>
+
+    <script>
+        const APP_URL = '${appUrl}';
+        const FRONTEND_URL = '${frontendUrl}';
+        const OAUTH_CALLBACK_URL = '${oauthCallbackUrl}';
+        const MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
+        const ENV = '${env}';
+
+        console.log('[OAuth] Environnement:', ENV);
+        console.log('[OAuth] APP_URL:', APP_URL);
+        console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const CLIENT_ID = urlParams.get('client_id') || 'web-client';
+        const REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
+
+        let userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
+        let userData = null;
+
+        function cleanUrl() {
+            if (window.history && window.history.replaceState) {
+                const cleanUrl = window.location.origin + window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+                console.log('[OAuth] URL nettoyee:', cleanUrl);
+            }
+        }
+
+        function stopLoading() {
+            const btn = document.getElementById('submitBtn');
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+
+        function startLoading() {
+            const btn = document.getElementById('submitBtn');
+            btn.classList.add('loading');
+            btn.disabled = true;
+        }
+
+        function showMessage(type, text) {
+            const messageEl = document.getElementById('message');
+            const messageText = document.getElementById('messageText');
+            messageEl.className = 'message show ' + type;
+            messageText.textContent = text;
+        }
+
+        function showSuccess(data) {
+            document.getElementById('loginState').style.display = 'none';
+            document.getElementById('successState').style.display = 'block';
+            
+            userData = data.data;
+            userTokens = {
+                accessToken: data.accessToken || data.data?.accessToken,
+                refreshToken: data.refreshToken || data.data?.refreshToken,
+                userId: data.data?.id,
+                code: data.code || urlParams.get('code'),
+            };
+
+            if (data && data.data) {
+                document.getElementById('userId').textContent = data.data.id || '-';
+                document.getElementById('userPhone').textContent = data.data.phone || '-';
+                document.getElementById('userFullName').textContent = data.data.full_name || '-';
+                document.getElementById('userRole').textContent = data.data.role || '-';
+                document.getElementById('userStatus').textContent = data.data.status || '-';
+            }
+            
+            cleanUrl();
+            console.log('[OAuth] Tokens stockes:', userTokens);
+        }
+
+        function handleRedirect() {
+            const redirectUrl = new URL(REDIRECT_URI);
+            
+            if (userTokens.accessToken) {
+                redirectUrl.searchParams.set('access_token', userTokens.accessToken);
+            }
+            if (userTokens.refreshToken) {
+                redirectUrl.searchParams.set('refresh_token', userTokens.refreshToken);
+            }
+            if (userTokens.userId) {
+                redirectUrl.searchParams.set('user_id', userTokens.userId);
+            }
+            if (userTokens.code) {
+                redirectUrl.searchParams.set('code', userTokens.code);
+            }
+
+            console.log('[OAuth] Redirection vers:', redirectUrl.toString());
+            window.location.href = redirectUrl.toString();
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const phone = document.getElementById('phone').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            if (!phone || !password) {
+                showMessage('error', 'Veuillez remplir tous les champs');
+                return;
+            }
+
+            startLoading();
+            showMessage('info', 'Connexion en cours...');
+
+            try {
+                const response = await fetch('/auth/link-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phone: phone,
+                        password: password,
+                        clientId: CLIENT_ID,
+                        redirectUri: REDIRECT_URI,
+                        lang: 'fr'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erreur de connexion');
+                }
+
+                console.log('[OAuth] Connexion reussie:', data);
+
+                showSuccess(data);
+                stopLoading();
+
+            } catch (error) {
+                console.error('[OAuth] Erreur:', error);
+                showMessage('error', error.message || 'Erreur de connexion');
+                stopLoading();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const code = urlParams.get('code');
+            const accessToken = urlParams.get('access_token');
+            const userId = urlParams.get('user_id');
+            
+            if (code && accessToken && userId) {
+                userTokens = {
+                    accessToken: accessToken,
+                    refreshToken: urlParams.get('refresh_token'),
+                    userId: userId,
+                    code: code,
+                };
+                showSuccess({
+                    data: {
+                        id: userId,
+                        phone: urlParams.get('phone') || 'N/A',
+                        full_name: urlParams.get('full_name') || 'Utilisateur',
+                        role: urlParams.get('role') || 'USER',
+                        status: 'ACTIVE'
+                    }
+                });
+                console.log('[OAuth] Deja connecte');
+            }
+        });
+    </script>
+</body>
+</html>
+    `);
+    } catch (error) {
+      console.error('[OAuth] Error:', error);
+      return res.status(500).send('Erreur lors du chargement de la page');
+    }
+  }
+
+  // ============================================================
+  //  FONCTION 3: GET /oauth/callback
+  // ============================================================
+
+  @Get('oauth/callback')
+  async oauthCallback(
+    @Query() query: {
+      code?: string;
+      access_token?: string;
+      refresh_token?: string;
+      user_id?: string;
+      state?: string;
+      error?: string;
+    },
+    @Res() res: Response,
+  ) {
+    const env = process.env.NODE_ENV || 'development';
+    console.log('[OAuth Callback] Environnement:', env);
+    console.log('[OAuth Callback] Reçu:', {
+      code: query.code ? '✅' : '❌',
+      access_token: query.access_token ? '✅' : '❌',
+      refresh_token: query.refresh_token ? '✅' : '❌',
+      user_id: query.user_id ? '✅' : '❌',
+      state: query.state || '❌',
+      error: query.error || '❌',
+    });
+
+    if (query.error) {
+      return res.status(400).json({
+        success: false,
+        error: query.error,
+        message: 'Erreur OAuth',
+        data: null,
+      });
+    }
+
+    if (!query.access_token || !query.refresh_token || !query.user_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'missing_params',
+        message: 'Paramètres manquants',
+        required: ['access_token', 'refresh_token', 'user_id'],
+        received: {
+          access_token: !!query.access_token,
+          refresh_token: !!query.refresh_token,
+          user_id: !!query.user_id,
+          code: !!query.code,
+        },
+      });
+    }
+
+    const mobileCallbackUrl = this.getMobileCallbackUrl();
+    const redirectUrl = new URL(mobileCallbackUrl);
+
+    redirectUrl.searchParams.set('success', 'true');
+    redirectUrl.searchParams.set('access_token', query.access_token);
+    redirectUrl.searchParams.set('refresh_token', query.refresh_token);
+    redirectUrl.searchParams.set('user_id', query.user_id);
+    if (query.code) redirectUrl.searchParams.set('code', query.code);
+    if (query.state) redirectUrl.searchParams.set('state', query.state);
+
+    console.log('[OAuth Callback] Redirection vers:', redirectUrl.toString());
+
+    return res.redirect(HttpStatus.FOUND, redirectUrl.toString());
+  }
+
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async submitKyc(
@@ -4457,8 +5134,8 @@ export class ApiGatewayController {
   // BACKUP MANAGEMENT (ADMIN ONLY)
   // ================================================================
 
-  // ✅ Modifier les endpoints backup pour utiliser sendUserMessage
-  @Post('admin/backup/create')
+  // Modifier les endpoints backup pour utiliser sendUserMessage
+  @Post('backup/create')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async createBackup(
     @CurrentUser() currentUser: any,
@@ -4482,7 +5159,7 @@ export class ApiGatewayController {
     );
   }
 
-  @Get('admin/backup/list')
+  @Get('backup/list')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getBackupsList(
     @CurrentUser() currentUser: any,
@@ -4504,7 +5181,7 @@ export class ApiGatewayController {
     );
   }
 
-  @Post('admin/backup/restore/:fileName')
+  @Post('backup/restore/:fileName')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async restoreBackup(
     @CurrentUser() currentUser: any,
@@ -4536,7 +5213,7 @@ export class ApiGatewayController {
     );
   }
 
-  @Delete('admin/backup/:fileName')
+  @Delete('backup/:fileName')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async deleteBackup(
     @CurrentUser() currentUser: any,
@@ -4567,7 +5244,7 @@ export class ApiGatewayController {
     );
   }
 
-  @Get('admin/backup/download/:fileName')
+  @Get('backup/download/:fileName')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async downloadBackup(
     @CurrentUser() currentUser: any,
@@ -4619,7 +5296,7 @@ export class ApiGatewayController {
     }
   }
 
-  @Post('admin/backup/restore-upload')
+  @Post('backup/restore-upload')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   @UseInterceptors(FileInterceptor('file'))
   async restoreFromUpload(
@@ -4656,7 +5333,7 @@ export class ApiGatewayController {
     );
   }
 
-  @Post('admin/backup/auto')
+  @Post('backup/auto')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async triggerAutoBackup(
     @CurrentUser() currentUser: any,

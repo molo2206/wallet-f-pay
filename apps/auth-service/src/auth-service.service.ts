@@ -33,6 +33,9 @@ import * as crypto from 'crypto';
 import { BankService } from 'apps/wallet-service/src/bank/bank.service';
 import { logFailedLoginAttempt } from './utility/helpers/login-attempt.util';
 import { AccountInfo } from './dto/account.dto';
+import { OAuthAuthorizeDto, OAuthAuthorizeResponseDto, OAuthLinkUserDto, OAuthLinkUserResponseDto } from './dto/oauth';
+
+
 
 const registerLocks: Map<string, boolean> = new Map();
 
@@ -596,7 +599,407 @@ export class AuthServiceService {
     }
   }
 
-  // apps/auth-service/src/auth-service.service.ts
+  async oauthAuthorize(
+    dto: OAuthAuthorizeDto,
+    ipAddress?: string,
+  ): Promise<OAuthAuthorizeResponseDto> {
+    const lang = dto.lang || 'fr';
+
+    // ✅ 1. Vérifier le client OAuth (nom en minuscule: oauthclient)
+    const client = await this.prisma.oauthclient.findUnique({
+      where: { clientId: dto.clientId },
+    });
+
+    if (!client || !client.isActive) {
+      throw new BadRequestException(
+        this.i18nService.translate('oauth.client_invalid', lang),
+      );
+    }
+
+    // 2. Vérifier le redirectUri
+    let redirectUris: string[] = [];
+    try {
+      redirectUris = JSON.parse(client.redirectUris);
+    } catch {
+      redirectUris = [client.redirectUris];
+    }
+
+    if (!redirectUris.includes(dto.redirectUri)) {
+      throw new BadRequestException(
+        this.i18nService.translate('oauth.redirect_uri_mismatch', lang),
+      );
+    }
+
+    // 3. Vérifier le response_type
+    if (dto.responseType !== 'code') {
+      throw new BadRequestException(
+        this.i18nService.translate('oauth.unsupported_response_type', lang),
+      );
+    }
+
+    // 4. Générer le code d'autorisation
+    const authCode = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // ✅ 5. Créer le code d'autorisation (nom en minuscule: oauthauthorizationcode)
+    const authCodeRecord = await this.prisma.oauthauthorizationcode.create({
+      data: {
+        id: crypto.randomUUID(),
+        code: authCode,
+        clientId: client.id,
+        userId: '', // Sera mis à jour après login
+        redirectUri: dto.redirectUri,
+        scope: dto.scope || null,
+        expiresAt,
+        isUsed: false,
+        createdAt: new Date(),
+      },
+    });
+
+    // 6. Construire l'URL de redirection vers la page de connexion
+    const loginPageUrl = new URL('/oauth/authorize', process.env.APP_URL || 'http://localhost:3000');
+    loginPageUrl.searchParams.set('client_id', dto.clientId);
+    loginPageUrl.searchParams.set('redirect_uri', dto.redirectUri);
+    loginPageUrl.searchParams.set('response_type', dto.responseType);
+    loginPageUrl.searchParams.set('code', authCode);
+    if (dto.scope) {
+      loginPageUrl.searchParams.set('scope', dto.scope);
+    }
+    if (dto.state) {
+      loginPageUrl.searchParams.set('state', dto.state);
+    }
+    if (dto.lang) {
+      loginPageUrl.searchParams.set('lang', dto.lang);
+    }
+
+    await this.logAudit(
+      null,
+      'OAUTH_AUTHORIZE',
+      { clientId: dto.clientId, code: authCode },
+      ipAddress ?? null,
+    );
+
+    return {
+      redirectUrl: loginPageUrl.toString(),
+      authorizationCode: authCode,
+      requiresLogin: true,
+    };
+  }
+
+  async LinkUser(
+    dto: {
+      phone: string;
+      password: string;
+      clientId?: string;
+      scope?: string;
+      lang?: string;
+    },
+    ipAddress?: string,
+  ): Promise<OAuthLinkUserResponseDto> {
+    const lang = dto.lang || 'fr';
+    const normalizedPhone = this.normalizePhone(dto.phone);
+    const clientId = dto.clientId || 'web-client';
+
+    // ✅ 1. Vérifier que l'utilisateur existe
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: normalizedPhone },
+          { phone: dto.phone },
+          { phone: normalizedPhone.replace(/^\+/, '') },
+        ],
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException(
+        this.i18nService.translate('user_not_found', lang),
+      );
+    }
+
+    // ✅ 2. Vérifier le mot de passe
+    if (!user.password) {
+      throw new BadRequestException(
+        this.i18nService.translate('user_no_password', lang),
+      );
+    }
+
+    const isValidPassword = await bcrypt.compare(dto.password, user.password);
+    if (!isValidPassword) {
+      throw new BadRequestException(
+        this.i18nService.translate('invalid_password', lang),
+      );
+    }
+
+    // ✅ 3. Vérifier que l'utilisateur est actif
+    if (user.status !== user_status.ACTIVE) {
+      throw new BadRequestException(
+        this.i18nService.translate('account_inactive', lang),
+      );
+    }
+
+    // ✅ 4. Générer les tokens OAuth
+    const accessToken = crypto.randomBytes(32).toString('hex');
+    const refreshToken = crypto.randomBytes(32).toString('hex');
+
+    // ✅ 5. Récupérer ou créer le client OAuth (nom en minuscule: oauthclient)
+    let client = await this.prisma.oauthclient.findUnique({
+      where: { clientId: clientId },
+    });
+
+    if (!client) {
+      client = await this.prisma.oauthclient.create({
+        data: {
+          id: crypto.randomUUID(),
+          clientId: clientId,
+          clientSecret: crypto.randomBytes(32).toString('hex'),
+          clientName: `Client ${clientId}`,
+          redirectUris: JSON.stringify([]),
+          grantTypes: JSON.stringify(['authorization_code', 'refresh_token']),
+          scopes: JSON.stringify(['profile', 'email', 'phone']),
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    // ✅ 6. Stocker l'access token (nom en minuscule: oauthaccesstoken)
+    const accessTokenRecord = await this.prisma.oauthaccesstoken.create({
+      data: {
+        id: crypto.randomUUID(),
+        token: accessToken,
+        clientId: client.id,
+        userId: user.id,
+        scope: dto.scope || 'profile',
+        expiresAt: new Date(Date.now() + 3600 * 1000),
+        createdAt: new Date(),
+      },
+    });
+
+    // ✅ 7. Stocker le refresh token (nom en minuscule: oauthrefreshtoken)
+    await this.prisma.oauthrefreshtoken.create({
+      data: {
+        id: crypto.randomUUID(),
+        token: refreshToken,
+        accessTokenId: accessTokenRecord.id,
+        clientId: client.id,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+        createdAt: new Date(),
+      },
+    });
+
+    // ✅ 8. Récupérer les ressources de l'utilisateur avec BRANCH
+    const userResources = await this.prisma.user_has_resources.findMany({
+      where: { userId: user.id },
+      include: {
+        resources: true,
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            countryId: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    const resources = userResources.map((ur) => ({
+      id: ur.resources.id,
+      name: ur.resources.name,
+      label: ur.resources.label,
+      permissions: {
+        canCreate: ur.canCreate,
+        canRead: ur.canRead,
+        canUpdate: ur.canUpdate,
+        canDelete: ur.canDelete,
+        canManage: ur.canManage,
+      },
+      grantedAt: ur.grantedAt,
+      expiresAt: ur.expiresAt,
+      branch: ur.branch ? {
+        id: ur.branch.id,
+        name: ur.branch.name,
+        code: ur.branch.code,
+        countryId: ur.branch.countryId,
+        status: ur.branch.status ?? 'ACTIVE',
+      } : null,
+    }));
+
+    // ✅ 9. Récupérer la branche de l'utilisateur
+    let userBranch: {
+      id: string;
+      name: string;
+      code: string;
+      countryId: string;
+      status: string;
+    } | null = null;
+
+    if (user.branchId) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          countryId: true,
+          status: true,
+        },
+      });
+      if (branch) {
+        userBranch = {
+          id: branch.id,
+          name: branch.name,
+          code: branch.code,
+          countryId: branch.countryId,
+          status: branch.status ?? 'ACTIVE',
+        };
+      }
+    }
+
+    // ✅ 10. Récupérer les wallets
+    const wallets = await this.prisma.wallet.findMany({
+      where: { userId: user.id, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        currency: true,
+        balance: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // ✅ 11. Récupérer les informations KYC
+    const kycSubmission = await this.prisma.kyc_submission.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        documentType: true,
+        documentNumber: true,
+        documentFront: true,
+        documentBack: true,
+        profileImage: true,
+        status: true,
+        submittedAt: true,
+        reviewedAt: true,
+        adminNotes: true,
+        rejectionReason: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const kyc = {
+      status: user.kycStatus ?? 'NOT_SUBMITTED',
+      submission: kycSubmission ? {
+        id: kycSubmission.id,
+        documentType: kycSubmission.documentType || null,
+        documentNumber: kycSubmission.documentNumber || null,
+        documentFront: kycSubmission.documentFront || null,
+        documentBack: kycSubmission.documentBack || null,
+        profileImage: kycSubmission.profileImage || null,
+        status: kycSubmission.status,
+        submittedAt: kycSubmission.submittedAt || kycSubmission.createdAt,
+        reviewedAt: kycSubmission.reviewedAt || null,
+        adminNotes: kycSubmission.adminNotes || null,
+        rejectionReason: kycSubmission.rejectionReason || null,
+      } : null,
+    };
+
+    // ✅ 12. Créer une session
+    const sessionToken = crypto.randomUUID();
+    const expiresAtSession = new Date();
+    expiresAtSession.setDate(expiresAtSession.getDate() + 30);
+
+    const createdSession = await this.prisma.sessions.create({
+      data: {
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        token: sessionToken,
+        device_info: 'OAuth Web',
+        ip_address: ipAddress || null,
+        last_activity: new Date(),
+        expires_at: expiresAtSession,
+        is_valid: true,
+        created_at: new Date(),
+      },
+    });
+
+    // ✅ 13. Récupérer les sessions
+    const sessions = await this.prisma.sessions.findMany({
+      where: {
+        user_id: user.id,
+        is_valid: true,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        device_info: true,
+        ip_address: true,
+        last_activity: true,
+        created_at: true,
+        expires_at: true,
+      },
+    });
+
+    // ✅ 14. Audit log
+    await this.logAudit(
+      user.id,
+      'OAUTH_LINK_SUCCESS',
+      {
+        phone: user.phone,
+        accessToken: accessToken,
+        clientId: clientId,
+      },
+      ipAddress ?? null,
+    );
+
+    // ✅ 15. Retourner la réponse
+    return {
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      message: this.i18nService.translate('login_success', lang),
+      sessionId: createdSession.id,
+      data: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        fcmToken: user.fcmToken,
+        full_name: user.full_name,
+        account_number: user.account_number,
+        branchId: user.branchId ?? null,
+        branch: userBranch,
+        role: user.role,
+        passwordStatus: user.passwordStatus,
+        pinstatus: user.pinstatus,
+        merchantCode: user.merchantCode,
+        businessName: user.businessName,
+        status: user.status,
+        deleted: user.deleted ?? false,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        profileImage: user.profileImage ?? null,
+        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
+        countryCode: user.countryCode || 'CD',
+        locked_by_admin: user.locked_by_admin ?? false,
+        sessions: sessions,
+        resources: resources,
+        wallets: wallets,
+        kyc: kyc,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+      },
+    };
+  }
 
   async login(
     dto: LoginUserDto & { lang?: string; userAgent?: string },
@@ -1108,121 +1511,6 @@ export class AuthServiceService {
         statusCode: 500,
       });
     }
-  }
-
-  async LinkUser(
-    dto: {
-      phone: string;
-      password: string;
-      otpCode?: string;
-      lang?: string;
-    },
-    ipAddress?: string,
-  ): Promise<any> {
-    const lang = dto.lang || 'fr';
-    const normalizedPhone = this.normalizePhone(dto.phone);
-
-    // ✅ Vérifier que l'utilisateur existe
-    const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { phone: normalizedPhone },
-          { phone: dto.phone },
-          { phone: normalizedPhone.replace(/^\+/, '') },
-        ],
-      },
-    });
-
-    if (!user) {
-      throw new BadRequestException(
-        this.i18nService.translate('user_not_found', lang),
-      );
-    }
-
-    // ✅ Vérifier le mot de passe
-    if (!user.password) {
-      throw new BadRequestException(
-        this.i18nService.translate('user_no_password', lang),
-      );
-    }
-
-    const isValidPassword = await bcrypt.compare(dto.password, user.password);
-    if (!isValidPassword) {
-      throw new BadRequestException(
-        this.i18nService.translate('invalid_password', lang),
-      );
-    }
-
-    // ✅ Si otpCode n'est pas fourni → Étape 1: Envoyer OTP
-    if (!dto.otpCode) {
-      await this.prisma.otp.updateMany({
-        where: { userId: user.id, isUsed: false, expiresAt: { gt: new Date() } },
-        data: { isUsed: true },
-      });
-
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-      await this.prisma.otp.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          email: user.phone || '',
-          otpCode,
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-          isUsed: false,
-        },
-      });
-
-      const smsText = this.i18nService.translate('otp_sms', lang, { otpCode });
-      await this.smsService.sendSms(user.phone || '', smsText, user.countryCode || '');
-
-      return {
-        requiresOtp: true,
-        message: this.i18nService.translate('otp_sent', lang),
-      };
-    }
-
-    // ✅ Si otpCode est fourni → Étape 2: Valider OTP
-    const otpEntry = await this.prisma.otp.findFirst({
-      where: {
-        userId: user.id,
-        otpCode: dto.otpCode,
-        isUsed: false,
-        expiresAt: { gt: new Date() },
-      },
-    });
-
-    if (!otpEntry) {
-      throw new BadRequestException(
-        this.i18nService.translate('otp_invalid', lang),
-      );
-    }
-
-    if (!otpEntry.expiresAt || new Date() > otpEntry.expiresAt) {
-      throw new BadRequestException(
-        this.i18nService.translate('otp_expired', lang),
-      );
-    }
-
-    await this.prisma.otp.update({
-      where: { id: otpEntry.id },
-      data: { isUsed: true },
-    });
-
-    return {
-      message: this.i18nService.translate('login_success', lang),
-      data: {
-        id: user.id,
-        email: user.email,
-        phone: user.phone,
-        full_name: user.full_name,
-        role: user.role,
-        status: user.status,
-        profileImage: user.profileImage ?? null,
-        kycStatus: user.kycStatus || 'NOT_SUBMITTED',
-        countryCode: user.countryCode || 'CD',
-      },
-    };
   }
 
   async validateSession(

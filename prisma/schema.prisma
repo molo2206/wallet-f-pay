@@ -79,6 +79,9 @@ model user {
   kyc_submission                                                    kyc_submission[]
   login_attempt                                                     login_attempt[]
   loyalty_history                                                   loyalty_history[]
+  oauthaccesstoken                                                  oauthaccesstoken[]
+  oauthauthorizationcode                                            oauthauthorizationcode[]
+  oauthrefreshtoken                                                 oauthrefreshtoken[]
   operation                                                         operation[]
   reconciliation_history_reconciliation_history_reconciled_byTouser reconciliation_history[] @relation("reconciliation_history_reconciled_byTouser")
   reconciliation_history_reconciliation_history_user_idTouser       reconciliation_history[] @relation("reconciliation_history_user_idTouser")
@@ -599,6 +602,76 @@ model reconciliation_history {
   @@index([transaction_id], map: "idx_transaction_id")
   @@index([user_id], map: "idx_user_id")
   @@index([wallet_id], map: "idx_wallet_id")
+}
+
+model oauthaccesstoken {
+  id                String              @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  token             String              @unique(map: "token") @db.VarChar(500)
+  clientId          String              @db.VarChar(36)
+  userId            String              @db.VarChar(36)
+  scope             String?             @db.Text
+  expiresAt         DateTime            @db.DateTime(0)
+  createdAt         DateTime            @default(now()) @db.DateTime(0)
+  oauthclient       oauthclient         @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "oauthaccesstoken_ibfk_1")
+  user              user                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "oauthaccesstoken_ibfk_2")
+  oauthrefreshtoken oauthrefreshtoken[]
+
+  @@index([clientId], map: "clientId")
+  @@index([expiresAt], map: "idx_oauth_access_token_expiresAt")
+  @@index([userId], map: "idx_oauth_access_token_userId")
+}
+
+model oauthauthorizationcode {
+  id          String      @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  code        String      @unique(map: "code") @db.VarChar(255)
+  clientId    String      @db.VarChar(36)
+  userId      String      @db.VarChar(36)
+  redirectUri String      @db.VarChar(500)
+  scope       String?     @db.Text
+  expiresAt   DateTime    @db.DateTime(0)
+  isUsed      Boolean     @default(false)
+  createdAt   DateTime    @default(now()) @db.DateTime(0)
+  oauthclient oauthclient @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "oauthauthorizationcode_ibfk_1")
+  user        user        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "oauthauthorizationcode_ibfk_2")
+
+  @@index([clientId], map: "clientId")
+  @@index([expiresAt], map: "idx_oauth_authorization_code_expiresAt")
+  @@index([userId], map: "idx_oauth_authorization_code_userId")
+}
+
+model oauthclient {
+  id                     String                   @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  clientId               String                   @unique(map: "clientId") @db.VarChar(255)
+  clientSecret           String                   @db.VarChar(255)
+  clientName             String                   @db.VarChar(255)
+  clientLogo             String?                  @db.Text
+  redirectUris           String                   @db.Text
+  grantTypes             String                   @db.Text
+  scopes                 String                   @db.Text
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now()) @db.DateTime(0)
+  updatedAt              DateTime                 @default(now()) @db.DateTime(0)
+  oauthaccesstoken       oauthaccesstoken[]
+  oauthauthorizationcode oauthauthorizationcode[]
+  oauthrefreshtoken      oauthrefreshtoken[]
+}
+
+model oauthrefreshtoken {
+  id               String           @id @default(dbgenerated("(uuid())")) @db.VarChar(36)
+  token            String           @unique(map: "token") @db.VarChar(500)
+  accessTokenId    String           @db.VarChar(36)
+  clientId         String           @db.VarChar(36)
+  userId           String           @db.VarChar(36)
+  expiresAt        DateTime         @db.DateTime(0)
+  createdAt        DateTime         @default(now()) @db.DateTime(0)
+  oauthaccesstoken oauthaccesstoken @relation(fields: [accessTokenId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "oauthrefreshtoken_ibfk_1")
+  oauthclient      oauthclient      @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "oauthrefreshtoken_ibfk_2")
+  user             user             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "oauthrefreshtoken_ibfk_3")
+
+  @@index([accessTokenId], map: "accessTokenId")
+  @@index([clientId], map: "clientId")
+  @@index([expiresAt], map: "idx_oauth_refresh_token_expiresAt")
+  @@index([userId], map: "idx_oauth_refresh_token_userId")
 }
 
 enum wallet_currency {

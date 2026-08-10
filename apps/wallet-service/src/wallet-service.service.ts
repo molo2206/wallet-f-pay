@@ -2091,6 +2091,7 @@ export class WalletServiceService {
       },
     };
   }
+
   async cashout(
     userId: string,
     dto: {
@@ -2158,7 +2159,7 @@ export class WalletServiceService {
         role: true,
         status: true,
         failed_pin_attempts: true,
-        countryCode: true, // ✅ AJOUTÉ pour le SMS
+        countryCode: true,
       },
     });
 
@@ -2185,7 +2186,6 @@ export class WalletServiceService {
       let newStatus: user_status = user.status;
       let lockedUntil: Date | null = null;
 
-      // ✅ Logique de blocage automatique (comme le login)
       if (newAttempts >= 10) {
         lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
         newStatus = user_status.SUSPENDED;
@@ -2237,7 +2237,6 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ Succès : réinitialiser les tentatives
     await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -2286,20 +2285,31 @@ export class WalletServiceService {
     // ========== CALCUL DES FRAIS ==========
     const fees = await this.getNetworkProviderFees(provider);
     const feeAmount = (amount * fees.payoutFee) / 100;
+    const totalDebit = amount + feeAmount; // ✅ Montant total à débiter (montant + frais)
     const netAmount = Math.round((amount - feeAmount) * 100) / 100;
 
     console.log('[WalletService] Cashout calcul:', {
       amount,
       feeAmount,
+      totalDebit,
       netAmount,
       payoutFee: fees.payoutFee,
     });
 
-    // ✅ Vérifier le solde (montant demandé)
-    if (wallet.balance < amount) {
+    // ✅ Vérifier le solde : le wallet doit avoir le montant total + frais
+    if (wallet.balance < totalDebit) {
+      const shortfall = (totalDebit - wallet.balance).toFixed(2);
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang, {
+          balance: wallet.balance.toFixed(2),
+          currency: wallet.currency || 'CDF',
+          required: totalDebit.toFixed(2),
+          fee: feeAmount.toFixed(2),
+          feePercent: fees.payoutFee,
+          netAmount: netAmount.toFixed(2),
+          shortfall: shortfall,
+        }),
         statusCode: 400,
       });
     }
@@ -2441,14 +2451,16 @@ export class WalletServiceService {
           const description =
             this.i18nService.translate('wallet.transaction_description_withdraw', lang)
               .replace('{phone}', phone || '') +
-            ` (frais PawaPay ${fees.payoutFee}%)` +
+            ` (frais PawaPay ${fees.payoutFee}%: ${feeAmount.toFixed(2)} ${wallet.currency})` +
+            ` - Net reçu: ${netAmount.toFixed(2)} ${wallet.currency}` +
             ' ' +
             this.i18nService.translate('wallet.via_pawapay', lang, { provider }) +
             (externalReference ? ` Ref: ${externalReference}` : '');
 
+          // ✅ DÉBITER LE MONTANT TOTAL (montant + frais)
           const upd = await tx.wallet.update({
             where: { id: wallet.id },
-            data: { balance: { decrement: amount }, updatedAt: new Date() },
+            data: { balance: { decrement: totalDebit }, updatedAt: new Date() },
           });
 
           const reference = await this.generateTransactionReference('', tx);
@@ -2494,8 +2506,11 @@ export class WalletServiceService {
           feePercent: fees.payoutFee,
           currency: wallet.currency || 'CDF',
           balance: updatedWallet.balance || 0,
+          netAmount: netAmount.toFixed(2),
+          fee: feeAmount.toFixed(2),
+          reference: transaction.reference || 'N/A',
+          phone: phone || '',
         });
-        // ✅ Envoyer SMS avec countryCode
         const countryCode = user?.countryCode || 'CD';
         await this.smsService.sendSms(cleanPhone, smsText, countryCode);
         console.log(`[Cashout] SMS envoyé à ${cleanPhone} (${countryCode})`);
@@ -2531,6 +2546,10 @@ export class WalletServiceService {
         currency: wallet.currency || 'CDF',
         balance: updatedWallet.balance.toFixed(2),
         reference: transaction.reference || 'N/A',
+        fee: feeAmount.toFixed(2),
+        feePercent: fees.payoutFee,
+        netAmount: netAmount.toFixed(2),
+        phone: phone || 'N/A',
       }),
       data: {
         wallet: this.toResponse(updatedWallet),
