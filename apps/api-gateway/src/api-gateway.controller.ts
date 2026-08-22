@@ -4066,6 +4066,7 @@ export class ApiGatewayController {
       });
     }
   }
+  // fpay.controller.ts - Sur FPay (pas Favor Help)
 
   @Post('auth/link-user')
   async linkUser(
@@ -4086,7 +4087,7 @@ export class ApiGatewayController {
       clientId: body.clientId
     });
 
-    // ✅ Si phone et password ne sont pas fournis → Retourner l'URL OAuth
+    // ✅ Si pas de phone/password → Retourner l'URL de la page OAuth
     if (!body || !body.phone || !body.password) {
       const clientId = body?.clientId || 'web-client';
       const appUrl = process.env.APP_URL || 'http://localhost:3000';
@@ -4096,8 +4097,6 @@ export class ApiGatewayController {
       redirectUrl.searchParams.set('client_id', clientId);
       redirectUrl.searchParams.set('code', authCode);
       redirectUrl.searchParams.set('redirect_uri', body?.redirectUri || `${appUrl}/oauth/callback`);
-
-      console.log('[Auth Link-User] URL OAuth générée:', redirectUrl.toString());
 
       return res.json({
         status: 'success',
@@ -4113,52 +4112,60 @@ export class ApiGatewayController {
     const hasOtp = body.otpCode && body.otpCode.trim() !== '';
 
     try {
-      // ✅ Construction du payload
-      const payload: any = {
-        phone: body.phone,
-        password: body.password,
-        clientId: clientId,
-        redirectUri: redirectUri,
-        lang,
-        ipAddress,
-      };
+      // ============================================================
+      // ÉTAPE 1 : Vérifier les identifiants et envoyer OTP
+      // ============================================================
+      if (!hasOtp) {
+        console.log(`📱 ÉTAPE 1 - Vérification des identifiants pour ${body.phone}`);
 
-      if (hasOtp) {
-        payload.otpCode = body.otpCode;
-        console.log('[Auth Link-User] 🔐 Vérification OTP:', body.otpCode);
-      }
+        // ✅ Vérifier les identifiants
+        const user = await this.authService.validateUser(body.phone, body.password);
 
-      // ✅ Appel au service d'authentification avec TYPAGE EXPLICITE
-      const result = await this.sendAuthMessage<LinkUserResponse>(
-        'link_user',
-        payload,
-        'Login failed',
-        HttpStatus.BAD_REQUEST,
-      ) as LinkUserResponse;  // ← CAST EXPLICITE ICI
+        if (!user) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Identifiants invalides'
+          });
+        }
 
-      // ✅ Vérifier si un OTP est requis
-      if (result.requiresOtp === true) {
-        console.log('[Auth Link-User] 📱 OTP requis pour:', body.phone);
+        // ✅ Envoyer OTP
+        await this.authService.sendOtp(body.phone);
+
         return res.json({
           status: 'success',
-          message: 'Code OTP envoyé avec succès',
           requiresOtp: true,
+          message: 'Code OTP envoyé avec succès',
           phone: body.phone,
           data: null
         });
       }
 
-      // ✅ Connexion réussie
-      console.log('[Auth Link-User] ✅ Connexion réussie pour:', body.phone);
+      // ============================================================
+      // ÉTAPE 2 : Vérifier l'OTP et générer les tokens
+      // ============================================================
+      console.log(`🔐 ÉTAPE 2 - Vérification OTP pour ${body.phone}`);
 
+      // ✅ Vérifier l'OTP
+      const isValid = await this.authService.verifyOtp(body.phone, body.otpCode);
+
+      if (!isValid) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Code OTP invalide ou expiré'
+        });
+      }
+
+      // ✅ Générer les tokens
+      const user = await this.authService.getUser(body.phone);
+      const tokens = this.authService.generateTokens(user);
+
+      // ✅ Retourner les tokens pour redirection
       return res.json({
         status: 'success',
         message: 'Connexion réussie',
-        data: result.data || null,
-        accessToken: result.accessToken || null,
-        refreshToken: result.refreshToken || null,
-        sessionId: result.sessionId || null,
-        oauthRedirectUrl: result.oauthRedirectUrl || null,
+        data: user,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
         requiresOtp: false
       });
 
