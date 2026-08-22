@@ -4318,9 +4318,9 @@ export class ApiGatewayController {
 
     switch (env) {
       case 'production':
-        return process.env.APP_URL || 'https://api-prod.f-pay.app';
+        return process.env.APP_URL_CALLBACK_PROD || 'https://api-prod.favorhelp.com/api/v1/';
       case 'test':
-        return process.env.APP_URL || 'https://f-pay.favorhelp.com';
+        return process.env.APP_URL_CALLBACK_TEST || 'https://api.favorhelp.com/api/v1/';
       case 'development':
       default:
         return process.env.APP_URL || 'http://localhost:3000';
@@ -4346,9 +4346,9 @@ export class ApiGatewayController {
 
     switch (env) {
       case 'production':
-        return process.env.OAUTH_CALLBACK_URL || 'https://api-prod.f-pay.app/oauth/callback';
+        return process.env.OAUTH_CALLBACK_URL || `${process.env.APP_URL_CALLBACK_PROD}/oauth/callback`;
       case 'test':
-        return process.env.OAUTH_CALLBACK_URL || 'https://f-pay.favorhelp.com/oauth/callback';
+        return process.env.OAUTH_CALLBACK_URL || `${process.env.APP_URL_CALLBACK_TEST}/oauth/callback`;
       case 'development':
       default:
         return process.env.OAUTH_CALLBACK_URL || 'http://localhost:3000/oauth/callback';
@@ -4359,6 +4359,9 @@ export class ApiGatewayController {
     return process.env.MOBILE_CALLBACK_URL || 'fpay://callback';
   }
 
+  private getFpayUrl(): string {
+    return process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
+  }
   // ============================================================
   // 5. FONCTION 1: GET /auth/open
   // ============================================================
@@ -4407,6 +4410,9 @@ export class ApiGatewayController {
       const env = process.env.NODE_ENV || 'development';
       const envLabel = env === 'production' ? 'PRODUCTION' : env === 'test' ? 'TEST' : 'LOCAL';
 
+      // ✅ Utiliser le callback URL correct
+      const callbackUrl = query.redirect_uri || oauthCallbackUrl;
+
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
 
       if (fs.existsSync(filePath)) {
@@ -4414,7 +4420,7 @@ export class ApiGatewayController {
 
         html = html.replace(/{{APP_URL}}/g, appUrl);
         html = html.replace(/{{FRONTEND_URL}}/g, frontendUrl);
-        html = html.replace(/{{OAUTH_CALLBACK_URL}}/g, oauthCallbackUrl);
+        html = html.replace(/{{OAUTH_CALLBACK_URL}}/g, callbackUrl);
         html = html.replace(/{{MOBILE_CALLBACK_URL}}/g, mobileCallbackUrl);
         html = html.replace(/{{ENV}}/g, env);
         html = html.replace(/{{ENV_LABEL}}/g, envLabel);
@@ -4422,9 +4428,8 @@ export class ApiGatewayController {
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec OTP intégré - CORRIGÉE
-      return res.send(`
-<!DOCTYPE html>
+      // ✅ Version HTML avec OTP intégré
+      return res.send(`<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -4631,7 +4636,7 @@ export class ApiGatewayController {
             <div class="icon">F</div>
             <h1><span class="f">F</span><span class="pay">Pay</span></h1>
             <p>Solutions de paiement securisees</p>
-            <div><span class="env-badge development">LOCAL</span></div>
+            <div><span class="env-badge ${env}">${envLabel}</span></div>
         </div>
 
         <div id="loginState">
@@ -4714,14 +4719,15 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
-            var APP_URL = 'http://localhost:3000';
-            var FRONTEND_URL = 'http://localhost:4200';
-            var OAUTH_CALLBACK_URL = 'http://localhost:3000/oauth/callback';
-            var MOBILE_CALLBACK_URL = 'fpay://callback';
-            var ENV = 'development';
+            var APP_URL = '${appUrl}';
+            var FRONTEND_URL = '${frontendUrl}';
+            var OAUTH_CALLBACK_URL = '${callbackUrl}';
+            var MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
+            var ENV = '${env}';
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
+            console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
 
             var urlParams = new URLSearchParams(window.location.search);
             var CLIENT_ID = urlParams.get('client_id') || 'web-client';
@@ -5077,8 +5083,7 @@ export class ApiGatewayController {
         })();
     </script>
 </body>
-</html>
-    `);
+</html>`);
     } catch (error) {
       console.error('[OAuth] Error:', error);
       return res.status(500).send('Erreur lors du chargement de la page');
