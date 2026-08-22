@@ -14,6 +14,8 @@ export class DebitWalletDto {
   description?: string;
 }
 
+// apps/wallet-service/src/dto/transfer.dto.ts
+
 export class TransferDto {
   fromUserId?: string;
   fromWalletId?: string;
@@ -21,4 +23,5 @@ export class TransferDto {
   toWalletId?: string;
   amount: number;
   description?: string;
+  feeIncluded?: boolean;  // true = frais inclus dans le montant, false = frais séparés
 }

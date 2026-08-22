@@ -405,6 +405,7 @@ model country_provider {
   momo_percentage                 Float?                   @default(0) @db.Float
   branch                          branch[]
   country_currency                country_currency[]
+  fee_config                      fee_config[]
   network_provider                network_provider[]
 }
 
@@ -420,6 +421,7 @@ model network_provider {
   countryId                  String           @db.VarChar(36)
   createdAt                  DateTime         @default(now()) @db.DateTime(0)
   updatedAt                  DateTime         @default(now()) @db.DateTime(0)
+  fee_config                 fee_config[]
   country_provider           country_provider @relation(fields: [countryId], references: [id], onDelete: Cascade, map: "fk_network_country")
 
   @@index([countryId], map: "fk_network_country")
@@ -674,6 +676,36 @@ model oauthrefreshtoken {
   @@index([userId], map: "idx_oauth_refresh_token_userId")
 }
 
+model fee_config {
+  id                String                   @id @db.VarChar(36)
+  countryId         String                   @db.VarChar(36)
+  networkProviderId String?                  @db.VarChar(36)
+  paymentMethod     fee_config_paymentMethod @default(CASH)
+  feeType           fee_config_feeType       @default(FIXE)
+  minAmount         Decimal?                 @db.Decimal(15, 2)
+  maxAmount         Decimal?                 @db.Decimal(15, 2)
+  feeAmount         Decimal?                 @db.Decimal(15, 2)
+  feePercentage     Decimal?                 @db.Decimal(5, 2)
+  flatFee           Decimal?                 @db.Decimal(15, 2)
+  flatFeeCurrency   String?                  @default("FCFA") @db.VarChar(10)
+  maxFee            Decimal?                 @db.Decimal(15, 2)
+  minFee            Decimal?                 @db.Decimal(15, 2)
+  isActive          Boolean                  @default(true)
+  description       String?                  @db.Text
+  createdBy         String?                  @db.VarChar(36)
+  createdAt         DateTime                 @default(now()) @db.DateTime(0)
+  updatedAt         DateTime                 @default(now()) @db.DateTime(0)
+  updatedBy         String?                  @db.VarChar(36)
+  country_provider  country_provider         @relation(fields: [countryId], references: [id], onDelete: Cascade, map: "fk_fee_config_country")
+  network_provider  network_provider?        @relation(fields: [networkProviderId], references: [id], onDelete: Cascade, map: "fk_fee_config_network")
+
+  @@unique([countryId, networkProviderId, paymentMethod, minAmount, maxAmount], map: "unique_fee_config")
+  @@index([isActive], map: "idx_fee_config_active")
+  @@index([countryId], map: "idx_fee_config_country")
+  @@index([networkProviderId], map: "idx_fee_config_network")
+  @@index([paymentMethod], map: "idx_fee_config_payment_method")
+}
+
 enum wallet_currency {
   USD
   EUR
@@ -851,4 +883,20 @@ enum transaction_type {
   CASH_IN
   CASH_OUT
   CASH_TRANSFER
+}
+
+enum fee_config_paymentMethod {
+  CASH
+  MOBILE_MONEY
+  BANK_TRANSFERT
+  CREDIT_DEBIT_CARD
+  INTERNAL
+  EXTERNAL_API
+}
+
+enum fee_config_feeType {
+  FIXE
+  POURCENTAGE
+  FLAT
+  HYBRIDE
 }

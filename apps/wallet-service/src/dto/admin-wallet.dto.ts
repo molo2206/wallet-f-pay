@@ -31,6 +31,7 @@ export class AdminSendDto {
     ipAddress?: string;
     paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour l'envoi (ex: "bank_transfer", "mobile_money", etc.)
     countryCode?: string; // ✅ AJOUTÉ pour les transferts internationaux
+    feeIncluded?: boolean;
 }
 
 export class AdminPayDto {
@@ -43,4 +44,5 @@ export class AdminPayDto {
     lang?: string;
     ipAddress?: string;
     paymentMethod?: string; // facultatif, pour indiquer le mode de paiement utilisé pour le paiement (ex: "bank_transfer", "mobile_money", etc.)
+    feeIncluded?: boolean;
 }

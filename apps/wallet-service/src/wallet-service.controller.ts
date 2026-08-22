@@ -5,7 +5,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // apps/wallet-service/src/wallet-service.controller.ts
 import { Controller } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { MessagePattern, Payload, RmqContext, RpcException, Ctx } from '@nestjs/microservices';
 import { WalletServiceService } from './wallet-service.service';
 import { PayDto, SendDto, SendFidelityDto } from './dto/wallet-operation.dto';
 import { PawapayService } from './pawapay/pawapay.service';
@@ -25,6 +25,68 @@ export class WalletServiceController {
     private readonly i18nService: I18nService, // ✅ injection
   ) { }
 
+  //===========================================================
+  @MessagePattern('get_pawapay_balances')
+  async getPawaPayBalances(
+    @Payload() data: {
+      country?: string;
+      provider?: string;
+    },
+    // ✅ Supprimer @Ctx() car on utilise noAck: true
+  ) {
+    console.log('[WalletService] get_pawapay_balances received:', data);
+
+    try {
+      const result = await this.walletService.getPawaPayBalances(
+        data.country,
+        data.provider,
+      );
+      return result;
+    } catch (error) {
+      console.error('[WalletService] getPawaPayBalances error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error.message || 'Erreur récupération balances',
+        statusCode: error.statusCode || 500,
+      });
+    }
+  }
+  @MessagePattern('deposit_pawapay')
+  async depositWithPawaPay(
+    @Payload() data: {
+      userId: string;
+      amount: number;
+      pin: string;
+      provider: string;
+      phone: string;
+      currency: string;  // ✅ Devise obligatoire
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] deposit_pawapay received:', data);
+
+    try {
+      return await this.walletService.depositWithPawaPay(
+        data.userId,
+        data.amount,
+        data.pin,
+        data.provider,
+        data.phone,
+        data.currency,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] deposit_pawapay error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error.message || this.i18nService.translate('wallet.top_up_failed', lang),
+        statusCode: error.statusCode || 500,
+      });
+    }
+  }
   // ==================== MÉTHODES DE BASE ====================
   @MessagePattern('create_wallet')
   async createWallet(@Payload() data: { userId: string; currency?: string }) {

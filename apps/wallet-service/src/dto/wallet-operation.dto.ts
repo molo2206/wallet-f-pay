@@ -98,6 +98,9 @@ export class SendDto {
 
   @IsOptional()
   countryCode?: string;
+
+  @IsOptional()
+  feeIncluded?: boolean;
 }
 
 export class PayDto {

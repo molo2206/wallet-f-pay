@@ -94,14 +94,29 @@ export class PawapayService {
   }
 
   async getWalletBalances(country?: string, provider?: string) {
-    const url = `${this.baseUrl}/v2/wallet-balances`;
-    const res$ = this.httpService.get(url, { headers: this.headers });
-    const data = await lastValueFrom(res$).then((r) => r.data);
-    let balances = data.balances;
-    if (country) balances = balances.filter((b) => b.country === country);
-    if (provider)
-      balances = balances.filter((b) => b.provider && b.provider.toLowerCase().includes(provider.toLowerCase()));
-    return { balances };
+    try {
+      const url = `${this.baseUrl}/v2/wallet-balances`;
+      console.log('[PawaPay] Fetching wallet balances:', { url, country, provider });
+
+      const res$ = this.httpService.get(url, { headers: this.headers });
+      const data = await lastValueFrom(res$).then((r) => r.data);
+
+      let balances = data.balances || [];
+
+      if (country) {
+        balances = balances.filter((b) => b.country === country);
+      }
+      if (provider) {
+        balances = balances.filter((b) => b.provider && b.provider.toLowerCase().includes(provider.toLowerCase()));
+      }
+
+      console.log('[PawaPay] Balances fetched:', balances.length);
+      return { balances };
+    } catch (error) {
+      console.error('[PawaPay] Error fetching wallet balances:', error);
+      // ✅ Retourner un tableau vide en cas d'erreur pour ne pas planter le service
+      return { balances: [] };
+    }
   }
 
   async createDepositSimple(
@@ -116,18 +131,25 @@ export class PawapayService {
   ): Promise<any> {
     const depositId = uuidv4();
     const clientReferenceId = `INV-${Date.now()}`;
-    const metadata = [
+    const cleanPhone = data.phone.replace(/[^0-9+]/g, '');
+
+    // ✅ Utiliser un type flexible pour metadata
+    const metadata: Record<string, any>[] = [
       { orderId: `ORD-${Date.now()}` },
       { customerId: 'favorhelp31@gmail.com', isPII: true },
-      { walletId: data.walletId },
     ];
+
+    // ✅ Ajouter walletId seulement s'il existe
+    if (data.walletId) {
+      metadata.push({ walletId: data.walletId });
+    }
 
     const body = {
       depositId,
       payer: {
         type: 'MMO',
         accountDetails: {
-          phoneNumber: data.phone,
+          phoneNumber: cleanPhone,
           provider: data.provider,
         },
       },
@@ -139,18 +161,52 @@ export class PawapayService {
       metadata,
     };
 
-    const deposit = await lastValueFrom(
-      this.httpService.post(`${this.baseUrl}/v2/deposits`, body, {
-        headers: this.headers,
-        signal,
-      }),
-    ).then((r) => r.data);
+    console.log('[PawaPay] Creating deposit with body:', JSON.stringify(body, null, 2));
 
-    console.log('[PawaPay] Dépôt créé :', deposit.depositId);
-    const finalStatus = await this.pollDepositStatus(deposit.depositId, signal);
-    console.log('[PawaPay] Statut final :', finalStatus);
+    try {
+      const deposit = await lastValueFrom(
+        this.httpService.post(`${this.baseUrl}/v2/deposits`, body, {
+          headers: this.headers,
+          signal,
+        }),
+      ).then((r) => r.data);
 
-    return { deposit, finalStatus };
+      console.log('[PawaPay] Dépôt créé :', deposit.depositId);
+      const finalStatus = await this.pollDepositStatus(deposit.depositId, signal);
+      console.log('[PawaPay] Statut final :', finalStatus);
+
+      return { deposit, finalStatus };
+    } catch (error: any) {
+      console.error('[PawaPay] Error creating deposit:', error);
+
+      const errorData = error?.response?.data;
+      const failureReason = errorData?.failureReason;
+      const errorMessage = failureReason?.failureMessage ||
+        failureReason?.message ||
+        errorData?.message ||
+        errorData?.error ||
+        error?.message ||
+        'Unknown error';
+      const errorCode = failureReason?.failureCode || errorData?.code || 'UNKNOWN';
+
+      console.error('[PawaPay] Error details:', {
+        status: errorData?.status,
+        failureCode: errorCode,
+        failureMessage: errorMessage,
+        fullFailureReason: failureReason,
+      });
+
+      throw new RpcException({
+        status: 'error',
+        message: `PawaPay: ${errorMessage} (Code: ${errorCode})`,
+        statusCode: error?.response?.status || 400,
+        details: {
+          failureReason: failureReason,
+          depositId: errorData?.depositId,
+          status: errorData?.status,
+        },
+      });
+    }
   }
 
   // Dans pawapay.service.ts

@@ -76,6 +76,38 @@ interface RpcError {
   statusCode?: number;
 }
 
+interface FpayAuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  message: string;
+  sessionId?: string;
+  oauthRedirectUrl?: string;
+  requiresOtp?: boolean;
+  data: {
+    id: string;
+    email: string | null;
+    phone: string | null;
+    full_name: string | null;
+    role: string;
+    status: string;
+    profileImage: string | null;
+    kycStatus: string;
+    countryCode: string | null;
+    accessToken: string;
+    refreshToken: string;
+    tokenType: string;
+    expiresIn: number;
+    [key: string]: any;
+  };
+}
+
+interface FpaySendOtpResponse {
+  success: boolean;
+  message: string;
+  requiresOtp: boolean;
+  phone?: string;
+}
+
 interface AccountData {
   id: string;
   full_name: string;
@@ -96,6 +128,31 @@ interface AccountData {
   createdAt: Date;
   updatedAt: Date;
   countryCode: string | null;
+}
+
+interface LinkUserResponse {
+  accessToken: string;
+  refreshToken: string;
+  message: string;
+  sessionId?: string;
+  oauthRedirectUrl?: string;
+  requiresOtp?: boolean;
+  data: {
+    id: string;
+    email: string | null;
+    phone: string | null;
+    full_name: string | null;
+    role: string;
+    status: string;
+    profileImage: string | null;
+    kycStatus: string;
+    countryCode: string | null;
+    accessToken: string;
+    refreshToken: string;
+    tokenType: string;
+    expiresIn: number;
+    [key: string]: any;
+  };
 }
 
 interface AccountResponse {
@@ -3841,13 +3898,16 @@ export class ApiGatewayController {
     return response;
   }
 
-  // apps/api-gateway/src/api-gateway.controller.ts
+  // ============================================================
+  // 1. AUTH / OTP / LINK-USER FPAY (CORRIGÉ)
+  // ============================================================
 
-  @Post('auth/link-user')
-  async loginWithOtp(
+  @Post('auth/fpay/link-user')
+  async linkFpayUser(
     @Body() body: {
       phone: string;
       password: string;
+      otpCode?: string;
       clientId?: string;
       lang?: string;
       autoOpen?: boolean;
@@ -3866,7 +3926,178 @@ export class ApiGatewayController {
       redirectUrl.searchParams.set('code', authCode);
       redirectUrl.searchParams.set('redirect_uri', `${appUrl}/oauth/callback`);
 
-      console.log('[OAuth] URL de la page:', redirectUrl.toString());
+      console.log('[FPay OAuth] URL de la page:', redirectUrl.toString());
+
+      return res.json({
+        status: 'success',
+        message: 'Page OAuth FPay',
+        url: redirectUrl.toString(),
+        openInBrowser: redirectUrl.toString()
+      });
+    }
+
+    // ✅ Traitement de la connexion avec OTP
+    const lang = body.lang || 'fr';
+    const clientId = body.clientId || 'web-client';
+    const redirectUri = `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
+    const hasOtp = body.otpCode && body.otpCode.trim() !== '';
+
+    console.log('[FPay Link User] Traitement pour:', body.phone);
+    console.log('[FPay Link User] OTP fourni:', hasOtp ? '✅' : '❌');
+
+    try {
+      // ✅ Construction du payload avec OTP si présent
+      const payload: any = {
+        phone: body.phone,
+        password: body.password,
+        clientId: clientId,
+        redirectUri: redirectUri,
+        lang,
+        ipAddress,
+      };
+
+      if (hasOtp) {
+        payload.otpCode = body.otpCode;
+        console.log('[FPay Link User] 🔐 Vérification OTP:', body.otpCode);
+      }
+
+      // ✅ Utiliser le pattern 'link_user' qui existe déjà
+      const result = await this.sendAuthMessage<FpayAuthResponse>(
+        'link_user',  // ← Pattern EXISTANT
+        payload,
+        'Login failed',
+        HttpStatus.BAD_REQUEST,
+      ) as FpayAuthResponse;  // ← CAST EXPLICITE
+
+      // ✅ Vérifier si un OTP est requis (première étape)
+      if (result.requiresOtp === true) {
+        console.log('[FPay Link User] 📱 OTP requis pour:', body.phone);
+        return res.json({
+          status: 'success',
+          message: 'Code OTP envoyé avec succès',
+          requiresOtp: true,
+          phone: body.phone,
+          data: null
+        });
+      }
+
+      // ✅ Connexion réussie avec OTP vérifié
+      console.log('[FPay Link User] ✅ Connexion réussie pour:', body.phone);
+
+      return res.json({
+        status: 'success',
+        message: 'Connexion FPay réussie',
+        data: result.data || null,
+        accessToken: result.accessToken || null,
+        refreshToken: result.refreshToken || null,
+        sessionId: result.sessionId || null,
+        oauthRedirectUrl: result.oauthRedirectUrl || null,
+        requiresOtp: false,
+        isLinked: true
+      });
+
+    } catch (error) {
+      console.error('[FPay Link User] Erreur:', error);
+      return res.status(400).json({
+        status: 'error',
+        message: error.message || 'Erreur de connexion FPay'
+      });
+    }
+  }
+  // ============================================================
+  // 2. ENDPOINT SPÉCIFIQUE POUR L'ENVOI D'OTP
+  // ============================================================
+
+  @Post('auth/send-otp')
+  async sendOtp(
+    @Body() body: {
+      phone: string;
+      password?: string;
+      clientId?: string;
+      lang?: string;
+    },
+    @Ip() ipAddress: string,
+    @Res() res: Response,
+  ) {
+    if (!body || !body.phone) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Le numéro de téléphone est requis'
+      });
+    }
+
+    const lang = body.lang || 'fr';
+    const clientId = body.clientId || 'web-client';
+    const redirectUri = `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
+
+    console.log('[Send OTP] Demande d\'envoi OTP pour:', body.phone);
+
+    try {
+      // ✅ Appel au service FPay pour envoyer l'OTP
+      const result = await this.sendAuthMessage(
+        'send_otp',
+        {
+          phone: body.phone,
+          password: body.password || '',
+          clientId: clientId,
+          redirectUri: redirectUri,
+          lang,
+          ipAddress,
+        },
+        'Erreur lors de l\'envoi de l\'OTP',
+        HttpStatus.BAD_REQUEST,
+      );
+
+      console.log('[Send OTP] ✅ OTP envoyé avec succès à:', body.phone);
+
+      return res.json({
+        status: 'success',
+        message: 'Code OTP envoyé avec succès',
+        phone: body.phone,
+        requiresOtp: true,
+        data: null
+      });
+
+    } catch (error) {
+      console.error('[Send OTP] Erreur:', error);
+      return res.status(400).json({
+        status: 'error',
+        message: error.message || 'Erreur lors de l\'envoi de l\'OTP'
+      });
+    }
+  }
+
+  @Post('auth/link-user')
+  async linkUser(
+    @Body() body: {
+      phone: string;
+      password: string;
+      otpCode?: string;
+      clientId?: string;
+      redirectUri?: string;
+      lang?: string;
+    },
+    @Ip() ipAddress: string,
+    @Res() res: Response,
+  ) {
+    console.log('[Auth Link-User] Requête reçue:', {
+      phone: body.phone,
+      hasOtp: !!body.otpCode,
+      clientId: body.clientId
+    });
+
+    // ✅ Si phone et password ne sont pas fournis → Retourner l'URL OAuth
+    if (!body || !body.phone || !body.password) {
+      const clientId = body?.clientId || 'web-client';
+      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const authCode = crypto.randomBytes(32).toString('hex');
+
+      const redirectUrl = new URL('/oauth/login', appUrl);
+      redirectUrl.searchParams.set('client_id', clientId);
+      redirectUrl.searchParams.set('code', authCode);
+      redirectUrl.searchParams.set('redirect_uri', body?.redirectUri || `${appUrl}/oauth/callback`);
+
+      console.log('[Auth Link-User] URL OAuth générée:', redirectUrl.toString());
 
       return res.json({
         status: 'success',
@@ -3876,41 +4107,180 @@ export class ApiGatewayController {
       });
     }
 
-    // ✅ Traitement de la connexion
+    const lang = body.lang || 'fr';
+    const clientId = body.clientId || 'web-client';
+    const redirectUri = body.redirectUri || `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
+    const hasOtp = body.otpCode && body.otpCode.trim() !== '';
+
+    try {
+      // ✅ Construction du payload
+      const payload: any = {
+        phone: body.phone,
+        password: body.password,
+        clientId: clientId,
+        redirectUri: redirectUri,
+        lang,
+        ipAddress,
+      };
+
+      if (hasOtp) {
+        payload.otpCode = body.otpCode;
+        console.log('[Auth Link-User] 🔐 Vérification OTP:', body.otpCode);
+      }
+
+      // ✅ Appel au service d'authentification avec TYPAGE EXPLICITE
+      const result = await this.sendAuthMessage<LinkUserResponse>(
+        'link_user',
+        payload,
+        'Login failed',
+        HttpStatus.BAD_REQUEST,
+      ) as LinkUserResponse;  // ← CAST EXPLICITE ICI
+
+      // ✅ Vérifier si un OTP est requis
+      if (result.requiresOtp === true) {
+        console.log('[Auth Link-User] 📱 OTP requis pour:', body.phone);
+        return res.json({
+          status: 'success',
+          message: 'Code OTP envoyé avec succès',
+          requiresOtp: true,
+          phone: body.phone,
+          data: null
+        });
+      }
+
+      // ✅ Connexion réussie
+      console.log('[Auth Link-User] ✅ Connexion réussie pour:', body.phone);
+
+      return res.json({
+        status: 'success',
+        message: 'Connexion réussie',
+        data: result.data || null,
+        accessToken: result.accessToken || null,
+        refreshToken: result.refreshToken || null,
+        sessionId: result.sessionId || null,
+        oauthRedirectUrl: result.oauthRedirectUrl || null,
+        requiresOtp: false
+      });
+
+    } catch (error) {
+      console.error('[Auth Link-User] Erreur:', error);
+      return res.status(400).json({
+        status: 'error',
+        message: error.message || 'Erreur de connexion'
+      });
+    }
+  }
+  // ============================================================
+  // 3. ENDPOINT SPÉCIFIQUE POUR LA VÉRIFICATION OTP FPAY
+  // ============================================================
+
+  @Post('auth/fpay/verify-otp')
+  async verifyFpayOtp(
+    @Body() body: {
+      phone: string;
+      password: string;
+      otpCode: string;
+      clientId?: string;
+      lang?: string;
+    },
+    @Ip() ipAddress: string,
+    @Res() res: Response,
+  ) {
+    // ✅ 1. Validation des champs
+    if (!body || !body.phone || !body.password || !body.otpCode) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Tous les champs sont requis (phone, password, otpCode)'
+      });
+    }
+
     const lang = body.lang || 'fr';
     const clientId = body.clientId || 'web-client';
     const redirectUri = `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
 
-    console.log('[OAuth] Traitement de la connexion pour:', body.phone);
+    console.log('[FPay Verify OTP] Vérification OTP pour:', body.phone);
+    console.log('[FPay Verify OTP] Code:', body.otpCode);
 
     try {
-      // ✅ Définir le type attendu
-      interface LinkUserResponse {
-        accessToken: string;
-        refreshToken: string;
-        message: string;
-        sessionId?: string;
-        oauthRedirectUrl?: string;
-        data: {
-          id: string;
-          email: string | null;
-          phone: string | null;
-          full_name: string | null;
-          role: string;
-          status: string;
-          profileImage: string | null;
-          kycStatus: string;
-          countryCode: string | null;
-          accessToken: string;
-          refreshToken: string;
-          tokenType: string;
-          expiresIn: number;
-          [key: string]: any; // Pour les propriétés supplémentaires
-        };
-      }
+      // ✅ 2. Utiliser le pattern 'link_user' avec OTP (existant)
+      const result = await this.sendAuthMessage<FpayAuthResponse>(
+        'link_user',  // ← Pattern EXISTANT
+        {
+          phone: body.phone,
+          password: body.password,
+          otpCode: body.otpCode,
+          clientId: clientId,
+          redirectUri: redirectUri,
+          lang,
+          ipAddress,
+        },
+        'Code OTP invalide',
+        HttpStatus.BAD_REQUEST,
+      ) as FpayAuthResponse;  // ← CAST EXPLICITE
 
-      const result = await this.sendAuthMessage<LinkUserResponse>(
-        'link_user',
+      console.log('[FPay Verify OTP] ✅ OTP vérifié avec succès pour:', body.phone);
+
+      // ✅ 3. Retourner la réponse
+      return res.json({
+        status: 'success',
+        message: 'Connexion FPay réussie',
+        data: result.data || null,
+        accessToken: result.accessToken || null,
+        refreshToken: result.refreshToken || null,
+        sessionId: result.sessionId || null,
+        requiresOtp: false,
+        isLinked: true
+      });
+
+    } catch (error) {
+      console.error('[FPay Verify OTP] Erreur:', error);
+      return res.status(400).json({
+        status: 'error',
+        message: error.message || 'Code OTP invalide ou expiré'
+      });
+    }
+  }
+
+  // ============================================================
+  // 2. ENDPOINT SPÉCIFIQUE POUR L'ENVOI D'OTP FPAY
+  // ============================================================
+
+  @Post('auth/fpay/send-otp')
+  async sendFpayOtp(
+    @Body() body: {
+      phone: string;
+      password: string;
+      clientId?: string;
+      lang?: string;
+    },
+    @Ip() ipAddress: string,
+    @Res() res: Response,
+  ) {
+    // ✅ 1. Validation
+    if (!body || !body.phone) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Le numéro de téléphone est requis'
+      });
+    }
+
+    if (!body.password) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Le mot de passe est requis'
+      });
+    }
+
+    const lang = body.lang || 'fr';
+    const clientId = body.clientId || 'web-client';
+    const redirectUri = `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
+
+    console.log('[FPay Send OTP] Demande d\'envoi OTP pour:', body.phone);
+
+    try {
+      // ✅ 2. Utiliser le pattern 'send_otp' qui existe déjà
+      const result = await this.sendAuthMessage(
+        'send_otp',  // ← Pattern EXISTANT
         {
           phone: body.phone,
           password: body.password,
@@ -3919,34 +4289,30 @@ export class ApiGatewayController {
           lang,
           ipAddress,
         },
-        'Login failed',
+        'Erreur lors de l\'envoi de l\'OTP',
         HttpStatus.BAD_REQUEST,
       );
 
-      // ✅ Maintenant result est typé
+      console.log('[FPay Send OTP] ✅ OTP envoyé avec succès à:', body.phone);
+
       return res.json({
         status: 'success',
-        message: 'Connexion réussie',
-        data: result.data,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        sessionId: result.sessionId,
-        oauthRedirectUrl: result.oauthRedirectUrl
+        message: 'Code OTP envoyé avec succès',
+        phone: body.phone,
+        requiresOtp: true,
+        data: null
       });
 
     } catch (error) {
-      console.error('[OAuth] Erreur:', error);
+      console.error('[FPay Send OTP] Erreur:', error);
       return res.status(400).json({
         status: 'error',
-        message: error.message || 'Erreur de connexion'
+        message: error.message || 'Erreur lors de l\'envoi de l\'OTP'
       });
     }
   }
-
-  // apps/api-gateway/src/api-gateway.controller.ts
-
   // ============================================================
-  //  MÉTHODES UTILITAIRES POUR LES URLs
+  // 4. MÉTHODES UTILITAIRES POUR LES URLs
   // ============================================================
 
   private getAppUrl(): string {
@@ -3996,9 +4362,8 @@ export class ApiGatewayController {
   }
 
   // ============================================================
-  //  FONCTION 1: GET /auth/open
+  // 5. FONCTION 1: GET /auth/open
   // ============================================================
-
   @Get('auth/open')
   async openOAuthPage(@Res() res: Response) {
     const appUrl = this.getAppUrl();
@@ -4019,7 +4384,7 @@ export class ApiGatewayController {
   }
 
   // ============================================================
-  //  FONCTION 2: GET /oauth/login
+  // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
   @Get('oauth/login')
@@ -4059,6 +4424,7 @@ export class ApiGatewayController {
         return res.set('Content-Type', 'text/html').send(html);
       }
 
+      // ✅ Version HTML avec OTP intégré - CORRIGÉE
       return res.send(`
 <!DOCTYPE html>
 <html>
@@ -4139,6 +4505,7 @@ export class ApiGatewayController {
             box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.1);
         }
         .form-group input::placeholder { color: #9ca3af; }
+        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn {
             width: 100%;
             padding: 14px;
@@ -4176,13 +4543,30 @@ export class ApiGatewayController {
         .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
         .message.success { background: #f0fdf4; color: #059669; border: 1px solid #bbf7d0; }
         .message.info { background: #eff6ff; color: #0A1CF2; border: 1px solid rgba(10, 28, 242, 0.2); }
+        .otp-section {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .otp-section.show {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         .links { text-align: center; margin-top: 20px; font-size: 14px; color: #6b7280; }
-        .links a { color: #0A1CF2; text-decoration: none; font-weight: 500; }
+        .links a { color: #0A1CF2; text-decoration: none; font-weight: 500; cursor: pointer; }
         .links a:hover { text-decoration: underline; }
         .links .divider { color: #e5e7eb; margin: 0 8px; }
         .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
         .footer a { color: #6b7280; text-decoration: none; }
         .footer a:hover { color: #0A1CF2; }
+        .timer {
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 8px;
+        }
         #successState {
             display: none;
             text-align: center;
@@ -4228,6 +4612,7 @@ export class ApiGatewayController {
             .message.error { background: #451a1a; color: #fca5a5; border-color: #7f1d1d; }
             .message.success { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
             .message.info { background: #1e3a5f; color: #93c5fd; border-color: #1e40af; }
+            .timer { color: #94a3b8; }
             #successState h2 { color: #f1f5f9; }
             #successState p { color: #94a3b8; }
             #successState .user-info { background: #1e293b; border-color: #334155; }
@@ -4248,34 +4633,42 @@ export class ApiGatewayController {
             <div class="icon">F</div>
             <h1><span class="f">F</span><span class="pay">Pay</span></h1>
             <p>Solutions de paiement securisees</p>
-            <div><span class="env-badge ${env}">${envLabel}</span></div>
+            <div><span class="env-badge development">LOCAL</span></div>
         </div>
 
         <div id="loginState">
             <div class="header">
                 <h2>Connexion a F-Pay</h2>
-                <p>Connectez-vous pour continuer</p>
+                <p id="stepMessage">Etape 1 : Saisissez vos identifiants</p>
             </div>
             <div class="message" id="message">
                 <span id="messageText">Message</span>
             </div>
-            <form id="loginForm">
+            <form id="loginForm" autocomplete="off">
                 <div class="form-group">
                     <label>Numero de telephone</label>
                     <input type="tel" id="phone" placeholder="+243 999 999 999" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="passwordGroup">
                     <label>Mot de passe</label>
                     <input type="password" id="password" placeholder="Votre mot de passe" required>
                 </div>
+                <!-- SECTION OTP (cachee au debut) -->
+                <div class="otp-section" id="otpSection">
+                    <div class="form-group">
+                        <label>Code OTP</label>
+                        <input type="text" id="otpCode" placeholder="Entrez le code recu par SMS" maxlength="6" inputmode="numeric" autocomplete="off">
+                        <div class="timer" id="timer">⏱️ 60s</div>
+                    </div>
+                </div>
                 <button type="submit" class="btn" id="submitBtn">
                     <span class="spinner"></span>
-                    <span class="btn-text">Se connecter</span>
+                    <span class="btn-text" id="btnText">Se connecter</span>
                 </button>
             </form>
             <div class="links">
-                <a href="#">Mot de passe oublie ?</a>
-                <span class="divider">|</span>
+                <a href="#" id="resendLink" style="display:none;">Renvoyer le code OTP</a>
+                <span class="divider" id="dividerResend" style="display:none;">|</span>
                 <a href="#">Creer un compte</a>
             </div>
         </div>
@@ -4313,170 +4706,377 @@ export class ApiGatewayController {
 
         <div class="footer">
             <span>Connexion securisee • </span>
-            <a href="#">Conditions d'utilisation</a>
+            <a href="#">Conditions d utilisation</a>
             <span> • </span>
             <a href="#">Politique de confidentialite</a>
         </div>
     </div>
 
     <script>
-        const APP_URL = '${appUrl}';
-        const FRONTEND_URL = '${frontendUrl}';
-        const OAUTH_CALLBACK_URL = '${oauthCallbackUrl}';
-        const MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
-        const ENV = '${env}';
+        (function() {
+            'use strict';
 
-        console.log('[OAuth] Environnement:', ENV);
-        console.log('[OAuth] APP_URL:', APP_URL);
-        console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
+            var APP_URL = 'http://localhost:3000';
+            var FRONTEND_URL = 'http://localhost:4200';
+            var OAUTH_CALLBACK_URL = 'http://localhost:3000/oauth/callback';
+            var MOBILE_CALLBACK_URL = 'fpay://callback';
+            var ENV = 'development';
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const CLIENT_ID = urlParams.get('client_id') || 'web-client';
-        const REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
+            console.log('[OAuth] Environnement:', ENV);
+            console.log('[OAuth] APP_URL:', APP_URL);
 
-        let userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
-        let userData = null;
+            var urlParams = new URLSearchParams(window.location.search);
+            var CLIENT_ID = urlParams.get('client_id') || 'web-client';
+            var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
 
-        function cleanUrl() {
-            if (window.history && window.history.replaceState) {
-                const cleanUrl = window.location.origin + window.location.pathname;
-                window.history.replaceState({}, document.title, cleanUrl);
-                console.log('[OAuth] URL nettoyee:', cleanUrl);
-            }
-        }
+            var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
+            var userData = null;
+            var otpRequired = false;
+            var timerInterval = null;
+            var secondsLeft = 60;
+            var phoneSaved = '';
+            var passwordSaved = '';
 
-        function stopLoading() {
-            const btn = document.getElementById('submitBtn');
-            btn.classList.remove('loading');
-            btn.disabled = false;
-        }
+            // ============================================================
+            //  FONCTIONS UTILITAIRES
+            // ============================================================
 
-        function startLoading() {
-            const btn = document.getElementById('submitBtn');
-            btn.classList.add('loading');
-            btn.disabled = true;
-        }
-
-        function showMessage(type, text) {
-            const messageEl = document.getElementById('message');
-            const messageText = document.getElementById('messageText');
-            messageEl.className = 'message show ' + type;
-            messageText.textContent = text;
-        }
-
-        function showSuccess(data) {
-            document.getElementById('loginState').style.display = 'none';
-            document.getElementById('successState').style.display = 'block';
-            
-            userData = data.data;
-            userTokens = {
-                accessToken: data.accessToken || data.data?.accessToken,
-                refreshToken: data.refreshToken || data.data?.refreshToken,
-                userId: data.data?.id,
-                code: data.code || urlParams.get('code'),
-            };
-
-            if (data && data.data) {
-                document.getElementById('userId').textContent = data.data.id || '-';
-                document.getElementById('userPhone').textContent = data.data.phone || '-';
-                document.getElementById('userFullName').textContent = data.data.full_name || '-';
-                document.getElementById('userRole').textContent = data.data.role || '-';
-                document.getElementById('userStatus').textContent = data.data.status || '-';
-            }
-            
-            cleanUrl();
-            console.log('[OAuth] Tokens stockes:', userTokens);
-        }
-
-        function handleRedirect() {
-            const redirectUrl = new URL(REDIRECT_URI);
-            
-            if (userTokens.accessToken) {
-                redirectUrl.searchParams.set('access_token', userTokens.accessToken);
-            }
-            if (userTokens.refreshToken) {
-                redirectUrl.searchParams.set('refresh_token', userTokens.refreshToken);
-            }
-            if (userTokens.userId) {
-                redirectUrl.searchParams.set('user_id', userTokens.userId);
-            }
-            if (userTokens.code) {
-                redirectUrl.searchParams.set('code', userTokens.code);
+            function cleanUrl() {
+                if (window.history && window.history.replaceState) {
+                    var cleanUrl = window.location.origin + window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }
             }
 
-            console.log('[OAuth] Redirection vers:', redirectUrl.toString());
-            window.location.href = redirectUrl.toString();
-        }
-
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            const phone = document.getElementById('phone').value.trim();
-            const password = document.getElementById('password').value.trim();
-
-            if (!phone || !password) {
-                showMessage('error', 'Veuillez remplir tous les champs');
-                return;
+            function stopLoading() {
+                var btn = document.getElementById('submitBtn');
+                btn.classList.remove('loading');
+                btn.disabled = false;
             }
 
-            startLoading();
-            showMessage('info', 'Connexion en cours...');
+            function startLoading() {
+                var btn = document.getElementById('submitBtn');
+                btn.classList.add('loading');
+                btn.disabled = true;
+            }
 
-            try {
-                const response = await fetch('/auth/link-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        phone: phone,
-                        password: password,
-                        clientId: CLIENT_ID,
-                        redirectUri: REDIRECT_URI,
-                        lang: 'fr'
-                    })
-                });
+            function showMessage(type, text) {
+                var messageEl = document.getElementById('message');
+                var messageText = document.getElementById('messageText');
+                messageEl.className = 'message show ' + type;
+                messageText.textContent = text;
+            }
 
-                const data = await response.json();
+            function showSuccess(data) {
+                document.getElementById('loginState').style.display = 'none';
+                document.getElementById('successState').style.display = 'block';
+                
+                userData = data.data;
+                userTokens = {
+                    accessToken: data.accessToken || (data.data && data.data.accessToken),
+                    refreshToken: data.refreshToken || (data.data && data.data.refreshToken),
+                    userId: data.data && data.data.id,
+                    code: data.code || urlParams.get('code')
+                };
 
-                if (!response.ok) {
-                    throw new Error(data.message || 'Erreur de connexion');
+                if (data && data.data) {
+                    document.getElementById('userId').textContent = data.data.id || '-';
+                    document.getElementById('userPhone').textContent = data.data.phone || '-';
+                    document.getElementById('userFullName').textContent = data.data.full_name || '-';
+                    document.getElementById('userRole').textContent = data.data.role || '-';
+                    document.getElementById('userStatus').textContent = data.data.status || '-';
+                }
+                
+                cleanUrl();
+                console.log('[OAuth] Tokens stockes:', userTokens);
+            }
+
+            window.handleRedirect = function() {
+                var redirectUrl = new URL(REDIRECT_URI);
+                
+                if (userTokens.accessToken) {
+                    redirectUrl.searchParams.set('access_token', userTokens.accessToken);
+                }
+                if (userTokens.refreshToken) {
+                    redirectUrl.searchParams.set('refresh_token', userTokens.refreshToken);
+                }
+                if (userTokens.userId) {
+                    redirectUrl.searchParams.set('user_id', userTokens.userId);
+                }
+                if (userTokens.code) {
+                    redirectUrl.searchParams.set('code', userTokens.code);
                 }
 
-                console.log('[OAuth] Connexion reussie:', data);
+                console.log('[OAuth] Redirection vers:', redirectUrl.toString());
+                window.location.href = redirectUrl.toString();
+            };
 
-                showSuccess(data);
-                stopLoading();
+            // ============================================================
+            //  TIMER OTP
+            // ============================================================
 
-            } catch (error) {
-                console.error('[OAuth] Erreur:', error);
-                showMessage('error', error.message || 'Erreur de connexion');
-                stopLoading();
-            }
-        });
+            function startTimer() {
+                secondsLeft = 60;
+                var timerEl = document.getElementById('timer');
+                timerEl.style.display = 'block';
+                timerEl.textContent = '⏱️ 60s';
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const code = urlParams.get('code');
-            const accessToken = urlParams.get('access_token');
-            const userId = urlParams.get('user_id');
-            
-            if (code && accessToken && userId) {
-                userTokens = {
-                    accessToken: accessToken,
-                    refreshToken: urlParams.get('refresh_token'),
-                    userId: userId,
-                    code: code,
-                };
-                showSuccess({
-                    data: {
-                        id: userId,
-                        phone: urlParams.get('phone') || 'N/A',
-                        full_name: urlParams.get('full_name') || 'Utilisateur',
-                        role: urlParams.get('role') || 'USER',
-                        status: 'ACTIVE'
+                document.getElementById('resendLink').style.display = 'inline';
+                document.getElementById('dividerResend').style.display = 'inline';
+
+                clearInterval(timerInterval);
+                timerInterval = setInterval(function() {
+                    secondsLeft--;
+                    timerEl.textContent = '⏱️ ' + secondsLeft + 's';
+                    
+                    if (secondsLeft <= 0) {
+                        clearInterval(timerInterval);
+                        timerEl.textContent = '⏱️ Code expire';
                     }
-                });
-                console.log('[OAuth] Deja connecte');
+                }, 1000);
             }
-        });
+
+            // ============================================================
+            //  RENVOYER L'OTP
+            // ============================================================
+
+            window.resendOtp = async function(event) {
+                if (event) { event.preventDefault(); }
+
+                var phone = document.getElementById('phone').value.trim();
+                var password = document.getElementById('password').value.trim();
+
+                if (!phone || !password) {
+                    showMessage('error', 'Veuillez saisir votre numero et mot de passe');
+                    return;
+                }
+
+                showMessage('info', 'Envoi d un nouveau code OTP...');
+
+                try {
+                    var response = await fetch('/auth/link-user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            phone: phone,
+                            password: password,
+                            clientId: CLIENT_ID,
+                            redirectUri: REDIRECT_URI,
+                            lang: 'fr'
+                        })
+                    });
+
+                    var data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Erreur lors de l envoi');
+                    }
+
+                    if (data.requiresOtp === true) {
+                        showMessage('success', '✅ Nouveau code OTP envoye !');
+                        startTimer();
+                    } else {
+                        throw new Error('Erreur lors de l envoi du code');
+                    }
+
+                } catch (error) {
+                    console.error('[Resend OTP] Erreur:', error);
+                    showMessage('error', error.message || 'Erreur lors de l envoi');
+                }
+            };
+
+            // ============================================================
+            //  SOUMISSION DU FORMULAIRE (2 ETAPES)
+            // ============================================================
+
+            document.getElementById('loginForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                console.log('[OAuth] Formulaire soumis');
+
+                var phone = document.getElementById('phone').value.trim();
+                var password = document.getElementById('password').value.trim();
+                var otpCode = document.getElementById('otpCode').value.trim();
+                var btnText = document.getElementById('btnText');
+                var stepMessage = document.getElementById('stepMessage');
+
+                console.log('[OAuth] Phone:', phone);
+                console.log('[OAuth] OTP fourni:', otpCode ? '✅' : '❌');
+
+                if (!phone || !password) {
+                    showMessage('error', 'Veuillez remplir tous les champs');
+                    return;
+                }
+
+                // ============================================================
+                // ETAPE 1 : Verification des identifiants + Envoi OTP
+                // ============================================================
+                if (!otpRequired) {
+                    startLoading();
+                    showMessage('info', 'Verification des identifiants...');
+
+                    try {
+                        var payloadStep1 = {
+                            phone: phone,
+                            password: password,
+                            clientId: CLIENT_ID,
+                            redirectUri: REDIRECT_URI,
+                            lang: 'fr'
+                        };
+
+                        console.log('[OAuth] Etape 1 - Verification identifiants:', payloadStep1);
+
+                        var response1 = await fetch('/auth/link-user', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payloadStep1)
+                        });
+
+                        var data1 = await response1.json();
+
+                        console.log('[OAuth] Etape 1 - Reponse:', data1);
+
+                        if (!response1.ok) {
+                            throw new Error(data1.message || 'Identifiants invalides');
+                        }
+
+                        // ✅ Si OTP requis (identifiants valides)
+                        if (data1.requiresOtp === true) {
+                            otpRequired = true;
+                            phoneSaved = phone;
+                            passwordSaved = password;
+
+                            var otpSection = document.getElementById('otpSection');
+                            otpSection.classList.add('show');
+
+                            document.getElementById('passwordGroup').style.display = 'none';
+
+                            btnText.textContent = 'Verifier le code';
+                            stepMessage.textContent = 'Etape 2 : Saisissez le code OTP recu par SMS';
+
+                            showMessage('success', '✅ Code OTP envoye par SMS !');
+                            startTimer();
+                            stopLoading();
+
+                            document.getElementById('otpCode').focus();
+                            return;
+                        } else {
+                            // Si deja connecte directement (pas d'OTP requis)
+                            showSuccess(data1);
+                            stopLoading();
+                            return;
+                        }
+
+                    } catch (error) {
+                        console.error('[OAuth] Etape 1 - Erreur:', error);
+                        showMessage('error', error.message || 'Identifiants invalides');
+                        stopLoading();
+                        return;
+                    }
+                }
+
+                // ============================================================
+                // ETAPE 2 : Verification OTP + LINK
+                // ============================================================
+                if (otpRequired) {
+                    if (!otpCode) {
+                        showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
+                        return;
+                    }
+
+                    startLoading();
+                    showMessage('info', 'Verification du code OTP...');
+
+                    try {
+                        var payloadStep2 = {
+                            phone: phoneSaved,
+                            password: passwordSaved,
+                            otpCode: otpCode,
+                            clientId: CLIENT_ID,
+                            redirectUri: REDIRECT_URI,
+                            lang: 'fr'
+                        };
+
+                        console.log('[OAuth] Etape 2 - Verification OTP + LINK:', payloadStep2);
+
+                        var response2 = await fetch('/auth/link-user', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payloadStep2)
+                        });
+
+                        var data2 = await response2.json();
+
+                        console.log('[OAuth] Etape 2 - Reponse:', data2);
+
+                        if (!response2.ok) {
+                            throw new Error(data2.message || 'Code OTP invalide');
+                        }
+
+                        // ✅ Connexion reussie - LE COMPTE EST LIE !
+                        showSuccess(data2);
+                        stopLoading();
+
+                    } catch (error) {
+                        console.error('[OAuth] Etape 2 - Erreur:', error);
+                        showMessage('error', error.message || 'Code OTP invalide ou expire');
+                        stopLoading();
+                    }
+                }
+            });
+
+            // ============================================================
+            //  CHARGEMENT INITIAL
+            // ============================================================
+
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('[OAuth] DOM charge');
+
+                var code = urlParams.get('code');
+                var accessToken = urlParams.get('access_token');
+                var userId = urlParams.get('user_id');
+                
+                if (code && accessToken && userId) {
+                    userTokens = {
+                        accessToken: accessToken,
+                        refreshToken: urlParams.get('refresh_token'),
+                        userId: userId,
+                        code: code
+                    };
+                    showSuccess({
+                        data: {
+                            id: userId,
+                            phone: urlParams.get('phone') || 'N/A',
+                            full_name: urlParams.get('full_name') || 'Utilisateur',
+                            role: urlParams.get('role') || 'USER',
+                            status: 'ACTIVE'
+                        }
+                    });
+                    console.log('[OAuth] Deja connecte');
+                }
+
+                var otpInput = document.getElementById('otpCode');
+                if (otpInput) {
+                    otpInput.addEventListener('input', function(e) {
+                        this.value = this.value.replace(/\D/g, '').slice(0, 6);
+                        
+                        if (this.value.length === 6) {
+                            console.log('[OAuth] OTP complet, soumission automatique');
+                            document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+                        }
+                    });
+                }
+
+                var resendLink = document.getElementById('resendLink');
+                if (resendLink) {
+                    resendLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        window.resendOtp(e);
+                    });
+                }
+            });
+
+        })();
     </script>
 </body>
 </html>
@@ -4488,7 +5088,7 @@ export class ApiGatewayController {
   }
 
   // ============================================================
-  //  FONCTION 3: GET /oauth/callback
+  // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
 
   @Get('oauth/callback')
@@ -4552,6 +5152,7 @@ export class ApiGatewayController {
 
     return res.redirect(HttpStatus.FOUND, redirectUrl.toString());
   }
+
 
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
@@ -5355,6 +5956,113 @@ export class ApiGatewayController {
       300000,
     );
   }
+  //===========================================AFFICHER LES BALANCES DE PAWAPAY==========================================
+  @Get('pawapay/balances')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async getPawaPayBalances(
+    @CurrentUser() currentUser: any,  //  Récupérer l'utilisateur connecté
+    @Query('country') country?: string,
+    @Query('provider') provider?: string,
+  ) {
+    //  Vérifier que l'utilisateur est ADMIN ou SUPER_ADMIN
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException(
+        'Accès interdit. Seul un administrateur peut consulter les balances PawaPay.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    return this.sendWalletMessage(
+      'get_pawapay_balances',
+      { country, provider },
+      'Erreur récupération balances',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Post('wallet/deposit/pawapay')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async depositWithPawaPay(
+    @CurrentUser() currentUser: any,
+    @Body() body: {
+      amount: number;
+      pin: string;
+      provider: string;
+      phone: string;
+      currency: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.amount_positive', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.pin || body.pin.length < 4) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_min_length', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!/^\d+$/.test(body.pin)) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_digits_only', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.provider) {
+      throw new HttpException(
+        'Le provider est requis (ex: MTN_MOMO_BEN, ORANGE_COD, etc.)',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.phone) {
+      throw new HttpException(
+        'Le numéro de téléphone est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.currency) {
+      throw new HttpException(
+        'La devise est requise (ex: CDF, USD, XOF, XAF, etc.)',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!currentUser?.id) {
+      throw new HttpException(
+        'Utilisateur non authentifié',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    return this.sendWalletMessage(
+      'deposit_pawapay',
+      {
+        userId: currentUser.id,
+        amount: body.amount,
+        pin: body.pin,
+        provider: body.provider,
+        phone: body.phone,
+        currency: body.currency.toUpperCase(),
+        lang,
+        ipAddress,
+      },
+      this.i18nService.translate('wallet.top_up_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
   //=====================================================================================================================
   private handleRpcError(
     error: any,

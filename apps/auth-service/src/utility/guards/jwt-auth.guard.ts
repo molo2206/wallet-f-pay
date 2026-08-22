@@ -52,7 +52,6 @@ export class JwtAuthGuard implements CanActivate {
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       if (isLogoutRoute) {
-        // Pour logout, on accepte l'absence de token (déjà déconnecté)
         return true;
       }
       throw new UnauthorizedException('Token manquant');
@@ -64,7 +63,6 @@ export class JwtAuthGuard implements CanActivate {
       const secretKey =
         this.configService.get<string>('JWT_SECRET') || 'secret';
 
-      // Pour logout, on ignore l'expiration du token
       const options: any = {};
       if (isLogoutRoute) {
         options.ignoreExpiration = true;
@@ -141,8 +139,32 @@ export class JwtAuthGuard implements CanActivate {
         }
       }
 
-      // Attacher l'utilisateur à la requête
-      request.currentUser = {
+      // ✅ Récupérer l'utilisateur complet avec branchId et branch depuis la base de données
+      let userWithBranch: any = null;
+      if (!isLogoutRoute) {
+        try {
+          userWithBranch = await firstValueFrom(
+            this.authClient
+              .send('get_user_by_id', { userId: payload.id })
+              .pipe(timeout(5000)),
+          );
+          
+          console.log('[JwtAuthGuard] User data from DB:', {
+            id: userWithBranch?.id,
+            branchId: userWithBranch?.branchId,
+            branch: userWithBranch?.branch,
+            hasBranch: !!userWithBranch?.branch,
+          });
+        } catch (err) {
+          console.error('Erreur lors de la récupération des infos utilisateur:', err);
+        }
+      }
+
+      // ✅ Si userWithBranch n'est pas trouvé, utiliser les données du payload
+      const userData = userWithBranch || payload;
+
+      // ✅ Construire l'utilisateur complet
+      const currentUser = {
         id: payload.id,
         email: payload.email ?? null,
         phone: payload.phone ?? null,
@@ -154,22 +176,46 @@ export class JwtAuthGuard implements CanActivate {
         createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
         updatedAt: payload.updatedAt ? new Date(payload.updatedAt) : new Date(),
         sessionToken: payload.sessionToken,
+        // ✅ Récupérer branchId depuis les données utilisateur
+        branchId: userData.branchId || null,
+        branch: userData.branch || null,
+        countryCode: userData.countryCode || payload.countryCode || null,
+        kycStatus: userData.kycStatus || payload.kycStatus || 'NOT_SUBMITTED',
+        profileImage: userData.profileImage || payload.profileImage || null,
+        pin: payload.pin || null,
+        passwordStatus: payload.passwordStatus || null,
+        pinstatus: payload.pinstatus || false,
+        merchantCode: payload.merchantCode || null,
+        businessName: payload.businessName || null,
+        locked_by_admin: payload.locked_by_admin || false,
       };
+
+      console.log('[JwtAuthGuard] CurrentUser final:', {
+        id: currentUser.id,
+        branchId: currentUser.branchId,
+        hasBranch: !!currentUser.branch,
+      });
+
+      // ✅ Attacher l'utilisateur à la requête
+      request.currentUser = currentUser;
+      request.user = currentUser;
 
       return true;
     } catch (err) {
-      // En cas d'erreur sur logout, on laisse passer (on considère que la déconnexion est possible)
       if (isLogoutRoute) {
-        // On peut tout de même attacher un utilisateur minimal si besoin
         request.currentUser = { id: null };
+        request.user = request.currentUser;
         return true;
       }
+
       if (err instanceof TokenExpiredError) {
         throw new ForbiddenException('Token expiré');
       }
+
       if (err instanceof JsonWebTokenError) {
         throw new UnauthorizedException('Token invalide');
       }
+
       throw err;
     }
   }
