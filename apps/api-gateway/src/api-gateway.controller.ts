@@ -4069,7 +4069,6 @@ export class ApiGatewayController {
   // ============================================================
   // ROUTE AUTH/LINK-USER (FONCTIONNE AVEC sendAuthMessage)
   // ============================================================
-
   @Post('auth/link-user')
   async linkUser(
     @Body() body: {
@@ -4161,8 +4160,8 @@ export class ApiGatewayController {
         requiresOtp: false
       });
 
-    } catch (error) {
-      console.error('[Auth Link-User] Erreur:', err8or);
+    } catch (error) {  // ← ICI error (pas err8or)
+      console.error('[Auth Link-User] Erreur:', error);  // ← ICI error (pas err8or)
       return res.status(400).json({
         status: 'error',
         message: error.message || 'Erreur de connexion'
