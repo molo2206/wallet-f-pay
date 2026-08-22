@@ -4073,8 +4073,8 @@ export class ApiGatewayController {
   @Post('auth/link-user')
   async linkUser(
     @Body() body: {
-      phone: string;
-      password: string;
+      phone?: string;
+      password?: string;
       otpCode?: string;
       clientId?: string;
       redirectUri?: string;
@@ -4084,39 +4084,36 @@ export class ApiGatewayController {
     @Res() res: Response,
   ) {
     console.log('[Auth Link-User] Requête reçue:', {
-      phone: body.phone,
+      phone: body.phone || 'NON FOURNI',
       hasOtp: !!body.otpCode,
       clientId: body.clientId
     });
 
-    // ✅ Si phone et password ne sont pas fournis → Retourner l'URL OAuth
+    // ✅ Cas 1 : Pas de phone/password → Rediriger vers FPay
     if (!body || !body.phone || !body.password) {
       const clientId = body?.clientId || 'web-client';
       const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const fpayUrl = process.env.FPAY_API_URL || 'http://localhost:3000';
       const authCode = crypto.randomBytes(32).toString('hex');
 
-      const redirectUrl = new URL('/oauth/login', appUrl);
+      const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
       redirectUrl.searchParams.set('client_id', clientId);
       redirectUrl.searchParams.set('code', authCode);
       redirectUrl.searchParams.set('redirect_uri', body?.redirectUri || `${appUrl}/oauth/callback`);
 
-      console.log('[Auth Link-User] URL OAuth générée:', redirectUrl.toString());
+      console.log('[Auth Link-User] 🔗 Redirection vers FPay:', redirectUrl.toString());
 
-      return res.json({
-        status: 'success',
-        message: 'Page OAuth',
-        url: redirectUrl.toString(),
-        openInBrowser: redirectUrl.toString()
-      });
+      // ✅ REDIRECTION DIRECTE VERS FPAY
+      return res.redirect(HttpStatus.FOUND, redirectUrl.toString());
     }
 
+    // ✅ Cas 2 : phone et password fournis → Traiter la connexion
     const lang = body.lang || 'fr';
     const clientId = body.clientId || 'web-client';
     const redirectUri = body.redirectUri || `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
     const hasOtp = body.otpCode && body.otpCode.trim() !== '';
 
     try {
-      // ✅ Construction du payload
       const payload: any = {
         phone: body.phone,
         password: body.password,
@@ -4131,15 +4128,14 @@ export class ApiGatewayController {
         console.log('[Auth Link-User] 🔐 Vérification OTP:', body.otpCode);
       }
 
-      // ✅ Appel au service d'authentification avec sendAuthMessage
       const result = await this.sendAuthMessage<LinkUserResponse>(
-        'link_user',  // Pattern du microservice auth
+        'link_user',
         payload,
         'Login failed',
         HttpStatus.BAD_REQUEST,
       ) as LinkUserResponse;
 
-      // ✅ Vérifier si un OTP est requis (Étape 1)
+      // ✅ Si OTP requis → Retourner le message
       if (result.requiresOtp === true) {
         console.log('[Auth Link-User] 📱 OTP requis pour:', body.phone);
         return res.json({
@@ -4151,7 +4147,7 @@ export class ApiGatewayController {
         });
       }
 
-      // ✅ Connexion réussie (Étape 2)
+      // ✅ Connexion réussie
       console.log('[Auth Link-User] ✅ Connexion réussie pour:', body.phone);
 
       return res.json({
@@ -4166,7 +4162,7 @@ export class ApiGatewayController {
       });
 
     } catch (error) {
-      console.error('[Auth Link-User] Erreur:', error);
+      console.error('[Auth Link-User] Erreur:', err8or);
       return res.status(400).json({
         status: 'error',
         message: error.message || 'Erreur de connexion'
