@@ -5435,9 +5435,6 @@ export class ApiGatewayController {
             userIdFpay: payer.id,
           });
 
-          if (!payer.userIdFpay || !payer.isLink) {
-            throw new Error('Utilisateur payeur non lié à FPay');
-          }
 
           // ✅ Récupérer les wallets du payeur via wallet-service
           const payerWalletsResponse = await this.sendWalletMessage<any>(
