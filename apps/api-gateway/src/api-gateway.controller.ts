@@ -4461,6 +4461,7 @@ export class ApiGatewayController {
   // ============================================================
 
   // apps/api-gateway/src/api-gateway.controller.ts
+  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('oauth/login')
   async oauthLoginPage(
@@ -4498,7 +4499,7 @@ export class ApiGatewayController {
       const description = query.description || '';
 
       // ✅ Récupérer l'API Key
-      const apiKey = query.api_key || '';
+      const apiKey = query.api_key || ''; // ✅ Définir apiKey
 
       // ✅ Utiliser le callback URL correct
       const callbackUrl = query.redirect_uri || oauthCallbackUrl;
@@ -4518,7 +4519,7 @@ export class ApiGatewayController {
         html = html.replace(/{{AMOUNT}}/g, amount);
         html = html.replace(/{{CURRENCY}}/g, currency);
         html = html.replace(/{{DESCRIPTION}}/g, description);
-        html = html.replace(/{{API_KEY}}/g, apiKey); // ✅ AJOUTER
+        html = html.replace(/{{API_KEY}}/g, apiKey); // ✅ Utiliser apiKey
 
         return res.set('Content-Type', 'text/html').send(html);
       }
@@ -4860,12 +4861,10 @@ export class ApiGatewayController {
             var MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
             var ENV = '${env}';
             var SYSTEM_USER_ID = '${systemUserId}';
-
-            // ✅ Récupérer les données de paiement
             var AMOUNT = '${amount}';
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
-            var API_KEY = '${api_key}'; // ✅ AJOUTER L'API KEY
+            var API_KEY = '${apiKey}'; // ✅ Utiliser apiKey (défini plus haut)
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
@@ -4973,7 +4972,6 @@ export class ApiGatewayController {
                 if (SYSTEM_USER_ID) {
                     redirectUrl.searchParams.set('system_user_id', SYSTEM_USER_ID);
                 }
-                // ✅ AJOUTER les données de paiement dans la redirection
                 if (AMOUNT) {
                     redirectUrl.searchParams.set('amount', AMOUNT);
                 }
@@ -5274,7 +5272,6 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
-  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('oauth/callback')
   async oauthCallback(
