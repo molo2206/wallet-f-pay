@@ -4460,6 +4460,8 @@ export class ApiGatewayController {
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
+  // apps/api-gateway/src/api-gateway.controller.ts
+
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
@@ -4472,9 +4474,10 @@ export class ApiGatewayController {
       system_user_id?: string;
       error?: string;
       lang?: string;
-      amount?: string;      // ✅ AJOUTER
-      currency?: string;    // ✅ AJOUTER
-      description?: string; // ✅ AJOUTER
+      amount?: string;
+      currency?: string;
+      description?: string;
+      api_key?: string; // ✅ AJOUTER
     },
     @Res() res: Response,
   ) {
@@ -4494,6 +4497,9 @@ export class ApiGatewayController {
       const currency = query.currency || '';
       const description = query.description || '';
 
+      // ✅ Récupérer l'API Key
+      const apiKey = query.api_key || '';
+
       // ✅ Utiliser le callback URL correct
       const callbackUrl = query.redirect_uri || oauthCallbackUrl;
 
@@ -4509,14 +4515,15 @@ export class ApiGatewayController {
         html = html.replace(/{{ENV}}/g, env);
         html = html.replace(/{{ENV_LABEL}}/g, envLabel);
         html = html.replace(/{{SYSTEM_USER_ID}}/g, systemUserId);
-        html = html.replace(/{{AMOUNT}}/g, amount);          // ✅ AJOUTER
-        html = html.replace(/{{CURRENCY}}/g, currency);      // ✅ AJOUTER
-        html = html.replace(/{{DESCRIPTION}}/g, description); // ✅ AJOUTER
+        html = html.replace(/{{AMOUNT}}/g, amount);
+        html = html.replace(/{{CURRENCY}}/g, currency);
+        html = html.replace(/{{DESCRIPTION}}/g, description);
+        html = html.replace(/{{API_KEY}}/g, apiKey); // ✅ AJOUTER
 
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec OTP intégré - AJOUT DES DONNÉES DE PAIEMENT
+      // ✅ Version HTML avec OTP intégré - AJOUT DE L'API KEY
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4858,12 +4865,14 @@ export class ApiGatewayController {
             var AMOUNT = '${amount}';
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
+            var API_KEY = '${api_key}'; // ✅ AJOUTER L'API KEY
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
             console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
             console.log('[OAuth] Paiement:', { AMOUNT, CURRENCY, DESCRIPTION });
+            console.log('[OAuth] API_KEY:', API_KEY ? '✅ Présente' : '❌ Absente');
 
             var urlParams = new URLSearchParams(window.location.search);
             var CLIENT_ID = urlParams.get('client_id') || 'web-client';
@@ -4945,7 +4954,7 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
             }
 
-            // ✅ CORRIGÉ : handleRedirect avec system_user_id et les données de paiement
+            // ✅ CORRIGÉ : handleRedirect avec system_user_id, les données de paiement ET l'API Key
             window.handleRedirect = function() {
                 var redirectUrl = new URL(REDIRECT_URI);
                 
@@ -4973,6 +4982,10 @@ export class ApiGatewayController {
                 }
                 if (DESCRIPTION) {
                     redirectUrl.searchParams.set('description', DESCRIPTION);
+                }
+                // ✅ AJOUTER l'API Key dans la redirection
+                if (API_KEY) {
+                    redirectUrl.searchParams.set('api_key', API_KEY);
                 }
 
                 console.log('[OAuth] Redirection vers:', redirectUrl.toString());
@@ -5261,6 +5274,8 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
+  // apps/api-gateway/src/api-gateway.controller.ts
+
   @Get('oauth/callback')
   async oauthCallback(
     @Query() query: {
@@ -5288,7 +5303,7 @@ export class ApiGatewayController {
 
     if (apiKeyMatch) {
       rawApiKey = decodeURIComponent(apiKeyMatch[1]);
-      console.log('[FPay] ✅ API Key récupérée depuis URL brute');
+      console.log('[FPay] ✅ API Key récupérée depuis URL brute (longueur):', rawApiKey.length);
     } else if (query.api_key) {
       rawApiKey = query.api_key;
       console.log('[FPay] ✅ API Key récupérée depuis query.api_key');
@@ -5318,24 +5333,36 @@ export class ApiGatewayController {
       }
     }
 
-    // ✅ Extraire le token
+    // ✅ Extraire le token (comme dans le Guard)
     const parts = cleanApiKey.split(' ');
     const apiKeyToken = parts.length === 2 ? parts[1] : cleanApiKey;
 
     console.log('[FPay] API Key token (début):', apiKeyToken.substring(0, 30) + '...');
 
-    // ✅ Récupérer le destinataire comme dans le Guard
+    // ✅ Récupérer le destinataire en utilisant jwt.verify() (comme dans le Guard)
     let recipientUser: any = null;
 
-    // 1️⃣ Essayer de valider comme JWT (comme dans le Guard)
     try {
+      // ✅ Utiliser la MÊME méthode que le Guard
       const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
       const payload = jwt.verify(apiKeyToken, secret) as any;
+
+      console.log('[FPay] ✅ JWT validé avec succès');
+      console.log('[FPay] 📦 Payload du JWT:', {
+        sub: payload.sub,
+        userId: payload.userId,
+        phone: payload.phone,
+        merchantCode: payload.merchantCode,
+        fullName: payload.fullName || payload.full_name,
+        role: payload.role,
+        status: payload.status,
+        permissions: payload.permissions,
+      });
 
       const userId = payload.sub || payload.userId;
 
       if (userId) {
-        // Récupérer l'utilisateur depuis la base
+        // ✅ Récupérer l'utilisateur complet depuis la base (comme dans le Guard)
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
           select: {
@@ -5371,14 +5398,13 @@ export class ApiGatewayController {
             phone: user.phone,
             merchantCode: user.merchantCode,
           });
+        } else {
+          console.warn('[FPay] ⚠️ Utilisateur non trouvé en base pour ID:', userId);
         }
       }
     } catch (err) {
       console.log('[FPay] ⚠️ JWT invalide, recherche en base...');
-    }
-
-    // 2️⃣ Si JWT échoue, rechercher dans la base (comme dans le Guard)
-    if (!recipientUser) {
+      // ✅ Si JWT invalide, rechercher dans la base comme le Guard
       try {
         const keyRecord = await this.prisma.api_key.findFirst({
           where: {
@@ -5425,9 +5451,11 @@ export class ApiGatewayController {
             phone: recipientUser.phone,
             merchantCode: recipientUser.merchantCode,
           });
+        } else {
+          console.warn('[FPay] ⚠️ Aucune clé API trouvée en base');
         }
-      } catch (error) {
-        console.error('[FPay] ❌ Erreur recherche en base:', error.message);
+      } catch (dbError) {
+        console.error('[FPay] ❌ Erreur recherche en base:', dbError.message);
       }
     }
 
