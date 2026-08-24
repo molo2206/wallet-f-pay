@@ -5418,7 +5418,7 @@ export class ApiGatewayController {
           // ✅ Récupérer le payeur via user-service
           const payerResponse = await this.sendUserMessage<any>(
             'get_user',
-            { id: query.system_user_id },
+            { id: query.user_id },
             'Payeur non trouvé',
             HttpStatus.NOT_FOUND,
           );
@@ -5432,7 +5432,7 @@ export class ApiGatewayController {
           console.log('[FPay] ✅ Payeur trouvé:', {
             id: payer.id,
             phone: payer.phone,
-            userIdFpay: payer.userIdFpay,
+            userIdFpay: payer.id,
           });
 
           if (!payer.userIdFpay || !payer.isLink) {
