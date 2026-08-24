@@ -5100,6 +5100,7 @@ export class ApiGatewayController {
       access_token?: string;
       refresh_token?: string;
       user_id?: string;
+      system_user_id?: string;  // ✅ AJOUTER
       code?: string;
       error?: string;
     },
@@ -5117,16 +5118,18 @@ export class ApiGatewayController {
     }
 
     try {
-      // ✅ URL de Favor Help (avec /api/v1/)
       const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
 
       console.log(`🔗 FPay appelle Favor Help: ${favorHelpUrl}/fpay/link-user`);
+      console.log(`🔗 systemUserId: ${query.system_user_id}`);
+      console.log(`🔗 fpayUserId: ${query.user_id}`);
 
       const response = await fetch(`${favorHelpUrl}/fpay/link-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fpayUserId: query.user_id,
+          systemUserId: query.system_user_id,  // ✅ ID de l'utilisateur Favor Help
+          fpayUserId: query.user_id,           // ✅ ID de l'utilisateur FPay
           accessToken: query.access_token,
           refreshToken: query.refresh_token,
         }),
@@ -5143,7 +5146,10 @@ export class ApiGatewayController {
       return res.status(200).json({
         success: true,
         message: 'Utilisateur lié avec succès',
-        data: { fpayUserId: query.user_id },
+        data: {
+          systemUserId: query.system_user_id,
+          fpayUserId: query.user_id,
+        },
       });
 
     } catch (error) {
