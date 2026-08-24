@@ -4440,10 +4440,6 @@ export class ApiGatewayController {
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
-  // apps/api-gateway/src/api-gateway.controller.ts (FPay)
-
-  // apps/api-gateway/src/api-gateway.controller.ts
-
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
@@ -5255,9 +5251,9 @@ export class ApiGatewayController {
       system_user_id?: string;
       code?: string;
       error?: string;
-      amount?: string;      // ✅ AJOUTER
-      currency?: string;    // ✅ AJOUTER
-      description?: string; // ✅ AJOUTER
+      amount?: string;
+      currency?: string;
+      description?: string;
     },
     @Res() res: Response,
   ) {
@@ -5315,7 +5311,6 @@ export class ApiGatewayController {
         HttpStatus.NOT_FOUND,
       );
 
-      // ✅ 3. Vérifier que l'utilisateur existe
       if (!userResponse || !userResponse.data) {
         console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
         return res.status(404).json({
@@ -5327,7 +5322,7 @@ export class ApiGatewayController {
 
       const userData = userResponse.data;
 
-      // ✅ 4. Récupérer les wallets via wallet-service
+      // ✅ 3. Récupérer les wallets via wallet-service
       let wallets: any[] = [];
       try {
         const walletsResponse = await this.sendWalletMessage<any>(
@@ -5341,7 +5336,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
       }
 
-      // ✅ 5. Récupérer les sessions via auth-service
+      // ✅ 4. Récupérer les sessions via auth-service
       let sessions: any[] = [];
       try {
         const sessionsResponse = await this.sendAuthMessage<any>(
@@ -5355,7 +5350,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
       }
 
-      // ✅ 6. Récupérer les resources via user-service
+      // ✅ 5. Récupérer les resources via user-service
       let resources: any[] = [];
       try {
         const resourcesResponse = await this.sendUserMessage<any>(
@@ -5369,7 +5364,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
       }
 
-      // ✅ 7. Récupérer les KYC via user-service
+      // ✅ 6. Récupérer les KYC via user-service
       let kycStatus = 'NOT_SUBMITTED';
       let kycSubmission = null;
       try {
@@ -5385,7 +5380,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
       }
 
-      // ✅ 8. Récupérer la branche de l'utilisateur
+      // ✅ 7. Récupérer la branche de l'utilisateur
       let userBranch = null;
       if (userData.branchId) {
         try {
@@ -5401,14 +5396,49 @@ export class ApiGatewayController {
         }
       }
 
+      // ✅ 8. EXÉCUTER LE PAIEMENT AUTOMATIQUEMENT
+      let paymentResult: any = null; // ✅ Déclarer comme any pour accepter l'objet
+      if (query.amount && query.currency) {
+        try {
+          console.log('[FPay] 💰 Exécution du paiement automatique:', {
+            amount: query.amount,
+            currency: query.currency,
+            description: query.description,
+          });
+
+          // ✅ Appeler FPay via RabbitMQ
+          paymentResult = await this.sendFpayMessage<any>(
+            'make_payment_external',
+            {
+              system_user_id: query.system_user_id || query.user_id,
+              amount: parseFloat(query.amount),
+              currency: query.currency,
+              description: query.description || 'Paiement automatique',
+            },
+            'Erreur paiement FPay',
+            HttpStatus.BAD_REQUEST,
+          );
+
+          console.log('[FPay] ✅ Paiement automatique réussi:', paymentResult);
+        } catch (paymentError: any) {
+          console.error('[FPay] ❌ Erreur paiement automatique:', paymentError.message);
+          paymentResult = {
+            status: 'ERROR',
+            error: paymentError.message,
+          };
+        }
+      }
+
       // ✅ 9. Construire la session ID
       const sessionId = crypto.randomUUID();
 
-      // ✅ 10. Retourner la réponse complète au format mobile
+      // ✅ 10. Retourner la réponse complète
       return res.status(200).json({
         accessToken: query.access_token,
         refreshToken: query.refresh_token,
-        message: 'Authentification FPay réussie',
+        message: paymentResult?.status === 'ERROR'
+          ? 'Authentification FPay réussie mais paiement échoué'
+          : 'Authentification FPay réussie',
         sessionId: sessionId,
         data: {
           id: userData.id,
@@ -5432,11 +5462,22 @@ export class ApiGatewayController {
           kycStatus: kycStatus,
           countryCode: userData.countryCode || 'CD',
           locked_by_admin: userData.locked_by_admin || false,
-          // ✅ AJOUTER les données de paiement dans la réponse
-          payment: {
+          sessions: sessions,
+          resources: resources,
+          wallets: wallets,
+          kyc: {
+            status: kycStatus,
+            submission: kycSubmission,
+          },
+          payment: paymentResult ? {
+            status: paymentResult.status || 'PENDING',
+            transaction: paymentResult.data?.transaction || null,
+            error: paymentResult.error || null,
+          } : {
             amount: query.amount || null,
             currency: query.currency || null,
             description: query.description || null,
+            status: 'PENDING',
           },
         },
       });
@@ -5450,7 +5491,6 @@ export class ApiGatewayController {
       });
     }
   }
-
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async submitKyc(
