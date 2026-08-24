@@ -44,7 +44,7 @@ import {
 import { Ip } from './decorators/ip.decorator';
 import { IpInterceptor } from './inrceptor/ip.interceptor';
 import { UpdateUserSettingsDto } from 'apps/user-service/src/dto/user-settings.dto';
-import type { Response } from 'express';
+import { response, type Response } from 'express';
 import {
   AssignMultipleResourcesDto,
   AssignResourceDto,
@@ -5161,6 +5161,7 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
+  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('oauth/callback')
   async oauthCallback(
@@ -5168,7 +5169,7 @@ export class ApiGatewayController {
       access_token?: string;
       refresh_token?: string;
       user_id?: string;
-      system_user_id?: string;  // ✅ AJOUTER
+      system_user_id?: string;
       code?: string;
       error?: string;
     },
@@ -5192,31 +5193,77 @@ export class ApiGatewayController {
       console.log(`🔗 systemUserId: ${query.system_user_id}`);
       console.log(`🔗 fpayUserId: ${query.user_id}`);
 
-      const response = await fetch(`${favorHelpUrl}/fpay/link-user`, {
+      // ✅ 1. Lier les comptes
+      const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemUserId: query.system_user_id,  // ✅ ID de l'utilisateur Favor Help
-          fpayUserId: query.user_id,           // ✅ ID de l'utilisateur FPay
+          systemUserId: query.system_user_id,
+          fpayUserId: query.user_id,
           accessToken: query.access_token,
           refreshToken: query.refresh_token,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!linkResponse.ok) {
+        const errorData = await linkResponse.json();
         throw new Error(errorData.message || 'Erreur lors de la liaison');
       }
 
-      const result = await response.json();
-      console.log('[FPay] ✅ Utilisateur modifié avec succès:', result);
+      const result = await linkResponse.json();
+      console.log('[FPay] ✅ Utilisateur lié avec succès:', result);
 
+      // ✅ 2. Récupérer l'utilisateur via user-service
+      const userResponse = await this.sendUserMessage<{
+        message: string;
+        data: any;
+      }>(
+        'get_user',
+        { id: query.user_id },
+        'User not found',
+        HttpStatus.NOT_FOUND,
+      );
+
+      // ✅ 3. Vérifier que l'utilisateur existe
+      if (!userResponse || !userResponse.data) {
+        console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
+        return res.status(404).json({
+          success: false,
+          error: 'Utilisateur non trouvé',
+          message: `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`,
+        });
+      }
+
+      const userData = userResponse.data;
+      console.log('[FPay] ✅ Utilisateur trouvé:', userData.id);
+
+      // ✅ 4. Retourner la réponse complète
       return res.status(200).json({
-        success: true,
-        message: 'Utilisateur lié avec succès',
+        accessToken: query.access_token,
+        refreshToken: query.refresh_token,
+        message: 'Authentification FPay réussie',
+        sessionId: crypto.randomUUID(),
         data: {
-          systemUserId: query.system_user_id,
-          fpayUserId: query.user_id,
+          id: userData.id,
+          email: userData.email || null,
+          phone: userData.phone || null,
+          full_name: userData.full_name || null,
+          account_number: userData.account_number || null,
+          branchId: userData.branchId || null,
+          branch: userData.branch || null,
+          role: userData.role || 'USER',
+          passwordStatus: userData.passwordStatus || null,
+          pinstatus: userData.pinstatus || false,
+          merchantCode: userData.merchantCode || null,
+          businessName: userData.businessName || null,
+          status: userData.status || 'ACTIVE',
+          deleted: userData.deleted || false,
+          createdAt: userData.createdAt || new Date(),
+          updatedAt: userData.updatedAt || new Date(),
+          profileImage: userData.profileImage || null,
+          kycStatus: userData.kycStatus || 'NOT_SUBMITTED',
+          countryCode: userData.countryCode || 'CD',
+          locked_by_admin: userData.locked_by_admin || false,
         },
       });
 
