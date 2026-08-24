@@ -5097,65 +5097,48 @@ export class ApiGatewayController {
   @Get('oauth/callback')
   async oauthCallback(
     @Query() query: {
-      code?: string;
       access_token?: string;
       refresh_token?: string;
       user_id?: string;
-      state?: string;
+      code?: string;
       error?: string;
     },
     @Res() res: Response,
   ) {
-    const env = process.env.NODE_ENV || 'development';
-    console.log('[OAuth Callback] Environnement:', env);
-    console.log('[OAuth Callback] Reçu:', {
-      code: query.code ? '✅' : '❌',
-      access_token: query.access_token ? '✅' : '❌',
-      refresh_token: query.refresh_token ? '✅' : '❌',
-      user_id: query.user_id ? '✅' : '❌',
-      state: query.state || '❌',
-      error: query.error || '❌',
-    });
+    console.log('[OAuth Callback] ✅ Appel reçu');
+    console.log('[OAuth Callback] Query:', query);
 
     if (query.error) {
-      return res.status(400).json({
-        success: false,
-        error: query.error,
-        message: 'Erreur OAuth',
-        data: null,
-      });
+      return res.status(400).json({ success: false, error: query.error });
     }
 
     if (!query.access_token || !query.refresh_token || !query.user_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'missing_params',
-        message: 'Paramètres manquants',
-        required: ['access_token', 'refresh_token', 'user_id'],
-        received: {
-          access_token: !!query.access_token,
-          refresh_token: !!query.refresh_token,
-          user_id: !!query.user_id,
-          code: !!query.code,
-        },
-      });
+      return res.status(400).json({ success: false, error: 'missing_params' });
     }
 
-    const mobileCallbackUrl = this.getMobileCallbackUrl();
-    const redirectUrl = new URL(mobileCallbackUrl);
+    try {
+      // 🔗 Appeler Favor Help pour modifier l'utilisateur
+      const favorHelpUrl = process.env.FAVOR_HELP_API_URL;
 
-    redirectUrl.searchParams.set('success', 'true');
-    redirectUrl.searchParams.set('access_token', query.access_token);
-    redirectUrl.searchParams.set('refresh_token', query.refresh_token);
-    redirectUrl.searchParams.set('user_id', query.user_id);
-    if (query.code) redirectUrl.searchParams.set('code', query.code);
-    if (query.state) redirectUrl.searchParams.set('state', query.state);
+      await fetch(`${favorHelpUrl}/fpay/link-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fpayUserId: query.user_id,
+          accessToken: query.access_token,
+          refreshToken: query.refresh_token,
+        }),
+      });
 
-    console.log('[OAuth Callback] Redirection vers:', redirectUrl.toString());
+      console.log('[OAuth Callback] ✅ Utilisateur modifié');
 
-    return res.redirect(HttpStatus.FOUND, redirectUrl.toString());
+      return res.json({ success: true, message: 'Utilisateur lié avec succès' });
+
+    } catch (error) {
+      console.error('[OAuth Callback] ❌ Erreur:', error.message);
+      return res.status(500).json({ success: false, error: error.message });
+    }
   }
-
 
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
