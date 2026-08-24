@@ -5105,24 +5105,48 @@ export class ApiGatewayController {
     },
     @Res() res: Response,
   ) {
-    console.log('[OAuth Callback] ✅ Appel reçu');
-    console.log('[OAuth Callback] Query:', query);
+    console.log('[OAuth Callback FPay] ✅ Appel reçu');
+    console.log('[OAuth Callback FPay] Query:', query);
 
+    // ❌ Gestion d'erreur
     if (query.error) {
-      return res.status(400).json({ success: false, error: query.error });
+      return res.status(400).json({
+        success: false,
+        error: query.error,
+        message: 'Erreur OAuth',
+      });
     }
 
+    // ❌ Vérification des paramètres
     if (!query.access_token || !query.refresh_token || !query.user_id) {
-      return res.status(400).json({ success: false, error: 'missing_params' });
+      return res.status(400).json({
+        success: false,
+        error: 'missing_params',
+        message: 'Paramètres manquants',
+        required: ['access_token', 'refresh_token', 'user_id'],
+        received: {
+          access_token: !!query.access_token,
+          refresh_token: !!query.refresh_token,
+          user_id: !!query.user_id,
+        },
+      });
     }
 
     try {
-      // 🔗 Appeler Favor Help pour modifier l'utilisateur
-      const favorHelpUrl = process.env.FAVOR_HELP_API_URL;
+      // ============================================================
+      // 🔗 FPay APPELLE FAVOR HELP POUR MODIFIER L'UTILISATEUR
+      // ============================================================
 
-      await fetch(`${favorHelpUrl}/fpay/link-user`, {
+      const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+
+      console.log(`🔗 FPay appelle Favor Help pour modifier l'utilisateur ${query.user_id}`);
+      console.log(`🔗 URL: ${favorHelpUrl}/fpay/link-user`);
+
+      const response = await fetch(`${favorHelpUrl}/fpay/link-user`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           fpayUserId: query.user_id,
           accessToken: query.access_token,
@@ -5130,13 +5154,33 @@ export class ApiGatewayController {
         }),
       });
 
-      console.log('[OAuth Callback] ✅ Utilisateur modifié');
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[OAuth Callback FPay] ❌ Erreur Favor Help:', errorData);
+        throw new Error(errorData.message || 'Erreur lors de la liaison');
+      }
 
-      return res.json({ success: true, message: 'Utilisateur lié avec succès' });
+      const result = await response.json();
+      console.log('[OAuth Callback FPay] ✅ Utilisateur modifié avec succès:', result);
+
+      // ✅ Retourner une réponse JSON
+      return res.status(200).json({
+        success: true,
+        message: 'Utilisateur lié avec succès',
+        data: {
+          fpayUserId: query.user_id,
+          accessToken: query.access_token,
+          refreshToken: query.refresh_token,
+        },
+      });
 
     } catch (error) {
-      console.error('[OAuth Callback] ❌ Erreur:', error.message);
-      return res.status(500).json({ success: false, error: error.message });
+      console.error('[OAuth Callback FPay] ❌ Erreur:', error.message);
+      return res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'Erreur lors de la liaison',
+      });
     }
   }
 
