@@ -5277,10 +5277,33 @@ export class ApiGatewayController {
       api_key?: string;
     },
     @Res() res: Response,
+    @Request() req: any, // ✅ AJOUTER Request pour récupérer l'URL brute
   ) {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
-    console.log('[FPay] API Key reçue:', query.api_key ? '✅ Présente' : '❌ Absente');
+    console.log('[FPay] API Key reçue brute:', query.api_key);
+
+    // ✅ Décoder correctement l'API Key depuis l'URL brute
+    let apiKeyRaw = query.api_key || '';
+    let decodedApiKey = apiKeyRaw;
+
+    // ✅ Récupérer l'API Key depuis l'URL brute pour éviter le décodage automatique
+    const fullUrl = req.url || '';
+    const apiKeyMatch = fullUrl.match(/[?&]api_key=([^&]*)/);
+
+    if (apiKeyMatch) {
+      // ✅ Décoder manuellement le paramètre api_key
+      decodedApiKey = decodeURIComponent(apiKeyMatch[1]);
+      console.log('[FPay] API Key décodée manuellement (longueur):', decodedApiKey.length);
+    } else if (apiKeyRaw) {
+      // ✅ Si l'API Key a des espaces (les + décodés en espaces), les remplacer par +
+      if (apiKeyRaw.includes(' ')) {
+        decodedApiKey = apiKeyRaw.replace(/ /g, '+');
+        console.log('[FPay] API Key corrigée (espaces → +):', decodedApiKey.substring(0, 50) + '...');
+      }
+    }
+
+    console.log('[FPay] API Key utilisée:', decodedApiKey ? '✅ Présente' : '❌ Absente');
 
     if (query.error) {
       return res.status(400).json({ success: false, error: query.error });
@@ -5435,7 +5458,6 @@ export class ApiGatewayController {
             userIdFpay: payer.id,
           });
 
-
           // ✅ Récupérer les wallets du payeur via wallet-service
           const payerWalletsResponse = await this.sendWalletMessage<any>(
             'list_user_wallets',
@@ -5466,8 +5488,8 @@ export class ApiGatewayController {
             throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
           }
 
-          // ✅ Trouver le destinataire à partir de l'API Key reçue
-          const apiKey = query.api_key || '';
+          // ✅ Utiliser l'API Key décodée pour trouver le destinataire
+          const apiKey = decodedApiKey || '';
           let cleanApiKey = apiKey;
           if (cleanApiKey.startsWith('Bearer ')) {
             cleanApiKey = cleanApiKey.substring(7);
