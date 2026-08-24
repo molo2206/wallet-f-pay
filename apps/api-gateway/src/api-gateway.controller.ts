@@ -4442,6 +4442,8 @@ export class ApiGatewayController {
 
   // apps/api-gateway/src/api-gateway.controller.ts (FPay)
 
+  // apps/api-gateway/src/api-gateway.controller.ts
+
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
@@ -4451,9 +4453,12 @@ export class ApiGatewayController {
       access_token?: string;
       refresh_token?: string;
       user_id?: string;
-      system_user_id?: string;  // ✅ AJOUTER
+      system_user_id?: string;
       error?: string;
       lang?: string;
+      amount?: string;      // ✅ AJOUTER
+      currency?: string;    // ✅ AJOUTER
+      description?: string; // ✅ AJOUTER
     },
     @Res() res: Response,
   ) {
@@ -4467,6 +4472,11 @@ export class ApiGatewayController {
 
       // ✅ Récupérer system_user_id de la query
       const systemUserId = query.system_user_id || '';
+
+      // ✅ Récupérer les données de paiement
+      const amount = query.amount || '';
+      const currency = query.currency || '';
+      const description = query.description || '';
 
       // ✅ Utiliser le callback URL correct
       const callbackUrl = query.redirect_uri || oauthCallbackUrl;
@@ -4482,12 +4492,15 @@ export class ApiGatewayController {
         html = html.replace(/{{MOBILE_CALLBACK_URL}}/g, mobileCallbackUrl);
         html = html.replace(/{{ENV}}/g, env);
         html = html.replace(/{{ENV_LABEL}}/g, envLabel);
-        html = html.replace(/{{SYSTEM_USER_ID}}/g, systemUserId);  // ✅ AJOUTER
+        html = html.replace(/{{SYSTEM_USER_ID}}/g, systemUserId);
+        html = html.replace(/{{AMOUNT}}/g, amount);          // ✅ AJOUTER
+        html = html.replace(/{{CURRENCY}}/g, currency);      // ✅ AJOUTER
+        html = html.replace(/{{DESCRIPTION}}/g, description); // ✅ AJOUTER
 
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec OTP intégré - CORRIGÉ
+      // ✅ Version HTML avec OTP intégré - AJOUT DES DONNÉES DE PAIEMENT
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4548,6 +4561,27 @@ export class ApiGatewayController {
         .header { margin-bottom: 28px; }
         .header h2 { font-size: 20px; color: #1a1a2e; margin-bottom: 6px; }
         .header p { color: #6b7280; font-size: 14px; }
+        .payment-info {
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid #e5e7eb;
+        }
+        .payment-info .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+        .payment-info .label {
+            color: #6b7280;
+            font-size: 13px;
+        }
+        .payment-info .value {
+            color: #1a1a2e;
+            font-weight: 600;
+            font-size: 13px;
+        }
         .form-group { margin-bottom: 18px; }
         .form-group label { display: block; font-size: 14px; font-weight: 500; color: #1a1a2e; margin-bottom: 6px; }
         .form-group input {
@@ -4662,6 +4696,8 @@ export class ApiGatewayController {
             .logo p { color: #94a3b8; }
             .header h2 { color: #f1f5f9; }
             .header p { color: #94a3b8; }
+            .payment-info { background: #1e293b; border-color: #334155; }
+            .payment-info .value { color: #f1f5f9; }
             .form-group label { color: #f1f5f9; }
             .form-group input { background: #0f172a; border-color: #334155; color: #f1f5f9; }
             .form-group input:focus { background: #1e293b; border-color: #0A1CF2; box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2); }
@@ -4703,6 +4739,23 @@ export class ApiGatewayController {
                 <h2>Connexion a F-Pay</h2>
                 <p id="stepMessage">Etape 1 : Saisissez vos identifiants</p>
             </div>
+            
+            <!-- ✅ SECTION PAIEMENT -->
+            <div class="payment-info" id="paymentInfo" style="display: none;">
+                <div class="info-row">
+                    <span class="label">Montant</span>
+                    <span class="value" id="displayAmount">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Devise</span>
+                    <span class="value" id="displayCurrency">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Description</span>
+                    <span class="value" id="displayDescription">-</span>
+                </div>
+            </div>
+
             <div class="message" id="message">
                 <span id="messageText">Message</span>
             </div>
@@ -4783,12 +4836,18 @@ export class ApiGatewayController {
             var OAUTH_CALLBACK_URL = '${callbackUrl}';
             var MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
             var ENV = '${env}';
-            var SYSTEM_USER_ID = '${systemUserId}';  // ✅ AJOUTER
+            var SYSTEM_USER_ID = '${systemUserId}';
+
+            // ✅ Récupérer les données de paiement
+            var AMOUNT = '${amount}';
+            var CURRENCY = '${currency}';
+            var DESCRIPTION = '${description}';
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
             console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
+            console.log('[OAuth] Paiement:', { AMOUNT, CURRENCY, DESCRIPTION });
 
             var urlParams = new URLSearchParams(window.location.search);
             var CLIENT_ID = urlParams.get('client_id') || 'web-client';
@@ -4801,6 +4860,20 @@ export class ApiGatewayController {
             var secondsLeft = 60;
             var phoneSaved = '';
             var passwordSaved = '';
+
+            // ============================================================
+            //  AFFICHER LES DONNÉES DE PAIEMENT
+            // ============================================================
+
+            function displayPaymentInfo() {
+                var paymentInfo = document.getElementById('paymentInfo');
+                if (AMOUNT || CURRENCY || DESCRIPTION) {
+                    paymentInfo.style.display = 'block';
+                    document.getElementById('displayAmount').textContent = AMOUNT || '-';
+                    document.getElementById('displayCurrency').textContent = CURRENCY || '-';
+                    document.getElementById('displayDescription').textContent = DESCRIPTION || '-';
+                }
+            }
 
             // ============================================================
             //  FONCTIONS UTILITAIRES
@@ -4856,7 +4929,7 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
             }
 
-            // ✅ CORRIGÉ : handleRedirect avec system_user_id
+            // ✅ CORRIGÉ : handleRedirect avec system_user_id et les données de paiement
             window.handleRedirect = function() {
                 var redirectUrl = new URL(REDIRECT_URI);
                 
@@ -4872,9 +4945,18 @@ export class ApiGatewayController {
                 if (userTokens.code) {
                     redirectUrl.searchParams.set('code', userTokens.code);
                 }
-                // ✅ AJOUTER system_user_id
                 if (SYSTEM_USER_ID) {
                     redirectUrl.searchParams.set('system_user_id', SYSTEM_USER_ID);
+                }
+                // ✅ AJOUTER les données de paiement dans la redirection
+                if (AMOUNT) {
+                    redirectUrl.searchParams.set('amount', AMOUNT);
+                }
+                if (CURRENCY) {
+                    redirectUrl.searchParams.set('currency', CURRENCY);
+                }
+                if (DESCRIPTION) {
+                    redirectUrl.searchParams.set('description', DESCRIPTION);
                 }
 
                 console.log('[OAuth] Redirection vers:', redirectUrl.toString());
@@ -5102,10 +5184,12 @@ export class ApiGatewayController {
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM charge');
 
+                // ✅ Afficher les informations de paiement
+                displayPaymentInfo();
+
                 var code = urlParams.get('code');
                 var accessToken = urlParams.get('access_token');
                 var userId = urlParams.get('user_id');
-                // ✅ Récupérer system_user_id des paramètres URL
                 var systemUserIdFromUrl = urlParams.get('system_user_id');
                 
                 if (code && accessToken && userId) {
@@ -5161,7 +5245,6 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
-  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('oauth/callback')
   async oauthCallback(
@@ -5172,6 +5255,9 @@ export class ApiGatewayController {
       system_user_id?: string;
       code?: string;
       error?: string;
+      amount?: string;      // ✅ AJOUTER
+      currency?: string;    // ✅ AJOUTER
+      description?: string; // ✅ AJOUTER
     },
     @Res() res: Response,
   ) {
@@ -5192,6 +5278,11 @@ export class ApiGatewayController {
       console.log(`🔗 FPay appelle Favor Help: ${favorHelpUrl}/fpay/link-user`);
       console.log(`🔗 systemUserId: ${query.system_user_id}`);
       console.log(`🔗 fpayUserId: ${query.user_id}`);
+      console.log(`🔗 Données de paiement:`, {
+        amount: query.amount,
+        currency: query.currency,
+        description: query.description,
+      });
 
       // ✅ 1. Lier les comptes
       const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
@@ -5341,12 +5432,11 @@ export class ApiGatewayController {
           kycStatus: kycStatus,
           countryCode: userData.countryCode || 'CD',
           locked_by_admin: userData.locked_by_admin || false,
-          sessions: sessions,
-          resources: resources,
-          wallets: wallets,
-          kyc: {
-            status: kycStatus,
-            submission: kycSubmission,
+          // ✅ AJOUTER les données de paiement dans la réponse
+          payment: {
+            amount: query.amount || null,
+            currency: query.currency || null,
+            description: query.description || null,
           },
         },
       });
