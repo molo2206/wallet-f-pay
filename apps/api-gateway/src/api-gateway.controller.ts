@@ -5168,7 +5168,7 @@ export class ApiGatewayController {
       access_token?: string;
       refresh_token?: string;
       user_id?: string;
-      system_user_id?: string;
+      system_user_id?: string;  // ✅ AJOUTER
       code?: string;
       error?: string;
     },
@@ -5192,13 +5192,12 @@ export class ApiGatewayController {
       console.log(`🔗 systemUserId: ${query.system_user_id}`);
       console.log(`🔗 fpayUserId: ${query.user_id}`);
 
-      // ✅ 1. Lier les comptes
       const response = await fetch(`${favorHelpUrl}/fpay/link-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemUserId: query.system_user_id,
-          fpayUserId: query.user_id,
+          systemUserId: query.system_user_id,  // ✅ ID de l'utilisateur Favor Help
+          fpayUserId: query.user_id,           // ✅ ID de l'utilisateur FPay
           accessToken: query.access_token,
           refreshToken: query.refresh_token,
         }),
@@ -5212,40 +5211,13 @@ export class ApiGatewayController {
       const result = await response.json();
       console.log('[FPay] ✅ Utilisateur modifié avec succès:', result);
 
-      // ✅ 2. Récupérer les informations de l'utilisateur
-      const userData = await this.prisma.user.findFirst({
-        where: { id: query.system_user_id },
-        select: {
-          id: true,
-          email: true,
-          phone: true,
-          full_name: true,
-          account_number: true,
-          branchId: true,
-          role: true,
-          status: true,
-          deleted: true,
-          createdAt: true,
-          updatedAt: true,
-          fcmToken: true,
-          passwordStatus: true,
-          pinstatus: true,
-          merchantCode: true,
-          businessName: true,
-          profileImage: true,
-          kycStatus: true,
-          countryCode: true,
-          locked_by_admin: true,
-        },
-      });
-
-      // ✅ Construire la réponse avec data
       return res.status(200).json({
-        accessToken: query.access_token,
-        refreshToken: query.refresh_token,
-        message: 'Authentification FPay réussie',
-        sessionId: crypto.randomUUID(),
-        data: userData,
+        success: true,
+        message: 'Utilisateur lié avec succès',
+        data: {
+          systemUserId: query.system_user_id,
+          fpayUserId: query.user_id,
+        },
       });
 
     } catch (error) {
