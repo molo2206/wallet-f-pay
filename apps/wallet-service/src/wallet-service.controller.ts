@@ -542,6 +542,23 @@ export class WalletServiceController {
     }
   }
 
+  @MessagePattern('pay_without_pin')
+  async payWithoutPin(@Payload() data: PayDto & { lang?: string }, ipAddress: string) {
+    console.log('[WalletService] pay_without_pin received:', { ...data, lang: data.lang });
+    try {
+      // ✅ Appeler la nouvelle fonction payWithoutPin
+      return await this.walletService.payWithoutPin(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] pay_without_pin error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('link_account')
   async linkAccount(
     @Payload() data: { accountNumber: string; requestId?: string; lang?: string },

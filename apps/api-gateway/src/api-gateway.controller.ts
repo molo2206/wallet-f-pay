@@ -282,7 +282,43 @@ export class ApiGatewayController {
     }
   }
   // ==================== MÉTHODES D'ENVOI ====================
+  private async sendFpayMessage<T>(
+    pattern: string,
+    data: any,
+    defaultMessage: string,
+    defaultStatus: number,
+    timeoutMs: number = 120000,
+  ): Promise<T> {
+    this.logger.debug(`Fpay RPC → ${pattern}`, data);
 
+    try {
+      // ✅ Créer un client pour le service FPay
+      const fpayClient = ClientProxyFactory.create({
+        transport: Transport.RMQ,
+        options: {
+          urls: [process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672'],
+          queue: process.env.FPAY_QUEUE || 'fpay_queue',
+          queueOptions: { durable: false },
+          persistent: true,
+          noAck: true,
+        },
+      });
+
+      const result = await firstValueFrom(
+        fpayClient.send(pattern, data).pipe(
+          timeout(timeoutMs),
+          catchError((error) => {
+            this.handleRpcError(error, defaultMessage, defaultStatus);
+          }),
+        ),
+      );
+
+      return result as T;
+    } catch (error) {
+      this.logger.error(`Fpay error ${pattern}`, error);
+      throw error;
+    }
+  }
   private async sendAuthMessage<T>(
     pattern: string,
     data: any,
@@ -3517,188 +3553,204 @@ export class ApiGatewayController {
   async externalPay(
     @Request() req: any,
     @Body() body: {
-      phone: string;
-      pin: string;
+      system_user_id: string;
       amount: number;
       currency?: string;
       description?: string;
     },
+    @Res() res: Response,
     @Ip() ipAddress: string,
-    @Headers('lang') langHeader?: string,
+    @Headers('lang') langHeader?: string
   ) {
     const lang = langHeader || 'fr';
     const apiKeyUser = req.user;
 
-    console.log('[ExternalPay] 📋 Utilisateur de l\'API Key:', {
-      id: apiKeyUser.id,
-      full_name: apiKeyUser.full_name,
-      phone: apiKeyUser.phone,
-      merchantCode: apiKeyUser.merchantCode,
-      role: apiKeyUser.role,
-      status: apiKeyUser.status,
-      hasPhone: !!apiKeyUser.phone,
-      hasMerchantCode: !!apiKeyUser.merchantCode,
-    });
+    try {
+      // ✅ Validation
+      if (!body.system_user_id) {
+        throw new HttpException('system_user_id est requis', HttpStatus.BAD_REQUEST);
+      }
 
-    // ✅ 1. Vérifier que l'utilisateur a un téléphone ou un merchantCode
-    if (!apiKeyUser.phone && !apiKeyUser.merchantCode) {
-      throw new HttpException(
-        'Recipient has no phone or merchant code',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+      if (!body.amount || body.amount <= 0) {
+        throw new HttpException('Le montant doit être supérieur à 0', HttpStatus.BAD_REQUEST);
+      }
 
-    // ✅ 2. Vérifier que le client payeur (expéditeur) existe
-    const client = await this.prisma.user.findFirst({
-      where: {
-        phone: body.phone,
-        status: 'ACTIVE',
-        deleted: false,
-      },
-      include: {
-        wallets: {
-          where: { isActive: true },
+      console.log('[ExternalPay] 📋 system_user_id du payeur:', body.system_user_id);
+
+      // ✅ 1. Vérifier si l'utilisateur est lié via le microservice FPay
+      try {
+        const userStatus = await this.sendFpayMessage<{ isLinked: boolean; userIdFpay?: string }>(
+          'check_user_link',
+          { systemUserId: body.system_user_id },
+          'Erreur lors de la vérification du lien',
+          HttpStatus.BAD_REQUEST,
+        );
+
+        // ✅ 2. Si l'utilisateur n'est PAS lié → Lancer OAuth
+        if (!userStatus.isLinked) {
+          console.log('[ExternalPay] 🔐 Utilisateur non lié, redirection vers OAuth FPay');
+
+          const fpayUrl = process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
+          const appUrl = process.env.APP_URL || 'http://localhost:3000';
+          const authCode = crypto.randomBytes(32).toString('hex');
+          const clientId = 'web-client';
+          const callbackUrl = `${appUrl}/oauth/callback`;
+
+          const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
+          redirectUrl.searchParams.set('client_id', clientId);
+          redirectUrl.searchParams.set('code', authCode);
+          redirectUrl.searchParams.set('system_user_id', body.system_user_id);
+          redirectUrl.searchParams.set('redirect_uri', callbackUrl);
+
+          console.log('[ExternalPay] 🔗 URL OAuth:', redirectUrl.toString());
+
+          return res.status(200).json({
+            status: 'redirect',
+            message: 'Authentification FPay requise. Veuillez vous connecter.',
+            redirectUrl: redirectUrl.toString(),
+            openInBrowser: redirectUrl.toString(),
+            system_user_id: body.system_user_id,
+            data: {
+              amount: body.amount,
+              currency: body.currency,
+            }
+          });
+        }
+
+        console.log('[ExternalPay] ✅ Utilisateur lié:', {
+          system_user_id: body.system_user_id,
+          userIdFpay: userStatus.userIdFpay,
+        });
+
+      } catch (error) {
+        // ✅ Si l'utilisateur n'existe pas dans le système FPay, lancer OAuth
+        console.log('[ExternalPay] 🔐 Utilisateur non trouvé, redirection vers OAuth FPay');
+
+        const fpayUrl = process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
+        const appUrl = process.env.APP_URL || 'http://localhost:3000';
+        const authCode = crypto.randomBytes(32).toString('hex');
+        const clientId = 'web-client';
+        const callbackUrl = `${appUrl}/oauth/callback`;
+
+        const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
+        redirectUrl.searchParams.set('client_id', clientId);
+        redirectUrl.searchParams.set('code', authCode);
+        redirectUrl.searchParams.set('system_user_id', body.system_user_id);
+        redirectUrl.searchParams.set('redirect_uri', callbackUrl);
+
+        return res.status(200).json({
+          status: 'redirect',
+          message: 'Authentification FPay requise. Veuillez vous connecter.',
+          redirectUrl: redirectUrl.toString(),
+          openInBrowser: redirectUrl.toString(),
+          system_user_id: body.system_user_id,
+          data: {
+            amount: body.amount,
+            currency: body.currency,
+          }
+        });
+      }
+
+      // ✅ 3. Récupérer le wallet du payeur (dans user-service)
+      const payer = await this.prisma.user.findFirst({
+        where: {
+          id: body.system_user_id,
+          status: 'ACTIVE',
+          deleted: false,
         },
-      },
-    });
+        include: {
+          wallets: {
+            where: { isActive: true },
+          },
+        },
+      });
 
-    if (!client) {
-      throw new HttpException(
-        `Client with phone ${body.phone} not found`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
+      if (!payer) {
+        throw new HttpException(`Utilisateur avec ID ${body.system_user_id} non trouvé`, HttpStatus.NOT_FOUND);
+      }
 
-    // ✅ 3. Vérifier que le client a un PIN
-    if (!client.pin) {
-      throw new HttpException(
-        'Client has no PIN set',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+      // ✅ 4. Trouver le wallet
+      const targetCurrency = body.currency || 'USD';
+      let clientWallet = payer.wallets.find(w => w.currency === targetCurrency);
 
-    // ✅ 4. Trouver le wallet du client par devise
-    const targetCurrency = body.currency || 'USD';
-    let clientWallet = client.wallets.find(w => w.currency === targetCurrency);
-
-    if (!clientWallet) {
-      clientWallet = client.wallets[0];
       if (!clientWallet) {
+        clientWallet = payer.wallets[0];
+        if (!clientWallet) {
+          throw new HttpException(`Aucun wallet actif trouvé`, HttpStatus.BAD_REQUEST);
+        }
+      }
+
+      console.log('[ExternalPay] Client wallet found:', {
+        walletId: clientWallet.id,
+        currency: clientWallet.currency,
+        balance: clientWallet.balance,
+      });
+
+      if (clientWallet.balance < body.amount) {
         throw new HttpException(
-          `No active wallet found for client ${body.phone}`,
+          `Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`,
           HttpStatus.BAD_REQUEST,
         );
       }
-      console.warn(`[ExternalPay] Wallet ${targetCurrency} not found, using ${clientWallet.currency}`);
-    }
 
-    console.log('[ExternalPay] Client wallet found:', {
-      walletId: clientWallet.id,
-      currency: clientWallet.currency,
-      balance: clientWallet.balance,
-    });
+      // ✅ 5. Le destinataire
+      const recipient = apiKeyUser;
 
-    if (clientWallet.balance < body.amount) {
+      if (recipient.status !== 'ACTIVE') {
+        throw new HttpException(`Le destinataire n'est pas actif`, HttpStatus.BAD_REQUEST);
+      }
+
+      if (payer.id === recipient.id) {
+        throw new HttpException('Impossible de payer à soi-même', HttpStatus.BAD_REQUEST);
+      }
+
+      // ✅ 6. Préparer le payload (sans PIN)
+      const payPayload: any = {
+        fromWalletId: clientWallet.id,
+        amount: body.amount,
+        description: body.description || `Paiement externe vers ${recipient.full_name || recipient.phone}`,
+        lang,
+        ipAddress,
+      };
+
+      // ✅ 7. Ajouter le destinataire
+      if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
+        payPayload.merchantCode = recipient.merchantCode;
+        console.log('[ExternalPay] ✅ Paiement vers un marchand, code:', recipient.merchantCode);
+      } else if (recipient.phone) {
+        payPayload.toPhone = recipient.phone;
+        console.log('[ExternalPay] ✅ Paiement vers un utilisateur, téléphone:', recipient.phone);
+      } else {
+        throw new HttpException('Le destinataire n\'a ni téléphone ni code marchand', HttpStatus.BAD_REQUEST);
+      }
+
+      console.log('[ExternalPay] 📤 Payload envoyé (sans PIN):', payPayload);
+
+      // ✅ 8. Appeler le service wallet avec 'pay_without_pin'
+      const response = await this.sendWalletMessage(
+        'pay_without_pin',
+        payPayload,
+        this.i18nService.translate('wallet.payment_failed', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+
+      return response;
+
+    } catch (error) {
+      console.error('[ExternalPay] Erreur:', error);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       throw new HttpException(
-        `Insufficient balance: ${clientWallet.balance} ${clientWallet.currency}`,
+        {
+          status: 'error',
+          message: error.message || 'Erreur lors du paiement',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }
-
-    if (!body.pin || body.pin.length < 4 || !/^\d+$/.test(body.pin)) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.pin_invalid', lang),
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 5. Le destinataire est l'utilisateur de l'API Key
-    const recipient = apiKeyUser;
-
-    console.log('[ExternalPay] ✅ Destinataire (API Key owner):', {
-      id: recipient.id,
-      full_name: recipient.full_name,
-      phone: recipient.phone,
-      merchantCode: recipient.merchantCode,
-      role: recipient.role,
-    });
-
-    // ✅ 6. Vérifier que le destinataire est actif
-    if (recipient.status !== 'ACTIVE') {
-      throw new HttpException(
-        `Recipient is not active: ${recipient.status}`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 7. Vérifier que le client ne paie pas à lui-même
-    if (client.id === recipient.id) {
-      throw new HttpException(
-        'Cannot pay to yourself',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 8. Préparer les données pour le service wallet
-    // 🔥 La méthode 'pay' attend toPhone OU merchantCode séparément
-    const payPayload: any = {
-      fromWalletId: clientWallet.id,
-      amount: body.amount,
-      pin: body.pin,
-      description: body.description || `Paiement via API externe vers ${recipient.full_name || recipient.phone}`,
-      lang,
-      ipAddress,
-    };
-
-    // ✅ 9. Déterminer si c'est un marchand ou un utilisateur
-    if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
-      // 🔥 Si c'est un marchand, utiliser merchantCode
-      payPayload.merchantCode = recipient.merchantCode;
-      console.log('[ExternalPay] ✅ Paiement vers un marchand, code:', recipient.merchantCode);
-    } else if (recipient.phone) {
-      // 🔥 Si c'est un utilisateur, utiliser toPhone
-      payPayload.toPhone = recipient.phone;
-      console.log('[ExternalPay] ✅ Paiement vers un utilisateur, téléphone:', recipient.phone);
-    } else {
-      throw new HttpException(
-        'Recipient has no phone or merchant code',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    console.log('[ExternalPay] 📤 Payload envoyé au service wallet:', payPayload);
-
-    // ✅ 10. Appeler le service wallet
-    const response = await this.sendWalletMessage(
-      'pay',
-      payPayload,
-      this.i18nService.translate('wallet.payment_failed', lang),
-      HttpStatus.BAD_REQUEST,
-    );
-
-    // ✅ 11. Log de l'opération avec l'API Key
-    await this.prisma.audit_log.create({
-      data: {
-        id: crypto.randomUUID(),
-        userId: apiKeyUser.id,
-        action: 'EXTERNAL_PAYMENT',
-        details: JSON.stringify({
-          clientPhone: body.phone,
-          clientId: client.id,
-          recipientId: recipient.id,
-          recipientPhone: recipient.phone,
-          recipientMerchantCode: recipient.merchantCode,
-          amount: body.amount,
-          currency: body.currency,
-          apiKeyId: apiKeyUser.id,
-          description: body.description,
-        }),
-        ipAddress: ipAddress || null,
-        createdAt: new Date(),
-      },
-    });
-
-    return response;
   }
 
   @Post('api/external/send')
@@ -5159,12 +5211,77 @@ export class ApiGatewayController {
       const result = await response.json();
       console.log('[FPay] ✅ Utilisateur modifié avec succès:', result);
 
+      // ✅ AJOUT: Récupérer les données complètes de l'utilisateur
+      const userData = await this.prisma.user.findFirst({
+        where: { id: query.system_user_id },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          full_name: true,
+          account_number: true,
+          branchId: true,
+          role: true,
+          status: true,
+          deleted: true,
+          createdAt: true,
+          updatedAt: true,
+          fcmToken: true,
+          passwordStatus: true,
+          pinstatus: true,
+          merchantCode: true,
+          businessName: true,
+          profileImage: true,
+          kycStatus: true,
+          countryCode: true,
+          userIdFpay: true,
+          isLink: true,
+          locked_by_admin: true,
+        },
+      });
+
+      // ✅ AJOUT: Récupérer les wallets
+      const wallets = await this.prisma.wallet.findMany({
+        where: { userId: query.system_user_id, isActive: true },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          currency: true,
+          balance: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      // ✅ AJOUT: Récupérer les sessions
+      const sessions = await this.prisma.sessions.findMany({
+        where: {
+          user_id: query.system_user_id,
+          is_valid: true,
+          expires_at: { gt: new Date() },
+        },
+        orderBy: { created_at: 'desc' },
+        select: {
+          id: true,
+          device_info: true,
+          ip_address: true,
+          last_activity: true,
+          created_at: true,
+          expires_at: true,
+        },
+      });
+
+      // ✅ AJOUT: Construire la réponse avec data
       return res.status(200).json({
-        success: true,
-        message: 'Utilisateur lié avec succès',
+        accessToken: query.access_token,
+        refreshToken: query.refresh_token,
+        message: 'Authentification FPay réussie',
+        sessionId: crypto.randomUUID(),
         data: {
-          systemUserId: query.system_user_id,
-          fpayUserId: query.user_id,
+          ...userData,
+          wallets: wallets,
+          sessions: sessions,
         },
       });
 
