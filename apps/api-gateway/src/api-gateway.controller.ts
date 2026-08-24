@@ -5277,41 +5277,46 @@ export class ApiGatewayController {
       api_key?: string;
     },
     @Res() res: Response,
-    @Request() req: any,
   ) {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
-    console.log('[FPay] API Key reçue brute:', query.api_key);
 
-    // ✅ Décoder correctement l'API Key
-    let decodedApiKey = '';
+    // ✅ Récupérer et décoder l'API Key
+    let rawApiKey = query.api_key || '';
+    console.log('[FPay] API Key brute:', rawApiKey ? rawApiKey.substring(0, 50) + '...' : '❌ Absente');
 
-    // Méthode 1: Récupérer depuis l'URL brute
-    const fullUrl = req.url || '';
-    const apiKeyMatch = fullUrl.match(/[?&]api_key=([^&]*)/);
-
-    if (apiKeyMatch) {
-      // ✅ Décoder l'URL encodée
-      decodedApiKey = decodeURIComponent(apiKeyMatch[1]);
-      console.log('[FPay] API Key depuis URL brute (longueur):', decodedApiKey.length);
-    }
-    // Méthode 2: Si query.api_key existe, nettoyer
-    else if (query.api_key) {
-      // ✅ Remplacer les espaces par + (car URLSearchParams transforme + en espace)
-      decodedApiKey = query.api_key.replace(/ /g, '+');
-      console.log('[FPay] API Key depuis query (corrigée):', decodedApiKey.substring(0, 50) + '...');
+    // ✅ Si l'API Key est encodée, la décoder
+    try {
+      rawApiKey = decodeURIComponent(rawApiKey);
+      console.log('[FPay] API Key décodée depuis query');
+    } catch (e) {
+      console.log('[FPay] API Key déjà en clair');
     }
 
-    // ✅ Si l'API Key commence par "Bearer " mais sans espace après, l'ajouter
-    if (decodedApiKey && !decodedApiKey.startsWith('Bearer ') && !decodedApiKey.startsWith('Bearer+')) {
-      // Certaines fois le Bearer est collé
-      if (decodedApiKey.startsWith('Bearer+')) {
-        decodedApiKey = decodedApiKey.replace('Bearer+', 'Bearer ');
+    // ✅ Nettoyer l'API Key
+    let cleanApiKey = rawApiKey;
+
+    // Remplacer les espaces par +
+    if (cleanApiKey.includes(' ')) {
+      cleanApiKey = cleanApiKey.replace(/ /g, '+');
+      console.log('[FPay] API Key espaces remplacés par +');
+    }
+
+    // S'assurer du format "Bearer "
+    if (!cleanApiKey.startsWith('Bearer ')) {
+      if (cleanApiKey.startsWith('Bearer+')) {
+        cleanApiKey = cleanApiKey.replace('Bearer+', 'Bearer ');
+      } else if (cleanApiKey.startsWith('Bearer')) {
+        cleanApiKey = 'Bearer ' + cleanApiKey.substring(6);
       }
     }
 
-    console.log('[FPay] API Key utilisée:', decodedApiKey ? '✅ Présente' : '❌ Absente');
-    console.log('[FPay] API Key début:', decodedApiKey.substring(0, 30) + '...');
+    console.log('[FPay] API Key utilisée (début):', cleanApiKey.substring(0, 50) + '...');
+    console.log('[FPay] API Key a', cleanApiKey.split('.').length, 'parties');
+
+    if (cleanApiKey.split('.').length !== 3) {
+      console.error('[FPay] ❌ API Key invalide (devrait avoir 3 parties):', cleanApiKey.substring(0, 100));
+    }
 
     if (query.error) {
       return res.status(400).json({ success: false, error: query.error });
@@ -5323,6 +5328,10 @@ export class ApiGatewayController {
 
     try {
       const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+
+      console.log(`🔗 FPay appelle Favor Help: ${favorHelpUrl}/fpay/link-user`);
+      console.log(`🔗 systemUserId: ${query.system_user_id}`);
+      console.log(`🔗 fpayUserId: ${query.user_id}`);
 
       // ✅ 1. Lier les comptes
       const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
@@ -5496,54 +5505,44 @@ export class ApiGatewayController {
             throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
           }
 
-          // ✅ Utiliser l'API Key décodée pour trouver le destinataire
-          const apiKey = decodedApiKey || '';
-
-          // ✅ Nettoyer l'API Key
-          let cleanApiKey = apiKey;
-
-          // Si l'API Key contient "Bearer+", remplacer par "Bearer "
-          if (cleanApiKey.includes('Bearer+')) {
-            cleanApiKey = cleanApiKey.replace(/Bearer\+/g, 'Bearer ');
+          // ✅ Extraire le destinataire de l'API Key
+          let cleanApiKeyForDecode = cleanApiKey;
+          if (cleanApiKeyForDecode.startsWith('Bearer ')) {
+            cleanApiKeyForDecode = cleanApiKeyForDecode.substring(7);
           }
 
-          // Si elle commence par "Bearer " mais contient des espaces internes
-          if (cleanApiKey.startsWith('Bearer ')) {
-            cleanApiKey = cleanApiKey.substring(7);
-          } else if (cleanApiKey.startsWith('Bearer+')) {
-            cleanApiKey = cleanApiKey.replace('Bearer+', '');
-          }
-
-          // ✅ Si l'API Key contient des espaces, les remplacer par +
-          if (cleanApiKey.includes(' ')) {
-            cleanApiKey = cleanApiKey.replace(/ /g, '+');
-          }
-
-          console.log('[FPay] 🔑 Clean API Key (début):', cleanApiKey.substring(0, 30) + '...');
+          console.log('[FPay] API Key pour décodage (début):', cleanApiKeyForDecode.substring(0, 30) + '...');
 
           let recipientPhoneOrCode: string | null = null;
           let recipientUserId: string | null = null;
+          let payloadDecoded: any = null;
 
           try {
-            const apiKeyParts = cleanApiKey.split('.');
+            const apiKeyParts = cleanApiKeyForDecode.split('.');
+            console.log('[FPay] API Key a', apiKeyParts.length, 'parties');
+
             if (apiKeyParts.length === 3) {
+              // ✅ Décoder le payload de l'API Key
               const payloadJson = Buffer.from(apiKeyParts[1], 'base64').toString('utf-8');
-              const payload = JSON.parse(payloadJson);
-              recipientPhoneOrCode = payload.phone || payload.merchantCode || payload.sub;
-              recipientUserId = payload.userId || payload.sub;
+              payloadDecoded = JSON.parse(payloadJson);
+
+              recipientPhoneOrCode = payloadDecoded.phone || payloadDecoded.merchantCode || payloadDecoded.sub;
+              recipientUserId = payloadDecoded.userId || payloadDecoded.sub;
 
               console.log('[FPay] 📦 Payload décodé:', {
-                phone: payload.phone,
-                merchantCode: payload.merchantCode,
-                sub: payload.sub,
-                userId: payload.userId,
+                phone: payloadDecoded.phone,
+                merchantCode: payloadDecoded.merchantCode,
+                sub: payloadDecoded.sub,
+                userId: payloadDecoded.userId,
+                role: payloadDecoded.role,
+                fullName: payloadDecoded.fullName,
               });
             } else {
-              console.warn('[FPay] ⚠️ API Key n\'a pas 3 parties, longueur:', apiKeyParts.length);
+              throw new Error(`API Key n'a pas 3 parties, a ${apiKeyParts.length} parties`);
             }
           } catch (error) {
             console.error(`❌ Erreur lors du décodage de l'API Key: ${error.message}`);
-            console.error(`❌ API Key (début): ${cleanApiKey.substring(0, 50)}...`);
+            throw new Error(`Impossible d'extraire le destinataire de l'API Key: ${error.message}`);
           }
 
           if (!recipientPhoneOrCode && !recipientUserId) {
@@ -5666,16 +5665,39 @@ export class ApiGatewayController {
         }
       }
 
-      // ✅ 9. Retourner la réponse
+      // ✅ 9. Construire la session ID
+      const sessionId = crypto.randomUUID();
+
+      // ✅ 10. Retourner la réponse complète
       return res.status(200).json({
         accessToken: query.access_token,
         refreshToken: query.refresh_token,
         message: paymentResult?.status === 'ERROR'
           ? 'Authentification FPay réussie mais paiement échoué'
           : 'Authentification FPay réussie',
-        sessionId: crypto.randomUUID(),
+        sessionId: sessionId,
         data: {
-          ...userData,
+          id: userData.id,
+          email: userData.email || null,
+          phone: userData.phone || null,
+          fcmToken: userData.fcmToken || null,
+          full_name: userData.full_name || null,
+          account_number: userData.account_number || null,
+          branchId: userData.branchId || null,
+          branch: userBranch,
+          role: userData.role || 'USER',
+          passwordStatus: userData.passwordStatus || null,
+          pinstatus: userData.pinstatus || false,
+          merchantCode: userData.merchantCode || null,
+          businessName: userData.businessName || null,
+          status: userData.status || 'ACTIVE',
+          deleted: userData.deleted || false,
+          createdAt: userData.createdAt || new Date(),
+          updatedAt: userData.updatedAt || new Date(),
+          profileImage: userData.profileImage || null,
+          kycStatus: kycStatus,
+          countryCode: userData.countryCode || 'CD',
+          locked_by_admin: userData.locked_by_admin || false,
           sessions: sessions,
           resources: resources,
           wallets: wallets,
