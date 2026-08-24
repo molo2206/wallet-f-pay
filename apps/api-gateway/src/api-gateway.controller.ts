@@ -67,6 +67,7 @@ import { UploadedFile, UploadedFiles } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as jwt from 'jsonwebtoken';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
@@ -5260,8 +5261,6 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
-  // apps/api-gateway/src/api-gateway.controller.ts
-
   @Get('oauth/callback')
   async oauthCallback(
     @Query() query: {
@@ -5282,72 +5281,163 @@ export class ApiGatewayController {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
 
-    // ✅ Utiliser req.user comme dans externalPay (si disponible)
-    // OU décoder l'API Key manuellement
-    let recipientUser: any = null;
+    // ✅ Récupérer l'API Key depuis l'URL brute
+    let rawApiKey = '';
+    const fullUrl = req.url || '';
+    const apiKeyMatch = fullUrl.match(/[?&]api_key=([^&]*)/);
 
-    // ✅ Méthode 1: Utiliser req.user si l'API Key Guard est actif
-    if (req.user) {
-      recipientUser = req.user;
-      console.log('[FPay] ✅ Utilisateur récupéré depuis req.user:', {
-        id: recipientUser.id,
-        phone: recipientUser.phone,
-        merchantCode: recipientUser.merchantCode,
+    if (apiKeyMatch) {
+      rawApiKey = decodeURIComponent(apiKeyMatch[1]);
+      console.log('[FPay] ✅ API Key récupérée depuis URL brute');
+    } else if (query.api_key) {
+      rawApiKey = query.api_key;
+      console.log('[FPay] ✅ API Key récupérée depuis query.api_key');
+    }
+
+    if (!rawApiKey) {
+      console.error('[FPay] ❌ Aucune API Key trouvée');
+      return res.status(400).json({
+        success: false,
+        error: 'API Key manquante',
+        message: 'Impossible de récupérer l\'API Key',
       });
     }
-    // ✅ Méthode 2: Décoder manuellement l'API Key (fallback)
-    else {
-      let rawApiKey = query.api_key || '';
-      console.log('[FPay] API Key brute:', rawApiKey ? rawApiKey.substring(0, 50) + '...' : '❌ Absente');
 
-      // Nettoyer l'API Key
-      let cleanApiKey = rawApiKey;
-      if (cleanApiKey.includes(' ')) {
-        cleanApiKey = cleanApiKey.replace(/ /g, '+');
+    // ✅ Nettoyer l'API Key (comme dans le Guard)
+    let cleanApiKey = rawApiKey;
+    if (cleanApiKey.includes(' ')) {
+      cleanApiKey = cleanApiKey.replace(/ /g, '+');
+    }
+    if (!cleanApiKey.startsWith('Bearer ')) {
+      if (cleanApiKey.startsWith('Bearer+')) {
+        cleanApiKey = cleanApiKey.replace('Bearer+', 'Bearer ');
+      } else if (cleanApiKey.startsWith('Bearer')) {
+        cleanApiKey = 'Bearer ' + cleanApiKey.substring(6);
+      } else {
+        cleanApiKey = 'Bearer ' + cleanApiKey;
       }
-      if (!cleanApiKey.startsWith('Bearer ')) {
-        if (cleanApiKey.startsWith('Bearer+')) {
-          cleanApiKey = cleanApiKey.replace('Bearer+', 'Bearer ');
-        } else if (cleanApiKey.startsWith('Bearer')) {
-          cleanApiKey = 'Bearer ' + cleanApiKey.substring(6);
+    }
+
+    // ✅ Extraire le token
+    const parts = cleanApiKey.split(' ');
+    const apiKeyToken = parts.length === 2 ? parts[1] : cleanApiKey;
+
+    console.log('[FPay] API Key token (début):', apiKeyToken.substring(0, 30) + '...');
+
+    // ✅ Récupérer le destinataire comme dans le Guard
+    let recipientUser: any = null;
+
+    // 1️⃣ Essayer de valider comme JWT (comme dans le Guard)
+    try {
+      const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
+      const payload = jwt.verify(apiKeyToken, secret) as any;
+
+      const userId = payload.sub || payload.userId;
+
+      if (userId) {
+        // Récupérer l'utilisateur depuis la base
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            email: true,
+            role: true,
+            status: true,
+            merchantCode: true,
+            merchantType: true,
+            businessName: true,
+            businessCategory: true,
+            businessAddress: true,
+            kycStatus: true,
+            countryCode: true,
+            wallets: {
+              where: { isActive: true },
+              select: {
+                id: true,
+                currency: true,
+                balance: true,
+                isActive: true,
+              }
+            }
+          }
+        });
+
+        if (user) {
+          recipientUser = user;
+          console.log('[FPay] ✅ Utilisateur trouvé via JWT:', {
+            id: user.id,
+            phone: user.phone,
+            merchantCode: user.merchantCode,
+          });
         }
       }
+    } catch (err) {
+      console.log('[FPay] ⚠️ JWT invalide, recherche en base...');
+    }
 
-      // ✅ Décoder le payload de l'API Key
-      let cleanApiKeyForDecode = cleanApiKey;
-      if (cleanApiKeyForDecode.startsWith('Bearer ')) {
-        cleanApiKeyForDecode = cleanApiKeyForDecode.substring(7);
-      }
-
+    // 2️⃣ Si JWT échoue, rechercher dans la base (comme dans le Guard)
+    if (!recipientUser) {
       try {
-        const apiKeyParts = cleanApiKeyForDecode.split('.');
-        if (apiKeyParts.length === 3) {
-          const payloadJson = Buffer.from(apiKeyParts[1], 'base64').toString('utf-8');
-          const payload = JSON.parse(payloadJson);
+        const keyRecord = await this.prisma.api_key.findFirst({
+          where: {
+            key: apiKeyToken,
+            isActive: true,
+            expiresAt: {
+              gt: new Date(),
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                email: true,
+                role: true,
+                status: true,
+                merchantCode: true,
+                merchantType: true,
+                businessName: true,
+                businessCategory: true,
+                businessAddress: true,
+                kycStatus: true,
+                countryCode: true,
+                wallets: {
+                  where: { isActive: true },
+                  select: {
+                    id: true,
+                    currency: true,
+                    balance: true,
+                    isActive: true,
+                  }
+                }
+              }
+            },
+          },
+        });
 
-          recipientUser = {
-            id: payload.userId || payload.sub,
-            phone: payload.phone,
-            merchantCode: payload.merchantCode,
-            full_name: payload.fullName || payload.full_name,
-            role: payload.role,
-            status: payload.status,
-          };
-
-          console.log('[FPay] ✅ Utilisateur décodé depuis API Key:', {
+        if (keyRecord && keyRecord.user) {
+          recipientUser = keyRecord.user;
+          console.log('[FPay] ✅ Utilisateur trouvé via base de données:', {
             id: recipientUser.id,
             phone: recipientUser.phone,
             merchantCode: recipientUser.merchantCode,
           });
         }
       } catch (error) {
-        console.error(`❌ Erreur lors du décodage de l'API Key: ${error.message}`);
+        console.error('[FPay] ❌ Erreur recherche en base:', error.message);
       }
     }
 
     if (!recipientUser) {
       console.error('[FPay] ❌ Impossible de récupérer le destinataire');
-      // Continuer sans destinataire
+      return res.status(400).json({
+        success: false,
+        error: 'Destinataire non trouvé',
+        message: 'Impossible de récupérer le destinataire depuis l\'API Key',
+      });
     }
 
     if (query.error) {
