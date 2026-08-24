@@ -5235,22 +5235,99 @@ export class ApiGatewayController {
       }
 
       const userData = userResponse.data;
-      console.log('[FPay] ✅ Utilisateur trouvé:', userData.id);
 
-      // ✅ 4. Retourner la réponse complète
+      // ✅ 4. Récupérer les wallets via wallet-service
+      let wallets: any[] = [];
+      try {
+        const walletsResponse = await this.sendWalletMessage<any>(
+          'list_user_wallets',
+          { userId: query.user_id },
+          'Erreur récupération wallets',
+          HttpStatus.BAD_REQUEST,
+        );
+        wallets = walletsResponse?.data || [];
+      } catch (walletError) {
+        console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
+      }
+
+      // ✅ 5. Récupérer les sessions via auth-service
+      let sessions: any[] = [];
+      try {
+        const sessionsResponse = await this.sendAuthMessage<any>(
+          'list_user_sessions',
+          { userId: query.user_id },
+          'Erreur récupération sessions',
+          HttpStatus.BAD_REQUEST,
+        );
+        sessions = sessionsResponse?.data || [];
+      } catch (sessionError) {
+        console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
+      }
+
+      // ✅ 6. Récupérer les resources via user-service
+      let resources: any[] = [];
+      try {
+        const resourcesResponse = await this.sendUserMessage<any>(
+          'get_user_resources',
+          { userId: query.user_id },
+          'Erreur récupération resources',
+          HttpStatus.BAD_REQUEST,
+        );
+        resources = resourcesResponse?.data || [];
+      } catch (resourceError) {
+        console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
+      }
+
+      // ✅ 7. Récupérer les KYC via user-service
+      let kycStatus = 'NOT_SUBMITTED';
+      let kycSubmission = null;
+      try {
+        const kycResponse = await this.sendUserMessage<any>(
+          'get_kyc_status',
+          { userId: query.user_id },
+          'Erreur récupération KYC',
+          HttpStatus.BAD_REQUEST,
+        );
+        kycStatus = kycResponse?.data?.status || 'NOT_SUBMITTED';
+        kycSubmission = kycResponse?.data?.submission || null;
+      } catch (kycError) {
+        console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
+      }
+
+      // ✅ 8. Récupérer la branche de l'utilisateur
+      let userBranch = null;
+      if (userData.branchId) {
+        try {
+          const branchResponse = await this.sendUserMessage<any>(
+            'get_branch',
+            { id: userData.branchId },
+            'Branche non trouvée',
+            HttpStatus.NOT_FOUND,
+          );
+          userBranch = branchResponse?.data || null;
+        } catch (branchError) {
+          console.warn('[FPay] ⚠️ Impossible de récupérer la branche:', branchError.message);
+        }
+      }
+
+      // ✅ 9. Construire la session ID
+      const sessionId = crypto.randomUUID();
+
+      // ✅ 10. Retourner la réponse complète au format mobile
       return res.status(200).json({
         accessToken: query.access_token,
         refreshToken: query.refresh_token,
         message: 'Authentification FPay réussie',
-        sessionId: crypto.randomUUID(),
+        sessionId: sessionId,
         data: {
           id: userData.id,
           email: userData.email || null,
           phone: userData.phone || null,
+          fcmToken: userData.fcmToken || null,
           full_name: userData.full_name || null,
           account_number: userData.account_number || null,
           branchId: userData.branchId || null,
-          branch: userData.branch || null,
+          branch: userBranch,
           role: userData.role || 'USER',
           passwordStatus: userData.passwordStatus || null,
           pinstatus: userData.pinstatus || false,
@@ -5261,9 +5338,16 @@ export class ApiGatewayController {
           createdAt: userData.createdAt || new Date(),
           updatedAt: userData.updatedAt || new Date(),
           profileImage: userData.profileImage || null,
-          kycStatus: userData.kycStatus || 'NOT_SUBMITTED',
+          kycStatus: kycStatus,
           countryCode: userData.countryCode || 'CD',
           locked_by_admin: userData.locked_by_admin || false,
+          sessions: sessions,
+          resources: resources,
+          wallets: wallets,
+          kyc: {
+            status: kycStatus,
+            submission: kycSubmission,
+          },
         },
       });
 
