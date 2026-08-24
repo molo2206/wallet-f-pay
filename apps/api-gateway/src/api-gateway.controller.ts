@@ -4388,6 +4388,8 @@ export class ApiGatewayController {
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
+  // apps/api-gateway/src/api-gateway.controller.ts (FPay)
+
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
@@ -4397,6 +4399,7 @@ export class ApiGatewayController {
       access_token?: string;
       refresh_token?: string;
       user_id?: string;
+      system_user_id?: string;  // ✅ AJOUTER
       error?: string;
       lang?: string;
     },
@@ -4409,6 +4412,9 @@ export class ApiGatewayController {
       const mobileCallbackUrl = this.getMobileCallbackUrl();
       const env = process.env.NODE_ENV || 'development';
       const envLabel = env === 'production' ? 'PRODUCTION' : env === 'test' ? 'TEST' : 'LOCAL';
+
+      // ✅ Récupérer system_user_id de la query
+      const systemUserId = query.system_user_id || '';
 
       // ✅ Utiliser le callback URL correct
       const callbackUrl = query.redirect_uri || oauthCallbackUrl;
@@ -4424,11 +4430,12 @@ export class ApiGatewayController {
         html = html.replace(/{{MOBILE_CALLBACK_URL}}/g, mobileCallbackUrl);
         html = html.replace(/{{ENV}}/g, env);
         html = html.replace(/{{ENV_LABEL}}/g, envLabel);
+        html = html.replace(/{{SYSTEM_USER_ID}}/g, systemUserId);  // ✅ AJOUTER
 
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec OTP intégré
+      // ✅ Version HTML avec OTP intégré - CORRIGÉ
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4724,10 +4731,12 @@ export class ApiGatewayController {
             var OAUTH_CALLBACK_URL = '${callbackUrl}';
             var MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
             var ENV = '${env}';
+            var SYSTEM_USER_ID = '${systemUserId}';  // ✅ AJOUTER
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
+            console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
 
             var urlParams = new URLSearchParams(window.location.search);
             var CLIENT_ID = urlParams.get('client_id') || 'web-client';
@@ -4795,6 +4804,7 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
             }
 
+            // ✅ CORRIGÉ : handleRedirect avec system_user_id
             window.handleRedirect = function() {
                 var redirectUrl = new URL(REDIRECT_URI);
                 
@@ -4809,6 +4819,10 @@ export class ApiGatewayController {
                 }
                 if (userTokens.code) {
                     redirectUrl.searchParams.set('code', userTokens.code);
+                }
+                // ✅ AJOUTER system_user_id
+                if (SYSTEM_USER_ID) {
+                    redirectUrl.searchParams.set('system_user_id', SYSTEM_USER_ID);
                 }
 
                 console.log('[OAuth] Redirection vers:', redirectUrl.toString());
@@ -5039,6 +5053,8 @@ export class ApiGatewayController {
                 var code = urlParams.get('code');
                 var accessToken = urlParams.get('access_token');
                 var userId = urlParams.get('user_id');
+                // ✅ Récupérer system_user_id des paramètres URL
+                var systemUserIdFromUrl = urlParams.get('system_user_id');
                 
                 if (code && accessToken && userId) {
                     userTokens = {
