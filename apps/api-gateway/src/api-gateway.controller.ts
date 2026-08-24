@@ -5241,6 +5241,7 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
+  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('oauth/callback')
   async oauthCallback(
@@ -5396,30 +5397,99 @@ export class ApiGatewayController {
         }
       }
 
-      // ✅ 8. EXÉCUTER LE PAIEMENT AUTOMATIQUEMENT
-      let paymentResult: any = null; // ✅ Déclarer comme any pour accepter l'objet
+      // ✅ 8. EXÉCUTER LE PAIEMENT AUTOMATIQUEMENT via wallet-service
+      let paymentResult: any = null;
       if (query.amount && query.currency) {
         try {
-          console.log('[FPay] 💰 Exécution du paiement automatique:', {
-            amount: query.amount,
-            currency: query.currency,
-            description: query.description,
+          console.log('[FPay] 💰 Exécution du paiement automatique via wallet-service');
+
+          // ✅ Récupérer le wallet du payeur
+          const payer = await this.prisma.user.findFirst({
+            where: {
+              id: query.system_user_id || query.user_id,
+              status: 'ACTIVE',
+              deleted: false,
+            },
+            include: {
+              wallets: {
+                where: { isActive: true },
+              },
+            },
           });
 
-          // ✅ Appeler FPay via RabbitMQ
-          paymentResult = await this.sendFpayMessage<any>(
-            'make_payment_external',
-            {
-              system_user_id: query.system_user_id || query.user_id,
-              amount: parseFloat(query.amount),
-              currency: query.currency,
-              description: query.description || 'Paiement automatique',
-            },
-            'Erreur paiement FPay',
+          if (!payer) {
+            throw new Error('Utilisateur non trouvé');
+          }
+
+          // ✅ Trouver le wallet
+          const targetCurrency = query.currency || 'USD';
+          let clientWallet = payer.wallets.find(w => w.currency === targetCurrency);
+
+          if (!clientWallet) {
+            clientWallet = payer.wallets[0];
+            if (!clientWallet) {
+              throw new Error('Aucun wallet actif trouvé');
+            }
+          }
+
+          if (clientWallet.balance < parseFloat(query.amount)) {
+            throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
+          }
+
+          // ✅ Extraire le destinataire depuis l'API Key FPay (comme dans makePayment)
+          let cleanApiKey = process.env.FPAY_API_KEY_HELP || '';
+          if (cleanApiKey.startsWith('Bearer ')) {
+            cleanApiKey = cleanApiKey.substring(7);
+          }
+
+          let recipientPhoneOrCode: string | null = null;
+
+          try {
+            const apiKeyParts = cleanApiKey.split('.');
+            if (apiKeyParts.length === 3) {
+              const payloadJson = Buffer.from(apiKeyParts[1], 'base64').toString('utf-8');
+              const payload = JSON.parse(payloadJson);
+              recipientPhoneOrCode = payload.phone || payload.merchantCode || payload.sub;
+            }
+          } catch (error) {
+            console.error(`❌ Erreur lors du décodage de l'API Key: ${error.message}`);
+          }
+
+          if (!recipientPhoneOrCode) {
+            throw new Error('Impossible d\'extraire le destinataire de l\'API Key');
+          }
+
+          console.log('[FPay] ✅ Destinataire extrait de l\'API Key:', recipientPhoneOrCode);
+
+          // ✅ Appeler le wallet-service avec 'pay_without_pin'
+          const payPayload: any = {
+            fromWalletId: clientWallet.id,
+            amount: parseFloat(query.amount),
+            description: query.description || `Paiement vers ${recipientPhoneOrCode}`,
+            lang: 'fr',
+            ipAddress: '127.0.0.1',
+          };
+
+          // ✅ Ajouter le destinataire (toPhone ou merchantCode)
+          // Vérifier si c'est un numéro de téléphone ou un code marchand
+          if (recipientPhoneOrCode.startsWith('+') || recipientPhoneOrCode.match(/^[0-9]+$/)) {
+            payPayload.toPhone = recipientPhoneOrCode;
+          } else {
+            payPayload.merchantCode = recipientPhoneOrCode;
+          }
+
+          console.log('[FPay] 📤 Payload pour paiement automatique:', payPayload);
+
+          // ✅ Utiliser sendWalletMessage
+          paymentResult = await this.sendWalletMessage<any>(
+            'pay_without_pin',
+            payPayload,
+            'Erreur paiement',
             HttpStatus.BAD_REQUEST,
           );
 
           console.log('[FPay] ✅ Paiement automatique réussi:', paymentResult);
+
         } catch (paymentError: any) {
           console.error('[FPay] ❌ Erreur paiement automatique:', paymentError.message);
           paymentResult = {
@@ -5491,6 +5561,7 @@ export class ApiGatewayController {
       });
     }
   }
+  
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async submitKyc(
