@@ -5277,33 +5277,41 @@ export class ApiGatewayController {
       api_key?: string;
     },
     @Res() res: Response,
-    @Request() req: any, // ✅ AJOUTER Request pour récupérer l'URL brute
+    @Request() req: any,
   ) {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
     console.log('[FPay] API Key reçue brute:', query.api_key);
 
-    // ✅ Décoder correctement l'API Key depuis l'URL brute
-    let apiKeyRaw = query.api_key || '';
-    let decodedApiKey = apiKeyRaw;
+    // ✅ Décoder correctement l'API Key
+    let decodedApiKey = '';
 
-    // ✅ Récupérer l'API Key depuis l'URL brute pour éviter le décodage automatique
+    // Méthode 1: Récupérer depuis l'URL brute
     const fullUrl = req.url || '';
     const apiKeyMatch = fullUrl.match(/[?&]api_key=([^&]*)/);
 
     if (apiKeyMatch) {
-      // ✅ Décoder manuellement le paramètre api_key
+      // ✅ Décoder l'URL encodée
       decodedApiKey = decodeURIComponent(apiKeyMatch[1]);
-      console.log('[FPay] API Key décodée manuellement (longueur):', decodedApiKey.length);
-    } else if (apiKeyRaw) {
-      // ✅ Si l'API Key a des espaces (les + décodés en espaces), les remplacer par +
-      if (apiKeyRaw.includes(' ')) {
-        decodedApiKey = apiKeyRaw.replace(/ /g, '+');
-        console.log('[FPay] API Key corrigée (espaces → +):', decodedApiKey.substring(0, 50) + '...');
+      console.log('[FPay] API Key depuis URL brute (longueur):', decodedApiKey.length);
+    }
+    // Méthode 2: Si query.api_key existe, nettoyer
+    else if (query.api_key) {
+      // ✅ Remplacer les espaces par + (car URLSearchParams transforme + en espace)
+      decodedApiKey = query.api_key.replace(/ /g, '+');
+      console.log('[FPay] API Key depuis query (corrigée):', decodedApiKey.substring(0, 50) + '...');
+    }
+
+    // ✅ Si l'API Key commence par "Bearer " mais sans espace après, l'ajouter
+    if (decodedApiKey && !decodedApiKey.startsWith('Bearer ') && !decodedApiKey.startsWith('Bearer+')) {
+      // Certaines fois le Bearer est collé
+      if (decodedApiKey.startsWith('Bearer+')) {
+        decodedApiKey = decodedApiKey.replace('Bearer+', 'Bearer ');
       }
     }
 
     console.log('[FPay] API Key utilisée:', decodedApiKey ? '✅ Présente' : '❌ Absente');
+    console.log('[FPay] API Key début:', decodedApiKey.substring(0, 30) + '...');
 
     if (query.error) {
       return res.status(400).json({ success: false, error: query.error });
@@ -5455,7 +5463,7 @@ export class ApiGatewayController {
           console.log('[FPay] ✅ Payeur trouvé:', {
             id: payer.id,
             phone: payer.phone,
-            userIdFpay: payer.id,
+            userIdFpay: payer.userIdFpay || payer.id,
           });
 
           // ✅ Récupérer les wallets du payeur via wallet-service
@@ -5490,10 +5498,28 @@ export class ApiGatewayController {
 
           // ✅ Utiliser l'API Key décodée pour trouver le destinataire
           const apiKey = decodedApiKey || '';
+
+          // ✅ Nettoyer l'API Key
           let cleanApiKey = apiKey;
+
+          // Si l'API Key contient "Bearer+", remplacer par "Bearer "
+          if (cleanApiKey.includes('Bearer+')) {
+            cleanApiKey = cleanApiKey.replace(/Bearer\+/g, 'Bearer ');
+          }
+
+          // Si elle commence par "Bearer " mais contient des espaces internes
           if (cleanApiKey.startsWith('Bearer ')) {
             cleanApiKey = cleanApiKey.substring(7);
+          } else if (cleanApiKey.startsWith('Bearer+')) {
+            cleanApiKey = cleanApiKey.replace('Bearer+', '');
           }
+
+          // ✅ Si l'API Key contient des espaces, les remplacer par +
+          if (cleanApiKey.includes(' ')) {
+            cleanApiKey = cleanApiKey.replace(/ /g, '+');
+          }
+
+          console.log('[FPay] 🔑 Clean API Key (début):', cleanApiKey.substring(0, 30) + '...');
 
           let recipientPhoneOrCode: string | null = null;
           let recipientUserId: string | null = null;
@@ -5505,9 +5531,19 @@ export class ApiGatewayController {
               const payload = JSON.parse(payloadJson);
               recipientPhoneOrCode = payload.phone || payload.merchantCode || payload.sub;
               recipientUserId = payload.userId || payload.sub;
+
+              console.log('[FPay] 📦 Payload décodé:', {
+                phone: payload.phone,
+                merchantCode: payload.merchantCode,
+                sub: payload.sub,
+                userId: payload.userId,
+              });
+            } else {
+              console.warn('[FPay] ⚠️ API Key n\'a pas 3 parties, longueur:', apiKeyParts.length);
             }
           } catch (error) {
             console.error(`❌ Erreur lors du décodage de l'API Key: ${error.message}`);
+            console.error(`❌ API Key (début): ${cleanApiKey.substring(0, 50)}...`);
           }
 
           if (!recipientPhoneOrCode && !recipientUserId) {
@@ -5532,7 +5568,7 @@ export class ApiGatewayController {
                 recipientUser = recipientResponse.data;
               }
             } catch (e) {
-              console.warn('[FPay] ⚠️ Destinataire non trouvé par ID');
+              console.warn('[FPay] ⚠️ Destinataire non trouvé par ID:', recipientUserId);
             }
           }
 
@@ -5549,12 +5585,12 @@ export class ApiGatewayController {
                 recipientUser = recipientResponse.data;
               }
             } catch (e) {
-              console.warn('[FPay] ⚠️ Destinataire non trouvé par téléphone');
+              console.warn('[FPay] ⚠️ Destinataire non trouvé par téléphone:', recipientPhoneOrCode);
             }
           }
 
           if (!recipientUser) {
-            throw new Error(`Destinataire non trouvé`);
+            throw new Error(`Destinataire non trouvé pour phone: ${recipientPhoneOrCode} ou id: ${recipientUserId}`);
           }
 
           console.log('[FPay] ✅ Destinataire trouvé:', {
