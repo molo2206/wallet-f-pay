@@ -1921,7 +1921,7 @@ export class WalletServiceService {
       },
     };
   }
-  
+
   async topUp(
     userId: string,
     amount: number,
@@ -4147,6 +4147,283 @@ export class WalletServiceService {
   }
 
 
+  async payWithoutPin(
+    dto: PayDto,
+    lang: string = 'fr',
+    ipAddress: string,
+  ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
+    const { fromWalletId, toPhone, merchantCode, amount, description } = dto;
+    console.log('[WalletService] PayWithoutPin request:', { fromWalletId, toPhone, merchantCode, amount, lang });
+
+    // ========== VALIDATIONS RAPIDES ==========
+    if (amount <= 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.amount_positive', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!fromWalletId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet source est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!toPhone && !merchantCode) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.missing_phone_or_code', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ========== RÉCUPÉRATIONS PARALLÈLES ==========
+    const [fromWallet, toUser] = await Promise.all([
+      this.prisma.wallet.findFirst({
+        where: { id: fromWalletId, isActive: true },
+        include: { user: true },
+      }),
+      toPhone
+        ? this.prisma.user.findFirst({
+          where: { phone: toPhone },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            account_number: true,
+            role: true,
+            merchantCode: true,
+          },
+        })
+        : this.prisma.user.findFirst({
+          where: { merchantCode },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            account_number: true,
+            role: true,
+            merchantCode: true,
+          },
+        }),
+    ]);
+
+    // ========== VALIDATIONS ==========
+    if (!fromWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    const fromUser = fromWallet.user;
+    if (!fromUser) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.sender_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    if (fromUser.status === user_status.BLOCKED) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('account_blocked_admin', lang),
+        statusCode: 403,
+      });
+    }
+
+    if (!toUser) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.receiver_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    if (toUser.role !== 'MERCHANT') {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.not_merchant', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (fromUser.id === toUser.id) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.cannot_transfer_self', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ========== PAS DE VÉRIFICATION DE PIN ==========
+
+    // ========== RÉCUPÉRER OU CRÉER LE WALLET DU COMMERÇANT ==========
+    let merchantWallet = await this.prisma.wallet.findFirst({
+      where: { userId: toUser.id, currency: fromWallet.currency, isActive: true },
+    });
+
+    if (!merchantWallet) {
+      merchantWallet = await this.prisma.wallet.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: toUser.id,
+          currency: fromWallet.currency,
+          balance: 0,
+          isActive: true,
+        },
+      });
+    }
+
+    if (!merchantWallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        statusCode: 403,
+      });
+    }
+
+    // ========== APPLIQUER LES FRAIS ==========
+    const targetPhone = toUser.phone;
+    const { fee, debitAmount, creditAmount } = await this.applyInternationalFeeIfNeeded(targetPhone || '', amount);
+
+    if (fromWallet.balance < debitAmount) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ========== EXÉCUTER LA TRANSACTION ==========
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Mettre à jour les soldes
+      const [updatedUser, updatedMerchant] = await Promise.all([
+        tx.wallet.update({
+          where: { id: fromWallet.id },
+          data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
+        }),
+        tx.wallet.update({
+          where: { id: merchantWallet.id },
+          data: { balance: { increment: creditAmount }, updatedAt: new Date() },
+        }),
+      ]);
+
+      // Construire les descriptions
+      let payerDescription = description;
+      let merchantDescription = description;
+
+      if (!payerDescription) {
+        const template = this.i18nService.translate('wallet.transaction_description_payment_sent', lang);
+        payerDescription = template
+          .replace('{merchantName}', toUser.full_name || '')
+          .replace('{merchantPhone}', toUser.phone || '');
+      } else {
+        const merchantInfo = toUser.full_name
+          ? `${toUser.full_name} (${toUser.phone || merchantCode})`
+          : toUser.phone || merchantCode;
+        const toText = this.i18nService.translate('wallet.to', lang);
+        payerDescription = `${payerDescription} (${toText}: ${merchantInfo})`;
+      }
+      if (fee > 0) {
+        payerDescription += ` (frais internationaux 1%: ${fee} ${fromWallet.currency})`;
+      }
+
+      if (!merchantDescription) {
+        const template = this.i18nService.translate('wallet.transaction_description_payment_received', lang);
+        merchantDescription = template
+          .replace('{phone}', fromUser.phone || '');
+      } else {
+        const payerInfo = fromUser.full_name
+          ? `${fromUser.full_name} (${fromUser.phone})`
+          : fromUser.phone;
+        const fromText = this.i18nService.translate('wallet.from', lang);
+        merchantDescription = `${merchantDescription} (${fromText}: ${payerInfo})`;
+      }
+
+      // Créer les transactions
+      const reference = await this.generateTransactionReference('', tx);
+      const [payerTx, merchantTx] = await Promise.all([
+        tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: fromUser.id,
+            walletId: fromWallet.id,
+            amount: debitAmount,
+            type: 'PAYMENT',
+            status: 'SUCCESS',
+            reference: reference,
+            description: payerDescription,
+            movement: 'DEBIT',
+            currency: fromWallet.currency,
+            paymentMethod: 'MOBILE_MONEY',
+          },
+        }),
+        tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: toUser.id,
+            walletId: merchantWallet.id,
+            amount: creditAmount,
+            type: 'PAYMENT',
+            status: 'SUCCESS',
+            reference: reference,
+            description: merchantDescription,
+            movement: 'CREDIT',
+            currency: merchantWallet.currency,
+            paymentMethod: 'MOBILE_MONEY',
+          },
+        }),
+      ]);
+
+      // Audit log
+      await tx.audit_log.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: fromUser.id,
+          action: 'PAYMENT_WITHOUT_PIN',
+          details: JSON.stringify({
+            amount: debitAmount,
+            merchant: toUser.full_name,
+            merchantCode: toUser.merchantCode,
+            note: 'Paiement effectué sans PIN (OAuth)',
+          }),
+          ipAddress: ipAddress || null,
+          createdAt: new Date(),
+        },
+      });
+
+      return {
+        fromUser,
+        toUser,
+        fromWallet: updatedUser,
+        merchantWallet: updatedMerchant,
+        payerTx,
+        merchantTx,
+      };
+    }, { timeout: 30000 });
+
+    return {
+      message: this.i18nService.translate('wallet.payment_success', lang, {
+        amount: amount.toFixed(2),
+        currency: result.fromWallet.currency || 'CDF',
+        merchantName: result.toUser.full_name || 'Commerçant',
+        balance: result.fromWallet.balance.toFixed(2),
+        reference: result.payerTx.reference || 'N/A',
+        fee: fee.toFixed(2),
+        creditAmount: creditAmount.toFixed(2),
+      }),
+      data: {
+        wallet: this.toResponse(result.fromWallet),
+        transaction: result.payerTx,
+      },
+    };
+  }
   private async getExchangeRateViaPivot(
     fromCurrency: string,
     toCurrency: string,

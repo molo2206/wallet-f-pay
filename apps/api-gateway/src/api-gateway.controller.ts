@@ -5162,13 +5162,14 @@ export class ApiGatewayController {
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
 
+
   @Get('oauth/callback')
   async oauthCallback(
     @Query() query: {
       access_token?: string;
       refresh_token?: string;
       user_id?: string;
-      system_user_id?: string;  // ✅ AJOUTER
+      system_user_id?: string;
       code?: string;
       error?: string;
     },
@@ -5196,8 +5197,8 @@ export class ApiGatewayController {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemUserId: query.system_user_id,  // ✅ ID de l'utilisateur Favor Help
-          fpayUserId: query.user_id,           // ✅ ID de l'utilisateur FPay
+          systemUserId: query.system_user_id,
+          fpayUserId: query.user_id,
           accessToken: query.access_token,
           refreshToken: query.refresh_token,
         }),
@@ -5212,6 +5213,7 @@ export class ApiGatewayController {
       console.log('[FPay] ✅ Utilisateur modifié avec succès:', result);
 
       // ✅ AJOUT: Récupérer les données complètes de l'utilisateur
+      // ❌ SUPPRIMER userIdFpay et isLink du select (ils n'existent pas dans Prisma)
       const userData = await this.prisma.user.findFirst({
         where: { id: query.system_user_id },
         select: {
@@ -5234,8 +5236,8 @@ export class ApiGatewayController {
           profileImage: true,
           kycStatus: true,
           countryCode: true,
-          userIdFpay: true,
-          isLink: true,
+          // ❌ userIdFpay: true,  // N'EXISTE PAS DANS PRISMA
+          // ❌ isLink: true,      // N'EXISTE PAS DANS PRISMA
           locked_by_admin: true,
         },
       });
