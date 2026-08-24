@@ -5162,7 +5162,6 @@ export class ApiGatewayController {
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
 
-
   @Get('oauth/callback')
   async oauthCallback(
     @Query() query: {
@@ -5193,6 +5192,7 @@ export class ApiGatewayController {
       console.log(`🔗 systemUserId: ${query.system_user_id}`);
       console.log(`🔗 fpayUserId: ${query.user_id}`);
 
+      // ✅ 1. Lier les comptes
       const response = await fetch(`${favorHelpUrl}/fpay/link-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5212,8 +5212,7 @@ export class ApiGatewayController {
       const result = await response.json();
       console.log('[FPay] ✅ Utilisateur modifié avec succès:', result);
 
-      // ✅ AJOUT: Récupérer les données complètes de l'utilisateur
-      // ❌ SUPPRIMER userIdFpay et isLink du select (ils n'existent pas dans Prisma)
+      // ✅ 2. Récupérer les informations de l'utilisateur
       const userData = await this.prisma.user.findFirst({
         where: { id: query.system_user_id },
         select: {
@@ -5236,55 +5235,17 @@ export class ApiGatewayController {
           profileImage: true,
           kycStatus: true,
           countryCode: true,
-          // ❌ userIdFpay: true,  // N'EXISTE PAS DANS PRISMA
-          // ❌ isLink: true,      // N'EXISTE PAS DANS PRISMA
           locked_by_admin: true,
         },
       });
 
-      // ✅ AJOUT: Récupérer les wallets
-      const wallets = await this.prisma.wallet.findMany({
-        where: { userId: query.system_user_id, isActive: true },
-        orderBy: { createdAt: 'asc' },
-        select: {
-          id: true,
-          currency: true,
-          balance: true,
-          isActive: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-
-      // ✅ AJOUT: Récupérer les sessions
-      const sessions = await this.prisma.sessions.findMany({
-        where: {
-          user_id: query.system_user_id,
-          is_valid: true,
-          expires_at: { gt: new Date() },
-        },
-        orderBy: { created_at: 'desc' },
-        select: {
-          id: true,
-          device_info: true,
-          ip_address: true,
-          last_activity: true,
-          created_at: true,
-          expires_at: true,
-        },
-      });
-
-      // ✅ AJOUT: Construire la réponse avec data
+      // ✅ Construire la réponse avec data
       return res.status(200).json({
         accessToken: query.access_token,
         refreshToken: query.refresh_token,
         message: 'Authentification FPay réussie',
         sessionId: crypto.randomUUID(),
-        data: {
-          ...userData,
-          wallets: wallets,
-          sessions: sessions,
-        },
+        data: userData,
       });
 
     } catch (error) {
