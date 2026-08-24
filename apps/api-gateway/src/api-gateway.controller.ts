@@ -5277,45 +5277,77 @@ export class ApiGatewayController {
       api_key?: string;
     },
     @Res() res: Response,
+    @Request() req: any,
   ) {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
 
-    // ✅ Récupérer et décoder l'API Key
-    let rawApiKey = query.api_key || '';
-    console.log('[FPay] API Key brute:', rawApiKey ? rawApiKey.substring(0, 50) + '...' : '❌ Absente');
+    // ✅ Utiliser req.user comme dans externalPay (si disponible)
+    // OU décoder l'API Key manuellement
+    let recipientUser: any = null;
 
-    // ✅ Si l'API Key est encodée, la décoder
-    try {
-      rawApiKey = decodeURIComponent(rawApiKey);
-      console.log('[FPay] API Key décodée depuis query');
-    } catch (e) {
-      console.log('[FPay] API Key déjà en clair');
+    // ✅ Méthode 1: Utiliser req.user si l'API Key Guard est actif
+    if (req.user) {
+      recipientUser = req.user;
+      console.log('[FPay] ✅ Utilisateur récupéré depuis req.user:', {
+        id: recipientUser.id,
+        phone: recipientUser.phone,
+        merchantCode: recipientUser.merchantCode,
+      });
     }
+    // ✅ Méthode 2: Décoder manuellement l'API Key (fallback)
+    else {
+      let rawApiKey = query.api_key || '';
+      console.log('[FPay] API Key brute:', rawApiKey ? rawApiKey.substring(0, 50) + '...' : '❌ Absente');
 
-    // ✅ Nettoyer l'API Key
-    let cleanApiKey = rawApiKey;
+      // Nettoyer l'API Key
+      let cleanApiKey = rawApiKey;
+      if (cleanApiKey.includes(' ')) {
+        cleanApiKey = cleanApiKey.replace(/ /g, '+');
+      }
+      if (!cleanApiKey.startsWith('Bearer ')) {
+        if (cleanApiKey.startsWith('Bearer+')) {
+          cleanApiKey = cleanApiKey.replace('Bearer+', 'Bearer ');
+        } else if (cleanApiKey.startsWith('Bearer')) {
+          cleanApiKey = 'Bearer ' + cleanApiKey.substring(6);
+        }
+      }
 
-    // Remplacer les espaces par +
-    if (cleanApiKey.includes(' ')) {
-      cleanApiKey = cleanApiKey.replace(/ /g, '+');
-      console.log('[FPay] API Key espaces remplacés par +');
-    }
+      // ✅ Décoder le payload de l'API Key
+      let cleanApiKeyForDecode = cleanApiKey;
+      if (cleanApiKeyForDecode.startsWith('Bearer ')) {
+        cleanApiKeyForDecode = cleanApiKeyForDecode.substring(7);
+      }
 
-    // S'assurer du format "Bearer "
-    if (!cleanApiKey.startsWith('Bearer ')) {
-      if (cleanApiKey.startsWith('Bearer+')) {
-        cleanApiKey = cleanApiKey.replace('Bearer+', 'Bearer ');
-      } else if (cleanApiKey.startsWith('Bearer')) {
-        cleanApiKey = 'Bearer ' + cleanApiKey.substring(6);
+      try {
+        const apiKeyParts = cleanApiKeyForDecode.split('.');
+        if (apiKeyParts.length === 3) {
+          const payloadJson = Buffer.from(apiKeyParts[1], 'base64').toString('utf-8');
+          const payload = JSON.parse(payloadJson);
+
+          recipientUser = {
+            id: payload.userId || payload.sub,
+            phone: payload.phone,
+            merchantCode: payload.merchantCode,
+            full_name: payload.fullName || payload.full_name,
+            role: payload.role,
+            status: payload.status,
+          };
+
+          console.log('[FPay] ✅ Utilisateur décodé depuis API Key:', {
+            id: recipientUser.id,
+            phone: recipientUser.phone,
+            merchantCode: recipientUser.merchantCode,
+          });
+        }
+      } catch (error) {
+        console.error(`❌ Erreur lors du décodage de l'API Key: ${error.message}`);
       }
     }
 
-    console.log('[FPay] API Key utilisée (début):', cleanApiKey.substring(0, 50) + '...');
-    console.log('[FPay] API Key a', cleanApiKey.split('.').length, 'parties');
-
-    if (cleanApiKey.split('.').length !== 3) {
-      console.error('[FPay] ❌ API Key invalide (devrait avoir 3 parties):', cleanApiKey.substring(0, 100));
+    if (!recipientUser) {
+      console.error('[FPay] ❌ Impossible de récupérer le destinataire');
+      // Continuer sans destinataire
     }
 
     if (query.error) {
@@ -5472,7 +5504,6 @@ export class ApiGatewayController {
           console.log('[FPay] ✅ Payeur trouvé:', {
             id: payer.id,
             phone: payer.phone,
-            userIdFpay: payer.userIdFpay || payer.id,
           });
 
           // ✅ Récupérer les wallets du payeur via wallet-service
@@ -5505,100 +5536,20 @@ export class ApiGatewayController {
             throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
           }
 
-          // ✅ Extraire le destinataire de l'API Key
-          let cleanApiKeyForDecode = cleanApiKey;
-          if (cleanApiKeyForDecode.startsWith('Bearer ')) {
-            cleanApiKeyForDecode = cleanApiKeyForDecode.substring(7);
-          }
-
-          console.log('[FPay] API Key pour décodage (début):', cleanApiKeyForDecode.substring(0, 30) + '...');
-
-          let recipientPhoneOrCode: string | null = null;
-          let recipientUserId: string | null = null;
-          let payloadDecoded: any = null;
-
-          try {
-            const apiKeyParts = cleanApiKeyForDecode.split('.');
-            console.log('[FPay] API Key a', apiKeyParts.length, 'parties');
-
-            if (apiKeyParts.length === 3) {
-              // ✅ Décoder le payload de l'API Key
-              const payloadJson = Buffer.from(apiKeyParts[1], 'base64').toString('utf-8');
-              payloadDecoded = JSON.parse(payloadJson);
-
-              recipientPhoneOrCode = payloadDecoded.phone || payloadDecoded.merchantCode || payloadDecoded.sub;
-              recipientUserId = payloadDecoded.userId || payloadDecoded.sub;
-
-              console.log('[FPay] 📦 Payload décodé:', {
-                phone: payloadDecoded.phone,
-                merchantCode: payloadDecoded.merchantCode,
-                sub: payloadDecoded.sub,
-                userId: payloadDecoded.userId,
-                role: payloadDecoded.role,
-                fullName: payloadDecoded.fullName,
-              });
-            } else {
-              throw new Error(`API Key n'a pas 3 parties, a ${apiKeyParts.length} parties`);
-            }
-          } catch (error) {
-            console.error(`❌ Erreur lors du décodage de l'API Key: ${error.message}`);
-            throw new Error(`Impossible d'extraire le destinataire de l'API Key: ${error.message}`);
-          }
-
-          if (!recipientPhoneOrCode && !recipientUserId) {
-            throw new Error('Impossible d\'extraire le destinataire de l\'API Key');
-          }
-
-          console.log('[FPay] ✅ Destinataire extrait de l\'API Key:', { recipientPhoneOrCode, recipientUserId });
-
-          // ✅ Récupérer le destinataire via user-service
-          let recipientUser: any = null;
-
-          // Essayer par ID
-          if (recipientUserId) {
-            try {
-              const recipientResponse = await this.sendUserMessage<any>(
-                'get_user',
-                { id: recipientUserId },
-                'Destinataire non trouvé',
-                HttpStatus.NOT_FOUND,
-              );
-              if (recipientResponse?.data) {
-                recipientUser = recipientResponse.data;
-              }
-            } catch (e) {
-              console.warn('[FPay] ⚠️ Destinataire non trouvé par ID:', recipientUserId);
-            }
-          }
-
-          // Essayer par téléphone
-          if (!recipientUser && recipientPhoneOrCode) {
-            try {
-              const recipientResponse = await this.sendUserMessage<any>(
-                'get_user_by_phone',
-                { phone: recipientPhoneOrCode },
-                'Destinataire non trouvé',
-                HttpStatus.NOT_FOUND,
-              );
-              if (recipientResponse?.data) {
-                recipientUser = recipientResponse.data;
-              }
-            } catch (e) {
-              console.warn('[FPay] ⚠️ Destinataire non trouvé par téléphone:', recipientPhoneOrCode);
-            }
-          }
-
+          // ✅ Vérifier que le destinataire existe
           if (!recipientUser) {
-            throw new Error(`Destinataire non trouvé pour phone: ${recipientPhoneOrCode} ou id: ${recipientUserId}`);
+            throw new Error('Destinataire non trouvé');
           }
 
-          console.log('[FPay] ✅ Destinataire trouvé:', {
+          console.log('[FPay] ✅ Destinataire:', {
             id: recipientUser.id,
+            full_name: recipientUser.full_name,
             phone: recipientUser.phone,
             merchantCode: recipientUser.merchantCode,
+            role: recipientUser.role,
           });
 
-          // ✅ Récupérer les wallets du destinataire via wallet-service
+          // ✅ Récupérer le wallet du destinataire via wallet-service
           const recipientWalletsResponse = await this.sendWalletMessage<any>(
             'list_user_wallets',
             { userId: recipientUser.id },
