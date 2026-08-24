@@ -5272,6 +5272,7 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
+  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('oauth/callback')
   async oauthCallback(
@@ -5292,6 +5293,7 @@ export class ApiGatewayController {
   ) {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
+    console.log('[FPay] URL complète:', req.url);
 
     // ✅ Récupérer l'API Key depuis l'URL brute
     let rawApiKey = '';
@@ -5315,10 +5317,11 @@ export class ApiGatewayController {
       });
     }
 
-    // ✅ Nettoyer l'API Key (comme dans le Guard)
+    // ✅ Nettoyer l'API Key
     let cleanApiKey = rawApiKey;
     if (cleanApiKey.includes(' ')) {
       cleanApiKey = cleanApiKey.replace(/ /g, '+');
+      console.log('[FPay] ✅ API Key: espaces remplacés par +');
     }
     if (!cleanApiKey.startsWith('Bearer ')) {
       if (cleanApiKey.startsWith('Bearer+')) {
@@ -5328,24 +5331,58 @@ export class ApiGatewayController {
       } else {
         cleanApiKey = 'Bearer ' + cleanApiKey;
       }
+      console.log('[FPay] ✅ API Key: format Bearer ajouté');
     }
 
-    // ✅ Extraire le token (comme dans le Guard)
+    console.log('[FPay] API Key nettoyée (début):', cleanApiKey.substring(0, 80) + '...');
+
+    // ✅ Extraire le token (enlever "Bearer ")
     const parts = cleanApiKey.split(' ');
     const apiKeyToken = parts.length === 2 ? parts[1] : cleanApiKey;
 
-    console.log('[FPay] API Key token (début):', apiKeyToken.substring(0, 30) + '...');
+    console.log('[FPay] API Key token (début):', apiKeyToken.substring(0, 50) + '...');
+    console.log('[FPay] API Key token a', apiKeyToken.split('.').length, 'parties');
 
-    // ✅ Récupérer le destinataire en utilisant jwt.verify() (comme dans le Guard)
-    let recipientUser: any = null;
+    // ✅ Décoder le payload de l'API Key (sans validation JWT)
+    let decodedPayload: any = null;
+    let payloadJson = '';
 
     try {
-      // ✅ Utiliser la MÊME méthode que le Guard
+      const apiKeyParts = apiKeyToken.split('.');
+
+      if (apiKeyParts.length === 3) {
+        // ✅ Décoder le payload (partie du milieu)
+        payloadJson = Buffer.from(apiKeyParts[1], 'base64').toString('utf-8');
+        decodedPayload = JSON.parse(payloadJson);
+
+        console.log('[FPay] 📦 Payload décodé (brut):', payloadJson);
+        console.log('[FPay] 📦 Payload décodé (objet):', {
+          sub: decodedPayload.sub,
+          userId: decodedPayload.userId,
+          phone: decodedPayload.phone,
+          merchantCode: decodedPayload.merchantCode,
+          fullName: decodedPayload.fullName || decodedPayload.full_name,
+          role: decodedPayload.role,
+          status: decodedPayload.status,
+          permissions: decodedPayload.permissions,
+        });
+      } else {
+        console.warn('[FPay] ⚠️ API Key n\'a pas 3 parties, longueur:', apiKeyParts.length);
+      }
+    } catch (error) {
+      console.error(`❌ Erreur lors du décodage du payload: ${error.message}`);
+    }
+
+    // ✅ Essayer de valider comme JWT (comme dans le Guard)
+    let recipientUser: any = null;
+    let jwtValidationError: any = null;
+
+    try {
       const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
       const payload = jwt.verify(apiKeyToken, secret) as any;
 
       console.log('[FPay] ✅ JWT validé avec succès');
-      console.log('[FPay] 📦 Payload du JWT:', {
+      console.log('[FPay] 📦 Payload JWT validé:', {
         sub: payload.sub,
         userId: payload.userId,
         phone: payload.phone,
@@ -5353,13 +5390,12 @@ export class ApiGatewayController {
         fullName: payload.fullName || payload.full_name,
         role: payload.role,
         status: payload.status,
-        permissions: payload.permissions,
       });
 
       const userId = payload.sub || payload.userId;
 
       if (userId) {
-        // ✅ Récupérer l'utilisateur complet depuis la base (comme dans le Guard)
+        // ✅ Récupérer l'utilisateur complet depuis la base
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
           select: {
@@ -5400,8 +5436,13 @@ export class ApiGatewayController {
         }
       }
     } catch (err) {
-      console.log('[FPay] ⚠️ JWT invalide, recherche en base...');
-      // ✅ Si JWT invalide, rechercher dans la base comme le Guard
+      jwtValidationError = err;
+      console.log('[FPay] ⚠️ JWT invalide:', err.message);
+    }
+
+    // ✅ Si JWT échoue, rechercher dans la base (comme dans le Guard)
+    if (!recipientUser) {
+      console.log('[FPay] 🔍 Recherche en base de données...');
       try {
         const keyRecord = await this.prisma.api_key.findFirst({
           where: {
@@ -5456,342 +5497,383 @@ export class ApiGatewayController {
       }
     }
 
-    if (!recipientUser) {
-      console.error('[FPay] ❌ Impossible de récupérer le destinataire');
-      return res.status(400).json({
-        success: false,
-        error: 'Destinataire non trouvé',
-        message: 'Impossible de récupérer le destinataire depuis l\'API Key',
-      });
-    }
+    // ✅ Si le destinataire est trouvé, exécuter le paiement automatique
+    if (recipientUser) {
+      console.log('[FPay] ✅ Destinataire trouvé, exécution du paiement automatique');
 
-    if (query.error) {
-      return res.status(400).json({ success: false, error: query.error });
-    }
+      if (query.error) {
+        return res.status(400).json({ success: false, error: query.error });
+      }
 
-    if (!query.access_token || !query.refresh_token || !query.user_id) {
-      return res.status(400).json({ success: false, error: 'missing_params' });
-    }
+      if (!query.access_token || !query.refresh_token || !query.user_id) {
+        return res.status(400).json({ success: false, error: 'missing_params' });
+      }
 
-    try {
-      const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+      try {
+        const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
 
-      console.log(`🔗 FPay appelle Favor Help: ${favorHelpUrl}/fpay/link-user`);
-      console.log(`🔗 systemUserId: ${query.system_user_id}`);
-      console.log(`🔗 fpayUserId: ${query.user_id}`);
+        console.log(`🔗 FPay appelle Favor Help: ${favorHelpUrl}/fpay/link-user`);
+        console.log(`🔗 systemUserId: ${query.system_user_id}`);
+        console.log(`🔗 fpayUserId: ${query.user_id}`);
 
-      // ✅ 1. Lier les comptes
-      const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemUserId: query.system_user_id,
-          fpayUserId: query.user_id,
+        // ✅ 1. Lier les comptes
+        const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemUserId: query.system_user_id,
+            fpayUserId: query.user_id,
+            accessToken: query.access_token,
+            refreshToken: query.refresh_token,
+          }),
+        });
+
+        if (!linkResponse.ok) {
+          const errorData = await linkResponse.json();
+          throw new Error(errorData.message || 'Erreur lors de la liaison');
+        }
+
+        const result = await linkResponse.json();
+        console.log('[FPay] ✅ Utilisateur lié avec succès:', result);
+
+        // ✅ 2. Récupérer l'utilisateur via user-service
+        const userResponse = await this.sendUserMessage<{
+          message: string;
+          data: any;
+        }>(
+          'get_user',
+          { id: query.user_id },
+          'User not found',
+          HttpStatus.NOT_FOUND,
+        );
+
+        if (!userResponse || !userResponse.data) {
+          console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
+          return res.status(404).json({
+            success: false,
+            error: 'Utilisateur non trouvé',
+            message: `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`,
+          });
+        }
+
+        const userData = userResponse.data;
+
+        // ✅ 3. Récupérer les wallets via wallet-service
+        let wallets: any[] = [];
+        try {
+          const walletsResponse = await this.sendWalletMessage<any>(
+            'list_user_wallets',
+            { userId: query.user_id },
+            'Erreur récupération wallets',
+            HttpStatus.BAD_REQUEST,
+          );
+          wallets = walletsResponse?.data || [];
+        } catch (walletError) {
+          console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
+        }
+
+        // ✅ 4. Récupérer les sessions via auth-service
+        let sessions: any[] = [];
+        try {
+          const sessionsResponse = await this.sendAuthMessage<any>(
+            'list_user_sessions',
+            { userId: query.user_id },
+            'Erreur récupération sessions',
+            HttpStatus.BAD_REQUEST,
+          );
+          sessions = sessionsResponse?.data || [];
+        } catch (sessionError) {
+          console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
+        }
+
+        // ✅ 5. Récupérer les resources via user-service
+        let resources: any[] = [];
+        try {
+          const resourcesResponse = await this.sendUserMessage<any>(
+            'get_user_resources',
+            { userId: query.user_id },
+            'Erreur récupération resources',
+            HttpStatus.BAD_REQUEST,
+          );
+          resources = resourcesResponse?.data || [];
+        } catch (resourceError) {
+          console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
+        }
+
+        // ✅ 6. Récupérer les KYC via user-service
+        let kycStatus = 'NOT_SUBMITTED';
+        let kycSubmission = null;
+        try {
+          const kycResponse = await this.sendUserMessage<any>(
+            'get_kyc_status',
+            { userId: query.user_id },
+            'Erreur récupération KYC',
+            HttpStatus.BAD_REQUEST,
+          );
+          kycStatus = kycResponse?.data?.status || 'NOT_SUBMITTED';
+          kycSubmission = kycResponse?.data?.submission || null;
+        } catch (kycError) {
+          console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
+        }
+
+        // ✅ 7. Récupérer la branche de l'utilisateur
+        let userBranch = null;
+        if (userData.branchId) {
+          try {
+            const branchResponse = await this.sendUserMessage<any>(
+              'get_branch',
+              { id: userData.branchId },
+              'Branche non trouvée',
+              HttpStatus.NOT_FOUND,
+            );
+            userBranch = branchResponse?.data || null;
+          } catch (branchError) {
+            console.warn('[FPay] ⚠️ Impossible de récupérer la branche:', branchError.message);
+          }
+        }
+
+        // ✅ 8. EXÉCUTER LE PAIEMENT AUTOMATIQUEMENT
+        let paymentResult: any = null;
+        if (query.amount && query.currency) {
+          try {
+            console.log('[FPay] 💰 Exécution du paiement automatique');
+
+            // ✅ Récupérer le payeur via user-service
+            const payerResponse = await this.sendUserMessage<any>(
+              'get_user',
+              { id: query.user_id },
+              'Payeur non trouvé',
+              HttpStatus.NOT_FOUND,
+            );
+
+            const payer = payerResponse?.data;
+
+            if (!payer) {
+              throw new Error('Utilisateur payeur non trouvé');
+            }
+
+            console.log('[FPay] ✅ Payeur trouvé:', {
+              id: payer.id,
+              phone: payer.phone,
+            });
+
+            // ✅ Récupérer les wallets du payeur via wallet-service
+            const payerWalletsResponse = await this.sendWalletMessage<any>(
+              'list_user_wallets',
+              { userId: payer.id },
+              'Erreur récupération wallets payeur',
+              HttpStatus.BAD_REQUEST,
+            );
+
+            const payerWallets = payerWalletsResponse?.data || [];
+
+            const targetCurrency = query.currency || 'USD';
+            let clientWallet = payerWallets.find((w: any) => w.currency === targetCurrency);
+
+            if (!clientWallet) {
+              clientWallet = payerWallets[0];
+              if (!clientWallet) {
+                throw new Error('Aucun wallet actif trouvé pour le payeur');
+              }
+            }
+
+            console.log('[FPay] 💳 Wallet du payeur:', {
+              id: clientWallet.id,
+              currency: clientWallet.currency,
+              balance: clientWallet.balance,
+            });
+
+            if (clientWallet.balance < parseFloat(query.amount)) {
+              throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
+            }
+
+            // ✅ Vérifier que le destinataire existe
+            if (!recipientUser) {
+              throw new Error('Destinataire non trouvé');
+            }
+
+            console.log('[FPay] ✅ Destinataire:', {
+              id: recipientUser.id,
+              full_name: recipientUser.full_name,
+              phone: recipientUser.phone,
+              merchantCode: recipientUser.merchantCode,
+              role: recipientUser.role,
+            });
+
+            // ✅ Récupérer le wallet du destinataire via wallet-service
+            const recipientWalletsResponse = await this.sendWalletMessage<any>(
+              'list_user_wallets',
+              { userId: recipientUser.id },
+              'Erreur récupération wallets destinataire',
+              HttpStatus.BAD_REQUEST,
+            );
+
+            let recipientWallets = recipientWalletsResponse?.data || [];
+
+            // ✅ Trouver le wallet du destinataire
+            let merchantWallet = recipientWallets.find((w: any) => w.currency === targetCurrency);
+
+            if (!merchantWallet) {
+              merchantWallet = recipientWallets[0];
+              if (!merchantWallet) {
+                const createWalletResponse = await this.sendWalletMessage<any>(
+                  'create_wallet',
+                  {
+                    userId: recipientUser.id,
+                    currency: targetCurrency
+                  },
+                  'Erreur création wallet',
+                  HttpStatus.BAD_REQUEST,
+                );
+                merchantWallet = createWalletResponse?.data;
+                console.log('[FPay] ✅ Wallet créé pour le destinataire');
+              }
+            }
+
+            // ✅ Appeler le wallet-service avec 'pay_without_pin'
+            const payPayload: any = {
+              fromWalletId: clientWallet.id,
+              amount: parseFloat(query.amount),
+              description: query.description || `Paiement vers ${recipientUser.full_name || recipientUser.phone}`,
+              lang: 'fr',
+              ipAddress: '127.0.0.1',
+            };
+
+            if (recipientUser.phone) {
+              payPayload.toPhone = recipientUser.phone;
+            } else if (recipientUser.merchantCode) {
+              payPayload.merchantCode = recipientUser.merchantCode;
+            } else {
+              throw new Error('Le destinataire n\'a ni téléphone ni code marchand');
+            }
+
+            console.log('[FPay] 📤 Payload pour paiement automatique:', payPayload);
+
+            paymentResult = await this.sendWalletMessage<any>(
+              'pay_without_pin',
+              payPayload,
+              'Erreur paiement',
+              HttpStatus.BAD_REQUEST,
+            );
+
+            console.log('[FPay] ✅ Paiement automatique réussi:', paymentResult);
+
+          } catch (paymentError: any) {
+            console.error('[FPay] ❌ Erreur paiement automatique:', paymentError.message);
+            paymentResult = {
+              status: 'ERROR',
+              error: paymentError.message,
+            };
+          }
+        }
+
+        // ✅ 9. Construire la session ID
+        const sessionId = crypto.randomUUID();
+
+        // ✅ 10. Retourner la réponse complète
+        return res.status(200).json({
           accessToken: query.access_token,
           refreshToken: query.refresh_token,
-        }),
-      });
+          message: paymentResult?.status === 'ERROR'
+            ? 'Authentification FPay réussie mais paiement échoué'
+            : 'Authentification FPay réussie',
+          sessionId: sessionId,
+          data: {
+            id: userData.id,
+            email: userData.email || null,
+            phone: userData.phone || null,
+            fcmToken: userData.fcmToken || null,
+            full_name: userData.full_name || null,
+            account_number: userData.account_number || null,
+            branchId: userData.branchId || null,
+            branch: userBranch,
+            role: userData.role || 'USER',
+            passwordStatus: userData.passwordStatus || null,
+            pinstatus: userData.pinstatus || false,
+            merchantCode: userData.merchantCode || null,
+            businessName: userData.businessName || null,
+            status: userData.status || 'ACTIVE',
+            deleted: userData.deleted || false,
+            createdAt: userData.createdAt || new Date(),
+            updatedAt: userData.updatedAt || new Date(),
+            profileImage: userData.profileImage || null,
+            kycStatus: kycStatus,
+            countryCode: userData.countryCode || 'CD',
+            locked_by_admin: userData.locked_by_admin || false,
+            sessions: sessions,
+            resources: resources,
+            wallets: wallets,
+            kyc: {
+              status: kycStatus,
+              submission: kycSubmission,
+            },
+            payment: paymentResult ? {
+              status: paymentResult.status || 'PENDING',
+              transaction: paymentResult.data?.transaction || null,
+              error: paymentResult.error || null,
+            } : {
+              amount: query.amount || null,
+              currency: query.currency || null,
+              description: query.description || null,
+              status: 'PENDING',
+            },
+          },
+        });
 
-      if (!linkResponse.ok) {
-        const errorData = await linkResponse.json();
-        throw new Error(errorData.message || 'Erreur lors de la liaison');
-      }
-
-      const result = await linkResponse.json();
-      console.log('[FPay] ✅ Utilisateur lié avec succès:', result);
-
-      // ✅ 2. Récupérer l'utilisateur via user-service
-      const userResponse = await this.sendUserMessage<{
-        message: string;
-        data: any;
-      }>(
-        'get_user',
-        { id: query.user_id },
-        'User not found',
-        HttpStatus.NOT_FOUND,
-      );
-
-      if (!userResponse || !userResponse.data) {
-        console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
-        return res.status(404).json({
+      } catch (error) {
+        console.error('[FPay] ❌ Erreur:', error.message);
+        return res.status(500).json({
           success: false,
-          error: 'Utilisateur non trouvé',
-          message: `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`,
+          error: error.message,
+          message: 'Erreur lors de la liaison',
         });
       }
-
-      const userData = userResponse.data;
-
-      // ✅ 3. Récupérer les wallets via wallet-service
-      let wallets: any[] = [];
-      try {
-        const walletsResponse = await this.sendWalletMessage<any>(
-          'list_user_wallets',
-          { userId: query.user_id },
-          'Erreur récupération wallets',
-          HttpStatus.BAD_REQUEST,
-        );
-        wallets = walletsResponse?.data || [];
-      } catch (walletError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
-      }
-
-      // ✅ 4. Récupérer les sessions via auth-service
-      let sessions: any[] = [];
-      try {
-        const sessionsResponse = await this.sendAuthMessage<any>(
-          'list_user_sessions',
-          { userId: query.user_id },
-          'Erreur récupération sessions',
-          HttpStatus.BAD_REQUEST,
-        );
-        sessions = sessionsResponse?.data || [];
-      } catch (sessionError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
-      }
-
-      // ✅ 5. Récupérer les resources via user-service
-      let resources: any[] = [];
-      try {
-        const resourcesResponse = await this.sendUserMessage<any>(
-          'get_user_resources',
-          { userId: query.user_id },
-          'Erreur récupération resources',
-          HttpStatus.BAD_REQUEST,
-        );
-        resources = resourcesResponse?.data || [];
-      } catch (resourceError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
-      }
-
-      // ✅ 6. Récupérer les KYC via user-service
-      let kycStatus = 'NOT_SUBMITTED';
-      let kycSubmission = null;
-      try {
-        const kycResponse = await this.sendUserMessage<any>(
-          'get_kyc_status',
-          { userId: query.user_id },
-          'Erreur récupération KYC',
-          HttpStatus.BAD_REQUEST,
-        );
-        kycStatus = kycResponse?.data?.status || 'NOT_SUBMITTED';
-        kycSubmission = kycResponse?.data?.submission || null;
-      } catch (kycError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
-      }
-
-      // ✅ 7. Récupérer la branche de l'utilisateur
-      let userBranch = null;
-      if (userData.branchId) {
-        try {
-          const branchResponse = await this.sendUserMessage<any>(
-            'get_branch',
-            { id: userData.branchId },
-            'Branche non trouvée',
-            HttpStatus.NOT_FOUND,
-          );
-          userBranch = branchResponse?.data || null;
-        } catch (branchError) {
-          console.warn('[FPay] ⚠️ Impossible de récupérer la branche:', branchError.message);
-        }
-      }
-
-      // ✅ 8. EXÉCUTER LE PAIEMENT AUTOMATIQUEMENT
-      let paymentResult: any = null;
-      if (query.amount && query.currency) {
-        try {
-          console.log('[FPay] 💰 Exécution du paiement automatique');
-
-          // ✅ Récupérer le payeur via user-service
-          const payerResponse = await this.sendUserMessage<any>(
-            'get_user',
-            { id: query.user_id },
-            'Payeur non trouvé',
-            HttpStatus.NOT_FOUND,
-          );
-
-          const payer = payerResponse?.data;
-
-          if (!payer) {
-            throw new Error('Utilisateur payeur non trouvé');
-          }
-
-          console.log('[FPay] ✅ Payeur trouvé:', {
-            id: payer.id,
-            phone: payer.phone,
-          });
-
-          // ✅ Récupérer les wallets du payeur via wallet-service
-          const payerWalletsResponse = await this.sendWalletMessage<any>(
-            'list_user_wallets',
-            { userId: payer.id },
-            'Erreur récupération wallets payeur',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          const payerWallets = payerWalletsResponse?.data || [];
-
-          const targetCurrency = query.currency || 'USD';
-          let clientWallet = payerWallets.find((w: any) => w.currency === targetCurrency);
-
-          if (!clientWallet) {
-            clientWallet = payerWallets[0];
-            if (!clientWallet) {
-              throw new Error('Aucun wallet actif trouvé pour le payeur');
-            }
-          }
-
-          console.log('[FPay] 💳 Wallet du payeur:', {
-            id: clientWallet.id,
-            currency: clientWallet.currency,
-            balance: clientWallet.balance,
-          });
-
-          if (clientWallet.balance < parseFloat(query.amount)) {
-            throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
-          }
-
-          // ✅ Vérifier que le destinataire existe
-          if (!recipientUser) {
-            throw new Error('Destinataire non trouvé');
-          }
-
-          console.log('[FPay] ✅ Destinataire:', {
-            id: recipientUser.id,
-            full_name: recipientUser.full_name,
-            phone: recipientUser.phone,
-            merchantCode: recipientUser.merchantCode,
-            role: recipientUser.role,
-          });
-
-          // ✅ Récupérer le wallet du destinataire via wallet-service
-          const recipientWalletsResponse = await this.sendWalletMessage<any>(
-            'list_user_wallets',
-            { userId: recipientUser.id },
-            'Erreur récupération wallets destinataire',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          let recipientWallets = recipientWalletsResponse?.data || [];
-
-          // ✅ Trouver le wallet du destinataire
-          let merchantWallet = recipientWallets.find((w: any) => w.currency === targetCurrency);
-
-          if (!merchantWallet) {
-            merchantWallet = recipientWallets[0];
-            if (!merchantWallet) {
-              const createWalletResponse = await this.sendWalletMessage<any>(
-                'create_wallet',
-                {
-                  userId: recipientUser.id,
-                  currency: targetCurrency
-                },
-                'Erreur création wallet',
-                HttpStatus.BAD_REQUEST,
-              );
-              merchantWallet = createWalletResponse?.data;
-              console.log('[FPay] ✅ Wallet créé pour le destinataire');
-            }
-          }
-
-          // ✅ Appeler le wallet-service avec 'pay_without_pin'
-          const payPayload: any = {
-            fromWalletId: clientWallet.id,
-            amount: parseFloat(query.amount),
-            description: query.description || `Paiement vers ${recipientUser.full_name || recipientUser.phone}`,
-            lang: 'fr',
-            ipAddress: '127.0.0.1',
-          };
-
-          if (recipientUser.phone) {
-            payPayload.toPhone = recipientUser.phone;
-          } else if (recipientUser.merchantCode) {
-            payPayload.merchantCode = recipientUser.merchantCode;
-          } else {
-            throw new Error('Le destinataire n\'a ni téléphone ni code marchand');
-          }
-
-          console.log('[FPay] 📤 Payload pour paiement automatique:', payPayload);
-
-          paymentResult = await this.sendWalletMessage<any>(
-            'pay_without_pin',
-            payPayload,
-            'Erreur paiement',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          console.log('[FPay] ✅ Paiement automatique réussi:', paymentResult);
-
-        } catch (paymentError: any) {
-          console.error('[FPay] ❌ Erreur paiement automatique:', paymentError.message);
-          paymentResult = {
-            status: 'ERROR',
-            error: paymentError.message,
-          };
-        }
-      }
-
-      // ✅ 9. Construire la session ID
-      const sessionId = crypto.randomUUID();
-
-      // ✅ 10. Retourner la réponse complète
-      return res.status(200).json({
-        accessToken: query.access_token,
-        refreshToken: query.refresh_token,
-        message: paymentResult?.status === 'ERROR'
-          ? 'Authentification FPay réussie mais paiement échoué'
-          : 'Authentification FPay réussie',
-        sessionId: sessionId,
-        data: {
-          id: userData.id,
-          email: userData.email || null,
-          phone: userData.phone || null,
-          fcmToken: userData.fcmToken || null,
-          full_name: userData.full_name || null,
-          account_number: userData.account_number || null,
-          branchId: userData.branchId || null,
-          branch: userBranch,
-          role: userData.role || 'USER',
-          passwordStatus: userData.passwordStatus || null,
-          pinstatus: userData.pinstatus || false,
-          merchantCode: userData.merchantCode || null,
-          businessName: userData.businessName || null,
-          status: userData.status || 'ACTIVE',
-          deleted: userData.deleted || false,
-          createdAt: userData.createdAt || new Date(),
-          updatedAt: userData.updatedAt || new Date(),
-          profileImage: userData.profileImage || null,
-          kycStatus: kycStatus,
-          countryCode: userData.countryCode || 'CD',
-          locked_by_admin: userData.locked_by_admin || false,
-          sessions: sessions,
-          resources: resources,
-          wallets: wallets,
-          kyc: {
-            status: kycStatus,
-            submission: kycSubmission,
-          },
-          payment: paymentResult ? {
-            status: paymentResult.status || 'PENDING',
-            transaction: paymentResult.data?.transaction || null,
-            error: paymentResult.error || null,
-          } : {
-            amount: query.amount || null,
-            currency: query.currency || null,
-            description: query.description || null,
-            status: 'PENDING',
-          },
-        },
-      });
-
-    } catch (error) {
-      console.error('[FPay] ❌ Erreur:', error.message);
-      return res.status(500).json({
-        success: false,
-        error: error.message,
-        message: 'Erreur lors de la liaison',
-      });
     }
+
+    // ✅ RETOURNER LES INFOS DE DÉBOGAGE SI LE DESTINATAIRE N'EST PAS TROUVÉ
+    return res.status(200).json({
+      success: false,
+      error: 'Destinataire non trouvé',
+      message: 'Impossible de récupérer le destinataire depuis l\'API Key',
+      debug: {
+        // Informations sur l'API Key
+        rawApiKey: rawApiKey.substring(0, 100) + (rawApiKey.length > 100 ? '...' : ''),
+        cleanApiKey: cleanApiKey.substring(0, 100) + (cleanApiKey.length > 100 ? '...' : ''),
+        apiKeyToken: apiKeyToken.substring(0, 100) + (apiKeyToken.length > 100 ? '...' : ''),
+        partsCount: apiKeyToken.split('.').length,
+        hasBearer: cleanApiKey.startsWith('Bearer '),
+
+        // Payload décodé
+        decodedPayload: decodedPayload,
+        payloadJson: payloadJson,
+
+        // Validation JWT
+        jwtValid: !!recipientUser && !jwtValidationError,
+        jwtError: jwtValidationError ? jwtValidationError.message : null,
+
+        // Utilisateur trouvé
+        recipientUser: recipientUser ? {
+          id: recipientUser.id,
+          phone: recipientUser.phone,
+          merchantCode: recipientUser.merchantCode,
+          full_name: recipientUser.full_name,
+          role: recipientUser.role,
+          status: recipientUser.status,
+        } : null,
+
+        // Query params reçus
+        queryParams: {
+          access_token: query.access_token ? '✅ Présent' : '❌',
+          refresh_token: query.refresh_token ? '✅ Présent' : '❌',
+          user_id: query.user_id || '❌',
+          system_user_id: query.system_user_id || '❌',
+          amount: query.amount || '❌',
+          currency: query.currency || '❌',
+          description: query.description || '❌',
+          api_key: query.api_key ? '✅ Présent' : '❌',
+        }
+      }
+    });
   }
 
   @Post('users/kyc/submit')
