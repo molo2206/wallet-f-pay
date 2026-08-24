@@ -5415,23 +5415,31 @@ export class ApiGatewayController {
         try {
           console.log('[FPay] 💰 Exécution du paiement automatique');
 
-          // ✅ Récupérer le payeur (utiliser userIdFpay ou id)
-          const payer = await this.prisma.user.findFirst({
-            where: {
-              OR: [
-                { userIdFpay: query.user_id },
-                { id: query.system_user_id },
-              ],
-              status: 'ACTIVE',
-              deleted: false,
-            },
-          });
+          // ✅ Récupérer le payeur via user-service
+          const payerResponse = await this.sendUserMessage<any>(
+            'get_user',
+            { id: query.system_user_id },
+            'Payeur non trouvé',
+            HttpStatus.NOT_FOUND,
+          );
+
+          const payer = payerResponse?.data;
 
           if (!payer) {
             throw new Error('Utilisateur payeur non trouvé');
           }
 
-          // ✅ Récupérer les wallets du payeur (via wallet-service)
+          console.log('[FPay] ✅ Payeur trouvé:', {
+            id: payer.id,
+            phone: payer.phone,
+            userIdFpay: payer.userIdFpay,
+          });
+
+          if (!payer.userIdFpay || !payer.isLink) {
+            throw new Error('Utilisateur payeur non lié à FPay');
+          }
+
+          // ✅ Récupérer les wallets du payeur via wallet-service
           const payerWalletsResponse = await this.sendWalletMessage<any>(
             'list_user_wallets',
             { userId: payer.id },
@@ -5441,7 +5449,6 @@ export class ApiGatewayController {
 
           const payerWallets = payerWalletsResponse?.data || [];
 
-          // ✅ Trouver le wallet du payeur
           const targetCurrency = query.currency || 'USD';
           let clientWallet = payerWallets.find((w: any) => w.currency === targetCurrency);
 
@@ -5490,29 +5497,42 @@ export class ApiGatewayController {
 
           console.log('[FPay] ✅ Destinataire extrait de l\'API Key:', { recipientPhoneOrCode, recipientUserId });
 
-          // ✅ Construire les conditions de recherche (filtrer les null)
-          const recipientWhereConditions: any[] = [];
+          // ✅ Récupérer le destinataire via user-service
+          let recipientUser: any = null;
 
+          // Essayer par ID
           if (recipientUserId) {
-            recipientWhereConditions.push({ id: recipientUserId });
-          }
-          if (recipientPhoneOrCode) {
-            recipientWhereConditions.push({ phone: recipientPhoneOrCode });
-            recipientWhereConditions.push({ merchantCode: recipientPhoneOrCode });
+            try {
+              const recipientResponse = await this.sendUserMessage<any>(
+                'get_user',
+                { id: recipientUserId },
+                'Destinataire non trouvé',
+                HttpStatus.NOT_FOUND,
+              );
+              if (recipientResponse?.data) {
+                recipientUser = recipientResponse.data;
+              }
+            } catch (e) {
+              console.warn('[FPay] ⚠️ Destinataire non trouvé par ID');
+            }
           }
 
-          if (recipientWhereConditions.length === 0) {
-            throw new Error('Aucune condition de recherche valide pour le destinataire');
+          // Essayer par téléphone
+          if (!recipientUser && recipientPhoneOrCode) {
+            try {
+              const recipientResponse = await this.sendUserMessage<any>(
+                'get_user_by_phone',
+                { phone: recipientPhoneOrCode },
+                'Destinataire non trouvé',
+                HttpStatus.NOT_FOUND,
+              );
+              if (recipientResponse?.data) {
+                recipientUser = recipientResponse.data;
+              }
+            } catch (e) {
+              console.warn('[FPay] ⚠️ Destinataire non trouvé par téléphone');
+            }
           }
-
-          // ✅ Récupérer le destinataire
-          const recipientUser = await this.prisma.user.findFirst({
-            where: {
-              OR: recipientWhereConditions,
-              status: 'ACTIVE',
-              deleted: false,
-            },
-          });
 
           if (!recipientUser) {
             throw new Error(`Destinataire non trouvé`);
@@ -5524,7 +5544,7 @@ export class ApiGatewayController {
             merchantCode: recipientUser.merchantCode,
           });
 
-          // ✅ Récupérer les wallets du destinataire (via wallet-service)
+          // ✅ Récupérer les wallets du destinataire via wallet-service
           const recipientWalletsResponse = await this.sendWalletMessage<any>(
             'list_user_wallets',
             { userId: recipientUser.id },
@@ -5540,7 +5560,6 @@ export class ApiGatewayController {
           if (!merchantWallet) {
             merchantWallet = recipientWallets[0];
             if (!merchantWallet) {
-              // ✅ Créer un wallet pour le destinataire via wallet-service
               const createWalletResponse = await this.sendWalletMessage<any>(
                 'create_wallet',
                 {
