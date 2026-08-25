@@ -10004,6 +10004,327 @@ export class WalletServiceService {
     return data;
   }
 
+
+  /**
+ * Récupère la balance et les transactions d'un utilisateur
+ */
+  async getWalletBalanceAndTransactions(
+    userId: string,
+    walletId?: string,
+    lang: string = 'fr',
+    page: number = 1,
+    limit: number = 10,
+    startDate?: Date,
+    endDate?: Date,
+    type?: string,
+    status?: string,
+    movement?: string,
+    search?: string,
+  ): Promise<ApiResponse<{
+    wallets: WalletResponseDto[];  // ✅ Ajout de la liste des wallets
+    wallet: WalletResponseDto;
+    balance: number;
+    currency: string;
+    transactions: {
+      data: any[];
+      total: number;
+      page: number;
+      limit: number;
+      analytics: {
+        totalCredit: number;
+        totalDebit: number;
+        totalTransactions: number;
+      };
+    };
+    stats: {
+      totalSent: number;
+      totalReceived: number;
+      averageTransaction: number;
+      largestTransaction: number;
+      smallestTransaction: number;
+      transactionCount: number;
+    };
+  }>> {
+    console.log('[WalletService] Get wallet balance and transactions:', {
+      userId,
+      walletId,
+      lang,
+      page,
+      limit,
+      startDate,
+      endDate,
+      type,
+      status,
+      movement,
+      search,
+    });
+
+    // ========== 1️⃣ VALIDATION DE L'UTILISATEUR ==========
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        full_name: true,
+        phone: true,
+        status: true,
+      },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.user_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    if (user.status === user_status.BLOCKED) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('account_blocked_admin', lang),
+        statusCode: 403,
+      });
+    }
+
+    // ========== 2️⃣ RÉCUPÉRER TOUS LES WALLETS DE L'UTILISATEUR ==========
+    const allWallets = await this.prisma.wallet.findMany({
+      where: {
+        userId: userId,
+        isActive: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!allWallets || allWallets.length === 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.no_wallet_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // ========== 3️⃣ VALIDATION DU WALLET SÉLECTIONNÉ ==========
+    let wallet;
+
+    // ✅ Si walletId est fourni, le chercher spécifiquement
+    if (walletId) {
+      wallet = allWallets.find(w => w.id === walletId);
+
+      if (!wallet) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_not_found_or_unauthorized', lang),
+          statusCode: 404,
+        });
+      }
+    } else {
+      // ✅ Sinon, récupérer le wallet en USD par défaut
+      wallet = allWallets.find(w => w.currency === 'USD');
+
+      // ✅ Si pas de wallet en USD, prendre le premier wallet
+      if (!wallet) {
+        wallet = allWallets[0];
+      }
+    }
+
+    if (!wallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        statusCode: 403,
+      });
+    }
+
+    // ========== 4️⃣ CONSTRUIRE LES FILTRES ==========
+    const skip = (page - 1) * limit;
+    const where: any = {
+      walletId: wallet.id,
+      userId: userId,
+    };
+
+    // ✅ Filtrer par type (exclure les transactions de caisse par défaut)
+    if (type) {
+      where.type = type;
+    } else {
+      where.type = {
+        notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+      };
+    }
+
+    // Filtrer par statut
+    if (status) where.status = status;
+
+    // Filtrer par mouvement
+    if (movement) where.movement = movement;
+
+    // Filtrer par date
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = startDate;
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endOfDay;
+      }
+    }
+
+    // Filtrer par recherche
+    if (search && search.trim() !== '') {
+      const searchTerm = search.trim();
+      where.OR = [
+        { description: { contains: searchTerm } },
+        { reference: { contains: searchTerm } },
+      ];
+    }
+
+    // ========== 5️⃣ RÉCUPÉRER LES TRANSACTIONS ==========
+    const [transactions, total, creditSum, debitSum] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.aggregate({
+        where: { ...where, movement: 'CREDIT' },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { ...where, movement: 'DEBIT' },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const totalCredit = creditSum._sum.amount || 0;
+    const totalDebit = debitSum._sum.amount || 0;
+
+    // ========== 6️⃣ CALCULER LES STATISTIQUES ==========
+    let totalSent = 0;
+    let totalReceived = 0;
+    let largestTransaction = 0;
+    let smallestTransaction = Infinity;
+    const transactionCount = transactions.length;
+
+    for (const tx of transactions) {
+      if (tx.movement === 'DEBIT') {
+        totalSent += tx.amount;
+      } else if (tx.movement === 'CREDIT') {
+        totalReceived += tx.amount;
+      }
+
+      if (tx.amount > largestTransaction) {
+        largestTransaction = tx.amount;
+      }
+      if (tx.amount < smallestTransaction && tx.amount > 0) {
+        smallestTransaction = tx.amount;
+      }
+    }
+
+    if (smallestTransaction === Infinity) {
+      smallestTransaction = 0;
+    }
+
+    const averageTransaction = transactionCount > 0
+      ? Math.round(((totalSent + totalReceived) / transactionCount) * 100) / 100
+      : 0;
+
+    // ========== 7️⃣ ENRICHIR LES TRANSACTIONS ==========
+    const enrichedTransactions = await Promise.all(
+      transactions.map(async (tx) => {
+        let full_name: string | null = null;
+        let phone: string | null = null;
+
+        if (tx.type === 'TRANSFER' && tx.movement === 'DEBIT') {
+          const toMatch = tx.description?.match(/\[TO:([^\]]+)\]/);
+          const receiverId = toMatch?.[1];
+          if (receiverId) {
+            const receiver = await this.prisma.user.findUnique({
+              where: { id: receiverId },
+              select: { full_name: true, phone: true },
+            });
+            if (receiver) {
+              full_name = receiver.full_name;
+              phone = receiver.phone;
+            }
+          }
+        } else if (tx.type === 'TRANSFER' && tx.movement === 'CREDIT') {
+          const fromMatch = tx.description?.match(/\[FROM:([^\]]+)\]/);
+          const senderId = fromMatch?.[1];
+          if (senderId) {
+            const sender = await this.prisma.user.findUnique({
+              where: { id: senderId },
+              select: { full_name: true, phone: true },
+            });
+            if (sender) {
+              full_name = sender.full_name;
+              phone = sender.phone;
+            }
+          }
+        } else if (tx.type === 'PAYMENT' && tx.movement === 'DEBIT') {
+          const merchantMatch = tx.description?.match(
+            /Paiement à (.+?) \(([^)]+)\)/,
+          );
+          if (merchantMatch) {
+            full_name = merchantMatch[1];
+            phone = merchantMatch[2];
+          }
+        } else if (tx.type === 'PAYMENT' && tx.movement === 'CREDIT') {
+          const customerMatch = tx.description?.match(
+            /Reçu de [A-Z0-9]+ \(([^)]+)\)/,
+          );
+          if (customerMatch) {
+            full_name = customerMatch[1];
+          }
+        }
+
+        const cleanDescription =
+          tx.description?.replace(/\[TO:[^\]]+\]|\[FROM:[^\]]+\]/, '').trim() ||
+          tx.description;
+
+        const { description, ...rest } = tx;
+        return {
+          ...rest,
+          description: cleanDescription,
+          full_name,
+          phone,
+        };
+      }),
+    );
+
+    // ========== 8️⃣ FORMATER LES WALLETS ==========
+    const formattedWallets = allWallets.map(w => this.toResponse(w));
+
+    // ========== 9️⃣ RETOURNER LA RÉPONSE ==========
+    return {
+      message: this.i18nService.translate('wallet.balance_and_transactions_retrieved', lang),
+      data: {
+        wallets: formattedWallets,  // ✅ Liste de tous les wallets
+        wallet: this.toResponse(wallet),
+        balance: wallet.balance,
+        currency: wallet.currency,
+        transactions: {
+          data: enrichedTransactions,
+          total,
+          page,
+          limit,
+          analytics: {
+            totalCredit,
+            totalDebit,
+            totalTransactions: total,
+          },
+        },
+        stats: {
+          totalSent,
+          totalReceived,
+          averageTransaction,
+          largestTransaction,
+          smallestTransaction,
+          transactionCount,
+        },
+      },
+    };
+  }
   // apps/wallet-service/src/wallet-service.service.ts
   /**
    * Récupère les balances des wallets PawaPay

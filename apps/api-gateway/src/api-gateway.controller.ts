@@ -6034,6 +6034,52 @@ export class ApiGatewayController {
     );
   }
 
+  @Get('wallet/balance-transactions')
+  async getWalletBalanceAndTransactions(
+    @Query('userId') userId: string,
+    @Query('walletId') walletId?: string,  // ✅ Optionnel
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('type') type?: string,
+    @Query('status') status?: string,
+    @Query('movement') movement?: string,
+    @Query('search') search?: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    if (!userId) {
+      throw new HttpException(
+        'userId est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ walletId n'est plus obligatoire
+    // Suppression de la validation de walletId
+
+    return this.sendWalletMessage(
+      'get_wallet_balance_transactions',
+      {
+        userId,
+        walletId,  // ✅ Peut être undefined
+        lang,
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 10,
+        startDate,
+        endDate,
+        type,
+        status,
+        movement,
+        search,
+      },
+      this.i18nService.translate('wallet.balance_transactions_error', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
   @Get('admin/kyc/submissions/:id')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getKycSubmissionById(

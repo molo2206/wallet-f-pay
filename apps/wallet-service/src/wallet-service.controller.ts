@@ -924,6 +924,53 @@ export class WalletServiceController {
       });
     }
   }
+
+  @MessagePattern('get_wallet_balance_transactions')
+  async getWalletBalanceAndTransactions(
+    @Payload()
+    data: {
+      userId: string;
+      walletId?: string;  // ✅ Optionnel
+      lang?: string;
+      page?: number;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+      type?: string;
+      status?: string;
+      movement?: string;
+      search?: string;
+    },
+  ) {
+    console.log('[WalletService] get_wallet_balance_transactions received:', data);
+
+    try {
+      const startDate = data.startDate ? new Date(data.startDate) : undefined;
+      const endDate = data.endDate ? new Date(data.endDate) : undefined;
+
+      return await this.walletService.getWalletBalanceAndTransactions(
+        data.userId,
+        data.walletId || '',  // ✅ Peut être undefined
+        data.lang || 'fr',
+        data.page || 1,
+        data.limit || 10,
+        startDate,
+        endDate,
+        data.type,
+        data.status,
+        data.movement,
+        data.search,
+      );
+    } catch (error) {
+      console.error('[WalletService] get_wallet_balance_transactions error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
   // ==================== HEALTH CHECK ====================
 
   @MessagePattern('health_check')
