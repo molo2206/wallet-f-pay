@@ -4509,8 +4509,8 @@ export class ApiGatewayController {
     try {
       const appUrl = this.getAppUrl();
       const frontendUrl = this.getFrontendUrl();
-      const oauthCallbackUrl = this.getOAuthCallbackUrl();
-      const mobileCallbackUrl = this.getMobileCallbackUrl();
+      const oauthCallbackUrl = process.env.OAUTH_CALLBACK_URL || 'https://favorhelp.com';
+      const mobileCallbackUrl = process.env.MOBILE_CALLBACK_URL || 'fpay://callback';
       const env = process.env.NODE_ENV || 'development';
       const envLabel = env === 'production' ? 'PRODUCTION' : env === 'test' ? 'TEST' : 'LOCAL';
 
@@ -4532,7 +4532,7 @@ export class ApiGatewayController {
           callbackUrl = mobileCallbackUrl; // fpay://callback
           console.log('[OAuth] 📱 Client mobile, callback automatique:', callbackUrl);
         } else {
-          callbackUrl = oauthCallbackUrl; // URL web
+          callbackUrl = oauthCallbackUrl; // https://favorhelp.com
           console.log('[OAuth] 🌐 Client web, callback automatique:', callbackUrl);
         }
       } else {
