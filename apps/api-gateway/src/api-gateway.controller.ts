@@ -4459,8 +4459,820 @@ export class ApiGatewayController {
   // ============================================================
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
+
+  // apps/api-gateway/src/api-gateway.controller.ts
   // apps/api-gateway/src/api-gateway.controller.ts
 
+  @Get('oauth/login')
+  async oauthLoginPage(
+    @Query() query: {
+      code?: string;
+      client_id?: string;
+      redirect_uri?: string;
+      access_token?: string;
+      refresh_token?: string;
+      user_id?: string;
+      system_user_id?: string;
+      error?: string;
+      lang?: string;
+      amount?: string;
+      currency?: string;
+      description?: string;
+      api_key?: string; // ✅ AJOUTER
+    },
+    @Res() res: Response,
+  ) {
+    try {
+      const appUrl = this.getAppUrl();
+      const frontendUrl = this.getFrontendUrl();
+      const oauthCallbackUrl = this.getOAuthCallbackUrl();
+      const mobileCallbackUrl = this.getMobileCallbackUrl();
+      const env = process.env.NODE_ENV || 'development';
+      const envLabel = env === 'production' ? 'PRODUCTION' : env === 'test' ? 'TEST' : 'LOCAL';
+
+      // ✅ Récupérer system_user_id de la query
+      const systemUserId = query.system_user_id || '';
+
+      // ✅ Récupérer les données de paiement
+      const amount = query.amount || '';
+      const currency = query.currency || '';
+      const description = query.description || '';
+
+      // ✅ Récupérer l'API Key
+      const apiKey = query.api_key || ''; // ✅ Définir apiKey
+
+      // ✅ Utiliser le callback URL correct
+      const callbackUrl = query.redirect_uri || oauthCallbackUrl;
+
+      const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
+
+      if (fs.existsSync(filePath)) {
+        let html = fs.readFileSync(filePath, 'utf8');
+
+        html = html.replace(/{{APP_URL}}/g, appUrl);
+        html = html.replace(/{{FRONTEND_URL}}/g, frontendUrl);
+        html = html.replace(/{{OAUTH_CALLBACK_URL}}/g, callbackUrl);
+        html = html.replace(/{{MOBILE_CALLBACK_URL}}/g, mobileCallbackUrl);
+        html = html.replace(/{{ENV}}/g, env);
+        html = html.replace(/{{ENV_LABEL}}/g, envLabel);
+        html = html.replace(/{{SYSTEM_USER_ID}}/g, systemUserId);
+        html = html.replace(/{{AMOUNT}}/g, amount);
+        html = html.replace(/{{CURRENCY}}/g, currency);
+        html = html.replace(/{{DESCRIPTION}}/g, description);
+        html = html.replace(/{{API_KEY}}/g, apiKey); // ✅ Utiliser apiKey
+
+        return res.set('Content-Type', 'text/html').send(html);
+      }
+
+      // ✅ Version HTML avec OTP intégré - AJOUT DE L'API KEY
+      return res.send(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion F-Pay</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: white;
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.15);
+            border: 1px solid rgba(10, 28, 242, 0.08);
+        }
+        .logo { text-align: center; margin-bottom: 32px; }
+        .logo .icon {
+            width: 72px;
+            height: 72px;
+            background: #0A1CF2;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        .logo h1 { font-size: 28px; color: #1a1a2e; letter-spacing: -0.5px; }
+        .logo h1 .f { color: #0A1CF2; }
+        .logo h1 .pay { color: #FFB81C; }
+        .logo p { color: #6b7280; font-size: 14px; margin-top: 4px; }
+        .env-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+        }
+        .env-badge.local { background: #10b981; color: white; }
+        .env-badge.test { background: #f59e0b; color: white; }
+        .env-badge.production { background: #ef4444; color: white; }
+        .header { margin-bottom: 28px; }
+        .header h2 { font-size: 20px; color: #1a1a2e; margin-bottom: 6px; }
+        .header p { color: #6b7280; font-size: 14px; }
+        .payment-info {
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid #e5e7eb;
+        }
+        .payment-info .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+        .payment-info .label {
+            color: #6b7280;
+            font-size: 13px;
+        }
+        .payment-info .value {
+            color: #1a1a2e;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 500; color: #1a1a2e; margin-bottom: 6px; }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #fafafa;
+            color: #1a1a2e;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #0A1CF2;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.1);
+        }
+        .form-group input::placeholder { color: #9ca3af; }
+        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #0A1CF2;
+            color: white;
+            transition: all 0.2s;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(10, 28, 242, 0.35); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn .spinner { display: none; }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: none; }
+        .btn .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+        }
+        .message.show { display: block; }
+        .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .message.success { background: #f0fdf4; color: #059669; border: 1px solid #bbf7d0; }
+        .message.info { background: #eff6ff; color: #0A1CF2; border: 1px solid rgba(10, 28, 242, 0.2); }
+        .otp-section {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .otp-section.show {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .links { text-align: center; margin-top: 20px; font-size: 14px; color: #6b7280; }
+        .links a { color: #0A1CF2; text-decoration: none; font-weight: 500; cursor: pointer; }
+        .links a:hover { text-decoration: underline; }
+        .links .divider { color: #e5e7eb; margin: 0 8px; }
+        .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
+        .footer a { color: #6b7280; text-decoration: none; }
+        .footer a:hover { color: #0A1CF2; }
+        .timer {
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 8px;
+        }
+        #successState {
+            display: none;
+            text-align: center;
+            padding: 20px 0;
+        }
+        #successState .success-icon { font-size: 64px; margin-bottom: 16px; }
+        #successState h2 { color: #1a1a2e; margin-bottom: 8px; }
+        #successState p { color: #6b7280; margin-bottom: 8px; }
+        #successState .user-info {
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
+            text-align: left;
+            border: 1px solid #e5e7eb;
+        }
+        #successState .user-info .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #successState .user-info .info-row:last-child { border-bottom: none; }
+        #successState .user-info .label { color: #6b7280; font-size: 13px; }
+        #successState .user-info .value { color: #1a1a2e; font-weight: 500; font-size: 13px; }
+
+        @media (prefers-color-scheme: dark) {
+            body { background: #1a1a2e; }
+            .container { background: #1e293b; border-color: rgba(255, 255, 255, 0.05); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+            .logo h1 { color: #f1f5f9; }
+            .logo p { color: #94a3b8; }
+            .header h2 { color: #f1f5f9; }
+            .header p { color: #94a3b8; }
+            .payment-info { background: #1e293b; border-color: #334155; }
+            .payment-info .value { color: #f1f5f9; }
+            .form-group label { color: #f1f5f9; }
+            .form-group input { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+            .form-group input:focus { background: #1e293b; border-color: #0A1CF2; box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2); }
+            .form-group input::placeholder { color: #64748b; }
+            .links { color: #94a3b8; }
+            .links a { color: #93c5fd; }
+            .footer { color: #64748b; }
+            .footer a { color: #94a3b8; }
+            .footer a:hover { color: #93c5fd; }
+            .message.error { background: #451a1a; color: #fca5a5; border-color: #7f1d1d; }
+            .message.success { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
+            .message.info { background: #1e3a5f; color: #93c5fd; border-color: #1e40af; }
+            .timer { color: #94a3b8; }
+            #successState h2 { color: #f1f5f9; }
+            #successState p { color: #94a3b8; }
+            #successState .user-info { background: #1e293b; border-color: #334155; }
+            #successState .user-info .info-row { border-color: #334155; }
+            #successState .user-info .value { color: #f1f5f9; }
+        }
+
+        @media (max-width: 520px) {
+            .container { padding: 32px 20px; }
+            .logo h1 { font-size: 24px; }
+            .btn { font-size: 15px; padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="icon">F</div>
+            <h1><span class="f">F</span><span class="pay">Pay</span></h1>
+            <p>Solutions de paiement securisees</p>
+            <div><span class="env-badge ${env}">${envLabel}</span></div>
+        </div>
+
+        <div id="loginState">
+            <div class="header">
+                <h2>Connexion a F-Pay</h2>
+                <p id="stepMessage">Etape 1 : Saisissez vos identifiants</p>
+            </div>
+            
+            <!-- ✅ SECTION PAIEMENT -->
+            <div class="payment-info" id="paymentInfo" style="display: none;">
+                <div class="info-row">
+                    <span class="label">Montant</span>
+                    <span class="value" id="displayAmount">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Devise</span>
+                    <span class="value" id="displayCurrency">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Description</span>
+                    <span class="value" id="displayDescription">-</span>
+                </div>
+            </div>
+
+            <div class="message" id="message">
+                <span id="messageText">Message</span>
+            </div>
+            <form id="loginForm" autocomplete="off">
+                <div class="form-group">
+                    <label>Numero de telephone</label>
+                    <input type="tel" id="phone" placeholder="+243 999 999 999" required>
+                </div>
+                <div class="form-group" id="passwordGroup">
+                    <label>Mot de passe</label>
+                    <input type="password" id="password" placeholder="Votre mot de passe" required>
+                </div>
+                <!-- SECTION OTP (cachee au debut) -->
+                <div class="otp-section" id="otpSection">
+                    <div class="form-group">
+                        <label>Code OTP</label>
+                        <input type="text" id="otpCode" placeholder="Entrez le code recu par SMS" maxlength="6" inputmode="numeric" autocomplete="off">
+                        <div class="timer" id="timer">⏱️ 60s</div>
+                    </div>
+                </div>
+                <button type="submit" class="btn" id="submitBtn">
+                    <span class="spinner"></span>
+                    <span class="btn-text" id="btnText">Se connecter</span>
+                </button>
+            </form>
+            <div class="links">
+                <a href="#" id="resendLink" style="display:none;">Renvoyer le code OTP</a>
+                <span class="divider" id="dividerResend" style="display:none;">|</span>
+                <a href="#">Creer un compte</a>
+            </div>
+        </div>
+
+        <div id="successState">
+            <div class="success-icon">✅</div>
+            <h2>Connexion reussie !</h2>
+            <p>Vous etes maintenant connecte a F-Pay.</p>
+            <div class="user-info" id="userInfo">
+                <div class="info-row">
+                    <span class="label">ID utilisateur</span>
+                    <span class="value" id="userId">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Telephone</span>
+                    <span class="value" id="userPhone">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Nom complet</span>
+                    <span class="value" id="userFullName">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Role</span>
+                    <span class="value" id="userRole">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Statut</span>
+                    <span class="value" id="userStatus">-</span>
+                </div>
+            </div>
+            <button class="btn" onclick="handleRedirect()" style="margin-top: 16px;">
+                Continuer →
+            </button>
+        </div>
+
+        <div class="footer">
+            <span>Connexion securisee • </span>
+            <a href="#">Conditions d utilisation</a>
+            <span> • </span>
+            <a href="#">Politique de confidentialite</a>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            var APP_URL = '${appUrl}';
+            var FRONTEND_URL = '${frontendUrl}';
+            var OAUTH_CALLBACK_URL = '${callbackUrl}';
+            var MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
+            var ENV = '${env}';
+            var SYSTEM_USER_ID = '${systemUserId}';
+            var AMOUNT = '${amount}';
+            var CURRENCY = '${currency}';
+            var DESCRIPTION = '${description}';
+            var API_KEY = '${apiKey}'; // ✅ Utiliser apiKey (défini plus haut)
+
+            console.log('[OAuth] Environnement:', ENV);
+            console.log('[OAuth] APP_URL:', APP_URL);
+            console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
+            console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
+            console.log('[OAuth] Paiement:', { AMOUNT, CURRENCY, DESCRIPTION });
+            console.log('[OAuth] API_KEY:', API_KEY ? '✅ Présente' : '❌ Absente');
+
+            var urlParams = new URLSearchParams(window.location.search);
+            var CLIENT_ID = urlParams.get('client_id') || 'web-client';
+            var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
+
+            var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
+            var userData = null;
+            var otpRequired = false;
+            var timerInterval = null;
+            var secondsLeft = 60;
+            var phoneSaved = '';
+            var passwordSaved = '';
+
+            // ============================================================
+            //  AFFICHER LES DONNÉES DE PAIEMENT
+            // ============================================================
+
+            function displayPaymentInfo() {
+                var paymentInfo = document.getElementById('paymentInfo');
+                if (AMOUNT || CURRENCY || DESCRIPTION) {
+                    paymentInfo.style.display = 'block';
+                    document.getElementById('displayAmount').textContent = AMOUNT || '-';
+                    document.getElementById('displayCurrency').textContent = CURRENCY || '-';
+                    document.getElementById('displayDescription').textContent = DESCRIPTION || '-';
+                }
+            }
+
+            // ============================================================
+            //  FONCTIONS UTILITAIRES
+            // ============================================================
+
+            function cleanUrl() {
+                if (window.history && window.history.replaceState) {
+                    var cleanUrl = window.location.origin + window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }
+            }
+
+            function stopLoading() {
+                var btn = document.getElementById('submitBtn');
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+
+            function startLoading() {
+                var btn = document.getElementById('submitBtn');
+                btn.classList.add('loading');
+                btn.disabled = true;
+            }
+
+            function showMessage(type, text) {
+                var messageEl = document.getElementById('message');
+                var messageText = document.getElementById('messageText');
+                messageEl.className = 'message show ' + type;
+                messageText.textContent = text;
+            }
+
+            function showSuccess(data) {
+                document.getElementById('loginState').style.display = 'none';
+                document.getElementById('successState').style.display = 'block';
+                
+                userData = data.data;
+                userTokens = {
+                    accessToken: data.accessToken || (data.data && data.data.accessToken),
+                    refreshToken: data.refreshToken || (data.data && data.data.refreshToken),
+                    userId: data.data && data.data.id,
+                    code: data.code || urlParams.get('code')
+                };
+
+                if (data && data.data) {
+                    document.getElementById('userId').textContent = data.data.id || '-';
+                    document.getElementById('userPhone').textContent = data.data.phone || '-';
+                    document.getElementById('userFullName').textContent = data.data.full_name || '-';
+                    document.getElementById('userRole').textContent = data.data.role || '-';
+                    document.getElementById('userStatus').textContent = data.data.status || '-';
+                }
+                
+                cleanUrl();
+                console.log('[OAuth] Tokens stockes:', userTokens);
+            }
+
+            // ✅ CORRIGÉ : handleRedirect avec system_user_id, les données de paiement ET l'API Key
+            window.handleRedirect = function() {
+                var redirectUrl = new URL(REDIRECT_URI);
+                
+                if (userTokens.accessToken) {
+                    redirectUrl.searchParams.set('access_token', userTokens.accessToken);
+                }
+                if (userTokens.refreshToken) {
+                    redirectUrl.searchParams.set('refresh_token', userTokens.refreshToken);
+                }
+                if (userTokens.userId) {
+                    redirectUrl.searchParams.set('user_id', userTokens.userId);
+                }
+                if (userTokens.code) {
+                    redirectUrl.searchParams.set('code', userTokens.code);
+                }
+                if (SYSTEM_USER_ID) {
+                    redirectUrl.searchParams.set('system_user_id', SYSTEM_USER_ID);
+                }
+                if (AMOUNT) {
+                    redirectUrl.searchParams.set('amount', AMOUNT);
+                }
+                if (CURRENCY) {
+                    redirectUrl.searchParams.set('currency', CURRENCY);
+                }
+                if (DESCRIPTION) {
+                    redirectUrl.searchParams.set('description', DESCRIPTION);
+                }
+                // ✅ AJOUTER l'API Key dans la redirection
+                if (API_KEY) {
+                    redirectUrl.searchParams.set('api_key', API_KEY);
+                }
+
+                console.log('[OAuth] Redirection vers:', redirectUrl.toString());
+                window.location.href = redirectUrl.toString();
+            };
+
+            // ============================================================
+            //  TIMER OTP
+            // ============================================================
+
+            function startTimer() {
+                secondsLeft = 60;
+                var timerEl = document.getElementById('timer');
+                timerEl.style.display = 'block';
+                timerEl.textContent = '⏱️ 60s';
+
+                document.getElementById('resendLink').style.display = 'inline';
+                document.getElementById('dividerResend').style.display = 'inline';
+
+                clearInterval(timerInterval);
+                timerInterval = setInterval(function() {
+                    secondsLeft--;
+                    timerEl.textContent = '⏱️ ' + secondsLeft + 's';
+                    
+                    if (secondsLeft <= 0) {
+                        clearInterval(timerInterval);
+                        timerEl.textContent = '⏱️ Code expire';
+                    }
+                }, 1000);
+            }
+
+            // ============================================================
+            //  RENVOYER L'OTP
+            // ============================================================
+
+            window.resendOtp = async function(event) {
+                if (event) { event.preventDefault(); }
+
+                var phone = document.getElementById('phone').value.trim();
+                var password = document.getElementById('password').value.trim();
+
+                if (!phone || !password) {
+                    showMessage('error', 'Veuillez saisir votre numero et mot de passe');
+                    return;
+                }
+
+                showMessage('info', 'Envoi d un nouveau code OTP...');
+
+                try {
+                    var response = await fetch('/auth/link-user', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            phone: phone,
+                            password: password,
+                            clientId: CLIENT_ID,
+                            redirectUri: REDIRECT_URI,
+                            lang: 'fr'
+                        })
+                    });
+
+                    var data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Erreur lors de l envoi');
+                    }
+
+                    if (data.requiresOtp === true) {
+                        showMessage('success', '✅ Nouveau code OTP envoye !');
+                        startTimer();
+                    } else {
+                        throw new Error('Erreur lors de l envoi du code');
+                    }
+
+                } catch (error) {
+                    console.error('[Resend OTP] Erreur:', error);
+                    showMessage('error', error.message || 'Erreur lors de l envoi');
+                }
+            };
+
+            // ============================================================
+            //  SOUMISSION DU FORMULAIRE (2 ETAPES)
+            // ============================================================
+
+            document.getElementById('loginForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                console.log('[OAuth] Formulaire soumis');
+
+                var phone = document.getElementById('phone').value.trim();
+                var password = document.getElementById('password').value.trim();
+                var otpCode = document.getElementById('otpCode').value.trim();
+                var btnText = document.getElementById('btnText');
+                var stepMessage = document.getElementById('stepMessage');
+
+                console.log('[OAuth] Phone:', phone);
+                console.log('[OAuth] OTP fourni:', otpCode ? '✅' : '❌');
+
+                if (!phone || !password) {
+                    showMessage('error', 'Veuillez remplir tous les champs');
+                    return;
+                }
+
+                // ============================================================
+                // ETAPE 1 : Verification des identifiants + Envoi OTP
+                // ============================================================
+                if (!otpRequired) {
+                    startLoading();
+                    showMessage('info', 'Verification des identifiants...');
+
+                    try {
+                        var payloadStep1 = {
+                            phone: phone,
+                            password: password,
+                            clientId: CLIENT_ID,
+                            redirectUri: REDIRECT_URI,
+                            lang: 'fr'
+                        };
+
+                        console.log('[OAuth] Etape 1 - Verification identifiants:', payloadStep1);
+
+                        var response1 = await fetch('/auth/link-user', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payloadStep1)
+                        });
+
+                        var data1 = await response1.json();
+
+                        console.log('[OAuth] Etape 1 - Reponse:', data1);
+
+                        if (!response1.ok) {
+                            throw new Error(data1.message || 'Identifiants invalides');
+                        }
+
+                        // ✅ Si OTP requis (identifiants valides)
+                        if (data1.requiresOtp === true) {
+                            otpRequired = true;
+                            phoneSaved = phone;
+                            passwordSaved = password;
+
+                            var otpSection = document.getElementById('otpSection');
+                            otpSection.classList.add('show');
+
+                            document.getElementById('passwordGroup').style.display = 'none';
+
+                            btnText.textContent = 'Verifier le code';
+                            stepMessage.textContent = 'Etape 2 : Saisissez le code OTP recu par SMS';
+
+                            showMessage('success', '✅ Code OTP envoye par SMS !');
+                            startTimer();
+                            stopLoading();
+
+                            document.getElementById('otpCode').focus();
+                            return;
+                        } else {
+                            // Si deja connecte directement (pas d'OTP requis)
+                            showSuccess(data1);
+                            stopLoading();
+                            return;
+                        }
+
+                    } catch (error) {
+                        console.error('[OAuth] Etape 1 - Erreur:', error);
+                        showMessage('error', error.message || 'Identifiants invalides');
+                        stopLoading();
+                        return;
+                    }
+                }
+
+                // ============================================================
+                // ETAPE 2 : Verification OTP + LINK
+                // ============================================================
+                if (otpRequired) {
+                    if (!otpCode) {
+                        showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
+                        return;
+                    }
+
+                    startLoading();
+                    showMessage('info', 'Verification du code OTP...');
+
+                    try {
+                        var payloadStep2 = {
+                            phone: phoneSaved,
+                            password: passwordSaved,
+                            otpCode: otpCode,
+                            clientId: CLIENT_ID,
+                            redirectUri: REDIRECT_URI,
+                            lang: 'fr'
+                        };
+
+                        console.log('[OAuth] Etape 2 - Verification OTP + LINK:', payloadStep2);
+
+                        var response2 = await fetch('/auth/link-user', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payloadStep2)
+                        });
+
+                        var data2 = await response2.json();
+
+                        console.log('[OAuth] Etape 2 - Reponse:', data2);
+
+                        if (!response2.ok) {
+                            throw new Error(data2.message || 'Code OTP invalide');
+                        }
+
+                        // ✅ Connexion reussie - LE COMPTE EST LIE !
+                        showSuccess(data2);
+                        stopLoading();
+
+                    } catch (error) {
+                        console.error('[OAuth] Etape 2 - Erreur:', error);
+                        showMessage('error', error.message || 'Code OTP invalide ou expire');
+                        stopLoading();
+                    }
+                }
+            });
+
+            // ============================================================
+            //  CHARGEMENT INITIAL
+            // ============================================================
+
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('[OAuth] DOM charge');
+
+                // ✅ Afficher les informations de paiement
+                displayPaymentInfo();
+
+                var code = urlParams.get('code');
+                var accessToken = urlParams.get('access_token');
+                var userId = urlParams.get('user_id');
+                var systemUserIdFromUrl = urlParams.get('system_user_id');
+                
+                if (code && accessToken && userId) {
+                    userTokens = {
+                        accessToken: accessToken,
+                        refreshToken: urlParams.get('refresh_token'),
+                        userId: userId,
+                        code: code
+                    };
+                    showSuccess({
+                        data: {
+                            id: userId,
+                            phone: urlParams.get('phone') || 'N/A',
+                            full_name: urlParams.get('full_name') || 'Utilisateur',
+                            role: urlParams.get('role') || 'USER',
+                            status: 'ACTIVE'
+                        }
+                    });
+                    console.log('[OAuth] Deja connecte');
+                }
+
+                var otpInput = document.getElementById('otpCode');
+                if (otpInput) {
+                    otpInput.addEventListener('input', function(e) {
+                        this.value = this.value.replace(/\D/g, '').slice(0, 6);
+                        
+                        if (this.value.length === 6) {
+                            console.log('[OAuth] OTP complet, soumission automatique');
+                            document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+                        }
+                    });
+                }
+
+                var resendLink = document.getElementById('resendLink');
+                if (resendLink) {
+                    resendLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        window.resendOtp(e);
+                    });
+                }
+            });
+
+        })();
+    </script>
+</body>
+</html>`);
+    } catch (error) {
+      console.error('[OAuth] Error:', error);
+      return res.status(500).send('Erreur lors du chargement de la page');
+    }
+  }
+
+  // ============================================================
+  // 7. FONCTION 3: GET /oauth/callback
+  // ============================================================
+  // apps/api-gateway/src/api-gateway.controller.ts
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
@@ -4617,6 +5429,7 @@ export class ApiGatewayController {
         .form-group .error-message.show { display: block; }
         .form-group .input-hint { color: #9ca3af; font-size: 12px; margin-top: 3px; }
 
+        /* ✅ AJOUT : TOGGLE PASSWORD */
         .form-group .toggle-password {
             position: absolute;
             right: 12px;
@@ -4763,6 +5576,7 @@ export class ApiGatewayController {
                     <label>Mot de passe <span class="required">*</span></label>
                     <div class="input-wrapper">
                         <input type="password" id="password" placeholder="Votre mot de passe" required>
+                        <!-- ✅ AJOUT : TOGGLE PASSWORD -->
                         <button type="button" class="toggle-password" id="togglePassword">👁️</button>
                     </div>
                     <div class="error-message" id="passwordError">Le mot de passe est requis (min. 8 caracteres)</div>
@@ -4857,7 +5671,7 @@ export class ApiGatewayController {
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
             console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
             console.log('[OAuth] Paiement:', { AMOUNT: AMOUNT || 'Non fourni', CURRENCY: CURRENCY || 'Non fourni', DESCRIPTION: DESCRIPTION || 'Non fourni' });
-            console.log('[OAuth] API_KEY:', API_KEY ? '✅ Presente' : '❌ Absente');
+            console.log('[OAuth] API_KEY:', API_KEY ? 'Presente' : 'Absente');
 
             var urlParams = new URLSearchParams(window.location.search);
             var CLIENT_ID = urlParams.get('client_id') || 'web-client';
@@ -4914,7 +5728,7 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            //  TOGGLE PASSWORD (CORRIGE)
+            //  TOGGLE PASSWORD (AJOUT)
             // ============================================================
 
             document.addEventListener('DOMContentLoaded', function() {
@@ -5069,7 +5883,7 @@ export class ApiGatewayController {
                 if (DESCRIPTION) redirectUrl.searchParams.set('description', DESCRIPTION);
                 if (API_KEY) redirectUrl.searchParams.set('api_key', API_KEY);
 
-                console.log('[OAuth] 🚀 Redirection vers:', redirectUrl.toString());
+                console.log('[OAuth] Redirection vers:', redirectUrl.toString());
                 window.location.href = redirectUrl.toString();
             };
 
@@ -5149,7 +5963,7 @@ export class ApiGatewayController {
             };
 
             // ============================================================
-            //  SOUMISSION (2 ETAPES) - CORRIGE
+            //  SOUMISSION (2 ETAPES)
             // ============================================================
 
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
@@ -5356,517 +6170,6 @@ export class ApiGatewayController {
     } catch (error) {
       console.error('[OAuth] Error:', error);
       return res.status(500).send('Erreur lors du chargement de la page');
-    }
-  }
-
-  // ============================================================
-  // 7. FONCTION 3: GET /oauth/callback
-  // ============================================================
-  // apps/api-gateway/src/api-gateway.controller.ts
-
-  @Get('oauth/callback')
-  async oauthCallback(
-    @Query() query: {
-      access_token?: string;
-      refresh_token?: string;
-      user_id?: string;
-      system_user_id?: string;
-      code?: string;
-      error?: string;
-      amount?: string;
-      currency?: string;
-      description?: string;
-      api_key?: string;
-    },
-    @Res() res: Response,
-    @Request() req: any,
-  ) {
-    console.log('[FPay] ✅ Callback reçu');
-    console.log('[FPay] Query:', query);
-    console.log('[FPay] URL complète:', req.url);
-
-    // ✅ Détecter le contexte : Link ou Paiement
-    const isPaymentContext = !!(query.amount && query.currency);
-    const isLinkContext = !isPaymentContext;
-
-    console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
-
-    // ✅ Récupérer l'API Key depuis l'URL brute
-    let rawApiKey = '';
-    const fullUrl = req.url || '';
-    const apiKeyMatch = fullUrl.match(/[?&]api_key=([^&]*)/);
-
-    if (apiKeyMatch) {
-      rawApiKey = decodeURIComponent(apiKeyMatch[1]);
-      console.log('[FPay] ✅ API Key récupérée depuis URL brute (longueur):', rawApiKey.length);
-    } else if (query.api_key) {
-      rawApiKey = query.api_key;
-      console.log('[FPay] ✅ API Key récupérée depuis query.api_key');
-    }
-
-    if (!rawApiKey && isPaymentContext) {
-      console.error('[FPay] ❌ Aucune API Key trouvée pour paiement');
-      return res.status(400).json({
-        success: false,
-        error: 'API Key manquante',
-        message: 'L\'API Key est requise pour effectuer un paiement',
-      });
-    }
-
-    // ✅ Nettoyer l'API Key
-    let cleanApiKey = rawApiKey;
-    let apiKeyToken = '';
-
-    if (isPaymentContext && rawApiKey) {
-      if (cleanApiKey.includes(' ')) {
-        cleanApiKey = cleanApiKey.replace(/ /g, '+');
-      }
-      if (!cleanApiKey.startsWith('Bearer ')) {
-        if (cleanApiKey.startsWith('Bearer+')) {
-          cleanApiKey = cleanApiKey.replace('Bearer+', 'Bearer ');
-        } else if (cleanApiKey.startsWith('Bearer')) {
-          cleanApiKey = 'Bearer ' + cleanApiKey.substring(6);
-        } else {
-          cleanApiKey = 'Bearer ' + cleanApiKey;
-        }
-      }
-
-      const parts = cleanApiKey.split(' ');
-      apiKeyToken = parts.length === 2 ? parts[1] : cleanApiKey;
-      console.log('[FPay] API Key token (début):', apiKeyToken.substring(0, 50) + '...');
-    }
-
-    if (query.error) {
-      return res.status(400).json({ success: false, error: query.error });
-    }
-
-    if (!query.access_token || !query.refresh_token || !query.user_id) {
-      return res.status(400).json({ success: false, error: 'missing_params' });
-    }
-
-    try {
-      const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
-
-      console.log(`🔗 FPay appelle Favor Help: ${favorHelpUrl}/fpay/link-user`);
-      console.log(`🔗 systemUserId: ${query.system_user_id}`);
-      console.log(`🔗 fpayUserId: ${query.user_id}`);
-
-      // ✅ 1. Lier les comptes (toujours fait)
-      const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemUserId: query.system_user_id,
-          fpayUserId: query.user_id,
-          accessToken: query.access_token,
-          refreshToken: query.refresh_token,
-        }),
-      });
-
-      if (!linkResponse.ok) {
-        const errorData = await linkResponse.json();
-        throw new Error(errorData.message || 'Erreur lors de la liaison');
-      }
-
-      const result = await linkResponse.json();
-      console.log('[FPay] ✅ Utilisateur lié avec succès:', result);
-
-      // ✅ 2. Récupérer l'utilisateur via user-service
-      const userResponse = await this.sendUserMessage<{
-        message: string;
-        data: any;
-      }>(
-        'get_user',
-        { id: query.user_id },
-        'User not found',
-        HttpStatus.NOT_FOUND,
-      );
-
-      if (!userResponse || !userResponse.data) {
-        console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
-        return res.status(404).json({
-          success: false,
-          error: 'Utilisateur non trouvé',
-          message: `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`,
-        });
-      }
-
-      const userData = userResponse.data;
-
-      // ✅ 3. Récupérer les wallets via wallet-service
-      let wallets: any[] = [];
-      try {
-        const walletsResponse = await this.sendWalletMessage<any>(
-          'list_user_wallets',
-          { userId: query.user_id },
-          'Erreur récupération wallets',
-          HttpStatus.BAD_REQUEST,
-        );
-        wallets = walletsResponse?.data || [];
-      } catch (walletError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
-      }
-
-      // ✅ 4. Récupérer les sessions via auth-service
-      let sessions: any[] = [];
-      try {
-        const sessionsResponse = await this.sendAuthMessage<any>(
-          'list_user_sessions',
-          { userId: query.user_id },
-          'Erreur récupération sessions',
-          HttpStatus.BAD_REQUEST,
-        );
-        sessions = sessionsResponse?.data || [];
-      } catch (sessionError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
-      }
-
-      // ✅ 5. Récupérer les resources via user-service
-      let resources: any[] = [];
-      try {
-        const resourcesResponse = await this.sendUserMessage<any>(
-          'get_user_resources',
-          { userId: query.user_id },
-          'Erreur récupération resources',
-          HttpStatus.BAD_REQUEST,
-        );
-        resources = resourcesResponse?.data || [];
-      } catch (resourceError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
-      }
-
-      // ✅ 6. Récupérer les KYC via user-service
-      let kycStatus = 'NOT_SUBMITTED';
-      let kycSubmission = null;
-      try {
-        const kycResponse = await this.sendUserMessage<any>(
-          'get_kyc_status',
-          { userId: query.user_id },
-          'Erreur récupération KYC',
-          HttpStatus.BAD_REQUEST,
-        );
-        kycStatus = kycResponse?.data?.status || 'NOT_SUBMITTED';
-        kycSubmission = kycResponse?.data?.submission || null;
-      } catch (kycError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
-      }
-
-      // ✅ 7. Récupérer la branche de l'utilisateur
-      let userBranch = null;
-      if (userData.branchId) {
-        try {
-          const branchResponse = await this.sendUserMessage<any>(
-            'get_branch',
-            { id: userData.branchId },
-            'Branche non trouvée',
-            HttpStatus.NOT_FOUND,
-          );
-          userBranch = branchResponse?.data || null;
-        } catch (branchError) {
-          console.warn('[FPay] ⚠️ Impossible de récupérer la branche:', branchError.message);
-        }
-      }
-
-
-      // ✅ 8. Si c'est un paiement, exécuter le paiement automatique
-      let paymentResult: any = null;
-
-      if (isPaymentContext) {
-        console.log('[FPay] 💰 Contexte PAIEMENT - Exécution du paiement automatique');
-
-        // ✅ Récupérer le destinataire depuis l'API Key
-        let recipientUser: any = null;
-
-        // Essayer de valider comme JWT
-        if (apiKeyToken) {
-          try {
-            const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
-            const payload = jwt.verify(apiKeyToken, secret) as any;
-
-            const userId = payload.sub || payload.userId;
-
-            if (userId) {
-              const user = await this.prisma.user.findUnique({
-                where: { id: userId },
-                select: {
-                  id: true,
-                  full_name: true,
-                  phone: true,
-                  email: true,
-                  role: true,
-                  status: true,
-                  merchantCode: true,
-                  merchantType: true,
-                  businessName: true,
-                  businessCategory: true,
-                  businessAddress: true,
-                  kycStatus: true,
-                  countryCode: true,
-                  wallets: {
-                    where: { isActive: true },
-                    select: {
-                      id: true,
-                      currency: true,
-                      balance: true,
-                      isActive: true,
-                    }
-                  }
-                }
-              });
-
-              if (user) {
-                recipientUser = user;
-                console.log('[FPay] ✅ Destinataire trouvé via JWT:', {
-                  id: user.id,
-                  phone: user.phone,
-                  merchantCode: user.merchantCode,
-                });
-              }
-            }
-          } catch (err) {
-            console.log('[FPay] ⚠️ JWT invalide, recherche en base...');
-          }
-        }
-
-        // Si JWT échoue, rechercher dans la base
-        if (!recipientUser && apiKeyToken) {
-          try {
-            const keyRecord = await this.prisma.api_key.findFirst({
-              where: {
-                key: apiKeyToken,
-                isActive: true,
-                expiresAt: {
-                  gt: new Date(),
-                },
-              },
-              include: {
-                user: true,
-              },
-            });
-
-            if (keyRecord && keyRecord.user) {
-              recipientUser = keyRecord.user;
-              console.log('[FPay] ✅ Destinataire trouvé via base de données:', {
-                id: recipientUser.id,
-                phone: recipientUser.phone,
-                merchantCode: recipientUser.merchantCode,
-              });
-            }
-          } catch (dbError) {
-            console.error('[FPay] ❌ Erreur recherche en base:', dbError.message);
-          }
-        }
-
-        if (!recipientUser) {
-          console.error('[FPay] ❌ Destinataire non trouvé');
-          return res.status(400).json({
-            success: false,
-            error: 'Destinataire non trouvé',
-            message: 'Impossible de récupérer le destinataire depuis l\'API Key',
-          });
-        }
-
-        // ✅ Exécuter le paiement
-        try {
-          // Récupérer le payeur
-          const payerResponse = await this.sendUserMessage<any>(
-            'get_user',
-            { id: query.user_id },
-            'Payeur non trouvé',
-            HttpStatus.NOT_FOUND,
-          );
-
-          const payer = payerResponse?.data;
-
-          if (!payer) {
-            throw new Error('Utilisateur payeur non trouvé');
-          }
-
-          console.log('[FPay] ✅ Payeur trouvé:', {
-            id: payer.id,
-            phone: payer.phone,
-          });
-
-          // Récupérer les wallets du payeur
-          const payerWalletsResponse = await this.sendWalletMessage<any>(
-            'list_user_wallets',
-            { userId: payer.id },
-            'Erreur récupération wallets payeur',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          const payerWallets = payerWalletsResponse?.data || [];
-          const targetCurrency = query.currency || 'USD';
-          let clientWallet = payerWallets.find((w: any) => w.currency === targetCurrency);
-
-          if (!clientWallet) {
-            clientWallet = payerWallets[0];
-            if (!clientWallet) {
-              throw new Error('Aucun wallet actif trouvé pour le payeur');
-            }
-          }
-
-          console.log('[FPay] 💳 Wallet du payeur:', {
-            id: clientWallet.id,
-            currency: clientWallet.currency,
-            balance: clientWallet.balance,
-          });
-
-          // ✅ Convertir le montant en nombre avec gestion de undefined
-          const amountValue = parseFloat(query.amount || '0');
-          if (isNaN(amountValue) || amountValue <= 0) {
-            throw new Error('Montant invalide');
-          }
-
-          if (clientWallet.balance < amountValue) {
-            throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
-          }
-
-          // Récupérer le wallet du destinataire
-          const recipientWalletsResponse = await this.sendWalletMessage<any>(
-            'list_user_wallets',
-            { userId: recipientUser.id },
-            'Erreur récupération wallets destinataire',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          let recipientWallets = recipientWalletsResponse?.data || [];
-          let merchantWallet = recipientWallets.find((w: any) => w.currency === targetCurrency);
-
-          if (!merchantWallet) {
-            merchantWallet = recipientWallets[0];
-            if (!merchantWallet) {
-              const createWalletResponse = await this.sendWalletMessage<any>(
-                'create_wallet',
-                {
-                  userId: recipientUser.id,
-                  currency: targetCurrency
-                },
-                'Erreur création wallet',
-                HttpStatus.BAD_REQUEST,
-              );
-              merchantWallet = createWalletResponse?.data;
-              console.log('[FPay] ✅ Wallet créé pour le destinataire');
-            }
-          }
-
-          // Appeler le wallet-service avec 'pay_without_pin'
-          const payPayload: any = {
-            fromWalletId: clientWallet.id,
-            amount: amountValue,
-            description: query.description || `Paiement vers ${recipientUser.full_name || recipientUser.phone}`,
-            lang: 'fr',
-            ipAddress: '127.0.0.1',
-          };
-
-          if (recipientUser.phone) {
-            payPayload.toPhone = recipientUser.phone;
-          } else if (recipientUser.merchantCode) {
-            payPayload.merchantCode = recipientUser.merchantCode;
-          } else {
-            throw new Error('Le destinataire n\'a ni téléphone ni code marchand');
-          }
-
-          console.log('[FPay] 📤 Payload pour paiement automatique:', payPayload);
-
-          paymentResult = await this.sendWalletMessage<any>(
-            'pay_without_pin',
-            payPayload,
-            'Erreur paiement',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          console.log('[FPay] ✅ Paiement automatique réussi:', paymentResult);
-
-        } catch (paymentError: any) {
-          console.error('[FPay] ❌ Erreur paiement automatique:', paymentError.message);
-          paymentResult = {
-            status: 'ERROR',
-            error: paymentError.message,
-          };
-        }
-      }
-
-      // ✅ 9. Construire la réponse selon le contexte
-      const sessionId = crypto.randomUUID();
-
-      // ✅ Réponse de base (toujours présente)
-      const baseResponse: any = {
-        accessToken: query.access_token,
-        refreshToken: query.refresh_token,
-        sessionId: sessionId,
-        data: {
-          id: userData.id,
-          email: userData.email || null,
-          phone: userData.phone || null,
-          fcmToken: userData.fcmToken || null,
-          full_name: userData.full_name || null,
-          account_number: userData.account_number || null,
-          branchId: userData.branchId || null,
-          branch: userBranch,
-          role: userData.role || 'USER',
-          passwordStatus: userData.passwordStatus || null,
-          pinstatus: userData.pinstatus || false,
-          merchantCode: userData.merchantCode || null,
-          businessName: userData.businessName || null,
-          status: userData.status || 'ACTIVE',
-          deleted: userData.deleted || false,
-          createdAt: userData.createdAt || new Date(),
-          updatedAt: userData.updatedAt || new Date(),
-          profileImage: userData.profileImage || null,
-          kycStatus: kycStatus,
-          countryCode: userData.countryCode || 'CD',
-          locked_by_admin: userData.locked_by_admin || false,
-          sessions: sessions,
-          resources: resources,
-          wallets: wallets,
-          kyc: {
-            status: kycStatus,
-            submission: kycSubmission,
-          },
-        }
-      };
-
-      // ✅ Si c'est un paiement, ajouter les détails du paiement
-      if (isPaymentContext) {
-        return res.status(200).json({
-          ...baseResponse,
-          message: paymentResult?.status === 'ERROR'
-            ? 'Authentification FPay réussie mais paiement échoué'
-            : 'Authentification FPay réussie et paiement effectué',
-          data: {
-            ...baseResponse.data,
-            payment: paymentResult ? {
-              transaction: paymentResult.data?.transaction || null,
-              error: paymentResult.error || null,
-            } : {
-              amount: query.amount || null,
-              currency: query.currency || null,
-              description: query.description || null,
-              status: 'PENDING',
-            },
-          }
-        });
-      }
-
-      // ✅ Si c'est un link (pas de paiement)
-      return res.status(200).json({
-        ...baseResponse,
-        message: 'Authentification FPay réussie et compte lié',
-        data: {
-          ...baseResponse.data,
-          isLinked: true,
-          userIdFpay: query.user_id,
-        }
-      });
-
-    } catch (error) {
-      console.error('[FPay] ❌ Erreur:', error.message);
-      return res.status(500).json({
-        success: false,
-        error: error.message,
-        message: 'Erreur lors de la liaison',
-      });
     }
   }
 
