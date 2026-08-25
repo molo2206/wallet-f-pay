@@ -4161,22 +4161,33 @@ export class ApiGatewayController {
       clientId: body.clientId
     });
 
-    // ✅ Cas 1 : Pas de phone/password → Rediriger vers FPay
+    // ✅ Cas 1 : Pas de phone/password → Rediriger vers FPay (sans code ni redirect_uri dans l'URL)
     if (!body || !body.phone || !body.password) {
       const clientId = body?.clientId || 'web-client';
       const appUrl = process.env.APP_URL || 'http://localhost:3000';
-      const fpayUrl = process.env.FPAY_API_URL || 'http://localhost:3000';
-      const authCode = crypto.randomBytes(32).toString('hex');
+      const fpayUrl = process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
 
       const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
       redirectUrl.searchParams.set('client_id', clientId);
-      redirectUrl.searchParams.set('code', authCode);
-      redirectUrl.searchParams.set('redirect_uri', body?.redirectUri || `${appUrl}/oauth/callback`);
+      // ✅ NE PAS ajouter code dans l'URL
+      // redirectUrl.searchParams.set('code', authCode);
+      // ✅ NE PAS ajouter redirect_uri dans l'URL (il est dans la session)
+      // redirectUrl.searchParams.set('redirect_uri', body?.redirectUri || `${appUrl}/oauth/callback`);
 
-      console.log('[Auth Link-User] 🔗 Redirection vers FPay:', redirectUrl.toString());
+      // ✅ Garder uniquement les paramètres nécessaires
+      // system_user_id sera passé dans le corps de la requête
+      // redirect_uri sera utilisé dans la session
 
-      // ✅ REDIRECTION DIRECTE VERS FPAY
-      return res.redirect(HttpStatus.FOUND, redirectUrl.toString());
+      console.log('[Auth Link-User] 🔗 URL OAuth FPay (sans code):', redirectUrl.toString());
+
+      // ✅ Retourner l'URL sans code ni redirect_uri
+      return res.json({
+        status: 'success',
+        message: 'Page OAuth FPay',
+        url: redirectUrl.toString(),
+        openInBrowser: redirectUrl.toString(),
+        // systemUserId: systemUserId,
+      });
     }
 
     // ✅ Cas 2 : phone et password fournis → Traiter la connexion
@@ -4207,7 +4218,7 @@ export class ApiGatewayController {
         HttpStatus.BAD_REQUEST,
       ) as LinkUserResponse;
 
-      // ✅ Si OTP requis → Retourner le message
+      // ✅ Si OTP requis → Retourner le message (sans code ni redirect_uri)
       if (result.requiresOtp === true) {
         console.log('[Auth Link-User] 📱 OTP requis pour:', body.phone);
         return res.json({
@@ -4233,8 +4244,8 @@ export class ApiGatewayController {
         requiresOtp: false
       });
 
-    } catch (error) {  // ← ICI error (pas err8or)
-      console.error('[Auth Link-User] Erreur:', error);  // ← ICI error (pas err8or)
+    } catch (error) {
+      console.error('[Auth Link-User] Erreur:', error);
       return res.status(400).json({
         status: 'error',
         message: error.message || 'Erreur de connexion'
