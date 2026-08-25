@@ -68,7 +68,6 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as jwt from 'jsonwebtoken';
-import { Public } from 'apps/auth-service/src/utility/decorators/public.decorator';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
@@ -6036,10 +6035,9 @@ export class ApiGatewayController {
   }
 
   @Get('wallet/balance-transactions')
-  @Public()
   async getWalletBalanceAndTransactions(
     @Query('userId') userId: string,
-    @Query('walletId') walletId?: string,  // ✅ Optionnel
+    @Query('walletId') walletId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('startDate') startDate?: string,
@@ -6059,14 +6057,18 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ walletId n'est plus obligatoire
-    // Suppression de la validation de walletId
+    if (!walletId) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.wallet_id_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
     return this.sendWalletMessage(
       'get_wallet_balance_transactions',
       {
         userId,
-        walletId,  // ✅ Peut être undefined
+        walletId,
         lang,
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
