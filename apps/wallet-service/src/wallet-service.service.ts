@@ -10025,16 +10025,14 @@ export class WalletServiceService {
     wallet: WalletResponseDto;
     balance: number;
     currency: string;
-    transactions: {
-      data: any[];
-      total: number;
-      page: number;
-      limit: number;
-      analytics: {
-        totalCredit: number;
-        totalDebit: number;
-        totalTransactions: number;
-      };
+    transactions: any[];  // ✅ Tableau directement
+    total: number;
+    page: number;
+    limit: number;
+    analytics: {
+      totalCredit: number;
+      totalDebit: number;
+      totalTransactions: number;
     };
     stats: {
       totalSent: number;
@@ -10092,21 +10090,12 @@ export class WalletServiceService {
         userId: userId,
         isActive: true,
       },
-      orderBy: { createdAt: 'asc' },  // ✅ Tri par date de création
+      orderBy: { createdAt: 'asc' },
     });
-
-    // if (!allWallets || allWallets.length === 0) {
-    //   throw new RpcException({
-    //     status: 'error',
-    //     message: this.i18nService.translate('wallet.no_wallet_found', lang),
-    //     statusCode: 404,
-    //   });
-    // }
 
     // ========== 3️⃣ VALIDATION DU WALLET SÉLECTIONNÉ ==========
     let wallet;
 
-    // ✅ Si walletId est fourni, le chercher spécifiquement
     if (walletId) {
       wallet = allWallets.find(w => w.id === walletId);
 
@@ -10118,8 +10107,15 @@ export class WalletServiceService {
         });
       }
     } else {
-      // ✅ Sinon, prendre le PREMIER wallet (le plus ancien)
-      wallet = allWallets[0];  // ✅ MODIFICATION ICI
+      wallet = allWallets[0];
+    }
+
+    if (!wallet) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.no_wallet_found', lang),
+        statusCode: 404,
+      });
     }
 
     if (!wallet.isActive) {
@@ -10137,7 +10133,6 @@ export class WalletServiceService {
       userId: userId,
     };
 
-    // ✅ Filtrer par type (exclure les transactions de caisse par défaut)
     if (type) {
       where.type = type;
     } else {
@@ -10146,13 +10141,9 @@ export class WalletServiceService {
       };
     }
 
-    // Filtrer par statut
     if (status) where.status = status;
-
-    // Filtrer par mouvement
     if (movement) where.movement = movement;
 
-    // Filtrer par date
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = startDate;
@@ -10163,7 +10154,6 @@ export class WalletServiceService {
       }
     }
 
-    // Filtrer par recherche
     if (search && search.trim() !== '') {
       const searchTerm = search.trim();
       where.OR = [
@@ -10298,16 +10288,14 @@ export class WalletServiceService {
         wallet: this.toResponse(wallet),
         balance: wallet.balance,
         currency: wallet.currency,
-        transactions: {
-          data: enrichedTransactions,
-          total,
-          page,
-          limit,
-          analytics: {
-            totalCredit,
-            totalDebit,
-            totalTransactions: total,
-          },
+        transactions: enrichedTransactions,  // ✅ Tableau directement
+        total,
+        page,
+        limit,
+        analytics: {
+          totalCredit,
+          totalDebit,
+          totalTransactions: total,
         },
         stats: {
           totalSent,
