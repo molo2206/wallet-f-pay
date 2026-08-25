@@ -5269,7 +5269,6 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
-
   @Get('oauth/callback')
   async oauthCallback(
     @Query() query: {
@@ -5285,7 +5284,7 @@ export class ApiGatewayController {
       api_key?: string;
       callback?: string;
       redirect_uri?: string;
-      state?: string;  // ✅ Pour la sécurité CSRF comme Google
+      state?: string;
     },
     @Res() res: Response,
     @Request() req: any,
@@ -5298,12 +5297,14 @@ export class ApiGatewayController {
     const isPaymentContext = !!(query.amount && query.currency);
     const isLinkContext = !isPaymentContext;
 
-    // ✅ Vérifier si un redirect_uri est spécifié
+    // ✅ LE redirect_uri = L'URL de l'application d'origine
+    // ✅ C'est l'application qui a initié le flux OAuth
+    // ✅ Exemple: https://mon-app.com/callback
     const redirectUri = query.redirect_uri || query.callback || null;
     const hasRedirect = !!redirectUri;
 
     console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
-    console.log('[FPay] 📋 Redirect URI:', hasRedirect ? redirectUri : 'AUCUN (JSON uniquement)');
+    console.log('[FPay] 📋 Application d\'origine (redirect_uri):', hasRedirect ? redirectUri : 'AUCUN (JSON uniquement)');
 
     // ✅ Récupérer l'API Key depuis l'URL brute
     let rawApiKey = '';
@@ -5342,20 +5343,24 @@ export class ApiGatewayController {
     }
 
     // ============================================================
-    // ⚠️ FONCTION: Rediriger vers redirect_uri avec paramètres
+    // ⚠️ FONCTION: Rediriger vers l'application d'origine (comme Google Auth)
     // ============================================================
     const redirectWithParams = (baseUrl: string, params: Record<string, any>) => {
       const url = new URL(baseUrl);
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
-          url.searchParams.set(key, String(value));
+          if (typeof value === 'object') {
+            url.searchParams.set(key, JSON.stringify(value));
+          } else {
+            url.searchParams.set(key, String(value));
+          }
         }
       });
       return url.toString();
     };
 
     // ============================================================
-    // ⚠️ FONCTION: Rediriger avec erreur (comme Google Auth)
+    // ⚠️ FONCTION: Rediriger vers l'application d'origine avec erreur
     // ============================================================
     const redirectWithError = (error: string, errorDescription?: string) => {
       if (hasRedirect) {
@@ -5364,10 +5369,11 @@ export class ApiGatewayController {
           params.error_description = errorDescription;
         }
         if (query.state) {
-          params.state = query.state;  // ✅ Garder le state pour la sécurité CSRF
+          params.state = query.state;
         }
+        // ✅ Rediriger vers l'application d'origine
         const redirectUrl = redirectWithParams(redirectUri, params);
-        console.log('[FPay] 🔄 Redirection avec erreur:', redirectUrl);
+        console.log('[FPay] 🔄 Redirection vers l\'application d\'origine avec erreur:', redirectUrl);
         return res.redirect(redirectUrl);
       }
 
@@ -5381,56 +5387,90 @@ export class ApiGatewayController {
     };
 
     // ============================================================
-    // ⚠️ FONCTION: Rediriger avec succès (comme Google Auth)
+    // ⚠️ FONCTION: Rediriger vers l'application d'origine avec TOUTES les données
     // ============================================================
-    const redirectWithSuccess = (params: Record<string, any>) => {
+    const redirectWithAllData = (data: any) => {
       if (hasRedirect) {
-        const redirectParams: any = {
-          access_token: params.access_token,
-          refresh_token: params.refresh_token,
-          user_id: params.user_id,
-          code: params.code,
+        // ✅ Construire l'URL avec TOUTES les données
+        const params: any = {
+          // Tokens
+          access_token: data.accessToken,
+          refresh_token: data.refreshToken,
+          user_id: data.data?.id,
+          code: data.code || query.code || '',
+          sessionId: data.sessionId,
+
+          // Données utilisateur (toutes les propriétés)
+          data_id: data.data?.id,
+          data_email: data.data?.email,
+          data_phone: data.data?.phone,
+          data_fcmToken: data.data?.fcmToken,
+          data_full_name: data.data?.full_name,
+          data_account_number: data.data?.account_number,
+          data_branchId: data.data?.branchId,
+          data_role: data.data?.role,
+          data_passwordStatus: data.data?.passwordStatus,
+          data_pinstatus: data.data?.pinstatus,
+          data_merchantCode: data.data?.merchantCode,
+          data_businessName: data.data?.businessName,
+          data_status: data.data?.status,
+          data_deleted: data.data?.deleted,
+          data_createdAt: data.data?.createdAt,
+          data_updatedAt: data.data?.updatedAt,
+          data_profileImage: data.data?.profileImage,
+          data_kycStatus: data.data?.kycStatus,
+          data_countryCode: data.data?.countryCode,
+          data_locked_by_admin: data.data?.locked_by_admin,
+
+          // Branch
+          branch: data.data?.branch ? JSON.stringify(data.data.branch) : '',
+
+          // Wallets, sessions, resources
+          wallets: data.data?.wallets ? JSON.stringify(data.data.wallets) : '[]',
+          sessions: data.data?.sessions ? JSON.stringify(data.data.sessions) : '[]',
+          resources: data.data?.resources ? JSON.stringify(data.data.resources) : '[]',
+          kyc: data.data?.kyc ? JSON.stringify(data.data.kyc) : '{}',
         };
-
-        if (query.state) {
-          redirectParams.state = query.state;  // ✅ Garder le state pour la sécurité CSRF
-        }
-
-        // ✅ Ajouter les données de paiement si présentes
-        if (isPaymentContext) {
-          if (params.payment) {
-            redirectParams.payment_status = params.payment.status;
-            redirectParams.payment_transaction = params.payment.transaction?.id || '';
-            if (params.payment.error) {
-              redirectParams.payment_error = params.payment.error;
-            }
-          }
-          if (query.amount) redirectParams.amount = query.amount;
-          if (query.currency) redirectParams.currency = query.currency;
-          if (query.description) redirectParams.description = query.description;
-        }
 
         // ✅ Ajouter le system_user_id si présent
         if (query.system_user_id) {
-          redirectParams.system_user_id = query.system_user_id;
+          params.system_user_id = query.system_user_id;
         }
 
-        // ✅ Ajouter l'API Key si présente
-        if (rawApiKey) {
-          redirectParams.api_key = rawApiKey;
+        // ✅ Ajouter les données de paiement si contexte paiement
+        if (isPaymentContext && data.data?.payment) {
+          params.payment_status = data.data.payment.status || 'PENDING';
+          if (data.data.payment.transaction) {
+            params.payment_transaction = JSON.stringify(data.data.payment.transaction);
+          }
+          if (data.data.payment.error) {
+            params.payment_error = data.data.payment.error;
+          }
+          if (query.amount) params.amount = query.amount;
+          if (query.currency) params.currency = query.currency;
+          if (query.description) params.description = query.description;
+          if (rawApiKey) params.api_key = rawApiKey;
         }
 
-        const redirectUrl = redirectWithParams(redirectUri, redirectParams);
-        console.log('[FPay] 🔄 Redirection avec succès:', redirectUrl);
+        // ✅ Ajouter le message
+        params.message = data.message;
+
+        // ✅ Ajouter le state si présent
+        if (query.state) {
+          params.state = query.state;
+        }
+
+        // ✅ Rediriger vers l'application d'origine (comme Google Auth)
+        const redirectUrl = redirectWithParams(redirectUri, params);
+        console.log('[FPay] 🔄 Redirection vers l\'application d\'origine avec TOUTES les données:', redirectUrl);
         return res.redirect(redirectUrl);
       }
 
-      // Pas de redirect_uri, retourner JSON
+      // Pas de redirect_uri, retourner le JSON complet
       return res.status(200).json({
-        success: true,
-        ...params,
+        ...data,
         close: true,
-        message: 'Authentification réussie - Cette page va se fermer automatiquement',
+        message: data.message + ' - Cette page va se fermer automatiquement',
       });
     };
 
@@ -5474,7 +5514,7 @@ export class ApiGatewayController {
       console.log(`🔗 systemUserId: ${query.system_user_id}`);
       console.log(`🔗 fpayUserId: ${query.user_id}`);
 
-      // ✅ 1. Lier les comptes (toujours fait)
+      // ✅ 1. Lier les comptes
       const linkUserResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5494,7 +5534,7 @@ export class ApiGatewayController {
       const result = await linkUserResponse.json();
       console.log('[FPay] ✅ Utilisateur lié avec succès:', result);
 
-      // ✅ 2. Récupérer l'utilisateur via user-service
+      // ✅ 2. Récupérer l'utilisateur
       const userResponse = await this.sendUserMessage<{
         message: string;
         data: any;
@@ -5505,9 +5545,6 @@ export class ApiGatewayController {
         HttpStatus.NOT_FOUND,
       );
 
-      // ============================================================
-      // ⚠️ ERREUR 4 : Utilisateur non trouvé
-      // ============================================================
       if (!userResponse || !userResponse.data) {
         console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
         return redirectWithError(
@@ -5518,7 +5555,7 @@ export class ApiGatewayController {
 
       const userData = userResponse.data;
 
-      // ✅ 3. Récupérer les wallets via wallet-service
+      // ✅ 3. Récupérer les wallets
       let wallets: any[] = [];
       try {
         const walletsResponse = await this.sendWalletMessage<any>(
@@ -5532,7 +5569,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
       }
 
-      // ✅ 4. Récupérer les sessions via auth-service
+      // ✅ 4. Récupérer les sessions
       let sessions: any[] = [];
       try {
         const sessionsResponse = await this.sendAuthMessage<any>(
@@ -5546,7 +5583,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
       }
 
-      // ✅ 5. Récupérer les resources via user-service
+      // ✅ 5. Récupérer les resources
       let resources: any[] = [];
       try {
         const resourcesResponse = await this.sendUserMessage<any>(
@@ -5560,7 +5597,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
       }
 
-      // ✅ 6. Récupérer les KYC via user-service
+      // ✅ 6. Récupérer les KYC
       let kycStatus = 'NOT_SUBMITTED';
       let kycSubmission = null;
       try {
@@ -5576,7 +5613,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
       }
 
-      // ✅ 7. Récupérer la branche de l'utilisateur
+      // ✅ 7. Récupérer la branche
       let userBranch = null;
       if (userData.branchId) {
         try {
@@ -5592,21 +5629,19 @@ export class ApiGatewayController {
         }
       }
 
-      // ✅ 8. Si c'est un paiement, exécuter le paiement automatique
+      // ✅ 8. Paiement automatique si contexte paiement
       let paymentResult: any = null;
 
       if (isPaymentContext) {
         console.log('[FPay] 💰 Contexte PAIEMENT - Exécution du paiement automatique');
 
-        // ✅ Récupérer le destinataire depuis l'API Key
+        // Récupérer le destinataire
         let recipientUser: any = null;
 
-        // Essayer de valider comme JWT
         if (apiKeyToken) {
           try {
             const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
             const payload = jwt.verify(apiKeyToken, secret) as any;
-
             const userId = payload.sub || payload.userId;
 
             if (userId) {
@@ -5640,11 +5675,7 @@ export class ApiGatewayController {
 
               if (user) {
                 recipientUser = user;
-                console.log('[FPay] ✅ Destinataire trouvé via JWT:', {
-                  id: user.id,
-                  phone: user.phone,
-                  merchantCode: user.merchantCode,
-                });
+                console.log('[FPay] ✅ Destinataire trouvé via JWT');
               }
             }
           } catch (err) {
@@ -5652,29 +5683,20 @@ export class ApiGatewayController {
           }
         }
 
-        // Si JWT échoue, rechercher dans la base
         if (!recipientUser && apiKeyToken) {
           try {
             const keyRecord = await this.prisma.api_key.findFirst({
               where: {
                 key: apiKeyToken,
                 isActive: true,
-                expiresAt: {
-                  gt: new Date(),
-                },
+                expiresAt: { gt: new Date() },
               },
-              include: {
-                user: true,
-              },
+              include: { user: true },
             });
 
             if (keyRecord && keyRecord.user) {
               recipientUser = keyRecord.user;
-              console.log('[FPay] ✅ Destinataire trouvé via base de données:', {
-                id: recipientUser.id,
-                phone: recipientUser.phone,
-                merchantCode: recipientUser.merchantCode,
-              });
+              console.log('[FPay] ✅ Destinataire trouvé via base de données');
             }
           } catch (dbError) {
             console.error('[FPay] ❌ Erreur recherche en base:', dbError.message);
@@ -5689,9 +5711,7 @@ export class ApiGatewayController {
           );
         }
 
-        // ✅ Exécuter le paiement
         try {
-          // Récupérer le payeur
           const payerResponse = await this.sendUserMessage<any>(
             'get_user',
             { id: query.user_id },
@@ -5700,17 +5720,10 @@ export class ApiGatewayController {
           );
 
           const payer = payerResponse?.data;
-
           if (!payer) {
             throw new Error('Utilisateur payeur non trouvé');
           }
 
-          console.log('[FPay] ✅ Payeur trouvé:', {
-            id: payer.id,
-            phone: payer.phone,
-          });
-
-          // Récupérer les wallets du payeur
           const payerWalletsResponse = await this.sendWalletMessage<any>(
             'list_user_wallets',
             { userId: payer.id },
@@ -5729,13 +5742,6 @@ export class ApiGatewayController {
             }
           }
 
-          console.log('[FPay] 💳 Wallet du payeur:', {
-            id: clientWallet.id,
-            currency: clientWallet.currency,
-            balance: clientWallet.balance,
-          });
-
-          // ✅ Convertir le montant en nombre avec gestion de undefined
           const amountValue = parseFloat(query.amount || '0');
           if (isNaN(amountValue) || amountValue <= 0) {
             throw new Error('Montant invalide');
@@ -5745,7 +5751,6 @@ export class ApiGatewayController {
             throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
           }
 
-          // Récupérer le wallet du destinataire
           const recipientWalletsResponse = await this.sendWalletMessage<any>(
             'list_user_wallets',
             { userId: recipientUser.id },
@@ -5769,11 +5774,9 @@ export class ApiGatewayController {
                 HttpStatus.BAD_REQUEST,
               );
               merchantWallet = createWalletResponse?.data;
-              console.log('[FPay] ✅ Wallet créé pour le destinataire');
             }
           }
 
-          // Appeler le wallet-service avec 'pay_without_pin'
           const payPayload: any = {
             fromWalletId: clientWallet.id,
             amount: amountValue,
@@ -5790,16 +5793,12 @@ export class ApiGatewayController {
             throw new Error('Le destinataire n\'a ni téléphone ni code marchand');
           }
 
-          console.log('[FPay] 📤 Payload pour paiement automatique:', payPayload);
-
           paymentResult = await this.sendWalletMessage<any>(
             'pay_without_pin',
             payPayload,
             'Erreur paiement',
             HttpStatus.BAD_REQUEST,
           );
-
-          console.log('[FPay] ✅ Paiement automatique réussi:', paymentResult);
 
         } catch (paymentError: any) {
           console.error('[FPay] ❌ Erreur paiement automatique:', paymentError.message);
@@ -5810,46 +5809,83 @@ export class ApiGatewayController {
         }
       }
 
-      // ✅ 9. Construire la réponse de succès
+      // ✅ 9. Construire la réponse complète
       const sessionId = crypto.randomUUID();
 
-      // ✅ Préparer les paramètres pour la redirection (comme Google Auth)
-      const successParams: any = {
-        access_token: query.access_token,
-        refresh_token: query.refresh_token,
-        user_id: query.user_id,
-        code: query.code || '',
+      const baseResponse: any = {
+        success: true,
+        accessToken: query.access_token,
+        refreshToken: query.refresh_token,
+        sessionId: sessionId,
+        data: {
+          id: userData.id,
+          email: userData.email || null,
+          phone: userData.phone || null,
+          fcmToken: userData.fcmToken || null,
+          full_name: userData.full_name || null,
+          account_number: userData.account_number || null,
+          branchId: userData.branchId || null,
+          branch: userBranch,
+          role: userData.role || 'USER',
+          passwordStatus: userData.passwordStatus || null,
+          pinstatus: userData.pinstatus || false,
+          merchantCode: userData.merchantCode || null,
+          businessName: userData.businessName || null,
+          status: userData.status || 'ACTIVE',
+          deleted: userData.deleted || false,
+          createdAt: userData.createdAt || new Date(),
+          updatedAt: userData.updatedAt || new Date(),
+          profileImage: userData.profileImage || null,
+          kycStatus: kycStatus,
+          countryCode: userData.countryCode || 'CD',
+          locked_by_admin: userData.locked_by_admin || false,
+          sessions: sessions,
+          resources: resources,
+          wallets: wallets,
+          kyc: {
+            status: kycStatus,
+            submission: kycSubmission,
+          },
+        }
       };
 
-      // ✅ Ajouter le system_user_id si présent
-      if (query.system_user_id) {
-        successParams.system_user_id = query.system_user_id;
-      }
-
-      // ✅ Ajouter les données de paiement si contexte paiement
+      let finalResponse: any;
       if (isPaymentContext) {
-        if (paymentResult) {
-          successParams.payment_status = paymentResult.status || 'PENDING';
-          if (paymentResult.data?.transaction) {
-            successParams.payment_transaction = paymentResult.data.transaction.id || '';
+        finalResponse = {
+          ...baseResponse,
+          message: paymentResult?.status === 'ERROR'
+            ? 'Authentification FPay réussie mais paiement échoué'
+            : 'Authentification FPay réussie et paiement effectué',
+          data: {
+            ...baseResponse.data,
+            payment: paymentResult ? {
+              status: paymentResult.status || 'PENDING',
+              transaction: paymentResult.data?.transaction || null,
+              error: paymentResult.error || null,
+            } : {
+              amount: query.amount || null,
+              currency: query.currency || null,
+              description: query.description || null,
+              status: 'PENDING',
+            },
           }
-          if (paymentResult.error) {
-            successParams.payment_error = paymentResult.error;
+        };
+      } else {
+        finalResponse = {
+          ...baseResponse,
+          message: 'Authentification FPay réussie et compte lié',
+          data: {
+            ...baseResponse.data,
+            isLinked: true,
+            userIdFpay: query.user_id,
           }
-        }
-        if (query.amount) successParams.amount = query.amount;
-        if (query.currency) successParams.currency = query.currency;
-        if (query.description) successParams.description = query.description;
-        if (rawApiKey) successParams.api_key = rawApiKey;
+        };
       }
 
-      // ✅ Rediriger comme Google Auth (ou retourner JSON si pas de redirect_uri)
-      return redirectWithSuccess(successParams);
+      // ✅ Rediriger vers l'application d'origine (comme Google Auth) ou retourner JSON
+      return redirectWithAllData(finalResponse);
 
     } catch (error) {
-      // ============================================================
-      // ⚠️ ERREUR INTERNE
-      // ============================================================
       console.error('[FPay] ❌ Erreur:', error.message);
       return redirectWithError(
         'internal_error',
@@ -5857,6 +5893,7 @@ export class ApiGatewayController {
       );
     }
   }
+  
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async submitKyc(
