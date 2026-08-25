@@ -5545,17 +5545,6 @@ export class ApiGatewayController {
           timestamp: Date.now(),
         };
 
-        // ✅ Nettoyer les anciennes entrées (plus de 5 minutes)
-        for (const [key, value] of this.fpayCache) {
-          if (Date.now() - value.timestamp > 300000) {
-            this.fpayCache.delete(key);
-          }
-        }
-        this.fpayCache.set(sessionId, fullData);
-
-        // Passer l'ID de session
-        params.set('session_id', sessionId);
-
         let redirectUrl = redirectUri + '?' + params.toString();
 
         // ✅ Pour les URLs mobile (fpay://), on construit manuellement
@@ -5962,9 +5951,6 @@ export class ApiGatewayController {
           kycStatus: kycStatus,
           countryCode: userData.countryCode || 'CD',
           locked_by_admin: userData.locked_by_admin || false,
-          sessions: sessions,
-          resources: resources,
-          wallets: wallets,
           kyc: {
             status: kycStatus,
             submission: kycSubmission,
