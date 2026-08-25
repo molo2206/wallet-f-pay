@@ -3593,7 +3593,6 @@ export class ApiGatewayController {
 
 
   //===============================Externe============================
-
   @Post('api/external/pay')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('pay')
@@ -3614,6 +3613,7 @@ export class ApiGatewayController {
     const apiKeyUser = req.user;
 
     try {
+      // ✅ Validation
       if (!body.system_user_id) {
         throw new HttpException('system_user_id est requis', HttpStatus.BAD_REQUEST);
       }
@@ -3624,8 +3624,10 @@ export class ApiGatewayController {
 
       console.log('[ExternalPay] 📋 system_user_id du payeur:', body.system_user_id);
 
+      // ✅ Correction du type
+      let fpayUserId: string | null = null;
+
       // ✅ 1. Vérifier le token si fourni
-      let fpayUserId = null;
       if (body.access_token) {
         try {
           const verifyResponse = await this.sendUserMessage<{
@@ -3722,7 +3724,7 @@ export class ApiGatewayController {
         });
       }
 
-      // ✅ 4. Récupérer le wallet du payeur
+      // ✅ 4. Récupérer le wallet du payeur (dans user-service)
       const payer = await this.prisma.user.findFirst({
         where: {
           id: body.system_user_id,
@@ -3751,6 +3753,12 @@ export class ApiGatewayController {
         }
       }
 
+      console.log('[ExternalPay] Client wallet found:', {
+        walletId: clientWallet.id,
+        currency: clientWallet.currency,
+        balance: clientWallet.balance,
+      });
+
       if (clientWallet.balance < body.amount) {
         throw new HttpException(
           `Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`,
@@ -3769,7 +3777,7 @@ export class ApiGatewayController {
         throw new HttpException('Impossible de payer à soi-même', HttpStatus.BAD_REQUEST);
       }
 
-      // ✅ 7. Préparer le payload
+      // ✅ 7. Préparer le payload (sans PIN)
       const payPayload: any = {
         fromWalletId: clientWallet.id,
         amount: body.amount,
@@ -3778,6 +3786,7 @@ export class ApiGatewayController {
         ipAddress,
       };
 
+      // ✅ 8. Ajouter le destinataire
       if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
         payPayload.merchantCode = recipient.merchantCode;
         console.log('[ExternalPay] ✅ Paiement vers un marchand, code:', recipient.merchantCode);
@@ -3790,7 +3799,7 @@ export class ApiGatewayController {
 
       console.log('[ExternalPay] 📤 Payload envoyé (sans PIN):', payPayload);
 
-      // ✅ 8. Appeler le service wallet
+      // ✅ 9. Appeler le service wallet avec 'pay_without_pin'
       const response = await this.sendWalletMessage(
         'pay_without_pin',
         payPayload,
