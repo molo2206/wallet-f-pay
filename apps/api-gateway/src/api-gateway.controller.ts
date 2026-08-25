@@ -4474,7 +4474,7 @@ export class ApiGatewayController {
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
-  @Get('oauth/login')
+@Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
       code?: string;
@@ -4511,21 +4511,26 @@ export class ApiGatewayController {
       // ✅ Récupérer le clientId
       const clientId = query.client_id || 'web-client';
 
-      // ✅ Déterminer le callback URL en fonction du clientId
+      // ✅ Déterminer le callback URL
+      // ✅ PRIORITÉ : redirect_uri fourni par le client
+      // ✅ SINON : déterminer automatiquement en fonction du client_id
       let callbackUrl = query.redirect_uri || '';
 
       // ✅ Si redirect_uri n'est pas fourni, le déterminer automatiquement
       if (!callbackUrl) {
         if (clientId === 'mobile-client' || clientId?.includes('mobile')) {
           callbackUrl = mobileCallbackUrl; // fpay://callback
+          console.log('[OAuth] 📱 Client mobile, callback automatique:', callbackUrl);
         } else {
           callbackUrl = oauthCallbackUrl; // URL web
+          console.log('[OAuth] 🌐 Client web, callback automatique:', callbackUrl);
         }
+      } else {
+        console.log('[OAuth] 📋 redirect_uri fourni par le client:', callbackUrl);
       }
 
       console.log('[OAuth] Client ID:', clientId);
-      console.log('[OAuth] Callback URL:', callbackUrl);
-      console.log('[OAuth] Type:', clientId === 'mobile-client' ? 'MOBILE' : 'WEB');
+      console.log('[OAuth] Callback URL final:', callbackUrl);
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
 
@@ -4548,7 +4553,7 @@ export class ApiGatewayController {
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec le clientId et handleRedirect amélioré
+      // ✅ Version HTML avec le clientId
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4970,7 +4975,6 @@ export class ApiGatewayController {
                 console.log('[OAuth] User data:', userData);
             }
 
-            // ✅ Fonction handleRedirect améliorée pour mobile et web
             window.handleRedirect = function() {
                 console.log('[OAuth] Redirection vers:', REDIRECT_URI);
                 console.log('[OAuth] Tokens:', userTokens);
@@ -4980,7 +4984,6 @@ export class ApiGatewayController {
                 if (REDIRECT_URI.startsWith('fpay://')) {
                     var params = new URLSearchParams();
                     
-                    // Ajouter tous les paramètres
                     if (userTokens.accessToken) {
                         params.set('access_token', userTokens.accessToken);
                     }
@@ -5012,7 +5015,6 @@ export class ApiGatewayController {
                         params.set('client_id', CLIENT_ID);
                     }
 
-                    // ✅ Ajouter les données utilisateur
                     if (userData) {
                         params.set('data_id', userData.id || '');
                         params.set('data_phone', userData.phone || '');
@@ -5036,7 +5038,6 @@ export class ApiGatewayController {
                         }
                     }
 
-                    // ✅ Construire l'URL mobile
                     var finalUrl = REDIRECT_URI + '?' + params.toString();
                     console.log('[OAuth] Redirection mobile:', finalUrl);
                     window.location.href = finalUrl;
@@ -5105,7 +5106,6 @@ export class ApiGatewayController {
                     window.location.href = redirectUrl.toString();
                 } catch (error) {
                     console.error('[OAuth] Erreur redirection:', error);
-                    // Fallback: redirection simple avec les paramètres de base
                     var fallbackUrl = REDIRECT_URI + '?access_token=' + encodeURIComponent(userTokens.accessToken || '') +
                         '&refresh_token=' + encodeURIComponent(userTokens.refreshToken || '') +
                         '&user_id=' + encodeURIComponent(userTokens.userId || '') +
