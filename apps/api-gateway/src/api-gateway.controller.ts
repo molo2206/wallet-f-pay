@@ -4626,8 +4626,9 @@ export class ApiGatewayController {
             border: none;
             cursor: pointer;
             color: #9ca3af;
-            font-size: 18px;
+            font-size: 20px;
             padding: 4px;
+            line-height: 1;
         }
         .form-group .toggle-password:hover { color: #0A1CF2; }
 
@@ -4762,7 +4763,7 @@ export class ApiGatewayController {
                     <label>Mot de passe <span class="required">*</span></label>
                     <div class="input-wrapper">
                         <input type="password" id="password" placeholder="Votre mot de passe" required>
-                        <button type="button" class="toggle-password" id="togglePassword">👁</button>
+                        <button type="button" class="toggle-password" id="togglePassword">👁️</button>
                     </div>
                     <div class="error-message" id="passwordError">Le mot de passe est requis (min. 8 caracteres)</div>
                     <div class="input-hint">Minimum 8 caracteres</div>
@@ -4775,7 +4776,7 @@ export class ApiGatewayController {
                             <input type="text" id="otpCode" placeholder="Code a 6 chiffres" maxlength="6" inputmode="numeric">
                         </div>
                         <div class="error-message" id="otpError">Code invalide (6 chiffres)</div>
-                        <div class="timer" id="timer">⏱ <span class="highlight">60s</span></div>
+                        <div class="timer" id="timer">⏱️ <span class="highlight">60s</span></div>
                     </div>
                 </div>
 
@@ -4855,8 +4856,8 @@ export class ApiGatewayController {
             console.log('[OAuth] APP_URL:', APP_URL);
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
             console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
-            console.log('[OAuth] Paiement:', { AMOUNT, CURRENCY, DESCRIPTION });
-            console.log('[OAuth] API_KEY:', API_KEY ? 'Presente' : 'Absente');
+            console.log('[OAuth] Paiement:', { AMOUNT: AMOUNT || 'Non fourni', CURRENCY: CURRENCY || 'Non fourni', DESCRIPTION: DESCRIPTION || 'Non fourni' });
+            console.log('[OAuth] API_KEY:', API_KEY ? '✅ Presente' : '❌ Absente');
 
             var urlParams = new URLSearchParams(window.location.search);
             var CLIENT_ID = urlParams.get('client_id') || 'web-client';
@@ -4913,14 +4914,23 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            //  TOGGLE PASSWORD
+            //  TOGGLE PASSWORD (CORRIGE)
             // ============================================================
 
-            document.getElementById('togglePassword').addEventListener('click', function() {
-                var input = document.getElementById('password');
-                var type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-                input.setAttribute('type', type);
-                this.textContent = type === 'password' ? '👁' : '👁‍🗨';
+            document.addEventListener('DOMContentLoaded', function() {
+                var toggleBtn = document.getElementById('togglePassword');
+                var passwordInput = document.getElementById('password');
+                
+                if (toggleBtn && passwordInput) {
+                    toggleBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        var type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                        passwordInput.setAttribute('type', type);
+                        this.textContent = type === 'password' ? '👁️' : '🙈';
+                        console.log('[OAuth] Toggle password:', type);
+                    });
+                }
             });
 
             // ============================================================
@@ -5059,7 +5069,7 @@ export class ApiGatewayController {
                 if (DESCRIPTION) redirectUrl.searchParams.set('description', DESCRIPTION);
                 if (API_KEY) redirectUrl.searchParams.set('api_key', API_KEY);
 
-                console.log('[OAuth] Redirection vers:', redirectUrl.toString());
+                console.log('[OAuth] 🚀 Redirection vers:', redirectUrl.toString());
                 window.location.href = redirectUrl.toString();
             };
 
@@ -5071,7 +5081,7 @@ export class ApiGatewayController {
                 secondsLeft = 60;
                 var timerEl = document.getElementById('timer');
                 timerEl.style.display = 'block';
-                timerEl.innerHTML = '⏱ <span class="highlight">60s</span>';
+                timerEl.innerHTML = '⏱️ <span class="highlight">60s</span>';
 
                 document.getElementById('resendLink').style.display = 'inline';
                 document.getElementById('dividerResend').style.display = 'inline';
@@ -5079,10 +5089,10 @@ export class ApiGatewayController {
                 clearInterval(timerInterval);
                 timerInterval = setInterval(function() {
                     secondsLeft--;
-                    timerEl.innerHTML = '⏱ <span class="highlight">' + secondsLeft + 's</span>';
+                    timerEl.innerHTML = '⏱️ <span class="highlight">' + secondsLeft + 's</span>';
                     if (secondsLeft <= 0) {
                         clearInterval(timerInterval);
-                        timerEl.innerHTML = '⏱ <span style="color: #ef4444;">Expire</span>';
+                        timerEl.innerHTML = '⏱️ <span style="color: #ef4444;">Expire</span>';
                     }
                 }, 1000);
             }
@@ -5139,7 +5149,7 @@ export class ApiGatewayController {
             };
 
             // ============================================================
-            //  SOUMISSION (2 ETAPES)
+            //  SOUMISSION (2 ETAPES) - CORRIGE
             // ============================================================
 
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
@@ -5155,6 +5165,19 @@ export class ApiGatewayController {
                 console.log('[OAuth] Formulaire soumis');
                 console.log('[OAuth] Phone:', phone);
                 console.log('[OAuth] OTP:', otpCode ? 'Present' : 'Absent');
+
+                // Verifier que les champs sont remplis
+                if (!phone) {
+                    showMessage('error', 'Veuillez saisir votre numero de telephone');
+                    document.getElementById('phone').focus();
+                    return;
+                }
+
+                if (!password) {
+                    showMessage('error', 'Veuillez saisir votre mot de passe');
+                    document.getElementById('password').focus();
+                    return;
+                }
 
                 var isPhoneValid = validatePhone(phone);
                 var isPasswordValid = validatePassword(password);
@@ -5185,6 +5208,8 @@ export class ApiGatewayController {
                             lang: 'fr'
                         };
 
+                        console.log('[OAuth] Etape 1 - Payload:', payloadStep1);
+
                         var response1 = await fetch('/auth/link-user', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -5192,6 +5217,8 @@ export class ApiGatewayController {
                         });
 
                         var data1 = await response1.json();
+
+                        console.log('[OAuth] Etape 1 - Reponse:', data1);
 
                         if (!response1.ok) throw new Error(data1.message || 'Identifiants invalides');
 
@@ -5217,7 +5244,7 @@ export class ApiGatewayController {
                             return;
                         }
                     } catch (error) {
-                        console.error('[OAuth] Erreur:', error);
+                        console.error('[OAuth] Etape 1 - Erreur:', error);
                         showMessage('error', error.message || 'Identifiants invalides');
                         stopLoading();
                         return;
@@ -5245,6 +5272,8 @@ export class ApiGatewayController {
                             lang: 'fr'
                         };
 
+                        console.log('[OAuth] Etape 2 - Payload:', payloadStep2);
+
                         var response2 = await fetch('/auth/link-user', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -5253,12 +5282,14 @@ export class ApiGatewayController {
 
                         var data2 = await response2.json();
 
+                        console.log('[OAuth] Etape 2 - Reponse:', data2);
+
                         if (!response2.ok) throw new Error(data2.message || 'Code OTP invalide');
 
                         showSuccess(data2);
                         stopLoading();
                     } catch (error) {
-                        console.error('[OAuth] Erreur:', error);
+                        console.error('[OAuth] Etape 2 - Erreur:', error);
                         showMessage('error', error.message || 'Code OTP invalide ou expire');
                         stopLoading();
                     }
@@ -5301,7 +5332,8 @@ export class ApiGatewayController {
                 if (otpInput) {
                     otpInput.addEventListener('input', function() {
                         this.value = this.value.replace(/\D/g, '').slice(0, 6);
-                        if (validateOtp(this.value)) {
+                        if (validateOtp(this.value) && this.value.length === 6) {
+                            console.log('[OAuth] OTP complet, soumission automatique');
                             document.getElementById('loginForm').dispatchEvent(new Event('submit'));
                         }
                     });
