@@ -5619,23 +5619,60 @@ export class ApiGatewayController {
       return redirectWithError(query.error, 'Erreur d\'authentification FPay');
     }
 
-    // ✅ CAS 1: Déjà connecté avec tokens
+    // ✅ CAS 1: Déjà connecté avec tokens - VÉRIFICATION JWT DIRECTE
     if (query.access_token && query.user_id) {
       console.log('[FPay] ✅ Utilisateur déjà connecté avec tokens');
 
-      // ✅ Déclarer userData avec un type explicite
+      // ✅ VÉRIFIER LE TOKEN AVEC JWT (sans base de données)
+      let isValidToken = true;
+      let decodedToken: any = null;
+
+      try {
+        // Décoder le JWT (sans vérifier la signature)
+        decodedToken = jwt.decode(query.access_token) as any;
+
+        if (!decodedToken || !decodedToken.id) {
+          isValidToken = false;
+          console.error('[FPay] ❌ Token invalide - pas de id');
+        }
+
+        // Vérifier l'expiration
+        if (decodedToken && decodedToken.exp) {
+          const now = Math.floor(Date.now() / 1000);
+          if (decodedToken.exp < now) {
+            isValidToken = false;
+            console.error('[FPay] ❌ Token expiré');
+          }
+        }
+
+        // Vérifier que l'user_id du query correspond à l'id du token
+        if (decodedToken && decodedToken.id !== query.user_id) {
+          isValidToken = false;
+          console.error('[FPay] ❌ Mismatch user_id');
+        }
+
+      } catch (error) {
+        console.error('[FPay] ❌ Erreur décodage JWT:', error.message);
+        isValidToken = false;
+      }
+
+      if (!isValidToken) {
+        return redirectWithError('invalid_token', 'Token FPay invalide ou expiré');
+      }
+
+      // ✅ Token valide - Construire les données utilisateur
       let userData: any = null;
       let wallets = null;
 
       if (query.data_id) {
         userData = {
           id: query.data_id,
-          phone: query.data_phone || '',
-          full_name: query.data_full_name || '',
-          role: query.data_role || 'USER',
-          status: query.data_status || 'ACTIVE',
-          kycStatus: query.data_kycStatus || 'NOT_SUBMITTED',
-          countryCode: query.data_countryCode || 'CD',
+          phone: query.data_phone || decodedToken?.phone || '',
+          full_name: query.data_full_name || decodedToken?.full_name || '',
+          role: query.data_role || decodedToken?.role || 'USER',
+          status: query.data_status || decodedToken?.status || 'ACTIVE',
+          kycStatus: query.data_kycStatus || decodedToken?.kycStatus || 'NOT_SUBMITTED',
+          countryCode: query.data_countryCode || decodedToken?.countryCode || 'CD',
           wallets: []
         };
 
@@ -5647,6 +5684,18 @@ export class ApiGatewayController {
             console.warn('[FPay] ⚠️ Erreur parsing wallets');
           }
         }
+      } else if (decodedToken) {
+        // Utiliser les données du token si data_id n'est pas présent
+        userData = {
+          id: decodedToken.id,
+          phone: decodedToken.phone || '',
+          full_name: decodedToken.full_name || '',
+          role: decodedToken.role || 'USER',
+          status: decodedToken.status || 'ACTIVE',
+          kycStatus: decodedToken.kycStatus || 'NOT_SUBMITTED',
+          countryCode: decodedToken.countryCode || 'CD',
+          wallets: []
+        };
       }
 
       // ✅ Si on est en contexte LINK
@@ -5674,7 +5723,6 @@ export class ApiGatewayController {
 
           console.log('[FPay] ✅ Comptes liés avec succès');
 
-          // ✅ Créer un objet data avec fallback si userData est null
           const finalData = userData || {
             id: query.user_id,
             phone: '',
@@ -5702,33 +5750,6 @@ export class ApiGatewayController {
           console.error('[FPay] ❌ Erreur liaison:', linkError.message);
           return redirectWithError('link_failed', linkError.message || 'Échec de la liaison des comptes');
         }
-      }
-
-      // ✅ Si on est en contexte PAIEMENT
-      if (isPaymentContext) {
-        console.log('[FPay] 💰 Contexte PAIEMENT - Paiement automatique');
-
-        // ... (logique de paiement existante)
-
-        // ✅ Créer un objet data avec fallback si userData est null
-        const finalData = userData || {
-          id: query.user_id,
-          phone: '',
-          full_name: '',
-          role: 'USER',
-          status: 'ACTIVE',
-          kycStatus: 'NOT_SUBMITTED',
-          countryCode: 'CD',
-          wallets: []
-        };
-
-        return redirectWithSuccess({
-          success: true,
-          accessToken: query.access_token,
-          refreshToken: query.refresh_token,
-          message: 'Authentification FPay réussie',
-          data: finalData
-        });
       }
 
       // ✅ Cas simple: Authentification seulement
