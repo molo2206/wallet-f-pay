@@ -4290,6 +4290,52 @@ export class ApiGatewayController {
       });
     }
   }
+
+  @Post('auth/verify-token')
+  async verifyToken(
+    @Body() body: { access_token: string },
+    @Res() res: Response,
+  ) {
+    try {
+      const { access_token } = body;
+
+      if (!access_token) {
+        return res.status(400).json({
+          success: false,
+          message: 'access_token est requis'
+        });
+      }
+
+      const verifyResponse = await this.sendAuthMessage<{
+        valid: boolean;
+        data?: {
+          id: string;
+          email: string | null;
+          phone: string | null;
+          full_name: string | null;
+          role: string;
+          status: string;
+          kycStatus: string;
+          countryCode: string | null;
+        };
+        message: string;
+      }>(
+        'verify_token',
+        { accessToken: access_token },
+        'Token invalide',
+        HttpStatus.UNAUTHORIZED,
+      );
+
+      return res.status(200).json(verifyResponse);
+
+    } catch (error) {
+      console.error('[verifyToken] ❌ Erreur:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Erreur lors de la vérification'
+      });
+    }
+  }
   // ============================================================
   // 3. ENDPOINT SPÉCIFIQUE POUR LA VÉRIFICATION OTP FPAY
   // ============================================================
