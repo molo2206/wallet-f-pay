@@ -1,5 +1,6 @@
-// apps/auth-service/src/utility/guards/jwt-auth.guard.ts
-
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   Injectable,
   CanActivate,
@@ -8,7 +9,6 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
-  SetMetadata,
 } from '@nestjs/common';
 import { verify, TokenExpiredError, JsonWebTokenError } from 'jsonwebtoken';
 import { ConfigService } from '@nestjs/config';
@@ -19,10 +19,6 @@ import {
 } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
 import { I18nService } from '@app/common';
-import { Reflector } from '@nestjs/core';
-
-export const IS_PUBLIC_KEY = 'isPublic';
-export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -31,7 +27,6 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     private readonly i18nService: I18nService,
-    private readonly reflector: Reflector, // ✅ AJOUTER Reflector
   ) {
     const rmqUrl =
       process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
@@ -54,18 +49,6 @@ export class JwtAuthGuard implements CanActivate {
     const lang = request.headers['lang'] || 'fr';
     const url = request.url;
     const isLogoutRoute = url === '/auth/logout';
-
-    // ✅ Vérifier si la route est marquée comme publique
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-
-    // ✅ Si route publique, on saute l'authentification
-    if (isPublic) {
-      console.log(`[JwtAuthGuard] 🔓 Route publique: ${url}`);
-      return true;
-    }
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       if (isLogoutRoute) {
@@ -91,6 +74,7 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Payload JWT invalide');
       }
 
+      // Récupérer le statut uniquement si ce n'est pas logout
       let currentStatus: string = 'ACTIVE';
       if (!isLogoutRoute) {
         try {
@@ -107,6 +91,7 @@ export class JwtAuthGuard implements CanActivate {
         }
       }
 
+      // Vérifier le statut (sauf logout)
       if (!isLogoutRoute && currentStatus !== 'ACTIVE') {
         let messageKey: string;
         let statusCode: number;
@@ -131,6 +116,7 @@ export class JwtAuthGuard implements CanActivate {
         throw new HttpException(message, statusCode);
       }
 
+      // Valider la session (sauf logout)
       if (!isLogoutRoute) {
         if (!payload.sessionToken) {
           throw new UnauthorizedException('Token sans session');
@@ -153,6 +139,7 @@ export class JwtAuthGuard implements CanActivate {
         }
       }
 
+      // ✅ Récupérer l'utilisateur complet avec branchId et branch depuis la base de données
       let userWithBranch: any = null;
       if (!isLogoutRoute) {
         try {
@@ -161,7 +148,7 @@ export class JwtAuthGuard implements CanActivate {
               .send('get_user_by_id', { userId: payload.id })
               .pipe(timeout(5000)),
           );
-
+          
           console.log('[JwtAuthGuard] User data from DB:', {
             id: userWithBranch?.id,
             branchId: userWithBranch?.branchId,
@@ -173,8 +160,10 @@ export class JwtAuthGuard implements CanActivate {
         }
       }
 
+      // ✅ Si userWithBranch n'est pas trouvé, utiliser les données du payload
       const userData = userWithBranch || payload;
 
+      // ✅ Construire l'utilisateur complet
       const currentUser = {
         id: payload.id,
         email: payload.email ?? null,
@@ -187,6 +176,7 @@ export class JwtAuthGuard implements CanActivate {
         createdAt: payload.createdAt ? new Date(payload.createdAt) : new Date(),
         updatedAt: payload.updatedAt ? new Date(payload.updatedAt) : new Date(),
         sessionToken: payload.sessionToken,
+        // ✅ Récupérer branchId depuis les données utilisateur
         branchId: userData.branchId || null,
         branch: userData.branch || null,
         countryCode: userData.countryCode || payload.countryCode || null,
@@ -206,6 +196,7 @@ export class JwtAuthGuard implements CanActivate {
         hasBranch: !!currentUser.branch,
       });
 
+      // ✅ Attacher l'utilisateur à la requête
       request.currentUser = currentUser;
       request.user = currentUser;
 
