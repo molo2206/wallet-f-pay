@@ -4630,6 +4630,7 @@ export class ApiGatewayController {
         html = html.replace(/{{API_KEY}}/g, apiKey);
         html = html.replace(/{{CLIENT_ID}}/g, clientId);
         html = html.replace(/{{REDIRECT_URI}}/g, callbackUrl);
+        html = html.replace(/{{OAUTH_API_URL}}/g, `${req.protocol}://${req.get('host')}`);
 
         return res.set('Content-Type', 'text/html').send(html);
       }
@@ -4962,8 +4963,9 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
-            // ✅ URL de l'API FPay
-            var FPAY_API_URL = '${process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com'}';
+            // ✅ MODIFICATION: Utiliser le backend OAuth au lieu de FPay API
+            // var FPAY_API_URL = '${process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com'}';
+            var OAUTH_API_URL = '{{OAUTH_API_URL}}';
             
             var APP_URL = '${appUrl}';
             var FRONTEND_URL = '${frontendUrl}';
@@ -4980,6 +4982,7 @@ export class ApiGatewayController {
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
+            console.log('[OAuth] OAUTH_API_URL:', OAUTH_API_URL);
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
             console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
             console.log('[OAuth] CLIENT_ID:', CLIENT_ID);
@@ -5206,8 +5209,8 @@ export class ApiGatewayController {
                 showMessage('info', 'Envoi d un nouveau code OTP...');
 
                 try {
-                    // ✅ Appel direct à FPay
-                    var response = await fetch(FPAY_API_URL + '/auth/send-otp', {
+                    // ✅ MODIFICATION: Appel au backend OAuth au lieu de FPay direct
+                    var response = await fetch(OAUTH_API_URL + '/oauth/send-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -5238,7 +5241,7 @@ export class ApiGatewayController {
                 }
             };
 
-            // ✅ Formulaire modifié - appelle directement FPay
+            // ✅ MODIFICATION: Formulaire modifié - appelle le backend OAuth
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5273,8 +5276,8 @@ export class ApiGatewayController {
 
                         console.log('[OAuth] Etape 1 - Login:', payloadStep1);
 
-                        // ✅ Appel direct à FPay
-                        var response1 = await fetch(FPAY_API_URL + '/auth/login', {
+                        // ✅ MODIFICATION: Appel au backend OAuth au lieu de FPay direct
+                        var response1 = await fetch(OAUTH_API_URL + '/oauth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep1)
@@ -5309,7 +5312,7 @@ export class ApiGatewayController {
                             return;
                         }
 
-                        // ✅ Login réussi - retourne directement les tokens FPay
+                        // ✅ Login réussi - retourne les tokens via le backend
                         showSuccess(data1);
                         stopLoading();
                         return;
@@ -5344,8 +5347,8 @@ export class ApiGatewayController {
 
                         console.log('[OAuth] Etape 2 - Verification OTP:', payloadStep2);
 
-                        // ✅ Appel direct à FPay
-                        var response2 = await fetch(FPAY_API_URL + '/auth/login', {
+                        // ✅ MODIFICATION: Appel au backend OAuth au lieu de FPay direct
+                        var response2 = await fetch(OAUTH_API_URL + '/oauth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep2)
@@ -5429,7 +5432,7 @@ export class ApiGatewayController {
       return res.status(500).send('Erreur lors du chargement de la page');
     }
   }
-
+  
   @Post('auth/generate-token')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async generateToken(
