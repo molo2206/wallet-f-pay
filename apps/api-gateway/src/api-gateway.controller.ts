@@ -4535,7 +4535,7 @@ export class ApiGatewayController {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -4546,17 +4546,28 @@ export class ApiGatewayController {
             width: 100%;
             max-width: 480px;
             background: white;
-            border-radius: 24px;
+            border-radius: 28px;
             padding: 48px 40px;
-            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.15);
-            border: 1px solid rgba(10, 28, 242, 0.08);
+            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.12);
+            border: 1px solid rgba(10, 28, 242, 0.06);
+            position: relative;
+            overflow: hidden;
+        }
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #0A1CF2, #FFB81C);
         }
         .logo { text-align: center; margin-bottom: 32px; }
         .logo .icon {
             width: 72px;
             height: 72px;
-            background: #0A1CF2;
-            border-radius: 18px;
+            background: linear-gradient(135deg, #0A1CF2, #1a3aff);
+            border-radius: 20px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -4564,17 +4575,30 @@ export class ApiGatewayController {
             color: white;
             font-weight: bold;
             margin-bottom: 12px;
+            box-shadow: 0 8px 24px rgba(10, 28, 242, 0.25);
+            transition: transform 0.3s ease;
         }
-        .logo h1 { font-size: 28px; color: #1a1a2e; letter-spacing: -0.5px; }
+        .logo .icon:hover { transform: scale(1.05); }
+        .logo h1 { 
+            font-size: 28px; 
+            color: #1a1a2e; 
+            letter-spacing: -0.5px;
+            font-weight: 700;
+        }
         .logo h1 .f { color: #0A1CF2; }
         .logo h1 .pay { color: #FFB81C; }
-        .logo p { color: #6b7280; font-size: 14px; margin-top: 4px; }
+        .logo p { 
+            color: #6b7280; 
+            font-size: 14px; 
+            margin-top: 4px;
+            font-weight: 500;
+        }
         .env-badge {
             display: inline-block;
-            padding: 4px 12px;
+            padding: 4px 14px;
             border-radius: 20px;
             font-size: 11px;
-            font-weight: 600;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-top: 8px;
@@ -4582,15 +4606,26 @@ export class ApiGatewayController {
         .env-badge.local { background: #10b981; color: white; }
         .env-badge.test { background: #f59e0b; color: white; }
         .env-badge.production { background: #ef4444; color: white; }
-        .header { margin-bottom: 28px; }
-        .header h2 { font-size: 20px; color: #1a1a2e; margin-bottom: 6px; }
-        .header p { color: #6b7280; font-size: 14px; }
+
+        .header { margin-bottom: 24px; }
+        .header h2 { 
+            font-size: 22px; 
+            color: #1a1a2e; 
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+        .header p { 
+            color: #6b7280; 
+            font-size: 14px; 
+            font-weight: 400;
+        }
+
         .payment-info {
-            background: #f8f9ff;
-            border-radius: 12px;
-            padding: 16px;
+            background: linear-gradient(135deg, #f8f9ff, #f0f2ff);
+            border-radius: 16px;
+            padding: 16px 20px;
             margin-bottom: 20px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid rgba(10, 28, 242, 0.08);
         }
         .payment-info .info-row {
             display: flex;
@@ -4600,69 +4635,191 @@ export class ApiGatewayController {
         .payment-info .label {
             color: #6b7280;
             font-size: 13px;
+            font-weight: 500;
         }
         .payment-info .value {
             color: #1a1a2e;
-            font-weight: 600;
-            font-size: 13px;
+            font-weight: 700;
+            font-size: 14px;
         }
-        .form-group { margin-bottom: 18px; }
-        .form-group label { display: block; font-size: 14px; font-weight: 500; color: #1a1a2e; margin-bottom: 6px; }
-        .form-group input {
+        .payment-info .value.amount {
+            color: #0A1CF2;
+            font-size: 16px;
+        }
+
+        .form-group { 
+            margin-bottom: 16px; 
+            position: relative;
+        }
+        .form-group label { 
+            display: block; 
+            font-size: 13px; 
+            font-weight: 600; 
+            color: #1a1a2e; 
+            margin-bottom: 6px;
+        }
+        .form-group label .required {
+            color: #ef4444;
+            margin-left: 2px;
+        }
+        .form-group .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .form-group .input-wrapper input {
             width: 100%;
             padding: 12px 16px;
+            padding-right: 45px;
             border: 2px solid #e5e7eb;
             border-radius: 12px;
             font-size: 15px;
-            transition: all 0.2s;
+            transition: all 0.25s ease;
             background: #fafafa;
             color: #1a1a2e;
+            font-weight: 500;
         }
-        .form-group input:focus {
+        .form-group .input-wrapper input:focus {
             outline: none;
             border-color: #0A1CF2;
             background: white;
-            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.1);
+            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
         }
-        .form-group input::placeholder { color: #9ca3af; }
-        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+        .form-group .input-wrapper input.error {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        .form-group .input-wrapper input.error:focus {
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
+        }
+        .form-group .input-wrapper input.success {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        .form-group .input-wrapper input::placeholder { 
+            color: #9ca3af;
+            font-weight: 400;
+        }
+        .form-group .input-wrapper input:disabled { 
+            opacity: 0.6; 
+            cursor: not-allowed; 
+        }
+
+        .form-group .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #9ca3af;
+            font-size: 20px;
+            padding: 4px;
+            transition: color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+        }
+        .form-group .toggle-password:hover {
+            color: #0A1CF2;
+            background: rgba(10, 28, 242, 0.06);
+        }
+        .form-group .toggle-password:focus {
+            outline: none;
+        }
+
+        .form-group .error-message {
+            color: #ef4444;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+            font-weight: 500;
+        }
+        .form-group .error-message.show {
+            display: block;
+        }
+
+        .form-group .input-hint {
+            color: #9ca3af;
+            font-size: 12px;
+            margin-top: 4px;
+            font-weight: 400;
+        }
+
         .btn {
             width: 100%;
             padding: 14px;
             border: none;
             border-radius: 12px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            background: #0A1CF2;
+            background: linear-gradient(135deg, #0A1CF2, #1a3aff);
             color: white;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(10, 28, 242, 0.35); }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
-        .btn .spinner { display: none; }
-        .btn.loading .spinner { display: inline-block; }
-        .btn.loading .btn-text { display: none; }
-        .btn .spinner {
+        .btn:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 25px rgba(10, 28, 242, 0.35);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .btn:disabled { 
+            opacity: 0.6; 
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none; 
+        }
+        .btn .spinner { 
+            display: none; 
             width: 20px;
             height: 20px;
             border: 3px solid rgba(255, 255, 255, 0.3);
             border-top-color: white;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+        .btn.loading .spinner { 
+            display: block; 
+        }
+        .btn.loading .btn-text { 
+            display: none; 
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
         .message {
             padding: 12px 16px;
             border-radius: 12px;
             margin-bottom: 16px;
             font-size: 14px;
             display: none;
+            font-weight: 500;
         }
         .message.show { display: block; }
-        .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-        .message.success { background: #f0fdf4; color: #059669; border: 1px solid #bbf7d0; }
-        .message.info { background: #eff6ff; color: #0A1CF2; border: 1px solid rgba(10, 28, 242, 0.2); }
+        .message.error { 
+            background: #fef2f2; 
+            color: #dc2626; 
+            border: 1px solid #fecaca;
+        }
+        .message.success { 
+            background: #f0fdf4; 
+            color: #059669; 
+            border: 1px solid #bbf7d0;
+        }
+        .message.info { 
+            background: #eff6ff; 
+            color: #0A1CF2; 
+            border: 1px solid rgba(10, 28, 242, 0.2);
+        }
+
         .otp-section {
             display: none;
             animation: fadeIn 0.3s ease-in;
@@ -4674,31 +4831,87 @@ export class ApiGatewayController {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .links { text-align: center; margin-top: 20px; font-size: 14px; color: #6b7280; }
-        .links a { color: #0A1CF2; text-decoration: none; font-weight: 500; cursor: pointer; }
-        .links a:hover { text-decoration: underline; }
-        .links .divider { color: #e5e7eb; margin: 0 8px; }
-        .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
-        .footer a { color: #6b7280; text-decoration: none; }
-        .footer a:hover { color: #0A1CF2; }
+
+        .links { 
+            text-align: center; 
+            margin-top: 20px; 
+            font-size: 14px; 
+            color: #6b7280;
+        }
+        .links a { 
+            color: #0A1CF2; 
+            text-decoration: none; 
+            font-weight: 600;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .links a:hover { 
+            text-decoration: underline;
+            color: #1a3aff;
+        }
+        .links .divider { 
+            color: #e5e7eb; 
+            margin: 0 8px; 
+        }
+        .links .disabled {
+            color: #9ca3af;
+            pointer-events: none;
+            cursor: default;
+        }
+
+        .footer { 
+            text-align: center; 
+            margin-top: 24px; 
+            color: #9ca3af; 
+            font-size: 12px;
+        }
+        .footer a { 
+            color: #6b7280; 
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .footer a:hover { 
+            color: #0A1CF2; 
+        }
+        .footer .dot {
+            margin: 0 4px;
+        }
+
         .timer {
             text-align: center;
             font-size: 13px;
             color: #6b7280;
             margin-top: 8px;
+            font-weight: 500;
         }
+        .timer .highlight {
+            color: #0A1CF2;
+            font-weight: 700;
+        }
+
         #successState {
             display: none;
             text-align: center;
             padding: 20px 0;
         }
-        #successState .success-icon { font-size: 64px; margin-bottom: 16px; }
-        #successState h2 { color: #1a1a2e; margin-bottom: 8px; }
-        #successState p { color: #6b7280; margin-bottom: 8px; }
+        #successState .success-icon { 
+            font-size: 64px; 
+            margin-bottom: 16px;
+            display: block;
+        }
+        #successState h2 { 
+            color: #1a1a2e; 
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+        #successState p { 
+            color: #6b7280; 
+            margin-bottom: 8px;
+        }
         #successState .user-info {
             background: #f8f9ff;
-            border-radius: 12px;
-            padding: 16px;
+            border-radius: 16px;
+            padding: 16px 20px;
             margin: 16px 0;
             text-align: left;
             border: 1px solid #e5e7eb;
@@ -4710,42 +4923,109 @@ export class ApiGatewayController {
             border-bottom: 1px solid #f0f0f0;
         }
         #successState .user-info .info-row:last-child { border-bottom: none; }
-        #successState .user-info .label { color: #6b7280; font-size: 13px; }
-        #successState .user-info .value { color: #1a1a2e; font-weight: 500; font-size: 13px; }
+        #successState .user-info .label { 
+            color: #6b7280; 
+            font-size: 13px;
+            font-weight: 500;
+        }
+        #successState .user-info .value { 
+            color: #1a1a2e; 
+            font-weight: 600; 
+            font-size: 13px;
+        }
+        #successState .redirect-timer {
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+        #successState .redirect-timer .count {
+            color: #0A1CF2;
+            font-weight: 700;
+        }
 
         @media (prefers-color-scheme: dark) {
-            body { background: #1a1a2e; }
-            .container { background: #1e293b; border-color: rgba(255, 255, 255, 0.05); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+            body { background: linear-gradient(135deg, #1a1a2e, #16213e); }
+            .container { 
+                background: #1e293b; 
+                border-color: rgba(255, 255, 255, 0.05);
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            }
             .logo h1 { color: #f1f5f9; }
             .logo p { color: #94a3b8; }
             .header h2 { color: #f1f5f9; }
             .header p { color: #94a3b8; }
-            .payment-info { background: #1e293b; border-color: #334155; }
+            .payment-info { 
+                background: #0f172a; 
+                border-color: #334155;
+            }
             .payment-info .value { color: #f1f5f9; }
+            .payment-info .value.amount { color: #93c5fd; }
             .form-group label { color: #f1f5f9; }
-            .form-group input { background: #0f172a; border-color: #334155; color: #f1f5f9; }
-            .form-group input:focus { background: #1e293b; border-color: #0A1CF2; box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2); }
-            .form-group input::placeholder { color: #64748b; }
+            .form-group .input-wrapper input { 
+                background: #0f172a; 
+                border-color: #334155; 
+                color: #f1f5f9;
+            }
+            .form-group .input-wrapper input:focus { 
+                background: #1e293b; 
+                border-color: #0A1CF2;
+                box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2);
+            }
+            .form-group .input-wrapper input.error {
+                border-color: #ef4444;
+                background: #451a1a;
+            }
+            .form-group .input-wrapper input.success {
+                border-color: #10b981;
+                background: #064e3b;
+            }
+            .form-group .input-wrapper input::placeholder { color: #64748b; }
+            .form-group .toggle-password { color: #64748b; }
+            .form-group .toggle-password:hover { 
+                color: #93c5fd; 
+                background: rgba(10, 28, 242, 0.15);
+            }
             .links { color: #94a3b8; }
             .links a { color: #93c5fd; }
+            .links a:hover { color: #b3d4ff; }
             .footer { color: #64748b; }
             .footer a { color: #94a3b8; }
             .footer a:hover { color: #93c5fd; }
-            .message.error { background: #451a1a; color: #fca5a5; border-color: #7f1d1d; }
-            .message.success { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
-            .message.info { background: #1e3a5f; color: #93c5fd; border-color: #1e40af; }
+            .message.error { 
+                background: #451a1a; 
+                color: #fca5a5; 
+                border-color: #7f1d1d;
+            }
+            .message.success { 
+                background: #064e3b; 
+                color: #6ee7b7; 
+                border-color: #065f46;
+            }
+            .message.info { 
+                background: #1e3a5f; 
+                color: #93c5fd; 
+                border-color: #1e40af;
+            }
             .timer { color: #94a3b8; }
+            .timer .highlight { color: #93c5fd; }
             #successState h2 { color: #f1f5f9; }
             #successState p { color: #94a3b8; }
-            #successState .user-info { background: #1e293b; border-color: #334155; }
+            #successState .user-info { 
+                background: #0f172a; 
+                border-color: #334155;
+            }
             #successState .user-info .info-row { border-color: #334155; }
             #successState .user-info .value { color: #f1f5f9; }
+            #successState .redirect-timer { color: #94a3b8; }
+            #successState .redirect-timer .count { color: #93c5fd; }
         }
 
         @media (max-width: 520px) {
             .container { padding: 32px 20px; }
             .logo h1 { font-size: 24px; }
+            .logo .icon { width: 60px; height: 60px; font-size: 26px; }
             .btn { font-size: 15px; padding: 12px; }
+            .header h2 { font-size: 20px; }
         }
     </style>
 </head>
@@ -4754,28 +5034,27 @@ export class ApiGatewayController {
         <div class="logo">
             <div class="icon">F</div>
             <h1><span class="f">F</span><span class="pay">Pay</span></h1>
-            <p>Solutions de paiement securisees</p>
+            <p>Solutions de paiement sécurisées</p>
             <div><span class="env-badge ${env}">${envLabel}</span></div>
         </div>
 
         <div id="loginState">
             <div class="header">
-                <h2>Connexion a F-Pay</h2>
-                <p id="stepMessage">Etape 1 : Saisissez vos identifiants</p>
+                <h2>Connexion à F-Pay</h2>
+                <p id="stepMessage">Étape 1 : Saisissez vos identifiants</p>
             </div>
             
-            <!-- ✅ SECTION PAIEMENT -->
             <div class="payment-info" id="paymentInfo" style="display: none;">
                 <div class="info-row">
-                    <span class="label">Montant</span>
-                    <span class="value" id="displayAmount">-</span>
+                    <span class="label">💳 Montant</span>
+                    <span class="value amount" id="displayAmount">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Devise</span>
+                    <span class="label">🌍 Devise</span>
                     <span class="value" id="displayCurrency">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Description</span>
+                    <span class="label">📝 Description</span>
                     <span class="value" id="displayDescription">-</span>
                 </div>
             </div>
@@ -4783,71 +5062,96 @@ export class ApiGatewayController {
             <div class="message" id="message">
                 <span id="messageText">Message</span>
             </div>
-            <form id="loginForm" autocomplete="off">
-                <div class="form-group">
-                    <label>Numero de telephone</label>
-                    <input type="tel" id="phone" placeholder="+243 999 999 999" required>
+
+            <form id="loginForm" autocomplete="off" novalidate>
+                <!-- Téléphone -->
+                <div class="form-group" id="phoneGroup">
+                    <label>Numéro de téléphone <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <input type="tel" id="phone" placeholder="+243 999 999 999" required autocomplete="tel">
+                    </div>
+                    <div class="error-message" id="phoneError">Veuillez saisir un numéro de téléphone valide</div>
                 </div>
+
+                <!-- Mot de passe -->
                 <div class="form-group" id="passwordGroup">
-                    <label>Mot de passe</label>
-                    <input type="password" id="password" placeholder="Votre mot de passe" required>
+                    <label>Mot de passe <span class="required">*</span></label>
+                    <div class="input-wrapper">
+                        <input type="password" id="password" placeholder="Votre mot de passe" required autocomplete="current-password">
+                        <button type="button" class="toggle-password" id="togglePassword" aria-label="Afficher le mot de passe">
+                            👁️
+                        </button>
+                    </div>
+                    <div class="error-message" id="passwordError">Le mot de passe est requis</div>
+                    <div class="input-hint">Minimum 8 caractères</div>
                 </div>
-                <!-- SECTION OTP (cachee au debut) -->
+
+                <!-- OTP -->
                 <div class="otp-section" id="otpSection">
-                    <div class="form-group">
-                        <label>Code OTP</label>
-                        <input type="text" id="otpCode" placeholder="Entrez le code recu par SMS" maxlength="6" inputmode="numeric" autocomplete="off">
-                        <div class="timer" id="timer">⏱️ 60s</div>
+                    <div class="form-group" id="otpGroup">
+                        <label>Code OTP <span class="required">*</span></label>
+                        <div class="input-wrapper">
+                            <input type="text" id="otpCode" placeholder="Entrez le code reçu par SMS" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+                        </div>
+                        <div class="error-message" id="otpError">Veuillez saisir un code OTP valide (6 chiffres)</div>
+                        <div class="timer" id="timer">⏱️ <span class="highlight">60s</span></div>
                     </div>
                 </div>
+
                 <button type="submit" class="btn" id="submitBtn">
                     <span class="spinner"></span>
                     <span class="btn-text" id="btnText">Se connecter</span>
                 </button>
             </form>
+
             <div class="links">
-                <a href="#" id="resendLink" style="display:none;">Renvoyer le code OTP</a>
+                <a href="#" id="resendLink" style="display:none;">🔄 Renvoyer le code OTP</a>
                 <span class="divider" id="dividerResend" style="display:none;">|</span>
-                <a href="#">Creer un compte</a>
+                <a href="#">Créer un compte</a>
+                <span class="divider">|</span>
+                <a href="#">Mot de passe oublié</a>
             </div>
         </div>
 
         <div id="successState">
-            <div class="success-icon">✅</div>
-            <h2>Connexion reussie !</h2>
-            <p>Vous etes maintenant connecte a F-Pay.</p>
+            <span class="success-icon">✅</span>
+            <h2>Connexion réussie !</h2>
+            <p>Vous êtes maintenant connecté à F-Pay.</p>
             <div class="user-info" id="userInfo">
                 <div class="info-row">
-                    <span class="label">ID utilisateur</span>
+                    <span class="label">🆔 ID utilisateur</span>
                     <span class="value" id="userId">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Telephone</span>
+                    <span class="label">📱 Téléphone</span>
                     <span class="value" id="userPhone">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Nom complet</span>
+                    <span class="label">👤 Nom complet</span>
                     <span class="value" id="userFullName">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Role</span>
+                    <span class="label">🎯 Rôle</span>
                     <span class="value" id="userRole">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Statut</span>
+                    <span class="label">📊 Statut</span>
                     <span class="value" id="userStatus">-</span>
                 </div>
             </div>
+            <div class="redirect-timer">
+                Redirection automatique dans <span class="count" id="redirectCountdown">3</span> secondes...
+            </div>
             <button class="btn" onclick="handleRedirect()" style="margin-top: 16px;">
-                Continuer →
+                Continuer maintenant →
             </button>
         </div>
 
         <div class="footer">
-            <span>Connexion securisee • </span>
-            <a href="#">Conditions d utilisation</a>
-            <span> • </span>
-            <a href="#">Politique de confidentialite</a>
+            <span>🔒 Connexion sécurisée • </span>
+            <a href="#">Conditions d'utilisation</a>
+            <span class="dot">•</span>
+            <a href="#">Politique de confidentialité</a>
         </div>
     </div>
 
@@ -4864,7 +5168,7 @@ export class ApiGatewayController {
             var AMOUNT = '${amount}';
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
-            var API_KEY = '${apiKey}'; // ✅ Utiliser apiKey (défini plus haut)
+            var API_KEY = '${apiKey}';
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
@@ -4884,6 +5188,9 @@ export class ApiGatewayController {
             var secondsLeft = 60;
             var phoneSaved = '';
             var passwordSaved = '';
+            var redirectTimeout = null;
+            var countdownInterval = null;
+            var countdownValue = 3;
 
             // ============================================================
             //  AFFICHER LES DONNÉES DE PAIEMENT
@@ -4898,6 +5205,98 @@ export class ApiGatewayController {
                     document.getElementById('displayDescription').textContent = DESCRIPTION || '-';
                 }
             }
+
+            // ============================================================
+            //  VALIDATIONS
+            // ============================================================
+
+            function validatePhone(phone) {
+                // Accepte: +243999999999, 243999999999, 0999999999
+                var phoneRegex = /^(\+?[0-9]{1,4})?[0-9]{7,12}$/;
+                return phoneRegex.test(phone.replace(/\s/g, ''));
+            }
+
+            function validatePassword(password) {
+                return password && password.length >= 8;
+            }
+
+            function validateOtp(otp) {
+                return otp && /^\d{6}$/.test(otp);
+            }
+
+            function showFieldError(fieldId, errorId) {
+                var field = document.getElementById(fieldId);
+                var error = document.getElementById(errorId);
+                if (field) field.classList.add('error');
+                if (error) error.classList.add('show');
+            }
+
+            function clearFieldError(fieldId, errorId) {
+                var field = document.getElementById(fieldId);
+                var error = document.getElementById(errorId);
+                if (field) field.classList.remove('error');
+                if (error) error.classList.remove('show');
+            }
+
+            function validateField(fieldId, errorId, validator) {
+                var field = document.getElementById(fieldId);
+                var value = field ? field.value.trim() : '';
+                var isValid = validator(value);
+                if (!isValid) {
+                    showFieldError(fieldId, errorId);
+                } else {
+                    clearFieldError(fieldId, errorId);
+                    if (field) field.classList.add('success');
+                }
+                return isValid;
+            }
+
+            // ============================================================
+            //  TOGGLE PASSWORD
+            // ============================================================
+
+            document.getElementById('togglePassword').addEventListener('click', function() {
+                var passwordInput = document.getElementById('password');
+                var type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                this.textContent = type === 'password' ? '👁️' : '👁️‍🗨️';
+                this.setAttribute('aria-label', type === 'password' ? 'Afficher le mot de passe' : 'Cacher le mot de passe');
+            });
+
+            // ============================================================
+            //  VALIDATIONS EN TEMPS RÉEL
+            // ============================================================
+
+            document.getElementById('phone').addEventListener('input', function() {
+                var isValid = validatePhone(this.value);
+                if (!isValid && this.value.length > 0) {
+                    showFieldError('phone', 'phoneError');
+                } else {
+                    clearFieldError('phone', 'phoneError');
+                    if (isValid) this.classList.add('success');
+                }
+            });
+
+            document.getElementById('password').addEventListener('input', function() {
+                var isValid = validatePassword(this.value);
+                if (!isValid && this.value.length > 0) {
+                    showFieldError('password', 'passwordError');
+                } else {
+                    clearFieldError('password', 'passwordError');
+                    if (isValid) this.classList.add('success');
+                }
+            });
+
+            document.getElementById('otpCode').addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '').slice(0, 6);
+                var isValid = validateOtp(this.value);
+                if (!isValid && this.value.length > 0) {
+                    showFieldError('otpCode', 'otpError');
+                } else {
+                    clearFieldError('otpCode', 'otpError');
+                    if (isValid) this.classList.add('success');
+                }
+            });
 
             // ============================================================
             //  FONCTIONS UTILITAIRES
@@ -4929,6 +5328,45 @@ export class ApiGatewayController {
                 messageText.textContent = text;
             }
 
+            function hideMessage() {
+                var messageEl = document.getElementById('message');
+                messageEl.className = 'message';
+            }
+
+            // ============================================================
+            //  REDIRECTION AUTOMATIQUE AVEC COMPTEUR
+            // ============================================================
+
+            function startCountdown() {
+                countdownValue = 3;
+                var countdownEl = document.getElementById('redirectCountdown');
+                if (countdownEl) {
+                    countdownEl.textContent = countdownValue;
+                }
+
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                }
+
+                countdownInterval = setInterval(function() {
+                    countdownValue--;
+                    if (countdownEl) {
+                        countdownEl.textContent = countdownValue;
+                    }
+
+                    if (countdownValue <= 0) {
+                        clearInterval(countdownInterval);
+                        countdownInterval = null;
+                        // Redirection automatique
+                        if (redirectTimeout) {
+                            clearTimeout(redirectTimeout);
+                            redirectTimeout = null;
+                        }
+                        window.handleRedirect();
+                    }
+                }, 1000);
+            }
+
             function showSuccess(data) {
                 document.getElementById('loginState').style.display = 'none';
                 document.getElementById('successState').style.display = 'block';
@@ -4951,10 +5389,22 @@ export class ApiGatewayController {
                 
                 cleanUrl();
                 console.log('[OAuth] Tokens stockes:', userTokens);
+
+                // ✅ Démarrer le compte à rebours pour la redirection automatique
+                startCountdown();
             }
 
-            // ✅ CORRIGÉ : handleRedirect avec system_user_id, les données de paiement ET l'API Key
+            // ============================================================
+            //  HANDLE REDIRECT
+            // ============================================================
+
             window.handleRedirect = function() {
+                // Annuler le compte à rebours
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+
                 var redirectUrl = new URL(REDIRECT_URI);
                 
                 if (userTokens.accessToken) {
@@ -4981,12 +5431,11 @@ export class ApiGatewayController {
                 if (DESCRIPTION) {
                     redirectUrl.searchParams.set('description', DESCRIPTION);
                 }
-                // ✅ AJOUTER l'API Key dans la redirection
                 if (API_KEY) {
                     redirectUrl.searchParams.set('api_key', API_KEY);
                 }
 
-                console.log('[OAuth] Redirection vers:', redirectUrl.toString());
+                console.log('[OAuth] 🚀 Redirection vers:', redirectUrl.toString());
                 window.location.href = redirectUrl.toString();
             };
 
@@ -4998,7 +5447,7 @@ export class ApiGatewayController {
                 secondsLeft = 60;
                 var timerEl = document.getElementById('timer');
                 timerEl.style.display = 'block';
-                timerEl.textContent = '⏱️ 60s';
+                timerEl.innerHTML = '⏱️ <span class="highlight">60s</span>';
 
                 document.getElementById('resendLink').style.display = 'inline';
                 document.getElementById('dividerResend').style.display = 'inline';
@@ -5006,11 +5455,11 @@ export class ApiGatewayController {
                 clearInterval(timerInterval);
                 timerInterval = setInterval(function() {
                     secondsLeft--;
-                    timerEl.textContent = '⏱️ ' + secondsLeft + 's';
+                    timerEl.innerHTML = '⏱️ <span class="highlight">' + secondsLeft + 's</span>';
                     
                     if (secondsLeft <= 0) {
                         clearInterval(timerInterval);
-                        timerEl.textContent = '⏱️ Code expire';
+                        timerEl.innerHTML = '⏱️ <span style="color: #ef4444;">Code expiré</span>';
                     }
                 }, 1000);
             }
@@ -5026,11 +5475,13 @@ export class ApiGatewayController {
                 var password = document.getElementById('password').value.trim();
 
                 if (!phone || !password) {
-                    showMessage('error', 'Veuillez saisir votre numero et mot de passe');
+                    showMessage('error', 'Veuillez saisir votre numéro et mot de passe');
                     return;
                 }
 
-                showMessage('info', 'Envoi d un nouveau code OTP...');
+                showMessage('info', 'Envoi d\'un nouveau code OTP...');
+                document.getElementById('resendLink').style.color = '#9ca3af';
+                document.getElementById('resendLink').style.pointerEvents = 'none';
 
                 try {
                     var response = await fetch('/auth/link-user', {
@@ -5048,30 +5499,32 @@ export class ApiGatewayController {
                     var data = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(data.message || 'Erreur lors de l envoi');
+                        throw new Error(data.message || 'Erreur lors de l\'envoi');
                     }
 
                     if (data.requiresOtp === true) {
-                        showMessage('success', '✅ Nouveau code OTP envoye !');
+                        showMessage('success', '✅ Nouveau code OTP envoyé !');
                         startTimer();
                     } else {
-                        throw new Error('Erreur lors de l envoi du code');
+                        throw new Error('Erreur lors de l\'envoi du code');
                     }
 
                 } catch (error) {
                     console.error('[Resend OTP] Erreur:', error);
-                    showMessage('error', error.message || 'Erreur lors de l envoi');
+                    showMessage('error', error.message || 'Erreur lors de l\'envoi');
+                } finally {
+                    document.getElementById('resendLink').style.color = '';
+                    document.getElementById('resendLink').style.pointerEvents = '';
                 }
             };
 
             // ============================================================
-            //  SOUMISSION DU FORMULAIRE (2 ETAPES)
+            //  SOUMISSION DU FORMULAIRE (2 ÉTAPES)
             // ============================================================
 
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
-
-                console.log('[OAuth] Formulaire soumis');
+                hideMessage();
 
                 var phone = document.getElementById('phone').value.trim();
                 var password = document.getElementById('password').value.trim();
@@ -5079,20 +5532,32 @@ export class ApiGatewayController {
                 var btnText = document.getElementById('btnText');
                 var stepMessage = document.getElementById('stepMessage');
 
+                console.log('[OAuth] Formulaire soumis');
                 console.log('[OAuth] Phone:', phone);
                 console.log('[OAuth] OTP fourni:', otpCode ? '✅' : '❌');
 
-                if (!phone || !password) {
-                    showMessage('error', 'Veuillez remplir tous les champs');
+                // ✅ Valider les champs
+                var isPhoneValid = validateField('phone', 'phoneError', validatePhone);
+                var isPasswordValid = validateField('password', 'passwordError', validatePassword);
+
+                if (!isPhoneValid) {
+                    showMessage('error', 'Veuillez saisir un numéro de téléphone valide');
+                    document.getElementById('phone').focus();
+                    return;
+                }
+
+                if (!isPasswordValid) {
+                    showMessage('error', 'Le mot de passe doit contenir au moins 8 caractères');
+                    document.getElementById('password').focus();
                     return;
                 }
 
                 // ============================================================
-                // ETAPE 1 : Verification des identifiants + Envoi OTP
+                // ÉTAPE 1 : Vérification des identifiants + Envoi OTP
                 // ============================================================
                 if (!otpRequired) {
                     startLoading();
-                    showMessage('info', 'Verification des identifiants...');
+                    showMessage('info', 'Vérification des identifiants...');
 
                     try {
                         var payloadStep1 = {
@@ -5103,7 +5568,7 @@ export class ApiGatewayController {
                             lang: 'fr'
                         };
 
-                        console.log('[OAuth] Etape 1 - Verification identifiants:', payloadStep1);
+                        console.log('[OAuth] Étape 1 - Vérification identifiants:', payloadStep1);
 
                         var response1 = await fetch('/auth/link-user', {
                             method: 'POST',
@@ -5113,7 +5578,7 @@ export class ApiGatewayController {
 
                         var data1 = await response1.json();
 
-                        console.log('[OAuth] Etape 1 - Reponse:', data1);
+                        console.log('[OAuth] Étape 1 - Réponse:', data1);
 
                         if (!response1.ok) {
                             throw new Error(data1.message || 'Identifiants invalides');
@@ -5130,24 +5595,24 @@ export class ApiGatewayController {
 
                             document.getElementById('passwordGroup').style.display = 'none';
 
-                            btnText.textContent = 'Verifier le code';
-                            stepMessage.textContent = 'Etape 2 : Saisissez le code OTP recu par SMS';
+                            btnText.textContent = 'Vérifier le code';
+                            stepMessage.textContent = 'Étape 2 : Saisissez le code OTP reçu par SMS';
 
-                            showMessage('success', '✅ Code OTP envoye par SMS !');
+                            showMessage('success', '✅ Code OTP envoyé par SMS !');
                             startTimer();
                             stopLoading();
 
                             document.getElementById('otpCode').focus();
                             return;
                         } else {
-                            // Si deja connecte directement (pas d'OTP requis)
+                            // ✅ Si déjà connecté directement (pas d'OTP requis)
                             showSuccess(data1);
                             stopLoading();
                             return;
                         }
 
                     } catch (error) {
-                        console.error('[OAuth] Etape 1 - Erreur:', error);
+                        console.error('[OAuth] Étape 1 - Erreur:', error);
                         showMessage('error', error.message || 'Identifiants invalides');
                         stopLoading();
                         return;
@@ -5155,16 +5620,24 @@ export class ApiGatewayController {
                 }
 
                 // ============================================================
-                // ETAPE 2 : Verification OTP + LINK
+                // ÉTAPE 2 : Vérification OTP + LINK
                 // ============================================================
                 if (otpRequired) {
                     if (!otpCode) {
-                        showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
+                        showMessage('error', 'Veuillez saisir le code OTP reçu par SMS');
+                        document.getElementById('otpCode').focus();
+                        return;
+                    }
+
+                    var isOtpValid = validateField('otpCode', 'otpError', validateOtp);
+                    if (!isOtpValid) {
+                        showMessage('error', 'Le code OTP doit contenir 6 chiffres');
+                        document.getElementById('otpCode').focus();
                         return;
                     }
 
                     startLoading();
-                    showMessage('info', 'Verification du code OTP...');
+                    showMessage('info', 'Vérification du code OTP...');
 
                     try {
                         var payloadStep2 = {
@@ -5176,7 +5649,7 @@ export class ApiGatewayController {
                             lang: 'fr'
                         };
 
-                        console.log('[OAuth] Etape 2 - Verification OTP + LINK:', payloadStep2);
+                        console.log('[OAuth] Étape 2 - Vérification OTP + LINK:', payloadStep2);
 
                         var response2 = await fetch('/auth/link-user', {
                             method: 'POST',
@@ -5186,19 +5659,19 @@ export class ApiGatewayController {
 
                         var data2 = await response2.json();
 
-                        console.log('[OAuth] Etape 2 - Reponse:', data2);
+                        console.log('[OAuth] Étape 2 - Réponse:', data2);
 
                         if (!response2.ok) {
                             throw new Error(data2.message || 'Code OTP invalide');
                         }
 
-                        // ✅ Connexion reussie - LE COMPTE EST LIE !
+                        // ✅ Connexion réussie - LE COMPTE EST LIÉ !
                         showSuccess(data2);
                         stopLoading();
 
                     } catch (error) {
-                        console.error('[OAuth] Etape 2 - Erreur:', error);
-                        showMessage('error', error.message || 'Code OTP invalide ou expire');
+                        console.error('[OAuth] Étape 2 - Erreur:', error);
+                        showMessage('error', error.message || 'Code OTP invalide ou expiré');
                         stopLoading();
                     }
                 }
@@ -5209,15 +5682,15 @@ export class ApiGatewayController {
             // ============================================================
 
             document.addEventListener('DOMContentLoaded', function() {
-                console.log('[OAuth] DOM charge');
+                console.log('[OAuth] DOM chargé');
 
                 // ✅ Afficher les informations de paiement
                 displayPaymentInfo();
 
+                // ✅ Vérifier si déjà connecté
                 var code = urlParams.get('code');
                 var accessToken = urlParams.get('access_token');
                 var userId = urlParams.get('user_id');
-                var systemUserIdFromUrl = urlParams.get('system_user_id');
                 
                 if (code && accessToken && userId) {
                     userTokens = {
@@ -5235,21 +5708,25 @@ export class ApiGatewayController {
                             status: 'ACTIVE'
                         }
                     });
-                    console.log('[OAuth] Deja connecte');
+                    console.log('[OAuth] Déjà connecté');
                 }
 
+                // ✅ OTP auto-submit à 6 chiffres
                 var otpInput = document.getElementById('otpCode');
                 if (otpInput) {
-                    otpInput.addEventListener('input', function(e) {
+                    otpInput.addEventListener('input', function() {
                         this.value = this.value.replace(/\D/g, '').slice(0, 6);
-                        
-                        if (this.value.length === 6) {
+                        var isValid = validateOtp(this.value);
+                        if (isValid) {
+                            clearFieldError('otpCode', 'otpError');
+                            this.classList.add('success');
                             console.log('[OAuth] OTP complet, soumission automatique');
                             document.getElementById('loginForm').dispatchEvent(new Event('submit'));
                         }
                     });
                 }
 
+                // ✅ Resend OTP
                 var resendLink = document.getElementById('resendLink');
                 if (resendLink) {
                     resendLink.addEventListener('click', function(e) {
@@ -5257,12 +5734,26 @@ export class ApiGatewayController {
                         window.resendOtp(e);
                     });
                 }
+
+                // ✅ Focus initial
+                setTimeout(function() {
+                    document.getElementById('phone').focus();
+                }, 300);
+
+                // ✅ Enter key sur l'OTP
+                otpInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+                    }
+                });
             });
 
         })();
     </script>
 </body>
-</html>`);
+</html>
+`);
     } catch (error) {
       console.error('[OAuth] Error:', error);
       return res.status(500).send('Erreur lors du chargement de la page');
@@ -5747,7 +6238,6 @@ export class ApiGatewayController {
           data: {
             ...baseResponse.data,
             payment: paymentResult ? {
-              status: paymentResult.status || 'PENDING',
               transaction: paymentResult.data?.transaction || null,
               error: paymentResult.error || null,
             } : {
