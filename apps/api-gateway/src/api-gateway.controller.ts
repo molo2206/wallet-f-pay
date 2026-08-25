@@ -5284,6 +5284,7 @@ export class ApiGatewayController {
       currency?: string;
       description?: string;
       api_key?: string;
+      callback?: string; // ✅ AJOUTÉ : paramètre callback explicite
     },
     @Res() res: Response,
     @Request() req: any,
@@ -5296,7 +5297,12 @@ export class ApiGatewayController {
     const isPaymentContext = !!(query.amount && query.currency);
     const isLinkContext = !isPaymentContext;
 
+    // ✅ Vérifier si un callback est spécifié
+    const hasCallback = !!(query.callback || query.redirect_uri);
+    const callbackUrl = query.callback || query.redirect_uri || null;
+
     console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
+    console.log('[FPay] 📋 Callback:', hasCallback ? callbackUrl : 'AUCUN (JSON uniquement)');
 
     // ✅ Récupérer l'API Key depuis l'URL brute
     let rawApiKey = '';
@@ -5313,11 +5319,22 @@ export class ApiGatewayController {
 
     if (!rawApiKey && isPaymentContext) {
       console.error('[FPay] ❌ Aucune API Key trouvée pour paiement');
-      return res.status(400).json({
+      const errorResponse = {
         success: false,
         error: 'API Key manquante',
         message: 'L\'API Key est requise pour effectuer un paiement',
-      });
+      };
+
+      // ✅ Si pas de callback, retourner JSON avec fermeture
+      if (!hasCallback) {
+        return res.status(400).json({
+          ...errorResponse,
+          close: true,
+          message: errorResponse.message + ' - Cette page va se fermer automatiquement',
+        });
+      }
+
+      return res.status(400).json(errorResponse);
     }
 
     // ✅ Nettoyer l'API Key
@@ -5344,11 +5361,27 @@ export class ApiGatewayController {
     }
 
     if (query.error) {
-      return res.status(400).json({ success: false, error: query.error });
+      const errorResponse = { success: false, error: query.error };
+      if (!hasCallback) {
+        return res.status(400).json({
+          ...errorResponse,
+          close: true,
+          message: 'Erreur d\'authentification - Cette page va se fermer automatiquement',
+        });
+      }
+      return res.status(400).json(errorResponse);
     }
 
     if (!query.access_token || !query.refresh_token || !query.user_id) {
-      return res.status(400).json({ success: false, error: 'missing_params' });
+      const errorResponse = { success: false, error: 'missing_params' };
+      if (!hasCallback) {
+        return res.status(400).json({
+          ...errorResponse,
+          close: true,
+          message: 'Paramètres manquants - Cette page va se fermer automatiquement',
+        });
+      }
+      return res.status(400).json(errorResponse);
     }
 
     try {
@@ -5391,11 +5424,19 @@ export class ApiGatewayController {
 
       if (!userResponse || !userResponse.data) {
         console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
-        return res.status(404).json({
+        const errorResponse = {
           success: false,
           error: 'Utilisateur non trouvé',
           message: `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`,
-        });
+        };
+
+        if (!hasCallback) {
+          return res.status(404).json({
+            ...errorResponse,
+            close: true,
+          });
+        }
+        return res.status(404).json(errorResponse);
       }
 
       const userData = userResponse.data;
@@ -5473,7 +5514,6 @@ export class ApiGatewayController {
           console.warn('[FPay] ⚠️ Impossible de récupérer la branche:', branchError.message);
         }
       }
-
 
       // ✅ 8. Si c'est un paiement, exécuter le paiement automatique
       let paymentResult: any = null;
@@ -5566,11 +5606,19 @@ export class ApiGatewayController {
 
         if (!recipientUser) {
           console.error('[FPay] ❌ Destinataire non trouvé');
-          return res.status(400).json({
+          const errorResponse = {
             success: false,
             error: 'Destinataire non trouvé',
             message: 'Impossible de récupérer le destinataire depuis l\'API Key',
-          });
+          };
+
+          if (!hasCallback) {
+            return res.status(400).json({
+              ...errorResponse,
+              close: true,
+            });
+          }
+          return res.status(400).json(errorResponse);
         }
 
         // ✅ Exécuter le paiement
@@ -5699,6 +5747,7 @@ export class ApiGatewayController {
 
       // ✅ Réponse de base (toujours présente)
       const baseResponse: any = {
+        success: true,
         accessToken: query.access_token,
         refreshToken: query.refresh_token,
         sessionId: sessionId,
@@ -5736,7 +5785,7 @@ export class ApiGatewayController {
 
       // ✅ Si c'est un paiement, ajouter les détails du paiement
       if (isPaymentContext) {
-        return res.status(200).json({
+        const finalResponse = {
           ...baseResponse,
           message: paymentResult?.status === 'ERROR'
             ? 'Authentification FPay réussie mais paiement échoué'
@@ -5754,11 +5803,22 @@ export class ApiGatewayController {
               status: 'PENDING',
             },
           }
-        });
+        };
+
+        // ✅ Si pas de callback, retourner JSON avec fermeture
+        if (!hasCallback) {
+          return res.status(200).json({
+            ...finalResponse,
+            close: true,
+            message: finalResponse.message + ' - Cette page va se fermer automatiquement',
+          });
+        }
+
+        return res.status(200).json(finalResponse);
       }
 
       // ✅ Si c'est un link (pas de paiement)
-      return res.status(200).json({
+      const linkResponse = {
         ...baseResponse,
         message: 'Authentification FPay réussie et compte lié',
         data: {
@@ -5766,18 +5826,39 @@ export class ApiGatewayController {
           isLinked: true,
           userIdFpay: query.user_id,
         }
-      });
+      };
+
+      // ✅ Si pas de callback, retourner JSON avec fermeture
+      if (!hasCallback) {
+        return res.status(200).json({
+          ...linkResponse,
+          close: true,
+          message: linkResponse.message + ' - Cette page va se fermer automatiquement',
+        });
+      }
+
+      return res.status(200).json(linkResponse);
 
     } catch (error) {
       console.error('[FPay] ❌ Erreur:', error.message);
-      return res.status(500).json({
+      const errorResponse = {
         success: false,
         error: error.message,
         message: 'Erreur lors de la liaison',
-      });
+      };
+
+      // ✅ Si pas de callback, retourner JSON avec fermeture
+      if (!hasCallback) {
+        return res.status(500).json({
+          ...errorResponse,
+          close: true,
+          message: errorResponse.message + ' - Cette page va se fermer automatiquement',
+        });
+      }
+
+      return res.status(500).json(errorResponse);
     }
   }
-
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async submitKyc(
