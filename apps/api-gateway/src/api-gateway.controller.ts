@@ -5545,13 +5545,7 @@ export class ApiGatewayController {
           timestamp: Date.now(),
         };
 
-        // ✅ Utiliser un cache (Redis, Memcached, ou en mémoire)
-        // Ici on utilise un Map en mémoire (pour l'exemple)
-        // Dans la vraie vie, utilisez Redis ou une base de données
-        if (!this.fpayCache) {
-          this.fpayCache = new Map();
-        }
-        // Nettoyer les anciennes entrées (plus de 5 minutes)
+        // ✅ Nettoyer les anciennes entrées (plus de 5 minutes)
         for (const [key, value] of this.fpayCache) {
           if (Date.now() - value.timestamp > 300000) {
             this.fpayCache.delete(key);
