@@ -4431,6 +4431,20 @@ export class ApiGatewayController {
     return process.env.MOBILE_CALLBACK_URL || 'fpay://callback';
   }
 
+  private getWebCallbackUrl(): string {
+    return process.env.WEB_CALLBACK_URL || 'https://fpay.com/callback';
+  }
+
+  // ✅ Nouvelle méthode pour déterminer le callback en fonction du clientId
+  private getCallbackUrlByClientId(clientId: string): string {
+    // Si c'est un client mobile, retourner l'URL mobile
+    if (clientId === 'mobile-client' || clientId?.includes('mobile')) {
+      return this.getMobileCallbackUrl();
+    }
+    // Sinon, retourner l'URL web
+    return this.getWebCallbackUrl();
+  }
+
   private getFpayUrl(): string {
     return process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
   }
@@ -4475,9 +4489,10 @@ export class ApiGatewayController {
       amount?: string;
       currency?: string;
       description?: string;
-      api_key?: string; // ✅ AJOUTER
+      api_key?: string;
     },
     @Res() res: Response,
+    @Request() req: any,
   ) {
     try {
       const appUrl = this.getAppUrl();
@@ -4487,19 +4502,30 @@ export class ApiGatewayController {
       const env = process.env.NODE_ENV || 'development';
       const envLabel = env === 'production' ? 'PRODUCTION' : env === 'test' ? 'TEST' : 'LOCAL';
 
-      // ✅ Récupérer system_user_id de la query
       const systemUserId = query.system_user_id || '';
-
-      // ✅ Récupérer les données de paiement
       const amount = query.amount || '';
       const currency = query.currency || '';
       const description = query.description || '';
+      const apiKey = query.api_key || '';
 
-      // ✅ Récupérer l'API Key
-      const apiKey = query.api_key || ''; // ✅ Définir apiKey
+      // ✅ Récupérer le clientId
+      const clientId = query.client_id || 'web-client';
 
-      // ✅ Utiliser le callback URL correct
-      const callbackUrl = query.redirect_uri || oauthCallbackUrl;
+      // ✅ Déterminer le callback URL en fonction du clientId
+      let callbackUrl = query.redirect_uri || '';
+
+      // ✅ Si redirect_uri n'est pas fourni, le déterminer automatiquement
+      if (!callbackUrl) {
+        if (clientId === 'mobile-client' || clientId?.includes('mobile')) {
+          callbackUrl = mobileCallbackUrl; // fpay://callback
+        } else {
+          callbackUrl = oauthCallbackUrl; // URL web
+        }
+      }
+
+      console.log('[OAuth] Client ID:', clientId);
+      console.log('[OAuth] Callback URL:', callbackUrl);
+      console.log('[OAuth] Type:', clientId === 'mobile-client' ? 'MOBILE' : 'WEB');
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
 
@@ -4516,12 +4542,13 @@ export class ApiGatewayController {
         html = html.replace(/{{AMOUNT}}/g, amount);
         html = html.replace(/{{CURRENCY}}/g, currency);
         html = html.replace(/{{DESCRIPTION}}/g, description);
-        html = html.replace(/{{API_KEY}}/g, apiKey); // ✅ Utiliser apiKey
+        html = html.replace(/{{API_KEY}}/g, apiKey);
+        html = html.replace(/{{CLIENT_ID}}/g, clientId); // ✅ Passer le clientId au frontend
 
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec OTP intégré - AJOUT DE L'API KEY
+      // ✅ Version HTML avec le clientId
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4761,7 +4788,6 @@ export class ApiGatewayController {
                 <p id="stepMessage">Etape 1 : Saisissez vos identifiants</p>
             </div>
             
-            <!-- ✅ SECTION PAIEMENT -->
             <div class="payment-info" id="paymentInfo" style="display: none;">
                 <div class="info-row">
                     <span class="label">Montant</span>
@@ -4789,7 +4815,6 @@ export class ApiGatewayController {
                     <label>Mot de passe</label>
                     <input type="password" id="password" placeholder="Votre mot de passe" required>
                 </div>
-                <!-- SECTION OTP (cachee au debut) -->
                 <div class="otp-section" id="otpSection">
                     <div class="form-group">
                         <label>Code OTP</label>
@@ -4861,12 +4886,14 @@ export class ApiGatewayController {
             var AMOUNT = '${amount}';
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
-            var API_KEY = '${apiKey}'; // ✅ Utiliser apiKey (défini plus haut)
+            var API_KEY = '${apiKey}';
+            var CLIENT_ID = '${clientId}'; // ✅ Récupérer le clientId
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
             console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
+            console.log('[OAuth] CLIENT_ID:', CLIENT_ID);
             console.log('[OAuth] Paiement:', { AMOUNT, CURRENCY, DESCRIPTION });
             console.log('[OAuth] API_KEY:', API_KEY ? '✅ Présente' : '❌ Absente');
 
@@ -4882,10 +4909,6 @@ export class ApiGatewayController {
             var phoneSaved = '';
             var passwordSaved = '';
 
-            // ============================================================
-            //  AFFICHER LES DONNÉES DE PAIEMENT
-            // ============================================================
-
             function displayPaymentInfo() {
                 var paymentInfo = document.getElementById('paymentInfo');
                 if (AMOUNT || CURRENCY || DESCRIPTION) {
@@ -4895,10 +4918,6 @@ export class ApiGatewayController {
                     document.getElementById('displayDescription').textContent = DESCRIPTION || '-';
                 }
             }
-
-            // ============================================================
-            //  FONCTIONS UTILITAIRES
-            // ============================================================
 
             function cleanUrl() {
                 if (window.history && window.history.replaceState) {
@@ -4950,7 +4969,6 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
             }
 
-            // ✅ CORRIGÉ : handleRedirect avec system_user_id, les données de paiement ET l'API Key
             window.handleRedirect = function() {
                 var redirectUrl = new URL(REDIRECT_URI);
                 
@@ -4978,18 +4996,17 @@ export class ApiGatewayController {
                 if (DESCRIPTION) {
                     redirectUrl.searchParams.set('description', DESCRIPTION);
                 }
-                // ✅ AJOUTER l'API Key dans la redirection
                 if (API_KEY) {
                     redirectUrl.searchParams.set('api_key', API_KEY);
+                }
+                // ✅ Ajouter le clientId
+                if (CLIENT_ID) {
+                    redirectUrl.searchParams.set('client_id', CLIENT_ID);
                 }
 
                 console.log('[OAuth] Redirection vers:', redirectUrl.toString());
                 window.location.href = redirectUrl.toString();
             };
-
-            // ============================================================
-            //  TIMER OTP
-            // ============================================================
 
             function startTimer() {
                 secondsLeft = 60;
@@ -5011,10 +5028,6 @@ export class ApiGatewayController {
                     }
                 }, 1000);
             }
-
-            // ============================================================
-            //  RENVOYER L'OTP
-            // ============================================================
 
             window.resendOtp = async function(event) {
                 if (event) { event.preventDefault(); }
@@ -5061,10 +5074,6 @@ export class ApiGatewayController {
                 }
             };
 
-            // ============================================================
-            //  SOUMISSION DU FORMULAIRE (2 ETAPES)
-            // ============================================================
-
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5084,9 +5093,6 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // ============================================================
-                // ETAPE 1 : Verification des identifiants + Envoi OTP
-                // ============================================================
                 if (!otpRequired) {
                     startLoading();
                     showMessage('info', 'Verification des identifiants...');
@@ -5116,7 +5122,6 @@ export class ApiGatewayController {
                             throw new Error(data1.message || 'Identifiants invalides');
                         }
 
-                        // ✅ Si OTP requis (identifiants valides)
                         if (data1.requiresOtp === true) {
                             otpRequired = true;
                             phoneSaved = phone;
@@ -5137,7 +5142,6 @@ export class ApiGatewayController {
                             document.getElementById('otpCode').focus();
                             return;
                         } else {
-                            // Si deja connecte directement (pas d'OTP requis)
                             showSuccess(data1);
                             stopLoading();
                             return;
@@ -5151,9 +5155,6 @@ export class ApiGatewayController {
                     }
                 }
 
-                // ============================================================
-                // ETAPE 2 : Verification OTP + LINK
-                // ============================================================
                 if (otpRequired) {
                     if (!otpCode) {
                         showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
@@ -5189,7 +5190,6 @@ export class ApiGatewayController {
                             throw new Error(data2.message || 'Code OTP invalide');
                         }
 
-                        // ✅ Connexion reussie - LE COMPTE EST LIE !
                         showSuccess(data2);
                         stopLoading();
 
@@ -5201,14 +5201,9 @@ export class ApiGatewayController {
                 }
             });
 
-            // ============================================================
-            //  CHARGEMENT INITIAL
-            // ============================================================
-
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM charge');
 
-                // ✅ Afficher les informations de paiement
                 displayPaymentInfo();
 
                 var code = urlParams.get('code');
@@ -5285,6 +5280,7 @@ export class ApiGatewayController {
       callback?: string;
       redirect_uri?: string;
       state?: string;
+      client_id?: string; // ✅ AJOUTÉ
     },
     @Res() res: Response,
     @Request() req: any,
@@ -5297,13 +5293,29 @@ export class ApiGatewayController {
     const isPaymentContext = !!(query.amount && query.currency);
     const isLinkContext = !isPaymentContext;
 
-    // ✅ LE redirect_uri = L'URL de l'application d'origine
-    // ✅ C'est l'application qui a initié le flux OAuth
-    // ✅ Exemple: https://mon-app.com/callback
-    const redirectUri = query.redirect_uri || query.callback || null;
+    // ✅ Récupérer le client_id
+    const clientId = query.client_id || 'web-client';
+
+    // ✅ Déterminer le callback URL en fonction du client_id
+    // Si redirect_uri est fourni, on l'utilise
+    // Sinon, on détermine automatiquement
+    let redirectUri = query.redirect_uri || query.callback || null;
+
+    // ✅ Si pas de redirect_uri fourni, on le détermine automatiquement
+    if (!redirectUri) {
+      if (clientId === 'mobile-client' || clientId?.includes('mobile')) {
+        redirectUri = this.getMobileCallbackUrl(); // fpay://callback
+        console.log('[FPay] 📱 Client mobile, callback automatique:', redirectUri);
+      } else {
+        redirectUri = this.getOAuthCallbackUrl(); // URL web
+        console.log('[FPay] 🌐 Client web, callback automatique:', redirectUri);
+      }
+    }
+
     const hasRedirect = !!redirectUri;
 
     console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
+    console.log('[FPay] 📋 Client ID:', clientId);
     console.log('[FPay] 📋 Application d\'origine (redirect_uri):', hasRedirect ? redirectUri : 'AUCUN (JSON uniquement)');
 
     // ✅ Récupérer l'API Key depuis l'URL brute
@@ -5346,17 +5358,30 @@ export class ApiGatewayController {
     // ⚠️ FONCTION: Rediriger vers l'application d'origine (comme Google Auth)
     // ============================================================
     const redirectWithParams = (baseUrl: string, params: Record<string, any>) => {
-      const url = new URL(baseUrl);
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          if (typeof value === 'object') {
-            url.searchParams.set(key, JSON.stringify(value));
-          } else {
-            url.searchParams.set(key, String(value));
+      try {
+        const url = new URL(baseUrl);
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            if (typeof value === 'object') {
+              url.searchParams.set(key, JSON.stringify(value));
+            } else {
+              url.searchParams.set(key, String(value));
+            }
           }
-        }
-      });
-      return url.toString();
+        });
+        return url.toString();
+      } catch (error) {
+        // Si l'URL n'est pas valide (ex: fpay://callback), on construit manuellement
+        console.log('[FPay] ⚠️ URL non standard, construction manuelle:', baseUrl);
+        const paramsString = Object.entries(params)
+          .filter(([_, value]) => value !== undefined && value !== null && value !== '')
+          .map(([key, value]) => {
+            const val = typeof value === 'object' ? JSON.stringify(value) : String(value);
+            return `${key}=${encodeURIComponent(val)}`;
+          })
+          .join('&');
+        return paramsString ? `${baseUrl}?${paramsString}` : baseUrl;
+      }
     };
 
     // ============================================================
@@ -5371,6 +5396,9 @@ export class ApiGatewayController {
         if (query.state) {
           params.state = query.state;
         }
+        // ✅ Ajouter le client_id
+        params.client_id = clientId;
+
         // ✅ Rediriger vers l'application d'origine
         const redirectUrl = redirectWithParams(redirectUri, params);
         console.log('[FPay] 🔄 Redirection vers l\'application d\'origine avec erreur:', redirectUrl);
@@ -5383,6 +5411,7 @@ export class ApiGatewayController {
         error: error,
         message: errorDescription || error,
         close: true,
+        client_id: clientId,
       });
     };
 
@@ -5399,6 +5428,9 @@ export class ApiGatewayController {
           user_id: data.data?.id,
           code: data.code || query.code || '',
           sessionId: data.sessionId,
+
+          // ✅ Ajouter le client_id
+          client_id: clientId,
 
           // Données utilisateur (toutes les propriétés)
           data_id: data.data?.id,
@@ -5470,6 +5502,7 @@ export class ApiGatewayController {
       return res.status(200).json({
         ...data,
         close: true,
+        client_id: clientId,
         message: data.message + ' - Cette page va se fermer automatiquement',
       });
     };
@@ -5893,7 +5926,7 @@ export class ApiGatewayController {
       );
     }
   }
-  
+
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async submitKyc(
