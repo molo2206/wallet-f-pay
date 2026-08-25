@@ -5445,20 +5445,57 @@ export class ApiGatewayController {
       }
 
       // ✅ Générer le token via le microservice
-      const result = await this.sendAuthMessage<AuthResponseDto>(
+      const result = await this.sendAuthMessage<any>(
         'generate_token',
         { userId: currentUser.id },
         'Erreur génération token',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
 
-      // ✅ Extraire le token et les données
-      const accessToken = result.accessToken || result.data?.accessToken;
-      const refreshToken = result.refreshToken || result.data?.refreshToken;
-      const userId = result.data?.id || currentUser.id;
+      console.log('[GenerateToken] Résultat brut:', JSON.stringify(result, null, 2));
+
+      // ✅ Extraire le token et les données - avec plusieurs sources possibles
+      let accessToken: string | null = null;
+      let refreshToken: string | null = null;
+      let userId: string | null = null;
+
+      // Source 1: Directement dans result
+      if (result.accessToken) {
+        accessToken = result.accessToken;
+      } else if (result.data?.accessToken) {
+        accessToken = result.data.accessToken;
+      }
+
+      if (result.refreshToken) {
+        refreshToken = result.refreshToken;
+      } else if (result.data?.refreshToken) {
+        refreshToken = result.data.refreshToken;
+      }
+
+      // Source 2: Dans result.data (si le résultat est un objet avec data)
+      if (result.data?.id) {
+        userId = result.data.id;
+      } else if (result.userId) {
+        userId = result.userId;
+      } else if (currentUser.id) {
+        userId = currentUser.id;
+      }
+
+      // ✅ Si le token est dans une propriété différente
+      if (!accessToken && result.token) {
+        accessToken = result.token;
+      }
+      if (!accessToken && result.access_token) {
+        accessToken = result.access_token;
+      }
 
       if (!accessToken) {
-        throw new Error('Token non généré');
+        console.error('[GenerateToken] ❌ Token non trouvé dans la réponse:', result);
+        return res.status(500).json({
+          success: false,
+          message: 'Token non généré',
+          debug: result,
+        });
       }
 
       // ✅ Décoder le token pour obtenir l'expiration
@@ -5468,26 +5505,37 @@ export class ApiGatewayController {
         if (decoded && decoded.exp) {
           expiresAt = new Date(decoded.exp * 1000);
         } else {
-          // Expiration par défaut: 7 jours
           expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         }
       } catch (error) {
         expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       }
 
-      // ✅ ENREGISTRER LE TOKEN DANS LA BASE DE DONNÉES
-      await this.prisma.oauthaccesstoken.create({
-        data: {
-          token: accessToken,
-          clientId: 'api-gateway',
-          userId: userId,
-          scope: 'all',
-          expiresAt: expiresAt,
-          createdAt: new Date(),
-        },
+      // ✅ Vérifier si le token existe déjà
+      const existingToken = await this.prisma.oauthaccesstoken.findFirst({
+        where: { token: accessToken },
       });
 
-      console.log(`[GenerateToken] ✅ Token enregistré pour l'utilisateur ${userId}`);
+      if (!existingToken) {
+        // ✅ ENREGISTRER LE TOKEN DANS LA BASE DE DONNÉES
+        await this.prisma.oauthaccesstoken.create({
+          data: {
+            token: accessToken,
+            clientId: 'api-gateway',
+            userId: userId || 'unknown',
+            scope: 'all',
+            expiresAt: expiresAt,
+            createdAt: new Date(),
+          },
+        });
+        console.log(`[GenerateToken] ✅ Token enregistré pour l'utilisateur ${userId}`);
+      } else {
+        console.log(`[GenerateToken] ⏳ Token déjà existant, mise à jour de l'expiration`);
+        await this.prisma.oauthaccesstoken.update({
+          where: { id: existingToken.id },
+          data: { expiresAt: expiresAt },
+        });
+      }
 
       return res.status(200).json({
         success: true,
