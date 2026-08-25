@@ -68,6 +68,7 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as jwt from 'jsonwebtoken';
+import { Public } from 'apps/auth-service/src/utility/decorators/public.decorator';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
@@ -6035,6 +6036,7 @@ export class ApiGatewayController {
   }
 
   @Get('wallet/balance-transactions')
+  @Public()
   async getWalletBalanceAndTransactions(
     @Query('userId') userId: string,
     @Query('walletId') walletId?: string,  // ✅ Optionnel
