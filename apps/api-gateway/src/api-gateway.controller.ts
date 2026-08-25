@@ -5562,13 +5562,13 @@ export class ApiGatewayController {
         }
         this.fpayCache.set(sessionId, fullData);
 
-        // ✅ Passer l'ID de session (court)
+        // ✅ Passer l'ID de session (court) au lieu des données lourdes
         params.set('session_id', sessionId);
 
         // ✅ Message (optionnel)
         if (data.message) params.set('message', data.message);
 
-        // ✅ Construire l'URL finale
+        // ✅ Construire l'URL finale (courte)
         let redirectUrl = redirectUri + '?' + params.toString();
 
         console.log('[FPay] 🔄 Redirection succès (longueur:', redirectUrl.length, '):', redirectUrl);
@@ -5664,7 +5664,7 @@ export class ApiGatewayController {
 
       const userData = userResponse.data;
 
-      // ✅ 3. Récupérer les wallets
+      // ✅ 3. Récupérer les wallets (UNIQUEMENT les wallets)
       let wallets: any[] = [];
       try {
         const walletsResponse = await this.sendWalletMessage<any>(
@@ -5678,7 +5678,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
       }
 
-      // ✅ 4. Récupérer les sessions
+      // ✅ 4. Récupérer les sessions (PAS DANS L'URL)
       let sessions: any[] = [];
       try {
         const sessionsResponse = await this.sendAuthMessage<any>(
@@ -5692,7 +5692,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
       }
 
-      // ✅ 5. Récupérer les resources
+      // ✅ 5. Récupérer les resources (PAS DANS L'URL)
       let resources: any[] = [];
       try {
         const resourcesResponse = await this.sendUserMessage<any>(
@@ -5706,7 +5706,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
       }
 
-      // ✅ 6. Récupérer les KYC
+      // ✅ 6. Récupérer les KYC (PAS DANS L'URL)
       let kycStatus = 'NOT_SUBMITTED';
       let kycSubmission = null;
       try {
@@ -5722,7 +5722,7 @@ export class ApiGatewayController {
         console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
       }
 
-      // ✅ 7. Récupérer la branche
+      // ✅ 7. Récupérer la branche (PAS DANS L'URL)
       let userBranch = null;
       if (userData.branchId) {
         try {
@@ -5926,37 +5926,26 @@ export class ApiGatewayController {
         refreshToken: query.refresh_token,
         sessionId: sessionId,
         data: {
+          // ✅ Informations utilisateur ESSENTIELLES
           id: userData.id,
           email: userData.email || null,
           phone: userData.phone || null,
-          fcmToken: userData.fcmToken || null,
           full_name: userData.full_name || null,
-          account_number: userData.account_number || null,
-          branchId: userData.branchId || null,
-          branch: userBranch,
           role: userData.role || 'USER',
-          passwordStatus: userData.passwordStatus || null,
-          pinstatus: userData.pinstatus || false,
-          merchantCode: userData.merchantCode || null,
-          businessName: userData.businessName || null,
           status: userData.status || 'ACTIVE',
-          deleted: userData.deleted || false,
-          createdAt: userData.createdAt || new Date(),
-          updatedAt: userData.updatedAt || new Date(),
           profileImage: userData.profileImage || null,
           kycStatus: kycStatus,
           countryCode: userData.countryCode || 'CD',
-          locked_by_admin: userData.locked_by_admin || false,
-          sessions: sessions,
-          resources: resources,
+          merchantCode: userData.merchantCode || null,
+          businessName: userData.businessName || null,
+          // ✅ Wallets (uniquement les wallets)
           wallets: wallets,
-          kyc: {
-            status: kycStatus,
-            submission: kycSubmission,
-          },
+          // ✅ Le reste des données (sessions, resources, kyc) est stocké en cache
+          // mais PAS dans l'URL
         }
       };
 
+      // ✅ Construire la réponse FINALE
       let finalResponse: any;
       if (isPaymentContext) {
         finalResponse = {
