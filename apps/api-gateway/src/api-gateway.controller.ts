@@ -4520,19 +4520,16 @@ export class ApiGatewayController {
       const description = query.description || '';
       const apiKey = query.api_key || '';
 
-      // ✅ Récupérer le clientId
       const clientId = query.client_id || 'web-client';
 
-      // ✅ Déterminer le callback URL
       let callbackUrl = query.redirect_uri || '';
 
-      // ✅ Si redirect_uri n'est pas fourni, le déterminer automatiquement
       if (!callbackUrl) {
         if (clientId === 'mobile-client' || clientId?.includes('mobile')) {
-          callbackUrl = mobileCallbackUrl; // fpay://callback
+          callbackUrl = mobileCallbackUrl;
           console.log('[OAuth] 📱 Client mobile, callback automatique:', callbackUrl);
         } else {
-          callbackUrl = oauthCallbackUrl; // https://favorhelp.com
+          callbackUrl = oauthCallbackUrl;
           console.log('[OAuth] 🌐 Client web, callback automatique:', callbackUrl);
         }
       } else {
@@ -4542,19 +4539,15 @@ export class ApiGatewayController {
       console.log('[OAuth] Client ID:', clientId);
       console.log('[OAuth] Callback URL final:', callbackUrl);
 
-      // ✅ CONSTRUIRE L'URL PROPRE - SUPPRIMER code ET redirect_uri
       const baseUrl = `${req.protocol}://${req.get('host')}${req.path}`;
       const cleanParams = new URLSearchParams();
 
-      // ✅ Garder UNIQUEMENT les paramètres nécessaires
       if (clientId) cleanParams.set('client_id', clientId);
       if (systemUserId) cleanParams.set('system_user_id', systemUserId);
       if (amount) cleanParams.set('amount', amount);
       if (currency) cleanParams.set('currency', currency);
       if (description) cleanParams.set('description', description);
       if (apiKey) cleanParams.set('api_key', apiKey);
-      // ✅ NE PAS ajouter redirect_uri dans l'URL (il est dans la session)
-      // ✅ NE PAS ajouter code dans l'URL
 
       const cleanUrl = `${baseUrl}?${cleanParams.toString()}`;
       console.log('[OAuth] URL nettoyée (sans code):', cleanUrl);
@@ -4581,7 +4574,6 @@ export class ApiGatewayController {
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec le clientId (sans code dans l'URL)
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4867,7 +4859,8 @@ export class ApiGatewayController {
             </div>
         </div>
 
-        <div id="successState">
+        <!-- ✅ successState conservé mais caché car redirection automatique -->
+        <div id="successState" style="display:none;">
             <div class="success-icon">✅</div>
             <h2>Connexion reussie !</h2>
             <p>Vous etes maintenant connecte a F-Pay.</p>
@@ -4980,10 +4973,8 @@ export class ApiGatewayController {
                 messageText.textContent = text;
             }
 
+            // ✅ showSuccess modifié : redirection automatique
             function showSuccess(data) {
-                document.getElementById('loginState').style.display = 'none';
-                document.getElementById('successState').style.display = 'block';
-                
                 userData = data.data;
                 userTokens = {
                     accessToken: data.accessToken || (data.data && data.data.accessToken),
@@ -4992,19 +4983,16 @@ export class ApiGatewayController {
                     code: data.code || urlParams.get('code')
                 };
 
-                if (data && data.data) {
-                    document.getElementById('userId').textContent = data.data.id || '-';
-                    document.getElementById('userPhone').textContent = data.data.phone || '-';
-                    document.getElementById('userFullName').textContent = data.data.full_name || '-';
-                    document.getElementById('userRole').textContent = data.data.role || '-';
-                    document.getElementById('userStatus').textContent = data.data.status || '-';
-                }
-                
                 cleanUrl();
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
+                
+                // ✅ REDIRECTION AUTOMATIQUE VERS LE CALLBACK
+                console.log('[OAuth] Redirection automatique vers le callback...');
+                handleRedirect();
             }
 
+            // ✅ handleRedirect simplifié pour supporter l'URL web et mobile
             window.handleRedirect = function() {
                 console.log('[OAuth] Redirection vers:', REDIRECT_URI);
                 console.log('[OAuth] Tokens:', userTokens);
@@ -5045,6 +5033,7 @@ export class ApiGatewayController {
                         params.set('client_id', CLIENT_ID);
                     }
 
+                    // ✅ Données utilisateur minimales
                     if (userData) {
                         params.set('data_id', userData.id || '');
                         params.set('data_phone', userData.phone || '');
@@ -5056,10 +5045,6 @@ export class ApiGatewayController {
                         
                         if (userData.wallets) {
                             params.set('wallets', JSON.stringify(userData.wallets));
-                        }
-                       
-                        if (userData.kyc) {
-                            params.set('kyc', JSON.stringify(userData.kyc));
                         }
                     }
 
@@ -5116,7 +5101,6 @@ export class ApiGatewayController {
                         if (userData.wallets) {
                             redirectUrl.searchParams.set('wallets', JSON.stringify(userData.wallets));
                         }
-                       
                     }
 
                     console.log('[OAuth] Redirection web:', redirectUrl.toString());
