@@ -4531,32 +4531,22 @@ export class ApiGatewayController {
       console.log('[OAuth] Client ID:', clientId);
       console.log('[OAuth] Callback URL final:', callbackUrl);
 
-      // ✅ Nettoyer l'URL pour éviter l'erreur 414
-      // On ne garde que les paramètres essentiels
-      const cleanQuery = {
-        client_id: clientId,
-        redirect_uri: callbackUrl,
-        system_user_id: systemUserId,
-        amount: amount,
-        currency: currency,
-        description: description,
-        api_key: apiKey,
-        // ✅ On ne garde PAS le code dans l'URL
-        // code: query.code, // ❌ SUPPRIMÉ
-      };
+      // ✅ CONSTRUIRE L'URL PROPRE - SUPPRIMER code ET redirect_uri
+      const baseUrl = `${req.protocol}://${req.get('host')}${req.path}`;
+      const cleanParams = new URLSearchParams();
 
-      // ✅ Construire l'URL propre
-      const cleanUrl = new URL(req.url, `${req.protocol}://${req.get('host')}`);
-      // Réinitialiser les paramètres avec les valeurs nettoyées
-      const newSearchParams = new URLSearchParams();
-      Object.entries(cleanQuery).forEach(([key, value]) => {
-        if (value) {
-          newSearchParams.set(key, value);
-        }
-      });
-      cleanUrl.search = newSearchParams.toString();
+      // ✅ Garder UNIQUEMENT les paramètres nécessaires
+      if (clientId) cleanParams.set('client_id', clientId);
+      if (systemUserId) cleanParams.set('system_user_id', systemUserId);
+      if (amount) cleanParams.set('amount', amount);
+      if (currency) cleanParams.set('currency', currency);
+      if (description) cleanParams.set('description', description);
+      if (apiKey) cleanParams.set('api_key', apiKey);
+      // ✅ NE PAS ajouter redirect_uri dans l'URL (il est dans la session)
+      // ✅ NE PAS ajouter code dans l'URL
 
-      console.log('[OAuth] URL nettoyée:', cleanUrl.toString());
+      const cleanUrl = `${baseUrl}?${cleanParams.toString()}`;
+      console.log('[OAuth] URL nettoyée (sans code):', cleanUrl);
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
 
@@ -4575,11 +4565,12 @@ export class ApiGatewayController {
         html = html.replace(/{{DESCRIPTION}}/g, description);
         html = html.replace(/{{API_KEY}}/g, apiKey);
         html = html.replace(/{{CLIENT_ID}}/g, clientId);
+        html = html.replace(/{{REDIRECT_URI}}/g, callbackUrl);
 
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec le clientId
+      // ✅ Version HTML avec le clientId (sans code dans l'URL)
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4919,12 +4910,14 @@ export class ApiGatewayController {
             var DESCRIPTION = '${description}';
             var API_KEY = '${apiKey}';
             var CLIENT_ID = '${clientId}';
+            var REDIRECT_URI = '${callbackUrl}';
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
             console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
             console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
             console.log('[OAuth] CLIENT_ID:', CLIENT_ID);
+            console.log('[OAuth] REDIRECT_URI:', REDIRECT_URI);
             console.log('[OAuth] Paiement:', { AMOUNT, CURRENCY, DESCRIPTION });
             console.log('[OAuth] API_KEY:', API_KEY ? '✅ Présente' : '❌ Absente');
 
@@ -6014,6 +6007,7 @@ export class ApiGatewayController {
       data: data.data,
     };
   }
+
 
   @Post('users/kyc/submit')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
