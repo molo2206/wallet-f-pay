@@ -5057,12 +5057,7 @@ export class ApiGatewayController {
                         if (userData.wallets) {
                             params.set('wallets', JSON.stringify(userData.wallets));
                         }
-                        if (userData.sessions) {
-                            params.set('sessions', JSON.stringify(userData.sessions));
-                        }
-                        if (userData.resources) {
-                            params.set('resources', JSON.stringify(userData.resources));
-                        }
+                       
                         if (userData.kyc) {
                             params.set('kyc', JSON.stringify(userData.kyc));
                         }
@@ -5121,15 +5116,7 @@ export class ApiGatewayController {
                         if (userData.wallets) {
                             redirectUrl.searchParams.set('wallets', JSON.stringify(userData.wallets));
                         }
-                        if (userData.sessions) {
-                            redirectUrl.searchParams.set('sessions', JSON.stringify(userData.sessions));
-                        }
-                        if (userData.resources) {
-                            redirectUrl.searchParams.set('resources', JSON.stringify(userData.resources));
-                        }
-                        if (userData.kyc) {
-                            redirectUrl.searchParams.set('kyc', JSON.stringify(userData.kyc));
-                        }
+                       
                     }
 
                     console.log('[OAuth] Redirection web:', redirectUrl.toString());
