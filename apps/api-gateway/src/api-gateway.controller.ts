@@ -4540,6 +4540,12 @@ export class ApiGatewayController {
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
+  // apps/api-gateway/src/api-gateway.controller.ts
+
+  // ============================================================
+  // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
+  // ============================================================
+
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
@@ -4956,6 +4962,9 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
+            // ✅ URL de l'API FPay
+            var FPAY_API_URL = '${process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com'}';
+            
             var APP_URL = '${appUrl}';
             var FRONTEND_URL = '${frontendUrl}';
             var OAUTH_CALLBACK_URL = '${callbackUrl}';
@@ -5197,7 +5206,8 @@ export class ApiGatewayController {
                 showMessage('info', 'Envoi d un nouveau code OTP...');
 
                 try {
-                    var response = await fetch('/auth/send-otp', {
+                    // ✅ Appel direct à FPay
+                    var response = await fetch(FPAY_API_URL + '/auth/send-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -5228,7 +5238,7 @@ export class ApiGatewayController {
                 }
             };
 
-            // ✅ Formulaire utilise /auth/generate-token
+            // ✅ Formulaire modifié - appelle directement FPay
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5253,7 +5263,6 @@ export class ApiGatewayController {
                     showMessage('info', 'Verification des identifiants...');
 
                     try {
-                        // ✅ Étape 1: Login simple (sans liaison)
                         var payloadStep1 = {
                             phone: phone,
                             password: password,
@@ -5264,8 +5273,8 @@ export class ApiGatewayController {
 
                         console.log('[OAuth] Etape 1 - Login:', payloadStep1);
 
-                        // ✅ Utiliser /auth/login pour obtenir un token
-                        var response1 = await fetch('/auth/login', {
+                        // ✅ Appel direct à FPay
+                        var response1 = await fetch(FPAY_API_URL + '/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep1)
@@ -5300,7 +5309,7 @@ export class ApiGatewayController {
                             return;
                         }
 
-                        // ✅ Login réussi - retourne directement les tokens
+                        // ✅ Login réussi - retourne directement les tokens FPay
                         showSuccess(data1);
                         stopLoading();
                         return;
@@ -5335,7 +5344,8 @@ export class ApiGatewayController {
 
                         console.log('[OAuth] Etape 2 - Verification OTP:', payloadStep2);
 
-                        var response2 = await fetch('/auth/login', {
+                        // ✅ Appel direct à FPay
+                        var response2 = await fetch(FPAY_API_URL + '/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep2)
