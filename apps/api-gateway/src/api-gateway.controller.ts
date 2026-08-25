@@ -4543,12 +4543,12 @@ export class ApiGatewayController {
         html = html.replace(/{{CURRENCY}}/g, currency);
         html = html.replace(/{{DESCRIPTION}}/g, description);
         html = html.replace(/{{API_KEY}}/g, apiKey);
-        html = html.replace(/{{CLIENT_ID}}/g, clientId); // ✅ Passer le clientId au frontend
+        html = html.replace(/{{CLIENT_ID}}/g, clientId);
 
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ✅ Version HTML avec le clientId
+      // ✅ Version HTML avec le clientId et handleRedirect amélioré
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -4887,7 +4887,7 @@ export class ApiGatewayController {
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
             var API_KEY = '${apiKey}';
-            var CLIENT_ID = '${clientId}'; // ✅ Récupérer le clientId
+            var CLIENT_ID = '${clientId}';
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
@@ -4967,45 +4967,151 @@ export class ApiGatewayController {
                 
                 cleanUrl();
                 console.log('[OAuth] Tokens stockes:', userTokens);
+                console.log('[OAuth] User data:', userData);
             }
 
+            // ✅ Fonction handleRedirect améliorée pour mobile et web
             window.handleRedirect = function() {
-                var redirectUrl = new URL(REDIRECT_URI);
-                
-                if (userTokens.accessToken) {
-                    redirectUrl.searchParams.set('access_token', userTokens.accessToken);
-                }
-                if (userTokens.refreshToken) {
-                    redirectUrl.searchParams.set('refresh_token', userTokens.refreshToken);
-                }
-                if (userTokens.userId) {
-                    redirectUrl.searchParams.set('user_id', userTokens.userId);
-                }
-                if (userTokens.code) {
-                    redirectUrl.searchParams.set('code', userTokens.code);
-                }
-                if (SYSTEM_USER_ID) {
-                    redirectUrl.searchParams.set('system_user_id', SYSTEM_USER_ID);
-                }
-                if (AMOUNT) {
-                    redirectUrl.searchParams.set('amount', AMOUNT);
-                }
-                if (CURRENCY) {
-                    redirectUrl.searchParams.set('currency', CURRENCY);
-                }
-                if (DESCRIPTION) {
-                    redirectUrl.searchParams.set('description', DESCRIPTION);
-                }
-                if (API_KEY) {
-                    redirectUrl.searchParams.set('api_key', API_KEY);
-                }
-                // ✅ Ajouter le clientId
-                if (CLIENT_ID) {
-                    redirectUrl.searchParams.set('client_id', CLIENT_ID);
+                console.log('[OAuth] Redirection vers:', REDIRECT_URI);
+                console.log('[OAuth] Tokens:', userTokens);
+                console.log('[OAuth] User data:', userData);
+
+                // ✅ Si c'est une URL mobile (fpay://), on construit manuellement
+                if (REDIRECT_URI.startsWith('fpay://')) {
+                    var params = new URLSearchParams();
+                    
+                    // Ajouter tous les paramètres
+                    if (userTokens.accessToken) {
+                        params.set('access_token', userTokens.accessToken);
+                    }
+                    if (userTokens.refreshToken) {
+                        params.set('refresh_token', userTokens.refreshToken);
+                    }
+                    if (userTokens.userId) {
+                        params.set('user_id', userTokens.userId);
+                    }
+                    if (userTokens.code) {
+                        params.set('code', userTokens.code);
+                    }
+                    if (SYSTEM_USER_ID) {
+                        params.set('system_user_id', SYSTEM_USER_ID);
+                    }
+                    if (AMOUNT) {
+                        params.set('amount', AMOUNT);
+                    }
+                    if (CURRENCY) {
+                        params.set('currency', CURRENCY);
+                    }
+                    if (DESCRIPTION) {
+                        params.set('description', DESCRIPTION);
+                    }
+                    if (API_KEY) {
+                        params.set('api_key', API_KEY);
+                    }
+                    if (CLIENT_ID) {
+                        params.set('client_id', CLIENT_ID);
+                    }
+
+                    // ✅ Ajouter les données utilisateur
+                    if (userData) {
+                        params.set('data_id', userData.id || '');
+                        params.set('data_phone', userData.phone || '');
+                        params.set('data_full_name', userData.full_name || '');
+                        params.set('data_role', userData.role || '');
+                        params.set('data_status', userData.status || '');
+                        params.set('data_kycStatus', userData.kycStatus || '');
+                        params.set('data_countryCode', userData.countryCode || 'CD');
+                        
+                        if (userData.wallets) {
+                            params.set('wallets', JSON.stringify(userData.wallets));
+                        }
+                        if (userData.sessions) {
+                            params.set('sessions', JSON.stringify(userData.sessions));
+                        }
+                        if (userData.resources) {
+                            params.set('resources', JSON.stringify(userData.resources));
+                        }
+                        if (userData.kyc) {
+                            params.set('kyc', JSON.stringify(userData.kyc));
+                        }
+                    }
+
+                    // ✅ Construire l'URL mobile
+                    var finalUrl = REDIRECT_URI + '?' + params.toString();
+                    console.log('[OAuth] Redirection mobile:', finalUrl);
+                    window.location.href = finalUrl;
+                    return;
                 }
 
-                console.log('[OAuth] Redirection vers:', redirectUrl.toString());
-                window.location.href = redirectUrl.toString();
+                // ✅ Pour les URLs web standard
+                try {
+                    var redirectUrl = new URL(REDIRECT_URI);
+                    
+                    if (userTokens.accessToken) {
+                        redirectUrl.searchParams.set('access_token', userTokens.accessToken);
+                    }
+                    if (userTokens.refreshToken) {
+                        redirectUrl.searchParams.set('refresh_token', userTokens.refreshToken);
+                    }
+                    if (userTokens.userId) {
+                        redirectUrl.searchParams.set('user_id', userTokens.userId);
+                    }
+                    if (userTokens.code) {
+                        redirectUrl.searchParams.set('code', userTokens.code);
+                    }
+                    if (SYSTEM_USER_ID) {
+                        redirectUrl.searchParams.set('system_user_id', SYSTEM_USER_ID);
+                    }
+                    if (AMOUNT) {
+                        redirectUrl.searchParams.set('amount', AMOUNT);
+                    }
+                    if (CURRENCY) {
+                        redirectUrl.searchParams.set('currency', CURRENCY);
+                    }
+                    if (DESCRIPTION) {
+                        redirectUrl.searchParams.set('description', DESCRIPTION);
+                    }
+                    if (API_KEY) {
+                        redirectUrl.searchParams.set('api_key', API_KEY);
+                    }
+                    if (CLIENT_ID) {
+                        redirectUrl.searchParams.set('client_id', CLIENT_ID);
+                    }
+
+                    if (userData) {
+                        redirectUrl.searchParams.set('data_id', userData.id || '');
+                        redirectUrl.searchParams.set('data_phone', userData.phone || '');
+                        redirectUrl.searchParams.set('data_full_name', userData.full_name || '');
+                        redirectUrl.searchParams.set('data_role', userData.role || '');
+                        redirectUrl.searchParams.set('data_status', userData.status || '');
+                        redirectUrl.searchParams.set('data_kycStatus', userData.kycStatus || '');
+                        redirectUrl.searchParams.set('data_countryCode', userData.countryCode || 'CD');
+                        
+                        if (userData.wallets) {
+                            redirectUrl.searchParams.set('wallets', JSON.stringify(userData.wallets));
+                        }
+                        if (userData.sessions) {
+                            redirectUrl.searchParams.set('sessions', JSON.stringify(userData.sessions));
+                        }
+                        if (userData.resources) {
+                            redirectUrl.searchParams.set('resources', JSON.stringify(userData.resources));
+                        }
+                        if (userData.kyc) {
+                            redirectUrl.searchParams.set('kyc', JSON.stringify(userData.kyc));
+                        }
+                    }
+
+                    console.log('[OAuth] Redirection web:', redirectUrl.toString());
+                    window.location.href = redirectUrl.toString();
+                } catch (error) {
+                    console.error('[OAuth] Erreur redirection:', error);
+                    // Fallback: redirection simple avec les paramètres de base
+                    var fallbackUrl = REDIRECT_URI + '?access_token=' + encodeURIComponent(userTokens.accessToken || '') +
+                        '&refresh_token=' + encodeURIComponent(userTokens.refreshToken || '') +
+                        '&user_id=' + encodeURIComponent(userTokens.userId || '') +
+                        '&client_id=' + encodeURIComponent(CLIENT_ID || '');
+                    window.location.href = fallbackUrl;
+                }
             };
 
             function startTimer() {
