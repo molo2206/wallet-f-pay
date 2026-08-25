@@ -5444,6 +5444,7 @@ export class ApiGatewayController {
         });
       }
 
+      // ✅ Générer le token via le microservice
       const result = await this.sendAuthMessage<AuthResponseDto>(
         'generate_token',
         { userId: currentUser.id },
@@ -5451,9 +5452,52 @@ export class ApiGatewayController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
 
+      // ✅ Extraire le token et les données
+      const accessToken = result.accessToken || result.data?.accessToken;
+      const refreshToken = result.refreshToken || result.data?.refreshToken;
+      const userId = result.data?.id || currentUser.id;
+
+      if (!accessToken) {
+        throw new Error('Token non généré');
+      }
+
+      // ✅ Décoder le token pour obtenir l'expiration
+      let expiresAt: Date;
+      try {
+        const decoded = jwt.decode(accessToken) as any;
+        if (decoded && decoded.exp) {
+          expiresAt = new Date(decoded.exp * 1000);
+        } else {
+          // Expiration par défaut: 7 jours
+          expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        }
+      } catch (error) {
+        expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      }
+
+      // ✅ ENREGISTRER LE TOKEN DANS LA BASE DE DONNÉES
+      await this.prisma.oauthaccesstoken.create({
+        data: {
+          token: accessToken,
+          clientId: 'api-gateway',
+          userId: userId,
+          scope: 'all',
+          expiresAt: expiresAt,
+          createdAt: new Date(),
+        },
+      });
+
+      console.log(`[GenerateToken] ✅ Token enregistré pour l'utilisateur ${userId}`);
+
       return res.status(200).json({
         success: true,
-        data: result,
+        data: {
+          accessToken: accessToken,
+          refreshToken: refreshToken || null,
+          userId: userId,
+          expiresAt: expiresAt.toISOString(),
+        },
+        message: 'Token généré avec succès',
       });
 
     } catch (error) {
@@ -5549,7 +5593,49 @@ export class ApiGatewayController {
     };
 
     // ✅ Fonction: Rediriger avec succès
-    const redirectWithSuccess = (data: any) => {
+    const redirectWithSuccess = async (data: any) => {
+      // ✅ ENREGISTRER LE TOKEN DANS LA BASE DE DONNÉES
+      try {
+        if (data.accessToken) {
+          const decoded = jwt.decode(data.accessToken) as any;
+          let expiresAt: Date;
+
+          if (decoded && decoded.exp) {
+            expiresAt = new Date(decoded.exp * 1000);
+          } else {
+            expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+          }
+
+          // ✅ Vérifier si le token existe déjà
+          const existingToken = await this.prisma.oauthaccesstoken.findFirst({
+            where: { token: data.accessToken },
+          });
+
+          if (!existingToken) {
+            await this.prisma.oauthaccesstoken.create({
+              data: {
+                token: data.accessToken,
+                clientId: clientId || 'oauth-callback',
+                userId: data.data?.id || query.user_id,
+                scope: 'all',
+                expiresAt: expiresAt,
+                createdAt: new Date(),
+              },
+            });
+            console.log(`[OAuth] ✅ Token enregistré pour l'utilisateur ${data.data?.id || query.user_id}`);
+          } else {
+            console.log(`[OAuth] ⏳ Token déjà existant, mise à jour de l'expiration`);
+            await this.prisma.oauthaccesstoken.update({
+              where: { id: existingToken.id },
+              data: { expiresAt: expiresAt },
+            });
+          }
+        }
+      } catch (dbError) {
+        console.error('[OAuth] ❌ Erreur lors de l\'enregistrement du token:', dbError.message);
+        // On continue même si l'enregistrement échoue
+      }
+
       if (hasRedirect) {
         const params = new URLSearchParams();
 
@@ -5734,7 +5820,7 @@ export class ApiGatewayController {
             wallets: []
           };
 
-          return redirectWithSuccess({
+          return await redirectWithSuccess({
             success: true,
             accessToken: query.access_token,
             refreshToken: query.refresh_token,
@@ -5764,7 +5850,7 @@ export class ApiGatewayController {
         wallets: []
       };
 
-      return redirectWithSuccess({
+      return await redirectWithSuccess({
         success: true,
         accessToken: query.access_token,
         refreshToken: query.refresh_token,
@@ -5813,7 +5899,7 @@ export class ApiGatewayController {
           wallets: []
         };
 
-        return redirectWithSuccess({
+        return await redirectWithSuccess({
           success: true,
           accessToken: tokenResponse.accessToken,
           refreshToken: tokenResponse.refreshToken,
