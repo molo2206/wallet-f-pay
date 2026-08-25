@@ -4475,7 +4475,7 @@ export class ApiGatewayController {
       amount?: string;
       currency?: string;
       description?: string;
-      api_key?: string;
+      api_key?: string; // ✅ AJOUTER
     },
     @Res() res: Response,
   ) {
@@ -4487,12 +4487,18 @@ export class ApiGatewayController {
       const env = process.env.NODE_ENV || 'development';
       const envLabel = env === 'production' ? 'PRODUCTION' : env === 'test' ? 'TEST' : 'LOCAL';
 
+      // ✅ Récupérer system_user_id de la query
       const systemUserId = query.system_user_id || '';
+
+      // ✅ Récupérer les données de paiement
       const amount = query.amount || '';
       const currency = query.currency || '';
       const description = query.description || '';
-      const apiKey = query.api_key || '';
 
+      // ✅ Récupérer l'API Key
+      const apiKey = query.api_key || ''; // ✅ Définir apiKey
+
+      // ✅ Utiliser le callback URL correct
       const callbackUrl = query.redirect_uri || oauthCallbackUrl;
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
@@ -4510,692 +4516,256 @@ export class ApiGatewayController {
         html = html.replace(/{{AMOUNT}}/g, amount);
         html = html.replace(/{{CURRENCY}}/g, currency);
         html = html.replace(/{{DESCRIPTION}}/g, description);
-        html = html.replace(/{{API_KEY}}/g, apiKey);
+        html = html.replace(/{{API_KEY}}/g, apiKey); // ✅ Utiliser apiKey
 
         return res.set('Content-Type', 'text/html').send(html);
       }
 
+      // ✅ Version HTML avec OTP intégré - AJOUT DE L'API KEY
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>F-Pay • Connexion sécurisée</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <title>Connexion F-Pay</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f0f2f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 24px;
+            padding: 20px;
         }
-
         .container {
             width: 100%;
-            max-width: 460px;
-            background: #ffffff;
-            border-radius: 32px;
-            padding: 48px 40px 40px;
-            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.08), 0 8px 32px rgba(0, 0, 0, 0.04);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            max-width: 480px;
+            background: white;
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.15);
+            border: 1px solid rgba(10, 28, 242, 0.08);
         }
-
-        .container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #0A1CF2, #4A5BFF, #0A1CF2);
-            background-size: 200% 100%;
-            animation: shimmer 3s ease-in-out infinite;
-        }
-
-        @keyframes shimmer {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-
-        .logo {
-            text-align: center;
-            margin-bottom: 36px;
-        }
-
-        .logo .icon-wrapper {
-            display: inline-block;
-            width: 64px;
-            height: 64px;
-            background: linear-gradient(135deg, #0A1CF2, #1a2ff5);
+        .logo { text-align: center; margin-bottom: 32px; }
+        .logo .icon {
+            width: 72px;
+            height: 72px;
+            background: #0A1CF2;
             border-radius: 18px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 30px;
+            font-size: 32px;
             color: white;
-            font-weight: 700;
-            margin-bottom: 14px;
-            box-shadow: 0 8px 24px rgba(10, 28, 242, 0.25);
+            font-weight: bold;
+            margin-bottom: 12px;
         }
-
-        .logo h1 {
-            font-size: 28px;
-            font-weight: 700;
-            color: #0a0a1a;
-            letter-spacing: -0.5px;
-        }
-
-        .logo h1 .f {
-            color: #0A1CF2;
-        }
-
-        .logo h1 .pay {
-            color: #FFB81C;
-        }
-
-        .logo .subtitle {
-            color: #6b7280;
-            font-size: 14px;
-            font-weight: 400;
-            margin-top: 4px;
-        }
-
+        .logo h1 { font-size: 28px; color: #1a1a2e; letter-spacing: -0.5px; }
+        .logo h1 .f { color: #0A1CF2; }
+        .logo h1 .pay { color: #FFB81C; }
+        .logo p { color: #6b7280; font-size: 14px; margin-top: 4px; }
         .env-badge {
             display: inline-block;
-            padding: 4px 14px;
+            padding: 4px 12px;
             border-radius: 20px;
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.6px;
-            margin-top: 10px;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
         }
-
-        .env-badge.local {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .env-badge.test {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .env-badge.production {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .header {
-            margin-bottom: 28px;
-        }
-
-        .header h2 {
-            font-size: 22px;
-            font-weight: 600;
-            color: #0a0a1a;
-            margin-bottom: 4px;
-        }
-
-        .header p {
-            color: #6b7280;
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        /* Payment Info Card */
+        .env-badge.local { background: #10b981; color: white; }
+        .env-badge.test { background: #f59e0b; color: white; }
+        .env-badge.production { background: #ef4444; color: white; }
+        .header { margin-bottom: 28px; }
+        .header h2 { font-size: 20px; color: #1a1a2e; margin-bottom: 6px; }
+        .header p { color: #6b7280; font-size: 14px; }
         .payment-info {
-            background: #f8faff;
-            border-radius: 16px;
-            padding: 18px 20px;
-            margin-bottom: 24px;
-            border: 1px solid #e8ecf4;
-            transition: all 0.2s ease;
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid #e5e7eb;
         }
-
-        .payment-info:hover {
-            border-color: #d0d8e8;
-        }
-
         .payment-info .info-row {
             display: flex;
             justify-content: space-between;
-            padding: 5px 0;
+            padding: 4px 0;
         }
-
-        .payment-info .info-row:not(:last-child) {
-            border-bottom: 1px solid #eef2f8;
-            padding-bottom: 5px;
-        }
-
         .payment-info .label {
             color: #6b7280;
             font-size: 13px;
-            font-weight: 500;
         }
-
         .payment-info .value {
-            color: #0a0a1a;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        .payment-info .value.amount {
-            color: #0A1CF2;
-            font-size: 15px;
-        }
-
-        .form-group {
-            margin-bottom: 18px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
             color: #1a1a2e;
-            margin-bottom: 6px;
-            letter-spacing: 0.2px;
+            font-weight: 600;
+            font-size: 13px;
         }
-
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; font-size: 14px; font-weight: 500; color: #1a1a2e; margin-bottom: 6px; }
         .form-group input {
             width: 100%;
-            padding: 14px 16px;
-            border: 2px solid #e8ecf4;
-            border-radius: 14px;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
             font-size: 15px;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.25s ease;
-            background: #fafbfc;
-            color: #0a0a1a;
-            outline: none;
+            transition: all 0.2s;
+            background: #fafafa;
+            color: #1a1a2e;
         }
-
-        .form-group input::placeholder {
-            color: #9ca3af;
-            font-weight: 400;
-        }
-
         .form-group input:focus {
+            outline: none;
             border-color: #0A1CF2;
-            background: #ffffff;
-            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.1);
         }
-
-        .form-group input:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            background: #f3f4f6;
-        }
-
-        .form-group input.otp-input {
-            font-size: 20px;
-            font-weight: 600;
-            letter-spacing: 8px;
-            text-align: center;
-            padding: 14px 12px;
-        }
-
+        .form-group input::placeholder { color: #9ca3af; }
+        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn {
             width: 100%;
-            padding: 16px;
+            padding: 14px;
             border: none;
-            border-radius: 14px;
+            border-radius: 12px;
             font-size: 16px;
             font-weight: 600;
-            font-family: 'Inter', sans-serif;
             cursor: pointer;
-            background: linear-gradient(135deg, #0A1CF2, #1a2ff5);
+            background: #0A1CF2;
             color: white;
-            transition: all 0.25s ease;
-            position: relative;
-            overflow: hidden;
+            transition: all 0.2s;
         }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 32px rgba(10, 28, 242, 0.30);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none !important;
-            box-shadow: none !important;
-        }
-
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(10, 28, 242, 0.35); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn .spinner { display: none; }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: none; }
         .btn .spinner {
-            display: none;
-            width: 22px;
-            height: 22px;
-            border: 3px solid rgba(255, 255, 255, 0.2);
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
             border-top-color: white;
             border-radius: 50%;
-            animation: spin 0.7s linear infinite;
-            margin: 0 auto;
+            animation: spin 0.8s linear infinite;
         }
-
-        .btn.loading .spinner {
-            display: block;
-        }
-
-        .btn.loading .btn-text {
-            display: none;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
+        @keyframes spin { to { transform: rotate(360deg); } }
         .message {
-            padding: 14px 18px;
-            border-radius: 14px;
-            margin-bottom: 18px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
             font-size: 14px;
-            font-weight: 500;
             display: none;
-            animation: slideDown 0.3s ease forwards;
         }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-8px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message.show {
-            display: block;
-        }
-
-        .message.error {
-            background: #fef2f2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
-        }
-
-        .message.success {
-            background: #f0fdf4;
-            color: #059669;
-            border: 1px solid #bbf7d0;
-        }
-
-        .message.info {
-            background: #eff6ff;
-            color: #0A1CF2;
-            border: 1px solid rgba(10, 28, 242, 0.15);
-        }
-
+        .message.show { display: block; }
+        .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .message.success { background: #f0fdf4; color: #059669; border: 1px solid #bbf7d0; }
+        .message.info { background: #eff6ff; color: #0A1CF2; border: 1px solid rgba(10, 28, 242, 0.2); }
         .otp-section {
             display: none;
-            animation: fadeIn 0.35s ease forwards;
+            animation: fadeIn 0.3s ease-in;
         }
-
         .otp-section.show {
             display: block;
         }
-
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-6px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
+        .links { text-align: center; margin-top: 20px; font-size: 14px; color: #6b7280; }
+        .links a { color: #0A1CF2; text-decoration: none; font-weight: 500; cursor: pointer; }
+        .links a:hover { text-decoration: underline; }
+        .links .divider { color: #e5e7eb; margin: 0 8px; }
+        .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
+        .footer a { color: #6b7280; text-decoration: none; }
+        .footer a:hover { color: #0A1CF2; }
         .timer {
             text-align: center;
             font-size: 13px;
             color: #6b7280;
             margin-top: 8px;
-            font-weight: 500;
         }
-
-        .links {
-            text-align: center;
-            margin-top: 22px;
-            font-size: 14px;
-            color: #6b7280;
-        }
-
-        .links a {
-            color: #0A1CF2;
-            text-decoration: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: color 0.2s ease;
-        }
-
-        .links a:hover {
-            color: #0011cc;
-            text-decoration: underline;
-        }
-
-        .links .divider {
-            color: #d1d5db;
-            margin: 0 10px;
-        }
-
-        .footer {
-            text-align: center;
-            margin-top: 28px;
-            padding-top: 20px;
-            border-top: 1px solid #eef2f8;
-            color: #9ca3af;
-            font-size: 12px;
-        }
-
-        .footer a {
-            color: #6b7280;
-            text-decoration: none;
-            transition: color 0.2s ease;
-        }
-
-        .footer a:hover {
-            color: #0A1CF2;
-        }
-
-        /* Success State */
         #successState {
             display: none;
             text-align: center;
-            padding: 12px 0 8px;
+            padding: 20px 0;
         }
-
-        #successState .success-icon {
-            font-size: 64px;
-            margin-bottom: 12px;
-            display: block;
-        }
-
-        #successState h2 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #0a0a1a;
-            margin-bottom: 4px;
-        }
-
-        #successState p {
-            color: #6b7280;
-            font-size: 15px;
-            margin-bottom: 4px;
-        }
-
+        #successState .success-icon { font-size: 64px; margin-bottom: 16px; }
+        #successState h2 { color: #1a1a2e; margin-bottom: 8px; }
+        #successState p { color: #6b7280; margin-bottom: 8px; }
         #successState .user-info {
-            background: #f8faff;
-            border-radius: 16px;
-            padding: 18px 20px;
-            margin: 20px 0 16px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin: 16px 0;
             text-align: left;
-            border: 1px solid #e8ecf4;
+            border: 1px solid #e5e7eb;
         }
-
         #successState .user-info .info-row {
             display: flex;
             justify-content: space-between;
             padding: 6px 0;
-            border-bottom: 1px solid #eef2f8;
+            border-bottom: 1px solid #f0f0f0;
         }
+        #successState .user-info .info-row:last-child { border-bottom: none; }
+        #successState .user-info .label { color: #6b7280; font-size: 13px; }
+        #successState .user-info .value { color: #1a1a2e; font-weight: 500; font-size: 13px; }
 
-        #successState .user-info .info-row:last-child {
-            border-bottom: none;
-            padding-bottom: 0;
-        }
-
-        #successState .user-info .label {
-            color: #6b7280;
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        #successState .user-info .value {
-            color: #0a0a1a;
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        #successState .btn {
-            margin-top: 8px;
-            max-width: 200px;
-            display: inline-block;
-        }
-
-        /* Dark Mode */
         @media (prefers-color-scheme: dark) {
-            body {
-                background: #111827;
-            }
-
-            .container {
-                background: #1e293b;
-                box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
-            }
-
-            .logo h1 {
-                color: #f1f5f9;
-            }
-
-            .logo .subtitle {
-                color: #94a3b8;
-            }
-
-            .header h2 {
-                color: #f1f5f9;
-            }
-
-            .header p {
-                color: #94a3b8;
-            }
-
-            .payment-info {
-                background: #1a2332;
-                border-color: #2d3a4d;
-            }
-
-            .payment-info .info-row:not(:last-child) {
-                border-color: #2d3a4d;
-            }
-
-            .payment-info .label {
-                color: #94a3b8;
-            }
-
-            .payment-info .value {
-                color: #f1f5f9;
-            }
-
-            .payment-info .value.amount {
-                color: #7b8cff;
-            }
-
-            .form-group label {
-                color: #e2e8f0;
-            }
-
-            .form-group input {
-                background: #0f172a;
-                border-color: #2d3a4d;
-                color: #f1f5f9;
-            }
-
-            .form-group input::placeholder {
-                color: #64748b;
-            }
-
-            .form-group input:focus {
-                background: #1a2332;
-                border-color: #4A5BFF;
-                box-shadow: 0 0 0 4px rgba(74, 91, 255, 0.15);
-            }
-
-            .form-group input:disabled {
-                background: #1a2332;
-            }
-
-            .message.error {
-                background: #451a1a;
-                color: #fca5a5;
-                border-color: #7f1d1d;
-            }
-
-            .message.success {
-                background: #064e3b;
-                color: #6ee7b7;
-                border-color: #065f46;
-            }
-
-            .message.info {
-                background: #1e3a5f;
-                color: #93c5fd;
-                border-color: #1e40af;
-            }
-
-            .links {
-                color: #94a3b8;
-            }
-
-            .links a {
-                color: #93c5fd;
-            }
-
-            .links a:hover {
-                color: #bfdbfe;
-            }
-
-            .links .divider {
-                color: #334155;
-            }
-
-            .footer {
-                border-color: #2d3a4d;
-                color: #64748b;
-            }
-
-            .footer a {
-                color: #94a3b8;
-            }
-
-            .footer a:hover {
-                color: #93c5fd;
-            }
-
-            .timer {
-                color: #94a3b8;
-            }
-
-            #successState h2 {
-                color: #f1f5f9;
-            }
-
-            #successState p {
-                color: #94a3b8;
-            }
-
-            #successState .user-info {
-                background: #1a2332;
-                border-color: #2d3a4d;
-            }
-
-            #successState .user-info .info-row {
-                border-color: #2d3a4d;
-            }
-
-            #successState .user-info .label {
-                color: #94a3b8;
-            }
-
-            #successState .user-info .value {
-                color: #f1f5f9;
-            }
-
-            .env-badge.local {
-                background: #134e4a;
-                color: #6ee7b7;
-            }
-
-            .env-badge.test {
-                background: #78350f;
-                color: #fcd34d;
-            }
-
-            .env-badge.production {
-                background: #7f1d1d;
-                color: #fca5a5;
-            }
-
-            .payment-info:hover {
-                border-color: #3b4a5f;
-            }
+            body { background: #1a1a2e; }
+            .container { background: #1e293b; border-color: rgba(255, 255, 255, 0.05); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+            .logo h1 { color: #f1f5f9; }
+            .logo p { color: #94a3b8; }
+            .header h2 { color: #f1f5f9; }
+            .header p { color: #94a3b8; }
+            .payment-info { background: #1e293b; border-color: #334155; }
+            .payment-info .value { color: #f1f5f9; }
+            .form-group label { color: #f1f5f9; }
+            .form-group input { background: #0f172a; border-color: #334155; color: #f1f5f9; }
+            .form-group input:focus { background: #1e293b; border-color: #0A1CF2; box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2); }
+            .form-group input::placeholder { color: #64748b; }
+            .links { color: #94a3b8; }
+            .links a { color: #93c5fd; }
+            .footer { color: #64748b; }
+            .footer a { color: #94a3b8; }
+            .footer a:hover { color: #93c5fd; }
+            .message.error { background: #451a1a; color: #fca5a5; border-color: #7f1d1d; }
+            .message.success { background: #064e3b; color: #6ee7b7; border-color: #065f46; }
+            .message.info { background: #1e3a5f; color: #93c5fd; border-color: #1e40af; }
+            .timer { color: #94a3b8; }
+            #successState h2 { color: #f1f5f9; }
+            #successState p { color: #94a3b8; }
+            #successState .user-info { background: #1e293b; border-color: #334155; }
+            #successState .user-info .info-row { border-color: #334155; }
+            #successState .user-info .value { color: #f1f5f9; }
         }
 
         @media (max-width: 520px) {
-            .container {
-                padding: 32px 20px 28px;
-                border-radius: 24px;
-            }
-
-            .logo h1 {
-                font-size: 24px;
-            }
-
-            .btn {
-                font-size: 15px;
-                padding: 14px;
-            }
-
-            .form-group input {
-                padding: 12px 14px;
-                font-size: 14px;
-            }
-
-            #successState .btn {
-                max-width: 100%;
-            }
+            .container { padding: 32px 20px; }
+            .logo h1 { font-size: 24px; }
+            .btn { font-size: 15px; padding: 12px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo">
-            <div class="icon-wrapper">F</div>
+            <div class="icon">F</div>
             <h1><span class="f">F</span><span class="pay">Pay</span></h1>
-            <p class="subtitle">Solutions de paiement sécurisées</p>
+            <p>Solutions de paiement securisees</p>
             <div><span class="env-badge ${env}">${envLabel}</span></div>
         </div>
 
         <div id="loginState">
             <div class="header">
-                <h2>Connexion à F-Pay</h2>
-                <p id="stepMessage">Étape 1 : Saisissez vos identifiants</p>
+                <h2>Connexion a F-Pay</h2>
+                <p id="stepMessage">Etape 1 : Saisissez vos identifiants</p>
             </div>
-
+            
+            <!-- ✅ SECTION PAIEMENT -->
             <div class="payment-info" id="paymentInfo" style="display: none;">
                 <div class="info-row">
                     <span class="label">Montant</span>
-                    <span class="value amount" id="displayAmount">-</span>
+                    <span class="value" id="displayAmount">-</span>
                 </div>
                 <div class="info-row">
                     <span class="label">Devise</span>
@@ -5210,50 +4780,46 @@ export class ApiGatewayController {
             <div class="message" id="message">
                 <span id="messageText">Message</span>
             </div>
-
             <form id="loginForm" autocomplete="off">
                 <div class="form-group">
-                    <label>Numéro de téléphone</label>
+                    <label>Numero de telephone</label>
                     <input type="tel" id="phone" placeholder="+243 999 999 999" required>
                 </div>
-
                 <div class="form-group" id="passwordGroup">
                     <label>Mot de passe</label>
                     <input type="password" id="password" placeholder="Votre mot de passe" required>
                 </div>
-
+                <!-- SECTION OTP (cachee au debut) -->
                 <div class="otp-section" id="otpSection">
                     <div class="form-group">
                         <label>Code OTP</label>
-                        <input type="text" class="otp-input" id="otpCode" placeholder="• • • • • •" maxlength="6" inputmode="numeric" autocomplete="off">
+                        <input type="text" id="otpCode" placeholder="Entrez le code recu par SMS" maxlength="6" inputmode="numeric" autocomplete="off">
                         <div class="timer" id="timer">⏱️ 60s</div>
                     </div>
                 </div>
-
                 <button type="submit" class="btn" id="submitBtn">
                     <span class="spinner"></span>
                     <span class="btn-text" id="btnText">Se connecter</span>
                 </button>
             </form>
-
             <div class="links">
                 <a href="#" id="resendLink" style="display:none;">Renvoyer le code OTP</a>
                 <span class="divider" id="dividerResend" style="display:none;">|</span>
-                <a href="#">Créer un compte</a>
+                <a href="#">Creer un compte</a>
             </div>
         </div>
 
         <div id="successState">
-            <span class="success-icon">✅</span>
-            <h2>Connexion réussie !</h2>
-            <p>Vous êtes maintenant connecté à F-Pay.</p>
+            <div class="success-icon">✅</div>
+            <h2>Connexion reussie !</h2>
+            <p>Vous etes maintenant connecte a F-Pay.</p>
             <div class="user-info" id="userInfo">
                 <div class="info-row">
                     <span class="label">ID utilisateur</span>
                     <span class="value" id="userId">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Téléphone</span>
+                    <span class="label">Telephone</span>
                     <span class="value" id="userPhone">-</span>
                 </div>
                 <div class="info-row">
@@ -5261,7 +4827,7 @@ export class ApiGatewayController {
                     <span class="value" id="userFullName">-</span>
                 </div>
                 <div class="info-row">
-                    <span class="label">Rôle</span>
+                    <span class="label">Role</span>
                     <span class="value" id="userRole">-</span>
                 </div>
                 <div class="info-row">
@@ -5269,14 +4835,16 @@ export class ApiGatewayController {
                     <span class="value" id="userStatus">-</span>
                 </div>
             </div>
-            <button class="btn" onclick="handleRedirect()">Continuer →</button>
+            <button class="btn" onclick="handleRedirect()" style="margin-top: 16px;">
+                Continuer →
+            </button>
         </div>
 
         <div class="footer">
-            <span>Connexion sécurisée • </span>
-            <a href="#">Conditions d'utilisation</a>
+            <span>Connexion securisee • </span>
+            <a href="#">Conditions d utilisation</a>
             <span> • </span>
-            <a href="#">Politique de confidentialité</a>
+            <a href="#">Politique de confidentialite</a>
         </div>
     </div>
 
@@ -5293,7 +4861,7 @@ export class ApiGatewayController {
             var AMOUNT = '${amount}';
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
-            var API_KEY = '${apiKey}';
+            var API_KEY = '${apiKey}'; // ✅ Utiliser apiKey (défini plus haut)
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] APP_URL:', APP_URL);
@@ -5314,6 +4882,10 @@ export class ApiGatewayController {
             var phoneSaved = '';
             var passwordSaved = '';
 
+            // ============================================================
+            //  AFFICHER LES DONNÉES DE PAIEMENT
+            // ============================================================
+
             function displayPaymentInfo() {
                 var paymentInfo = document.getElementById('paymentInfo');
                 if (AMOUNT || CURRENCY || DESCRIPTION) {
@@ -5323,6 +4895,10 @@ export class ApiGatewayController {
                     document.getElementById('displayDescription').textContent = DESCRIPTION || '-';
                 }
             }
+
+            // ============================================================
+            //  FONCTIONS UTILITAIRES
+            // ============================================================
 
             function cleanUrl() {
                 if (window.history && window.history.replaceState) {
@@ -5353,7 +4929,7 @@ export class ApiGatewayController {
             function showSuccess(data) {
                 document.getElementById('loginState').style.display = 'none';
                 document.getElementById('successState').style.display = 'block';
-
+                
                 userData = data.data;
                 userTokens = {
                     accessToken: data.accessToken || (data.data && data.data.accessToken),
@@ -5369,14 +4945,15 @@ export class ApiGatewayController {
                     document.getElementById('userRole').textContent = data.data.role || '-';
                     document.getElementById('userStatus').textContent = data.data.status || '-';
                 }
-
+                
                 cleanUrl();
                 console.log('[OAuth] Tokens stockes:', userTokens);
             }
 
+            // ✅ CORRIGÉ : handleRedirect avec system_user_id, les données de paiement ET l'API Key
             window.handleRedirect = function() {
                 var redirectUrl = new URL(REDIRECT_URI);
-
+                
                 if (userTokens.accessToken) {
                     redirectUrl.searchParams.set('access_token', userTokens.accessToken);
                 }
@@ -5401,6 +4978,7 @@ export class ApiGatewayController {
                 if (DESCRIPTION) {
                     redirectUrl.searchParams.set('description', DESCRIPTION);
                 }
+                // ✅ AJOUTER l'API Key dans la redirection
                 if (API_KEY) {
                     redirectUrl.searchParams.set('api_key', API_KEY);
                 }
@@ -5408,6 +4986,10 @@ export class ApiGatewayController {
                 console.log('[OAuth] Redirection vers:', redirectUrl.toString());
                 window.location.href = redirectUrl.toString();
             };
+
+            // ============================================================
+            //  TIMER OTP
+            // ============================================================
 
             function startTimer() {
                 secondsLeft = 60;
@@ -5422,13 +5004,17 @@ export class ApiGatewayController {
                 timerInterval = setInterval(function() {
                     secondsLeft--;
                     timerEl.textContent = '⏱️ ' + secondsLeft + 's';
-
+                    
                     if (secondsLeft <= 0) {
                         clearInterval(timerInterval);
-                        timerEl.textContent = '⏱️ Code expiré';
+                        timerEl.textContent = '⏱️ Code expire';
                     }
                 }, 1000);
             }
+
+            // ============================================================
+            //  RENVOYER L'OTP
+            // ============================================================
 
             window.resendOtp = async function(event) {
                 if (event) { event.preventDefault(); }
@@ -5437,11 +5023,11 @@ export class ApiGatewayController {
                 var password = document.getElementById('password').value.trim();
 
                 if (!phone || !password) {
-                    showMessage('error', 'Veuillez saisir votre numéro et mot de passe');
+                    showMessage('error', 'Veuillez saisir votre numero et mot de passe');
                     return;
                 }
 
-                showMessage('info', 'Envoi d\'un nouveau code OTP...');
+                showMessage('info', 'Envoi d un nouveau code OTP...');
 
                 try {
                     var response = await fetch('/auth/link-user', {
@@ -5459,21 +5045,25 @@ export class ApiGatewayController {
                     var data = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(data.message || 'Erreur lors de l\'envoi');
+                        throw new Error(data.message || 'Erreur lors de l envoi');
                     }
 
                     if (data.requiresOtp === true) {
-                        showMessage('success', '✅ Nouveau code OTP envoyé !');
+                        showMessage('success', '✅ Nouveau code OTP envoye !');
                         startTimer();
                     } else {
-                        throw new Error('Erreur lors de l\'envoi du code');
+                        throw new Error('Erreur lors de l envoi du code');
                     }
 
                 } catch (error) {
                     console.error('[Resend OTP] Erreur:', error);
-                    showMessage('error', error.message || 'Erreur lors de l\'envoi');
+                    showMessage('error', error.message || 'Erreur lors de l envoi');
                 }
             };
+
+            // ============================================================
+            //  SOUMISSION DU FORMULAIRE (2 ETAPES)
+            // ============================================================
 
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -5494,9 +5084,12 @@ export class ApiGatewayController {
                     return;
                 }
 
+                // ============================================================
+                // ETAPE 1 : Verification des identifiants + Envoi OTP
+                // ============================================================
                 if (!otpRequired) {
                     startLoading();
-                    showMessage('info', 'Vérification des identifiants...');
+                    showMessage('info', 'Verification des identifiants...');
 
                     try {
                         var payloadStep1 = {
@@ -5523,6 +5116,7 @@ export class ApiGatewayController {
                             throw new Error(data1.message || 'Identifiants invalides');
                         }
 
+                        // ✅ Si OTP requis (identifiants valides)
                         if (data1.requiresOtp === true) {
                             otpRequired = true;
                             phoneSaved = phone;
@@ -5533,16 +5127,17 @@ export class ApiGatewayController {
 
                             document.getElementById('passwordGroup').style.display = 'none';
 
-                            btnText.textContent = 'Vérifier le code';
-                            stepMessage.textContent = 'Étape 2 : Saisissez le code OTP reçu par SMS';
+                            btnText.textContent = 'Verifier le code';
+                            stepMessage.textContent = 'Etape 2 : Saisissez le code OTP recu par SMS';
 
-                            showMessage('success', '✅ Code OTP envoyé par SMS !');
+                            showMessage('success', '✅ Code OTP envoye par SMS !');
                             startTimer();
                             stopLoading();
 
                             document.getElementById('otpCode').focus();
                             return;
                         } else {
+                            // Si deja connecte directement (pas d'OTP requis)
                             showSuccess(data1);
                             stopLoading();
                             return;
@@ -5556,14 +5151,17 @@ export class ApiGatewayController {
                     }
                 }
 
+                // ============================================================
+                // ETAPE 2 : Verification OTP + LINK
+                // ============================================================
                 if (otpRequired) {
                     if (!otpCode) {
-                        showMessage('error', 'Veuillez saisir le code OTP reçu par SMS');
+                        showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
                         return;
                     }
 
                     startLoading();
-                    showMessage('info', 'Vérification du code OTP...');
+                    showMessage('info', 'Verification du code OTP...');
 
                     try {
                         var payloadStep2 = {
@@ -5591,27 +5189,33 @@ export class ApiGatewayController {
                             throw new Error(data2.message || 'Code OTP invalide');
                         }
 
+                        // ✅ Connexion reussie - LE COMPTE EST LIE !
                         showSuccess(data2);
                         stopLoading();
 
                     } catch (error) {
                         console.error('[OAuth] Etape 2 - Erreur:', error);
-                        showMessage('error', error.message || 'Code OTP invalide ou expiré');
+                        showMessage('error', error.message || 'Code OTP invalide ou expire');
                         stopLoading();
                     }
                 }
             });
 
+            // ============================================================
+            //  CHARGEMENT INITIAL
+            // ============================================================
+
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM charge');
 
+                // ✅ Afficher les informations de paiement
                 displayPaymentInfo();
 
                 var code = urlParams.get('code');
                 var accessToken = urlParams.get('access_token');
                 var userId = urlParams.get('user_id');
                 var systemUserIdFromUrl = urlParams.get('system_user_id');
-
+                
                 if (code && accessToken && userId) {
                     userTokens = {
                         accessToken: accessToken,
@@ -5635,7 +5239,7 @@ export class ApiGatewayController {
                 if (otpInput) {
                     otpInput.addEventListener('input', function(e) {
                         this.value = this.value.replace(/\D/g, '').slice(0, 6);
-
+                        
                         if (this.value.length === 6) {
                             console.log('[OAuth] OTP complet, soumission automatique');
                             document.getElementById('loginForm').dispatchEvent(new Event('submit'));
