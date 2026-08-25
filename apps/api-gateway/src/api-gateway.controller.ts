@@ -5386,7 +5386,7 @@ export class ApiGatewayController {
       callback?: string;
       redirect_uri?: string;
       state?: string;
-      client_id?: string; // ✅ AJOUTÉ
+      client_id?: string;
     },
     @Res() res: Response,
     @Request() req: any,
@@ -5402,12 +5402,13 @@ export class ApiGatewayController {
     // ✅ Récupérer le client_id
     const clientId = query.client_id || 'web-client';
 
-    // ✅ Déterminer le callback URL en fonction du client_id
-    // Si redirect_uri est fourni, on l'utilise
-    // Sinon, on détermine automatiquement
+    // ✅ IMPORTANT: Utiliser le redirect_uri EXACTEMENT comme passé dans la requête
+    // ✅ Ne PAS modifier le redirect_uri automatiquement
+    // ✅ Si l'utilisateur a passé fpay://callback, on utilise fpay://callback
+    // ✅ Si l'utilisateur a passé https://..., on utilise https://...
     let redirectUri = query.redirect_uri || query.callback || null;
 
-    // ✅ Si pas de redirect_uri fourni, on le détermine automatiquement
+    // ✅ Si AUCUN redirect_uri n'est fourni, on détermine automatiquement
     if (!redirectUri) {
       if (clientId === 'mobile-client' || clientId?.includes('mobile')) {
         redirectUri = this.getMobileCallbackUrl(); // fpay://callback
@@ -5422,7 +5423,8 @@ export class ApiGatewayController {
 
     console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
     console.log('[FPay] 📋 Client ID:', clientId);
-    console.log('[FPay] 📋 Application d\'origine (redirect_uri):', hasRedirect ? redirectUri : 'AUCUN (JSON uniquement)');
+    console.log('[FPay] 📋 redirect_uri EXACT (tel que passé):', redirectUri);
+    console.log('[FPay] 📋 Type de callback:', redirectUri?.startsWith('fpay://') ? '📱 MOBILE (deep link)' : '🌐 WEB');
 
     // ✅ Récupérer l'API Key depuis l'URL brute
     let rawApiKey = '';
@@ -5461,9 +5463,25 @@ export class ApiGatewayController {
     }
 
     // ============================================================
-    // ⚠️ FONCTION: Rediriger vers l'application d'origine (comme Google Auth)
+    // ⚠️ FONCTION: Rediriger vers l'application d'origine
     // ============================================================
     const redirectWithParams = (baseUrl: string, params: Record<string, any>) => {
+      // ✅ Pour les URLs fpay:// (mobile deep link), on construit manuellement
+      if (baseUrl.startsWith('fpay://')) {
+        console.log('[FPay] 📱 Construction URL mobile (deep link):', baseUrl);
+        const paramsString = Object.entries(params)
+          .filter(([_, value]) => value !== undefined && value !== null && value !== '')
+          .map(([key, value]) => {
+            const val = typeof value === 'object' ? JSON.stringify(value) : String(value);
+            return `${key}=${encodeURIComponent(val)}`;
+          })
+          .join('&');
+        const result = paramsString ? `${baseUrl}?${paramsString}` : baseUrl;
+        console.log('[FPay] 📱 URL mobile construite:', result);
+        return result;
+      }
+
+      // ✅ Pour les URLs web standard
       try {
         const url = new URL(baseUrl);
         Object.entries(params).forEach(([key, value]) => {
@@ -5475,10 +5493,11 @@ export class ApiGatewayController {
             }
           }
         });
+        console.log('[FPay] 🌐 URL web construite:', url.toString());
         return url.toString();
       } catch (error) {
-        // Si l'URL n'est pas valide (ex: fpay://callback), on construit manuellement
-        console.log('[FPay] ⚠️ URL non standard, construction manuelle:', baseUrl);
+        console.log('[FPay] ⚠️ Erreur construction URL, fallback:', error.message);
+        // Fallback: construction manuelle pour toute URL
         const paramsString = Object.entries(params)
           .filter(([_, value]) => value !== undefined && value !== null && value !== '')
           .map(([key, value]) => {
@@ -5491,7 +5510,7 @@ export class ApiGatewayController {
     };
 
     // ============================================================
-    // ⚠️ FONCTION: Rediriger vers l'application d'origine avec erreur
+    // ⚠️ FONCTION: Rediriger avec erreur
     // ============================================================
     const redirectWithError = (error: string, errorDescription?: string) => {
       if (hasRedirect) {
@@ -5502,16 +5521,13 @@ export class ApiGatewayController {
         if (query.state) {
           params.state = query.state;
         }
-        // ✅ Ajouter le client_id
         params.client_id = clientId;
 
-        // ✅ Rediriger vers l'application d'origine
         const redirectUrl = redirectWithParams(redirectUri, params);
-        console.log('[FPay] 🔄 Redirection vers l\'application d\'origine avec erreur:', redirectUrl);
+        console.log('[FPay] 🔄 Redirection avec erreur vers:', redirectUrl);
         return res.redirect(redirectUrl);
       }
 
-      // Pas de redirect_uri, retourner JSON
       return res.status(400).json({
         success: false,
         error: error,
@@ -5522,11 +5538,10 @@ export class ApiGatewayController {
     };
 
     // ============================================================
-    // ⚠️ FONCTION: Rediriger vers l'application d'origine avec TOUTES les données
+    // ⚠️ FONCTION: Rediriger avec TOUTES les données
     // ============================================================
     const redirectWithAllData = (data: any) => {
       if (hasRedirect) {
-        // ✅ Construire l'URL avec TOUTES les données
         const params: any = {
           // Tokens
           access_token: data.accessToken,
@@ -5534,11 +5549,9 @@ export class ApiGatewayController {
           user_id: data.data?.id,
           code: data.code || query.code || '',
           sessionId: data.sessionId,
-
-          // ✅ Ajouter le client_id
           client_id: clientId,
 
-          // Données utilisateur (toutes les propriétés)
+          // Données utilisateur
           data_id: data.data?.id,
           data_email: data.data?.email,
           data_phone: data.data?.phone,
@@ -5560,22 +5573,18 @@ export class ApiGatewayController {
           data_countryCode: data.data?.countryCode,
           data_locked_by_admin: data.data?.locked_by_admin,
 
-          // Branch
+          // Branch, Wallets, sessions, resources
           branch: data.data?.branch ? JSON.stringify(data.data.branch) : '',
-
-          // Wallets, sessions, resources
           wallets: data.data?.wallets ? JSON.stringify(data.data.wallets) : '[]',
           sessions: data.data?.sessions ? JSON.stringify(data.data.sessions) : '[]',
           resources: data.data?.resources ? JSON.stringify(data.data.resources) : '[]',
           kyc: data.data?.kyc ? JSON.stringify(data.data.kyc) : '{}',
         };
 
-        // ✅ Ajouter le system_user_id si présent
         if (query.system_user_id) {
           params.system_user_id = query.system_user_id;
         }
 
-        // ✅ Ajouter les données de paiement si contexte paiement
         if (isPaymentContext && data.data?.payment) {
           params.payment_status = data.data.payment.status || 'PENDING';
           if (data.data.payment.transaction) {
@@ -5590,21 +5599,18 @@ export class ApiGatewayController {
           if (rawApiKey) params.api_key = rawApiKey;
         }
 
-        // ✅ Ajouter le message
         params.message = data.message;
 
-        // ✅ Ajouter le state si présent
         if (query.state) {
           params.state = query.state;
         }
 
-        // ✅ Rediriger vers l'application d'origine (comme Google Auth)
+        // ✅ Rediriger vers EXACTEMENT le redirectUri passé
         const redirectUrl = redirectWithParams(redirectUri, params);
-        console.log('[FPay] 🔄 Redirection vers l\'application d\'origine avec TOUTES les données:', redirectUrl);
+        console.log('[FPay] 🔄 Redirection vers EXACTEMENT le redirectUri:', redirectUrl);
         return res.redirect(redirectUrl);
       }
 
-      // Pas de redirect_uri, retourner le JSON complet
       return res.status(200).json({
         ...data,
         close: true,
@@ -5614,7 +5620,7 @@ export class ApiGatewayController {
     };
 
     // ============================================================
-    // ⚠️ ERREUR 1 : API Key manquante (Paiement uniquement)
+    // ⚠️ ERREUR 1 : API Key manquante
     // ============================================================
     if (!rawApiKey && isPaymentContext) {
       console.error('[FPay] ❌ Aucune API Key trouvée pour paiement');
@@ -5774,7 +5780,6 @@ export class ApiGatewayController {
       if (isPaymentContext) {
         console.log('[FPay] 💰 Contexte PAIEMENT - Exécution du paiement automatique');
 
-        // Récupérer le destinataire
         let recipientUser: any = null;
 
         if (apiKeyToken) {
@@ -6021,7 +6026,7 @@ export class ApiGatewayController {
         };
       }
 
-      // ✅ Rediriger vers l'application d'origine (comme Google Auth) ou retourner JSON
+      // ✅ Rediriger vers EXACTEMENT le redirectUri passé (ou retourner JSON)
       return redirectWithAllData(finalResponse);
 
     } catch (error) {
