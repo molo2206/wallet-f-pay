@@ -5269,7 +5269,6 @@ export class ApiGatewayController {
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================
-  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('oauth/callback')
   async oauthCallback(
@@ -5285,7 +5284,8 @@ export class ApiGatewayController {
       description?: string;
       api_key?: string;
       callback?: string;
-      redirect_uri?: string; // ✅ AJOUTÉ explicitement
+      redirect_uri?: string;
+      state?: string;  // ✅ Pour la sécurité CSRF comme Google
     },
     @Res() res: Response,
     @Request() req: any,
@@ -5298,12 +5298,12 @@ export class ApiGatewayController {
     const isPaymentContext = !!(query.amount && query.currency);
     const isLinkContext = !isPaymentContext;
 
-    // ✅ Vérifier si un callback est spécifié
-    const hasCallback = !!(query.callback || query.redirect_uri);
-    const callbackUrl = query.callback || query.redirect_uri || null;
+    // ✅ Vérifier si un redirect_uri est spécifié
+    const redirectUri = query.redirect_uri || query.callback || null;
+    const hasRedirect = !!redirectUri;
 
     console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
-    console.log('[FPay] 📋 Callback:', hasCallback ? callbackUrl : 'AUCUN (JSON uniquement)');
+    console.log('[FPay] 📋 Redirect URI:', hasRedirect ? redirectUri : 'AUCUN (JSON uniquement)');
 
     // ✅ Récupérer l'API Key depuis l'URL brute
     let rawApiKey = '';
@@ -5316,25 +5316,6 @@ export class ApiGatewayController {
     } else if (query.api_key) {
       rawApiKey = query.api_key;
       console.log('[FPay] ✅ API Key récupérée depuis query.api_key');
-    }
-
-    if (!rawApiKey && isPaymentContext) {
-      console.error('[FPay] ❌ Aucune API Key trouvée pour paiement');
-      const errorResponse = {
-        success: false,
-        error: 'API Key manquante',
-        message: 'L\'API Key est requise pour effectuer un paiement',
-      };
-
-      if (!hasCallback) {
-        return res.status(400).json({
-          ...errorResponse,
-          close: true,
-          message: errorResponse.message + ' - Cette page va se fermer automatiquement',
-        });
-      }
-
-      return res.status(400).json(errorResponse);
     }
 
     // ✅ Nettoyer l'API Key
@@ -5360,28 +5341,130 @@ export class ApiGatewayController {
       console.log('[FPay] API Key token (début):', apiKeyToken.substring(0, 50) + '...');
     }
 
-    if (query.error) {
-      const errorResponse = { success: false, error: query.error };
-      if (!hasCallback) {
-        return res.status(400).json({
-          ...errorResponse,
-          close: true,
-          message: 'Erreur d\'authentification - Cette page va se fermer automatiquement',
-        });
+    // ============================================================
+    // ⚠️ FONCTION: Rediriger vers redirect_uri avec paramètres
+    // ============================================================
+    const redirectWithParams = (baseUrl: string, params: Record<string, any>) => {
+      const url = new URL(baseUrl);
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          url.searchParams.set(key, String(value));
+        }
+      });
+      return url.toString();
+    };
+
+    // ============================================================
+    // ⚠️ FONCTION: Rediriger avec erreur (comme Google Auth)
+    // ============================================================
+    const redirectWithError = (error: string, errorDescription?: string) => {
+      if (hasRedirect) {
+        const params: any = { error };
+        if (errorDescription) {
+          params.error_description = errorDescription;
+        }
+        if (query.state) {
+          params.state = query.state;  // ✅ Garder le state pour la sécurité CSRF
+        }
+        const redirectUrl = redirectWithParams(redirectUri, params);
+        console.log('[FPay] 🔄 Redirection avec erreur:', redirectUrl);
+        return res.redirect(redirectUrl);
       }
-      return res.status(400).json(errorResponse);
+
+      // Pas de redirect_uri, retourner JSON
+      return res.status(400).json({
+        success: false,
+        error: error,
+        message: errorDescription || error,
+        close: true,
+      });
+    };
+
+    // ============================================================
+    // ⚠️ FONCTION: Rediriger avec succès (comme Google Auth)
+    // ============================================================
+    const redirectWithSuccess = (params: Record<string, any>) => {
+      if (hasRedirect) {
+        const redirectParams: any = {
+          access_token: params.access_token,
+          refresh_token: params.refresh_token,
+          user_id: params.user_id,
+          code: params.code,
+        };
+
+        if (query.state) {
+          redirectParams.state = query.state;  // ✅ Garder le state pour la sécurité CSRF
+        }
+
+        // ✅ Ajouter les données de paiement si présentes
+        if (isPaymentContext) {
+          if (params.payment) {
+            redirectParams.payment_status = params.payment.status;
+            redirectParams.payment_transaction = params.payment.transaction?.id || '';
+            if (params.payment.error) {
+              redirectParams.payment_error = params.payment.error;
+            }
+          }
+          if (query.amount) redirectParams.amount = query.amount;
+          if (query.currency) redirectParams.currency = query.currency;
+          if (query.description) redirectParams.description = query.description;
+        }
+
+        // ✅ Ajouter le system_user_id si présent
+        if (query.system_user_id) {
+          redirectParams.system_user_id = query.system_user_id;
+        }
+
+        // ✅ Ajouter l'API Key si présente
+        if (rawApiKey) {
+          redirectParams.api_key = rawApiKey;
+        }
+
+        const redirectUrl = redirectWithParams(redirectUri, redirectParams);
+        console.log('[FPay] 🔄 Redirection avec succès:', redirectUrl);
+        return res.redirect(redirectUrl);
+      }
+
+      // Pas de redirect_uri, retourner JSON
+      return res.status(200).json({
+        success: true,
+        ...params,
+        close: true,
+        message: 'Authentification réussie - Cette page va se fermer automatiquement',
+      });
+    };
+
+    // ============================================================
+    // ⚠️ ERREUR 1 : API Key manquante (Paiement uniquement)
+    // ============================================================
+    if (!rawApiKey && isPaymentContext) {
+      console.error('[FPay] ❌ Aucune API Key trouvée pour paiement');
+      return redirectWithError(
+        'api_key_missing',
+        'L\'API Key est requise pour effectuer un paiement'
+      );
     }
 
+    // ============================================================
+    // ⚠️ ERREUR 2 : Erreur dans la query
+    // ============================================================
+    if (query.error) {
+      console.error('[FPay] ❌ Erreur dans la query:', query.error);
+      return redirectWithError(
+        query.error,
+        'Erreur d\'authentification FPay'
+      );
+    }
+
+    // ============================================================
+    // ⚠️ ERREUR 3 : Paramètres manquants
+    // ============================================================
     if (!query.access_token || !query.refresh_token || !query.user_id) {
-      const errorResponse = { success: false, error: 'missing_params' };
-      if (!hasCallback) {
-        return res.status(400).json({
-          ...errorResponse,
-          close: true,
-          message: 'Paramètres manquants - Cette page va se fermer automatiquement',
-        });
-      }
-      return res.status(400).json(errorResponse);
+      console.error('[FPay] ❌ Paramètres manquants');
+      return redirectWithError(
+        'missing_params',
+        'Access token, refresh token ou user_id manquant'
+      );
     }
 
     try {
@@ -5422,21 +5505,15 @@ export class ApiGatewayController {
         HttpStatus.NOT_FOUND,
       );
 
+      // ============================================================
+      // ⚠️ ERREUR 4 : Utilisateur non trouvé
+      // ============================================================
       if (!userResponse || !userResponse.data) {
         console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
-        const errorResponse = {
-          success: false,
-          error: 'Utilisateur non trouvé',
-          message: `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`,
-        };
-
-        if (!hasCallback) {
-          return res.status(404).json({
-            ...errorResponse,
-            close: true,
-          });
-        }
-        return res.status(404).json(errorResponse);
+        return redirectWithError(
+          'user_not_found',
+          `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`
+        );
       }
 
       const userData = userResponse.data;
@@ -5606,19 +5683,10 @@ export class ApiGatewayController {
 
         if (!recipientUser) {
           console.error('[FPay] ❌ Destinataire non trouvé');
-          const errorResponse = {
-            success: false,
-            error: 'Destinataire non trouvé',
-            message: 'Impossible de récupérer le destinataire depuis l\'API Key',
-          };
-
-          if (!hasCallback) {
-            return res.status(400).json({
-              ...errorResponse,
-              close: true,
-            });
-          }
-          return res.status(400).json(errorResponse);
+          return redirectWithError(
+            'recipient_not_found',
+            'Impossible de récupérer le destinataire depuis l\'API Key'
+          );
         }
 
         // ✅ Exécuter le paiement
@@ -5742,121 +5810,51 @@ export class ApiGatewayController {
         }
       }
 
-      // ✅ 9. Construire la réponse selon le contexte
+      // ✅ 9. Construire la réponse de succès
       const sessionId = crypto.randomUUID();
 
-      // ✅ Réponse de base (toujours présente)
-      const baseResponse: any = {
-        success: true,
-        accessToken: query.access_token,
-        refreshToken: query.refresh_token,
-        sessionId: sessionId,
-        data: {
-          id: userData.id,
-          email: userData.email || null,
-          phone: userData.phone || null,
-          fcmToken: userData.fcmToken || null,
-          full_name: userData.full_name || null,
-          account_number: userData.account_number || null,
-          branchId: userData.branchId || null,
-          branch: userBranch,
-          role: userData.role || 'USER',
-          passwordStatus: userData.passwordStatus || null,
-          pinstatus: userData.pinstatus || false,
-          merchantCode: userData.merchantCode || null,
-          businessName: userData.businessName || null,
-          status: userData.status || 'ACTIVE',
-          deleted: userData.deleted || false,
-          createdAt: userData.createdAt || new Date(),
-          updatedAt: userData.updatedAt || new Date(),
-          profileImage: userData.profileImage || null,
-          kycStatus: kycStatus,
-          countryCode: userData.countryCode || 'CD',
-          locked_by_admin: userData.locked_by_admin || false,
-          sessions: sessions,
-          resources: resources,
-          wallets: wallets,
-          kyc: {
-            status: kycStatus,
-            submission: kycSubmission,
-          },
-        }
+      // ✅ Préparer les paramètres pour la redirection (comme Google Auth)
+      const successParams: any = {
+        access_token: query.access_token,
+        refresh_token: query.refresh_token,
+        user_id: query.user_id,
+        code: query.code || '',
       };
 
-      // ✅ Si c'est un paiement, ajouter les détails du paiement
+      // ✅ Ajouter le system_user_id si présent
+      if (query.system_user_id) {
+        successParams.system_user_id = query.system_user_id;
+      }
+
+      // ✅ Ajouter les données de paiement si contexte paiement
       if (isPaymentContext) {
-        const finalResponse = {
-          ...baseResponse,
-          message: paymentResult?.status === 'ERROR'
-            ? 'Authentification FPay réussie mais paiement échoué'
-            : 'Authentification FPay réussie et paiement effectué',
-          data: {
-            ...baseResponse.data,
-            payment: paymentResult ? {
-              status: paymentResult.status || 'PENDING',
-              transaction: paymentResult.data?.transaction || null,
-              error: paymentResult.error || null,
-            } : {
-              amount: query.amount || null,
-              currency: query.currency || null,
-              description: query.description || null,
-              status: 'PENDING',
-            },
+        if (paymentResult) {
+          successParams.payment_status = paymentResult.status || 'PENDING';
+          if (paymentResult.data?.transaction) {
+            successParams.payment_transaction = paymentResult.data.transaction.id || '';
           }
-        };
-
-        // ✅ Si pas de callback, retourner JSON avec fermeture
-        if (!hasCallback) {
-          return res.status(200).json({
-            ...finalResponse,
-            close: true,
-            message: finalResponse.message + ' - Cette page va se fermer automatiquement',
-          });
+          if (paymentResult.error) {
+            successParams.payment_error = paymentResult.error;
+          }
         }
-
-        return res.status(200).json(finalResponse);
+        if (query.amount) successParams.amount = query.amount;
+        if (query.currency) successParams.currency = query.currency;
+        if (query.description) successParams.description = query.description;
+        if (rawApiKey) successParams.api_key = rawApiKey;
       }
 
-      // ✅ Si c'est un link (pas de paiement) - RENOMMÉ en linkResponseData pour éviter conflit
-      const linkResponseData = {
-        ...baseResponse,
-        message: 'Authentification FPay réussie et compte lié',
-        data: {
-          ...baseResponse.data,
-          isLinked: true,
-          userIdFpay: query.user_id,
-        }
-      };
-
-      // ✅ Si pas de callback, retourner JSON avec fermeture
-      if (!hasCallback) {
-        return res.status(200).json({
-          ...linkResponseData,
-          close: true,
-          message: linkResponseData.message + ' - Cette page va se fermer automatiquement',
-        });
-      }
-
-      return res.status(200).json(linkResponseData);
+      // ✅ Rediriger comme Google Auth (ou retourner JSON si pas de redirect_uri)
+      return redirectWithSuccess(successParams);
 
     } catch (error) {
+      // ============================================================
+      // ⚠️ ERREUR INTERNE
+      // ============================================================
       console.error('[FPay] ❌ Erreur:', error.message);
-      const errorResponse = {
-        success: false,
-        error: error.message,
-        message: 'Erreur lors de la liaison',
-      };
-
-      // ✅ Si pas de callback, retourner JSON avec fermeture
-      if (!hasCallback) {
-        return res.status(500).json({
-          ...errorResponse,
-          close: true,
-          message: errorResponse.message + ' - Cette page va se fermer automatiquement',
-        });
-      }
-
-      return res.status(500).json(errorResponse);
+      return redirectWithError(
+        'internal_error',
+        error.message || 'Erreur lors de la liaison'
+      );
     }
   }
   @Post('users/kyc/submit')
