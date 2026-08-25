@@ -5284,7 +5284,8 @@ export class ApiGatewayController {
       currency?: string;
       description?: string;
       api_key?: string;
-      callback?: string; // ✅ AJOUTÉ : paramètre callback explicite
+      callback?: string;
+      redirect_uri?: string; // ✅ AJOUTÉ explicitement
     },
     @Res() res: Response,
     @Request() req: any,
@@ -5325,7 +5326,6 @@ export class ApiGatewayController {
         message: 'L\'API Key est requise pour effectuer un paiement',
       };
 
-      // ✅ Si pas de callback, retourner JSON avec fermeture
       if (!hasCallback) {
         return res.status(400).json({
           ...errorResponse,
@@ -5392,7 +5392,7 @@ export class ApiGatewayController {
       console.log(`🔗 fpayUserId: ${query.user_id}`);
 
       // ✅ 1. Lier les comptes (toujours fait)
-      const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
+      const linkUserResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -5403,12 +5403,12 @@ export class ApiGatewayController {
         }),
       });
 
-      if (!linkResponse.ok) {
-        const errorData = await linkResponse.json();
+      if (!linkUserResponse.ok) {
+        const errorData = await linkUserResponse.json();
         throw new Error(errorData.message || 'Erreur lors de la liaison');
       }
 
-      const result = await linkResponse.json();
+      const result = await linkUserResponse.json();
       console.log('[FPay] ✅ Utilisateur lié avec succès:', result);
 
       // ✅ 2. Récupérer l'utilisateur via user-service
@@ -5817,8 +5817,8 @@ export class ApiGatewayController {
         return res.status(200).json(finalResponse);
       }
 
-      // ✅ Si c'est un link (pas de paiement)
-      const linkResponse = {
+      // ✅ Si c'est un link (pas de paiement) - RENOMMÉ en linkResponseData pour éviter conflit
+      const linkResponseData = {
         ...baseResponse,
         message: 'Authentification FPay réussie et compte lié',
         data: {
@@ -5831,13 +5831,13 @@ export class ApiGatewayController {
       // ✅ Si pas de callback, retourner JSON avec fermeture
       if (!hasCallback) {
         return res.status(200).json({
-          ...linkResponse,
+          ...linkResponseData,
           close: true,
-          message: linkResponse.message + ' - Cette page va se fermer automatiquement',
+          message: linkResponseData.message + ' - Cette page va se fermer automatiquement',
         });
       }
 
-      return res.status(200).json(linkResponse);
+      return res.status(200).json(linkResponseData);
 
     } catch (error) {
       console.error('[FPay] ❌ Erreur:', error.message);
