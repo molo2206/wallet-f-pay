@@ -10095,13 +10095,13 @@ export class WalletServiceService {
       orderBy: { createdAt: 'asc' },  // ✅ Tri par date de création
     });
 
-    if (!allWallets || allWallets.length === 0) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.no_wallet_found', lang),
-        statusCode: 404,
-      });
-    }
+    // if (!allWallets || allWallets.length === 0) {
+    //   throw new RpcException({
+    //     status: 'error',
+    //     message: this.i18nService.translate('wallet.no_wallet_found', lang),
+    //     statusCode: 404,
+    //   });
+    // }
 
     // ========== 3️⃣ VALIDATION DU WALLET SÉLECTIONNÉ ==========
     let wallet;
