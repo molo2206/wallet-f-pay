@@ -570,6 +570,74 @@ export class ApiGatewayController {
     );
   }
 
+  @Post('auth/verify-token')
+  async verifyToken(
+    @Body() body: { accessToken: string },
+    @Res() res: Response,
+  ) {
+    try {
+      const { accessToken } = body;
+
+      if (!accessToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'accessToken est requis'
+        });
+      }
+
+      // Vérifier le token dans la base de données de FPay
+      const tokenRecord = await this.prisma.oauthaccesstoken.findFirst({
+        where: {
+          token: accessToken,
+          expiresAt: { gt: new Date() },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              phone: true,
+              full_name: true,
+              role: true,
+              status: true,
+              kycStatus: true,
+              countryCode: true,
+            },
+          },
+        },
+      });
+
+      if (!tokenRecord) {
+        return res.status(401).json({
+          valid: false,
+          message: 'Token invalide ou expiré'
+        });
+      }
+
+      return res.status(200).json({
+        valid: true,
+        data: {
+          id: tokenRecord.user.id,
+          email: tokenRecord.user.email,
+          phone: tokenRecord.user.phone,
+          full_name: tokenRecord.user.full_name,
+          role: tokenRecord.user.role,
+          status: tokenRecord.user.status,
+          kycStatus: tokenRecord.user.kycStatus || 'NOT_SUBMITTED',
+          countryCode: tokenRecord.user.countryCode || 'CD',
+        },
+        message: 'Token valide'
+      });
+
+    } catch (error) {
+      console.error('[verifyToken] ❌ Erreur:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Erreur lors de la vérification'
+      });
+    }
+  }
+
   @Post('auth/register')
   async register(
     @Body() body: RegisterRequestDto,
@@ -3599,18 +3667,18 @@ export class ApiGatewayController {
   async externalPay(
     @Request() req: any,
     @Body() body: {
-      system_user_id: string;
+      system_user_id: string;      // ✅ ID de l'acheteur (dans Favor Help)
       amount: number;
       currency?: string;
       description?: string;
-      access_token?: string;
+      access_token?: string;       // ✅ Token FPay de l'acheteur
     },
     @Res() res: Response,
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string
   ) {
     const lang = langHeader || 'fr';
-    const apiKeyUser = req.user;
+    const apiKeyUser = req.user;   // ✅ Le marchand (API Key owner)
 
     try {
       // ✅ Validation
@@ -3622,12 +3690,10 @@ export class ApiGatewayController {
         throw new HttpException('Le montant doit être supérieur à 0', HttpStatus.BAD_REQUEST);
       }
 
-      console.log('[ExternalPay] 📋 system_user_id du payeur:', body.system_user_id);
+      console.log('[ExternalPay] 📋 Acheteur ID:', body.system_user_id);
+      console.log('[ExternalPay] 📋 Marchand ID:', apiKeyUser.id);
 
-      // ✅ Correction du type
-      let fpayUserId: string | null = null;
-
-      // ✅ 1. Vérifier le token si fourni
+      // ✅ Vérifier le token FPay de l'acheteur
       if (body.access_token) {
         try {
           const verifyResponse = await this.sendUserMessage<{
@@ -3640,27 +3706,12 @@ export class ApiGatewayController {
             HttpStatus.UNAUTHORIZED,
           );
 
-          if (verifyResponse && verifyResponse.data) {
-            fpayUserId = verifyResponse.data.id;
-            console.log('[ExternalPay] ✅ Token FPay valide:', fpayUserId);
-
-            // ✅ Lier automatiquement si token valide
-            try {
-              const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
-              await fetch(`${favorHelpUrl}/fpay/link-user`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  systemUserId: body.system_user_id,
-                  fpayUserId: fpayUserId,
-                  accessToken: body.access_token,
-                }),
-              });
-              console.log('[ExternalPay] ✅ Compte lié automatiquement');
-            } catch (linkError) {
-              console.warn('[ExternalPay] ⚠️ Erreur liaison automatique:', linkError.message);
-            }
+          if (!verifyResponse || !verifyResponse.data) {
+            throw new HttpException('Token FPay invalide', HttpStatus.UNAUTHORIZED);
           }
+
+          console.log('[ExternalPay] ✅ Token FPay valide pour acheteur:', verifyResponse.data.id);
+
         } catch (tokenError) {
           console.error('[ExternalPay] ❌ Token invalide:', tokenError.message);
           throw new HttpException(
@@ -3668,63 +3719,14 @@ export class ApiGatewayController {
             HttpStatus.UNAUTHORIZED
           );
         }
+      } else {
+        throw new HttpException(
+          'access_token est requis pour l\'acheteur',
+          HttpStatus.BAD_REQUEST
+        );
       }
 
-      // ✅ 2. Vérifier si l'utilisateur est lié (si pas de token)
-      if (!fpayUserId) {
-        try {
-          const userStatus = await this.sendFpayMessage<{ isLinked: boolean; userIdFpay?: string }>(
-            'check_user_link',
-            { systemUserId: body.system_user_id },
-            'Erreur lors de la vérification du lien',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          if (userStatus.isLinked && userStatus.userIdFpay) {
-            fpayUserId = userStatus.userIdFpay;
-            console.log('[ExternalPay] ✅ Utilisateur déjà lié:', fpayUserId);
-          }
-        } catch (error) {
-          // Utilisateur non lié
-        }
-      }
-
-      // ✅ 3. Si pas de token et pas lié → Redirection OAuth
-      if (!fpayUserId) {
-        console.log('[ExternalPay] 🔐 Utilisateur non lié, redirection vers OAuth FPay');
-
-        const fpayUrl = process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
-        const appUrl = process.env.APP_URL || 'http://localhost:3000';
-        const clientId = 'web-client';
-        const callbackUrl = `${appUrl}/oauth/callback`;
-
-        const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
-        redirectUrl.searchParams.set('client_id', clientId);
-        redirectUrl.searchParams.set('system_user_id', body.system_user_id);
-        redirectUrl.searchParams.set('redirect_uri', callbackUrl);
-        redirectUrl.searchParams.set('amount', body.amount.toString());
-        redirectUrl.searchParams.set('currency', body.currency || 'USD');
-        if (body.description) {
-          redirectUrl.searchParams.set('description', body.description);
-        }
-
-        const authHeader = req.headers.authorization || '';
-        redirectUrl.searchParams.set('api_key', authHeader);
-
-        return res.status(200).json({
-          status: 'redirect',
-          message: 'Authentification FPay requise. Veuillez vous connecter.',
-          redirectUrl: redirectUrl.toString(),
-          openInBrowser: redirectUrl.toString(),
-          system_user_id: body.system_user_id,
-          data: {
-            amount: body.amount,
-            currency: body.currency,
-          }
-        });
-      }
-
-      // ✅ 4. Récupérer le wallet du payeur (dans user-service)
+      // ✅ Récupérer le wallet de l'acheteur
       const payer = await this.prisma.user.findFirst({
         where: {
           id: body.system_user_id,
@@ -3739,21 +3741,21 @@ export class ApiGatewayController {
       });
 
       if (!payer) {
-        throw new HttpException(`Utilisateur avec ID ${body.system_user_id} non trouvé`, HttpStatus.NOT_FOUND);
+        throw new HttpException(`Acheteur avec ID ${body.system_user_id} non trouvé`, HttpStatus.NOT_FOUND);
       }
 
-      // ✅ 5. Trouver le wallet
+      // ✅ Trouver le wallet de l'acheteur
       const targetCurrency = body.currency || 'USD';
       let clientWallet = payer.wallets.find(w => w.currency === targetCurrency);
 
       if (!clientWallet) {
         clientWallet = payer.wallets[0];
         if (!clientWallet) {
-          throw new HttpException(`Aucun wallet actif trouvé`, HttpStatus.BAD_REQUEST);
+          throw new HttpException(`Aucun wallet actif trouvé pour l'acheteur`, HttpStatus.BAD_REQUEST);
         }
       }
 
-      console.log('[ExternalPay] Client wallet found:', {
+      console.log('[ExternalPay] Wallet acheteur:', {
         walletId: clientWallet.id,
         currency: clientWallet.currency,
         balance: clientWallet.balance,
@@ -3766,27 +3768,33 @@ export class ApiGatewayController {
         );
       }
 
-      // ✅ 6. Le destinataire
+      // ✅ Le destinataire = le marchand (API Key owner)
       const recipient = apiKeyUser;
 
       if (recipient.status !== 'ACTIVE') {
-        throw new HttpException(`Le destinataire n'est pas actif`, HttpStatus.BAD_REQUEST);
+        throw new HttpException(`Le marchand n'est pas actif`, HttpStatus.BAD_REQUEST);
       }
 
       if (payer.id === recipient.id) {
         throw new HttpException('Impossible de payer à soi-même', HttpStatus.BAD_REQUEST);
       }
 
-      // ✅ 7. Préparer le payload (sans PIN)
+      console.log('[ExternalPay] Marchand:', {
+        id: recipient.id,
+        phone: recipient.phone,
+        merchantCode: recipient.merchantCode,
+      });
+
+      // ✅ Préparer le payload
       const payPayload: any = {
         fromWalletId: clientWallet.id,
         amount: body.amount,
-        description: body.description || `Paiement externe vers ${recipient.full_name || recipient.phone}`,
+        description: body.description || `Paiement vers ${recipient.full_name || recipient.phone}`,
         lang,
         ipAddress,
       };
 
-      // ✅ 8. Ajouter le destinataire
+      // ✅ Ajouter le destinataire (marchand)
       if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
         payPayload.merchantCode = recipient.merchantCode;
         console.log('[ExternalPay] ✅ Paiement vers un marchand, code:', recipient.merchantCode);
@@ -3794,12 +3802,12 @@ export class ApiGatewayController {
         payPayload.toPhone = recipient.phone;
         console.log('[ExternalPay] ✅ Paiement vers un utilisateur, téléphone:', recipient.phone);
       } else {
-        throw new HttpException('Le destinataire n\'a ni téléphone ni code marchand', HttpStatus.BAD_REQUEST);
+        throw new HttpException('Le marchand n\'a ni téléphone ni code marchand', HttpStatus.BAD_REQUEST);
       }
 
-      console.log('[ExternalPay] 📤 Payload envoyé (sans PIN):', payPayload);
+      console.log('[ExternalPay] 📤 Payload envoyé:', payPayload);
 
-      // ✅ 9. Appeler le service wallet avec 'pay_without_pin'
+      // ✅ Appeler le service wallet
       const response = await this.sendWalletMessage(
         'pay_without_pin',
         payPayload,
@@ -4291,51 +4299,6 @@ export class ApiGatewayController {
     }
   }
 
-  @Post('auth/verify-token')
-  async verifyToken(
-    @Body() body: { access_token: string },
-    @Res() res: Response,
-  ) {
-    try {
-      const { access_token } = body;
-
-      if (!access_token) {
-        return res.status(400).json({
-          success: false,
-          message: 'access_token est requis'
-        });
-      }
-
-      const verifyResponse = await this.sendAuthMessage<{
-        valid: boolean;
-        data?: {
-          id: string;
-          email: string | null;
-          phone: string | null;
-          full_name: string | null;
-          role: string;
-          status: string;
-          kycStatus: string;
-          countryCode: string | null;
-        };
-        message: string;
-      }>(
-        'verify_token',
-        { accessToken: access_token },
-        'Token invalide',
-        HttpStatus.UNAUTHORIZED,
-      );
-
-      return res.status(200).json(verifyResponse);
-
-    } catch (error) {
-      console.error('[verifyToken] ❌ Erreur:', error.message);
-      return res.status(500).json({
-        success: false,
-        message: error.message || 'Erreur lors de la vérification'
-      });
-    }
-  }
   // ============================================================
   // 3. ENDPOINT SPÉCIFIQUE POUR LA VÉRIFICATION OTP FPAY
   // ============================================================
