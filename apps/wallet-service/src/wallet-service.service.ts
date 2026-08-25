@@ -10021,7 +10021,7 @@ export class WalletServiceService {
     movement?: string,
     search?: string,
   ): Promise<ApiResponse<{
-    wallets: WalletResponseDto[];  // ✅ Ajout de la liste des wallets
+    wallets: WalletResponseDto[];
     wallet: WalletResponseDto;
     balance: number;
     currency: string;
@@ -10092,7 +10092,7 @@ export class WalletServiceService {
         userId: userId,
         isActive: true,
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'asc' },  // ✅ Tri par date de création
     });
 
     if (!allWallets || allWallets.length === 0) {
@@ -10118,13 +10118,8 @@ export class WalletServiceService {
         });
       }
     } else {
-      // ✅ Sinon, récupérer le wallet en USD par défaut
-      wallet = allWallets.find(w => w.currency === 'USD');
-
-      // ✅ Si pas de wallet en USD, prendre le premier wallet
-      if (!wallet) {
-        wallet = allWallets[0];
-      }
+      // ✅ Sinon, prendre le PREMIER wallet (le plus ancien)
+      wallet = allWallets[0];  // ✅ MODIFICATION ICI
     }
 
     if (!wallet.isActive) {
@@ -10299,7 +10294,7 @@ export class WalletServiceService {
     return {
       message: this.i18nService.translate('wallet.balance_and_transactions_retrieved', lang),
       data: {
-        wallets: formattedWallets,  // ✅ Liste de tous les wallets
+        wallets: formattedWallets,
         wallet: this.toResponse(wallet),
         balance: wallet.balance,
         currency: wallet.currency,
