@@ -2111,7 +2111,63 @@ export class AuthServiceService {
       },
     };
   }
+  async generateTokenForUser(userId: string, sessionToken?: string): Promise<AuthResponseDto> {
+    // 1. Récupérer l'utilisateur
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        full_name: true,
+        role: true,
+        status: true,
+        account_number: true,
+        branchId: true,
+        passwordStatus: true,
+        pinstatus: true,
+        merchantCode: true,
+        businessName: true,
+        profileImage: true,
+        kycStatus: true,
+        countryCode: true,
+        locked_by_admin: true,
+        pin: true,
+        fcmToken: true,
+        deleted: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
+    if (!user) {
+      throw new Error('Utilisateur non trouvé');
+    }
+
+    // 2. Créer une session si non fournie
+    if (!sessionToken) {
+      sessionToken = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      await this.prisma.sessions.create({
+        data: {
+          id: crypto.randomUUID(),
+          user_id: user.id,
+          token: sessionToken,
+          device_info: 'API',
+          ip_address: null,
+          last_activity: new Date(),
+          expires_at: expiresAt,
+          is_valid: true,
+          created_at: new Date(),
+        },
+      });
+    }
+
+    // 3. Utiliser generateJwt existant
+    return this.generateJwt(user, sessionToken, 'Token généré avec succès');
+  }
   async checkPhoneExists(
     phone: string,
     lang: string = 'fr',

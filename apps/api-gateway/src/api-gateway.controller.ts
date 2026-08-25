@@ -3661,6 +3661,7 @@ export class ApiGatewayController {
 
 
   //===============================Externe============================
+
   @Post('api/external/pay')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('pay')
@@ -4533,6 +4534,12 @@ export class ApiGatewayController {
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
+  // apps/api-gateway/src/api-gateway.controller.ts
+
+  // ============================================================
+  // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
+  // ============================================================
+
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
@@ -4600,10 +4607,6 @@ export class ApiGatewayController {
       console.log('[OAuth] URL nettoyée (sans code):', cleanUrl);
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
-
-      // ✅ Modification du JavaScript dans la page HTML
-      // Pour que le login appelle /auth/login (et non /auth/link-user)
-      // et retourne directement le token sans liaison
 
       if (fs.existsSync(filePath)) {
         let html = fs.readFileSync(filePath, 'utf8');
@@ -5040,13 +5043,11 @@ export class ApiGatewayController {
                 handleRedirect();
             }
 
-            // ✅ handleRedirect modifié - redirection directe avec tokens
             window.handleRedirect = function() {
                 console.log('[OAuth] Redirection vers:', REDIRECT_URI);
                 console.log('[OAuth] Tokens:', userTokens);
                 console.log('[OAuth] User data:', userData);
 
-                // ✅ Si c'est une URL mobile (fpay://)
                 if (REDIRECT_URI.startsWith('fpay://')) {
                     var params = new URLSearchParams();
                     
@@ -5101,7 +5102,6 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // ✅ URLs web standard
                 try {
                     var redirectUrl = new URL(REDIRECT_URI);
                     
@@ -5228,7 +5228,7 @@ export class ApiGatewayController {
                 }
             };
 
-            // ✅ Formulaire modifié - utilise /auth/login
+            // ✅ Formulaire utilise /auth/generate-token
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5264,6 +5264,7 @@ export class ApiGatewayController {
 
                         console.log('[OAuth] Etape 1 - Login:', payloadStep1);
 
+                        // ✅ Utiliser /auth/login pour obtenir un token
                         var response1 = await fetch('/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -5419,6 +5420,40 @@ export class ApiGatewayController {
     }
   }
 
+  @Post('auth/generate-token')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async generateToken(
+    @CurrentUser() currentUser: any,
+    @Res() res: Response,
+  ) {
+    try {
+      if (!currentUser || !currentUser.id) {
+        return res.status(401).json({
+          success: false,
+          message: 'Utilisateur non authentifié',
+        });
+      }
+
+      const result = await this.sendAuthMessage<AuthResponseDto>(
+        'generate_token',
+        { userId: currentUser.id },
+        'Erreur génération token',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: result,
+      });
+
+    } catch (error) {
+      console.error('[GenerateToken] ❌ Erreur:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Erreur lors de la génération du token',
+      });
+    }
+  }
   // ============================================================
   // 7. FONCTION 3: GET /oauth/callback
   // ============================================================

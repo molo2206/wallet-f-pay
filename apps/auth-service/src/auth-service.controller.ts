@@ -208,12 +208,18 @@ export class AuthServiceController {
     }
   }
 
+  @MessagePattern('generate_token')
+  async generateToken(@Payload() data: { userId: string; sessionToken?: string }) {
+    console.log('[AuthController] generate_token for user:', data.userId);
+    return this.authService.generateTokenForUser(data.userId, data.sessionToken);
+  }
+
   @MessagePattern('verify_token')
   async verifyToken(@Payload() data: { accessToken: string }) {
     console.log('[AuthController] verify_token:', data.accessToken);
     return this.authService.verifyToken(data.accessToken);
   }
-  
+
   @MessagePattern('get_account_by_number')
   async getAccountByNumber(
     @Payload() data: { accountNumber: string; lang?: string },
