@@ -4474,7 +4474,7 @@ export class ApiGatewayController {
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
   // ============================================================
 
-@Get('oauth/login')
+  @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
       code?: string;
@@ -5402,10 +5402,7 @@ export class ApiGatewayController {
     // ✅ Récupérer le client_id
     const clientId = query.client_id || 'web-client';
 
-    // ✅ IMPORTANT: Utiliser le redirect_uri EXACTEMENT comme passé dans la requête
-    // ✅ Ne PAS modifier le redirect_uri automatiquement
-    // ✅ Si l'utilisateur a passé fpay://callback, on utilise fpay://callback
-    // ✅ Si l'utilisateur a passé https://..., on utilise https://...
+    // ✅ Utiliser le redirect_uri EXACTEMENT comme passé
     let redirectUri = query.redirect_uri || query.callback || null;
 
     // ✅ Si AUCUN redirect_uri n'est fourni, on détermine automatiquement
@@ -5423,20 +5420,17 @@ export class ApiGatewayController {
 
     console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
     console.log('[FPay] 📋 Client ID:', clientId);
-    console.log('[FPay] 📋 redirect_uri EXACT (tel que passé):', redirectUri);
-    console.log('[FPay] 📋 Type de callback:', redirectUri?.startsWith('fpay://') ? '📱 MOBILE (deep link)' : '🌐 WEB');
+    console.log('[FPay] 📋 redirect_uri EXACT:', redirectUri);
 
-    // ✅ Récupérer l'API Key depuis l'URL brute
+    // ✅ Récupérer l'API Key
     let rawApiKey = '';
     const fullUrl = req.url || '';
     const apiKeyMatch = fullUrl.match(/[?&]api_key=([^&]*)/);
 
     if (apiKeyMatch) {
       rawApiKey = decodeURIComponent(apiKeyMatch[1]);
-      console.log('[FPay] ✅ API Key récupérée depuis URL brute (longueur):', rawApiKey.length);
     } else if (query.api_key) {
       rawApiKey = query.api_key;
-      console.log('[FPay] ✅ API Key récupérée depuis query.api_key');
     }
 
     // ✅ Nettoyer l'API Key
@@ -5459,72 +5453,31 @@ export class ApiGatewayController {
 
       const parts = cleanApiKey.split(' ');
       apiKeyToken = parts.length === 2 ? parts[1] : cleanApiKey;
-      console.log('[FPay] API Key token (début):', apiKeyToken.substring(0, 50) + '...');
     }
-
-    // ============================================================
-    // ⚠️ FONCTION: Rediriger vers l'application d'origine
-    // ============================================================
-    const redirectWithParams = (baseUrl: string, params: Record<string, any>) => {
-      // ✅ Pour les URLs fpay:// (mobile deep link), on construit manuellement
-      if (baseUrl.startsWith('fpay://')) {
-        console.log('[FPay] 📱 Construction URL mobile (deep link):', baseUrl);
-        const paramsString = Object.entries(params)
-          .filter(([_, value]) => value !== undefined && value !== null && value !== '')
-          .map(([key, value]) => {
-            const val = typeof value === 'object' ? JSON.stringify(value) : String(value);
-            return `${key}=${encodeURIComponent(val)}`;
-          })
-          .join('&');
-        const result = paramsString ? `${baseUrl}?${paramsString}` : baseUrl;
-        console.log('[FPay] 📱 URL mobile construite:', result);
-        return result;
-      }
-
-      // ✅ Pour les URLs web standard
-      try {
-        const url = new URL(baseUrl);
-        Object.entries(params).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            if (typeof value === 'object') {
-              url.searchParams.set(key, JSON.stringify(value));
-            } else {
-              url.searchParams.set(key, String(value));
-            }
-          }
-        });
-        console.log('[FPay] 🌐 URL web construite:', url.toString());
-        return url.toString();
-      } catch (error) {
-        console.log('[FPay] ⚠️ Erreur construction URL, fallback:', error.message);
-        // Fallback: construction manuelle pour toute URL
-        const paramsString = Object.entries(params)
-          .filter(([_, value]) => value !== undefined && value !== null && value !== '')
-          .map(([key, value]) => {
-            const val = typeof value === 'object' ? JSON.stringify(value) : String(value);
-            return `${key}=${encodeURIComponent(val)}`;
-          })
-          .join('&');
-        return paramsString ? `${baseUrl}?${paramsString}` : baseUrl;
-      }
-    };
 
     // ============================================================
     // ⚠️ FONCTION: Rediriger avec erreur
     // ============================================================
     const redirectWithError = (error: string, errorDescription?: string) => {
       if (hasRedirect) {
-        const params: any = { error };
+        const params = new URLSearchParams();
+        params.set('error', error);
         if (errorDescription) {
-          params.error_description = errorDescription;
+          params.set('error_description', errorDescription);
         }
         if (query.state) {
-          params.state = query.state;
+          params.set('state', query.state);
         }
-        params.client_id = clientId;
+        params.set('client_id', clientId);
 
-        const redirectUrl = redirectWithParams(redirectUri, params);
-        console.log('[FPay] 🔄 Redirection avec erreur vers:', redirectUrl);
+        let redirectUrl = redirectUri + '?' + params.toString();
+
+        // ✅ Pour les URLs mobile, on garde le format
+        if (redirectUri.startsWith('fpay://')) {
+          redirectUrl = redirectUri + '?' + params.toString();
+        }
+
+        console.log('[FPay] 🔄 Redirection erreur:', redirectUrl);
         return res.redirect(redirectUrl);
       }
 
@@ -5538,79 +5491,111 @@ export class ApiGatewayController {
     };
 
     // ============================================================
-    // ⚠️ FONCTION: Rediriger avec TOUTES les données
+    // ⚠️ FONCTION: Rediriger avec données MINIMALES
     // ============================================================
-    const redirectWithAllData = (data: any) => {
+    const redirectWithMinimalData = (data: any) => {
       if (hasRedirect) {
-        const params: any = {
-          // Tokens
-          access_token: data.accessToken,
-          refresh_token: data.refreshToken,
-          user_id: data.data?.id,
-          code: data.code || query.code || '',
-          sessionId: data.sessionId,
-          client_id: clientId,
+        const params = new URLSearchParams();
 
-          // Données utilisateur
-          data_id: data.data?.id,
-          data_email: data.data?.email,
-          data_phone: data.data?.phone,
-          data_fcmToken: data.data?.fcmToken,
-          data_full_name: data.data?.full_name,
-          data_account_number: data.data?.account_number,
-          data_branchId: data.data?.branchId,
-          data_role: data.data?.role,
-          data_passwordStatus: data.data?.passwordStatus,
-          data_pinstatus: data.data?.pinstatus,
-          data_merchantCode: data.data?.merchantCode,
-          data_businessName: data.data?.businessName,
-          data_status: data.data?.status,
-          data_deleted: data.data?.deleted,
-          data_createdAt: data.data?.createdAt,
-          data_updatedAt: data.data?.updatedAt,
-          data_profileImage: data.data?.profileImage,
-          data_kycStatus: data.data?.kycStatus,
-          data_countryCode: data.data?.countryCode,
-          data_locked_by_admin: data.data?.locked_by_admin,
+        // ✅ Tokens (essentiels)
+        params.set('access_token', data.accessToken);
+        params.set('refresh_token', data.refreshToken);
+        params.set('user_id', data.data?.id);
+        if (data.code) params.set('code', data.code);
+        params.set('client_id', clientId);
 
-          // Branch, Wallets, sessions, resources
-          branch: data.data?.branch ? JSON.stringify(data.data.branch) : '',
-          wallets: data.data?.wallets ? JSON.stringify(data.data.wallets) : '[]',
-          sessions: data.data?.sessions ? JSON.stringify(data.data.sessions) : '[]',
-          resources: data.data?.resources ? JSON.stringify(data.data.resources) : '[]',
-          kyc: data.data?.kyc ? JSON.stringify(data.data.kyc) : '{}',
-        };
+        // ✅ Données minimales de l'utilisateur
+        if (data.data) {
+          if (data.data.id) params.set('user_id', data.data.id);
+          if (data.data.phone) params.set('phone', data.data.phone);
+          if (data.data.full_name) params.set('full_name', data.data.full_name);
+          if (data.data.role) params.set('role', data.data.role);
+          if (data.data.status) params.set('status', data.data.status);
+          if (data.data.kycStatus) params.set('kyc_status', data.data.kycStatus);
+          if (data.data.countryCode) params.set('country_code', data.data.countryCode);
+          if (data.data.merchantCode) params.set('merchant_code', data.data.merchantCode);
+        }
 
         if (query.system_user_id) {
-          params.system_user_id = query.system_user_id;
+          params.set('system_user_id', query.system_user_id);
         }
 
+        // ✅ Pour le paiement : seulement le statut
         if (isPaymentContext && data.data?.payment) {
-          params.payment_status = data.data.payment.status || 'PENDING';
-          if (data.data.payment.transaction) {
-            params.payment_transaction = JSON.stringify(data.data.payment.transaction);
-          }
+          params.set('payment_status', data.data.payment.status || 'PENDING');
           if (data.data.payment.error) {
-            params.payment_error = data.data.payment.error;
+            params.set('payment_error', data.data.payment.error);
           }
-          if (query.amount) params.amount = query.amount;
-          if (query.currency) params.currency = query.currency;
-          if (query.description) params.description = query.description;
-          if (rawApiKey) params.api_key = rawApiKey;
+          if (data.data.payment.transaction?.id) {
+            params.set('transaction_id', data.data.payment.transaction.id);
+          }
+          if (query.amount) params.set('amount', query.amount);
+          if (query.currency) params.set('currency', query.currency);
         }
 
-        params.message = data.message;
+        // ✅ Message
+        if (data.message) params.set('message', data.message);
 
-        if (query.state) {
-          params.state = query.state;
+        // ✅ STOCKAGE DES DONNÉES LOURDES
+        const sessionId = crypto.randomUUID();
+
+        // ✅ Stocker les données complètes
+        const fullData = {
+          data: data.data,
+          timestamp: Date.now(),
+        };
+
+        // ✅ Utiliser un cache (Redis, Memcached, ou en mémoire)
+        // Ici on utilise un Map en mémoire (pour l'exemple)
+        // Dans la vraie vie, utilisez Redis ou une base de données
+        if (!this.fpayCache) {
+          this.fpayCache = new Map();
+        }
+        // Nettoyer les anciennes entrées (plus de 5 minutes)
+        for (const [key, value] of this.fpayCache) {
+          if (Date.now() - value.timestamp > 300000) {
+            this.fpayCache.delete(key);
+          }
+        }
+        this.fpayCache.set(sessionId, fullData);
+
+        // Passer l'ID de session
+        params.set('session_id', sessionId);
+
+        let redirectUrl = redirectUri + '?' + params.toString();
+
+        // ✅ Pour les URLs mobile (fpay://), on construit manuellement
+        if (redirectUri.startsWith('fpay://')) {
+          redirectUrl = redirectUri + '?' + params.toString();
         }
 
-        // ✅ Rediriger vers EXACTEMENT le redirectUri passé
-        const redirectUrl = redirectWithParams(redirectUri, params);
-        console.log('[FPay] 🔄 Redirection vers EXACTEMENT le redirectUri:', redirectUrl);
+        // ✅ Vérifier la longueur de l'URL
+        if (redirectUrl.length > 2000) {
+          console.warn('[FPay] ⚠️ URL trop longue:', redirectUrl.length, 'caractères');
+          // Fallback: formulaire POST
+          return res.send(`
+            <html>
+              <head><title>Redirection...</title></head>
+              <body>
+                <p>Redirection en cours...</p>
+                <form id="redirectForm" method="POST" action="${redirectUri}">
+                  ${Array.from(params.entries()).map(([key, value]) =>
+            `<input type="hidden" name="${key}" value="${value}">`
+          ).join('')}
+                </form>
+                <script>
+                  document.getElementById('redirectForm').submit();
+                </script>
+              </body>
+            </html>
+          `);
+        }
+
+        console.log('[FPay] 🔄 Redirection succès (longueur:', redirectUrl.length, '):', redirectUrl);
         return res.redirect(redirectUrl);
       }
 
+      // Pas de redirect_uri, retourner le JSON complet
       return res.status(200).json({
         ...data,
         close: true,
@@ -6026,8 +6011,8 @@ export class ApiGatewayController {
         };
       }
 
-      // ✅ Rediriger vers EXACTEMENT le redirectUri passé (ou retourner JSON)
-      return redirectWithAllData(finalResponse);
+      // ✅ Rediriger avec les données MINIMALES (évite l'erreur 414)
+      return redirectWithMinimalData(finalResponse);
 
     } catch (error) {
       console.error('[FPay] ❌ Erreur:', error.message);
