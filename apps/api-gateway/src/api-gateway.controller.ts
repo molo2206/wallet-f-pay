@@ -5477,6 +5477,7 @@ export class ApiGatewayController {
         }
       }
 
+
       // ✅ 8. Si c'est un paiement, exécuter le paiement automatique
       let paymentResult: any = null;
 
@@ -5621,7 +5622,13 @@ export class ApiGatewayController {
             balance: clientWallet.balance,
           });
 
-          if (clientWallet.balance < parseFloat(query.amount || ' ')) {
+          // ✅ Convertir le montant en nombre avec gestion de undefined
+          const amountValue = parseFloat(query.amount || '0');
+          if (isNaN(amountValue) || amountValue <= 0) {
+            throw new Error('Montant invalide');
+          }
+
+          if (clientWallet.balance < amountValue) {
             throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
           }
 
@@ -5656,7 +5663,7 @@ export class ApiGatewayController {
           // Appeler le wallet-service avec 'pay_without_pin'
           const payPayload: any = {
             fromWalletId: clientWallet.id,
-            amount: parseFloat(query.amount),
+            amount: amountValue,
             description: query.description || `Paiement vers ${recipientUser.full_name || recipientUser.phone}`,
             lang: 'fr',
             ipAddress: '127.0.0.1',
