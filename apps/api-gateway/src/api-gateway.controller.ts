@@ -6057,8 +6057,7 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ walletId n'est PLUS obligatoire
-    // La validation est supprimée
+    // ✅ walletId n'est pas obligatoire
 
     return this.sendWalletMessage(
       'get_wallet_balance_transactions',
@@ -6079,7 +6078,6 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
   }
-
   @Get('admin/kyc/submissions/:id')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getKycSubmissionById(

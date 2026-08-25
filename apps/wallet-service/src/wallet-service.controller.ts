@@ -948,9 +948,12 @@ export class WalletServiceController {
       const startDate = data.startDate ? new Date(data.startDate) : undefined;
       const endDate = data.endDate ? new Date(data.endDate) : undefined;
 
+      // ✅ Ne pas passer de chaîne vide, passer undefined si walletId est vide
+      const walletId = data.walletId && data.walletId.trim() !== '' ? data.walletId : undefined;
+
       return await this.walletService.getWalletBalanceAndTransactions(
         data.userId,
-        data.walletId || '',  // ✅ Peut être undefined
+        walletId,  // ✅ undefined si walletId est vide
         data.lang || 'fr',
         data.page || 1,
         data.limit || 10,
