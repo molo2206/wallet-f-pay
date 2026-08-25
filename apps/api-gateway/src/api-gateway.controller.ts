@@ -4512,8 +4512,6 @@ export class ApiGatewayController {
       const clientId = query.client_id || 'web-client';
 
       // ✅ Déterminer le callback URL
-      // ✅ PRIORITÉ : redirect_uri fourni par le client
-      // ✅ SINON : déterminer automatiquement en fonction du client_id
       let callbackUrl = query.redirect_uri || '';
 
       // ✅ Si redirect_uri n'est pas fourni, le déterminer automatiquement
@@ -4531,6 +4529,33 @@ export class ApiGatewayController {
 
       console.log('[OAuth] Client ID:', clientId);
       console.log('[OAuth] Callback URL final:', callbackUrl);
+
+      // ✅ Nettoyer l'URL pour éviter l'erreur 414
+      // On ne garde que les paramètres essentiels
+      const cleanQuery = {
+        client_id: clientId,
+        redirect_uri: callbackUrl,
+        system_user_id: systemUserId,
+        amount: amount,
+        currency: currency,
+        description: description,
+        api_key: apiKey,
+        // ✅ On ne garde PAS le code dans l'URL
+        // code: query.code, // ❌ SUPPRIMÉ
+      };
+
+      // ✅ Construire l'URL propre
+      const cleanUrl = new URL(req.url, `${req.protocol}://${req.get('host')}`);
+      // Réinitialiser les paramètres avec les valeurs nettoyées
+      const newSearchParams = new URLSearchParams();
+      Object.entries(cleanQuery).forEach(([key, value]) => {
+        if (value) {
+          newSearchParams.set(key, value);
+        }
+      });
+      cleanUrl.search = newSearchParams.toString();
+
+      console.log('[OAuth] URL nettoyée:', cleanUrl.toString());
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
 
