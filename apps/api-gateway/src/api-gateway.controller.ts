@@ -173,6 +173,7 @@ export class ApiGatewayController {
   private auditClient: ClientProxy;
   private notificationClient: ClientProxy;
   private settingsClient: ClientProxy;
+  private fpayCache: Map<string, any> = new Map();
 
   constructor(private readonly i18nService: I18nService, private readonly prisma: PrismaService) { // ✅ injection
     const rmqUrl =
@@ -5418,11 +5419,9 @@ export class ApiGatewayController {
   ) {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
-    console.log('[FPay] URL complète:', req.url);
 
     // ✅ Détecter le contexte : Link ou Paiement
     const isPaymentContext = !!(query.amount && query.currency);
-    const isLinkContext = !isPaymentContext;
 
     // ✅ Récupérer le client_id
     const clientId = query.client_id || 'web-client';
@@ -5496,12 +5495,6 @@ export class ApiGatewayController {
         params.set('client_id', clientId);
 
         let redirectUrl = redirectUri + '?' + params.toString();
-
-        // ✅ Pour les URLs mobile, on garde le format
-        if (redirectUri.startsWith('fpay://')) {
-          redirectUrl = redirectUri + '?' + params.toString();
-        }
-
         console.log('[FPay] 🔄 Redirection erreur:', redirectUrl);
         return res.redirect(redirectUrl);
       }
@@ -5522,82 +5515,57 @@ export class ApiGatewayController {
       if (hasRedirect) {
         const params = new URLSearchParams();
 
-        // ✅ Tokens (essentiels)
+        // ✅ TOKENS (essentiels)
         params.set('access_token', data.accessToken);
         params.set('refresh_token', data.refreshToken);
         params.set('user_id', data.data?.id);
-        if (data.code) params.set('code', data.code);
-        params.set('client_id', clientId);
 
-        // ✅ Données minimales de l'utilisateur
-        if (data.data) {
-          if (data.data.id) params.set('user_id', data.data.id);
-          if (data.data.phone) params.set('phone', data.data.phone);
-          if (data.data.full_name) params.set('full_name', data.data.full_name);
-          if (data.data.role) params.set('role', data.data.role);
-          if (data.data.status) params.set('status', data.data.status);
-          if (data.data.kycStatus) params.set('kyc_status', data.data.kycStatus);
-          if (data.data.countryCode) params.set('country_code', data.data.countryCode);
-          if (data.data.merchantCode) params.set('merchant_code', data.data.merchantCode);
-        }
-
+        // ✅ Paramètres nécessaires
         if (query.system_user_id) {
           params.set('system_user_id', query.system_user_id);
         }
+        params.set('client_id', clientId);
 
-        // ✅ Pour le paiement : seulement le statut
-        if (isPaymentContext && data.data?.payment) {
-          params.set('payment_status', data.data.payment.status || 'PENDING');
-          if (data.data.payment.error) {
-            params.set('payment_error', data.data.payment.error);
-          }
-          if (data.data.payment.transaction?.id) {
-            params.set('transaction_id', data.data.payment.transaction.id);
+        // ✅ Si paiement : seulement les infos de paiement
+        if (isPaymentContext) {
+          if (data.data?.payment) {
+            params.set('payment_status', data.data.payment.status || 'PENDING');
+            if (data.data.payment.transaction?.id) {
+              params.set('transaction_id', data.data.payment.transaction.id);
+            }
+            if (data.data.payment.error) {
+              params.set('payment_error', data.data.payment.error);
+            }
           }
           if (query.amount) params.set('amount', query.amount);
           if (query.currency) params.set('currency', query.currency);
         }
 
-        // ✅ Message
-        if (data.message) params.set('message', data.message);
-
         // ✅ STOCKAGE DES DONNÉES LOURDES
         const sessionId = crypto.randomUUID();
 
-        // ✅ Stocker les données complètes
+        // ✅ Stocker les données complètes dans le cache
         const fullData = {
           data: data.data,
           timestamp: Date.now(),
         };
 
+        // ✅ Nettoyer les anciennes entrées (plus de 5 minutes)
+        for (const [key, value] of this.fpayCache) {
+          if (Date.now() - value.timestamp > 300000) {
+            this.fpayCache.delete(key);
+          }
+        }
+        this.fpayCache.set(sessionId, fullData);
+
+        // ✅ Passer l'ID de session (court)
+        params.set('session_id', sessionId);
+
+        // ✅ Message (optionnel)
+        if (data.message) params.set('message', data.message);
+
+        // ✅ Construire l'URL finale
         let redirectUrl = redirectUri + '?' + params.toString();
-
-        // ✅ Pour les URLs mobile (fpay://), on construit manuellement
-        if (redirectUri.startsWith('fpay://')) {
-          redirectUrl = redirectUri + '?' + params.toString();
-        }
-
-        // ✅ Vérifier la longueur de l'URL
-        if (redirectUrl.length > 2000) {
-          console.warn('[FPay] ⚠️ URL trop longue:', redirectUrl.length, 'caractères');
-          // Fallback: formulaire POST
-          return res.send(`
-            <html>
-              <head><title>Redirection...</title></head>
-              <body>
-                <p>Redirection en cours...</p>
-                <form id="redirectForm" method="POST" action="${redirectUri}">
-                  ${Array.from(params.entries()).map(([key, value]) =>
-            `<input type="hidden" name="${key}" value="${value}">`
-          ).join('')}
-                </form>
-                <script>
-                  document.getElementById('redirectForm').submit();
-                </script>
-              </body>
-            </html>
-          `);
-        }
 
         console.log('[FPay] 🔄 Redirection succès (longueur:', redirectUrl.length, '):', redirectUrl);
         return res.redirect(redirectUrl);
@@ -5669,8 +5637,7 @@ export class ApiGatewayController {
         throw new Error(errorData.message || 'Erreur lors de la liaison');
       }
 
-      const result = await linkUserResponse.json();
-      console.log('[FPay] ✅ Utilisateur lié avec succès:', result);
+      console.log('[FPay] ✅ Utilisateur lié avec succès');
 
       // ✅ 2. Récupérer l'utilisateur
       const userResponse = await this.sendUserMessage<{
@@ -5976,6 +5943,9 @@ export class ApiGatewayController {
           kycStatus: kycStatus,
           countryCode: userData.countryCode || 'CD',
           locked_by_admin: userData.locked_by_admin || false,
+          sessions: sessions,
+          resources: resources,
+          wallets: wallets,
           kyc: {
             status: kycStatus,
             submission: kycSubmission,
@@ -6026,6 +5996,23 @@ export class ApiGatewayController {
         error.message || 'Erreur lors de la liaison'
       );
     }
+  }
+
+  // ✅ Route pour récupérer les données complètes via session_id
+  @Get('api/fpay-data/:sessionId')
+  async getFpayData(@Param('sessionId') sessionId: string) {
+    const data = this.fpayCache.get(sessionId);
+    if (!data) {
+      throw new Error('Session data not found or expired');
+    }
+
+    // Supprimer après récupération (usage unique)
+    this.fpayCache.delete(sessionId);
+
+    return {
+      success: true,
+      data: data.data,
+    };
   }
 
   @Post('users/kyc/submit')
