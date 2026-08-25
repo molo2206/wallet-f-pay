@@ -68,8 +68,7 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as jwt from 'jsonwebtoken';
-
-import { Public } from 'apps/auth-service/src/utility/guards/jwt-auth.guard';
+import { Public } from 'apps/auth-service/src/utility/decorators/public.decorator';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
