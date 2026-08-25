@@ -569,7 +569,7 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
   }
-  
+
   @Post('auth/register')
   async register(
     @Body() body: RegisterRequestDto,
@@ -3593,6 +3593,7 @@ export class ApiGatewayController {
 
 
   //===============================Externe============================
+
   @Post('api/external/pay')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('pay')
@@ -3603,6 +3604,7 @@ export class ApiGatewayController {
       amount: number;
       currency?: string;
       description?: string;
+      access_token?: string;
     },
     @Res() res: Response,
     @Ip() ipAddress: string,
@@ -3612,7 +3614,6 @@ export class ApiGatewayController {
     const apiKeyUser = req.user;
 
     try {
-      // ✅ Validation
       if (!body.system_user_id) {
         throw new HttpException('system_user_id est requis', HttpStatus.BAD_REQUEST);
       }
@@ -3623,74 +3624,80 @@ export class ApiGatewayController {
 
       console.log('[ExternalPay] 📋 system_user_id du payeur:', body.system_user_id);
 
-      // ✅ 1. Vérifier si l'utilisateur est lié via le microservice FPay
-      try {
-        const userStatus = await this.sendFpayMessage<{ isLinked: boolean; userIdFpay?: string }>(
-          'check_user_link',
-          { systemUserId: body.system_user_id },
-          'Erreur lors de la vérification du lien',
-          HttpStatus.BAD_REQUEST,
-        );
+      // ✅ 1. Vérifier le token si fourni
+      let fpayUserId = null;
+      if (body.access_token) {
+        try {
+          const verifyResponse = await this.sendUserMessage<{
+            message: string;
+            data: any;
+          }>(
+            'verify_token',
+            { accessToken: body.access_token },
+            'Token invalide',
+            HttpStatus.UNAUTHORIZED,
+          );
 
-        // ✅ 2. Si l'utilisateur n'est PAS lié → Lancer OAuth
-        if (!userStatus.isLinked) {
-          console.log('[ExternalPay] 🔐 Utilisateur non lié, redirection vers OAuth FPay');
+          if (verifyResponse && verifyResponse.data) {
+            fpayUserId = verifyResponse.data.id;
+            console.log('[ExternalPay] ✅ Token FPay valide:', fpayUserId);
 
-          const fpayUrl = process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
-          const appUrl = process.env.APP_URL || 'http://localhost:3000';
-          const authCode = crypto.randomBytes(32).toString('hex');
-          const clientId = 'web-client';
-          const callbackUrl = `${appUrl}/oauth/callback`;
-
-          const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
-          redirectUrl.searchParams.set('client_id', clientId);
-          redirectUrl.searchParams.set('code', authCode);
-          redirectUrl.searchParams.set('system_user_id', body.system_user_id);
-          redirectUrl.searchParams.set('redirect_uri', callbackUrl);
-          redirectUrl.searchParams.set('amount', body.amount.toString());
-          redirectUrl.searchParams.set('currency', body.currency || 'USD');
-          if (body.description) {
-            redirectUrl.searchParams.set('description', body.description);
-          }
-
-          // ✅ AJOUTER l'API Key du destinataire dans l'URL
-          // L'API Key est celle utilisée pour l'appel, donc c'est l'identifiant du destinataire
-          const authHeader = req.headers.authorization || '';
-          redirectUrl.searchParams.set('api_key', authHeader);
-
-          console.log('[ExternalPay] 🔗 URL OAuth:', redirectUrl.toString());
-
-          return res.status(200).json({
-            status: 'redirect',
-            message: 'Authentification FPay requise. Veuillez vous connecter.',
-            redirectUrl: redirectUrl.toString(),
-            openInBrowser: redirectUrl.toString(),
-            system_user_id: body.system_user_id,
-            data: {
-              amount: body.amount,
-              currency: body.currency,
+            // ✅ Lier automatiquement si token valide
+            try {
+              const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+              await fetch(`${favorHelpUrl}/fpay/link-user`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  systemUserId: body.system_user_id,
+                  fpayUserId: fpayUserId,
+                  accessToken: body.access_token,
+                }),
+              });
+              console.log('[ExternalPay] ✅ Compte lié automatiquement');
+            } catch (linkError) {
+              console.warn('[ExternalPay] ⚠️ Erreur liaison automatique:', linkError.message);
             }
-          });
+          }
+        } catch (tokenError) {
+          console.error('[ExternalPay] ❌ Token invalide:', tokenError.message);
+          throw new HttpException(
+            'Token FPay invalide ou expiré',
+            HttpStatus.UNAUTHORIZED
+          );
         }
+      }
 
-        console.log('[ExternalPay] ✅ Utilisateur lié:', {
-          system_user_id: body.system_user_id,
-          userIdFpay: userStatus.userIdFpay,
-        });
+      // ✅ 2. Vérifier si l'utilisateur est lié (si pas de token)
+      if (!fpayUserId) {
+        try {
+          const userStatus = await this.sendFpayMessage<{ isLinked: boolean; userIdFpay?: string }>(
+            'check_user_link',
+            { systemUserId: body.system_user_id },
+            'Erreur lors de la vérification du lien',
+            HttpStatus.BAD_REQUEST,
+          );
 
-      } catch (error) {
-        // ✅ Si l'utilisateur n'existe pas dans le système FPay, lancer OAuth
-        console.log('[ExternalPay] 🔐 Utilisateur non trouvé, redirection vers OAuth FPay');
+          if (userStatus.isLinked && userStatus.userIdFpay) {
+            fpayUserId = userStatus.userIdFpay;
+            console.log('[ExternalPay] ✅ Utilisateur déjà lié:', fpayUserId);
+          }
+        } catch (error) {
+          // Utilisateur non lié
+        }
+      }
+
+      // ✅ 3. Si pas de token et pas lié → Redirection OAuth
+      if (!fpayUserId) {
+        console.log('[ExternalPay] 🔐 Utilisateur non lié, redirection vers OAuth FPay');
 
         const fpayUrl = process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
         const appUrl = process.env.APP_URL || 'http://localhost:3000';
-        const authCode = crypto.randomBytes(32).toString('hex');
         const clientId = 'web-client';
         const callbackUrl = `${appUrl}/oauth/callback`;
 
         const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
         redirectUrl.searchParams.set('client_id', clientId);
-        redirectUrl.searchParams.set('code', authCode);
         redirectUrl.searchParams.set('system_user_id', body.system_user_id);
         redirectUrl.searchParams.set('redirect_uri', callbackUrl);
         redirectUrl.searchParams.set('amount', body.amount.toString());
@@ -3699,7 +3706,6 @@ export class ApiGatewayController {
           redirectUrl.searchParams.set('description', body.description);
         }
 
-        // ✅ AJOUTER l'API Key du destinataire dans l'URL
         const authHeader = req.headers.authorization || '';
         redirectUrl.searchParams.set('api_key', authHeader);
 
@@ -3716,7 +3722,7 @@ export class ApiGatewayController {
         });
       }
 
-      // ✅ 3. Récupérer le wallet du payeur (dans user-service)
+      // ✅ 4. Récupérer le wallet du payeur
       const payer = await this.prisma.user.findFirst({
         where: {
           id: body.system_user_id,
@@ -3734,7 +3740,7 @@ export class ApiGatewayController {
         throw new HttpException(`Utilisateur avec ID ${body.system_user_id} non trouvé`, HttpStatus.NOT_FOUND);
       }
 
-      // ✅ 4. Trouver le wallet
+      // ✅ 5. Trouver le wallet
       const targetCurrency = body.currency || 'USD';
       let clientWallet = payer.wallets.find(w => w.currency === targetCurrency);
 
@@ -3745,12 +3751,6 @@ export class ApiGatewayController {
         }
       }
 
-      console.log('[ExternalPay] Client wallet found:', {
-        walletId: clientWallet.id,
-        currency: clientWallet.currency,
-        balance: clientWallet.balance,
-      });
-
       if (clientWallet.balance < body.amount) {
         throw new HttpException(
           `Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`,
@@ -3758,7 +3758,7 @@ export class ApiGatewayController {
         );
       }
 
-      // ✅ 5. Le destinataire
+      // ✅ 6. Le destinataire
       const recipient = apiKeyUser;
 
       if (recipient.status !== 'ACTIVE') {
@@ -3769,7 +3769,7 @@ export class ApiGatewayController {
         throw new HttpException('Impossible de payer à soi-même', HttpStatus.BAD_REQUEST);
       }
 
-      // ✅ 6. Préparer le payload (sans PIN)
+      // ✅ 7. Préparer le payload
       const payPayload: any = {
         fromWalletId: clientWallet.id,
         amount: body.amount,
@@ -3778,7 +3778,6 @@ export class ApiGatewayController {
         ipAddress,
       };
 
-      // ✅ 7. Ajouter le destinataire
       if (recipient.role === 'MERCHANT' && recipient.merchantCode) {
         payPayload.merchantCode = recipient.merchantCode;
         console.log('[ExternalPay] ✅ Paiement vers un marchand, code:', recipient.merchantCode);
@@ -3791,7 +3790,7 @@ export class ApiGatewayController {
 
       console.log('[ExternalPay] 📤 Payload envoyé (sans PIN):', payPayload);
 
-      // ✅ 8. Appeler le service wallet avec 'pay_without_pin'
+      // ✅ 8. Appeler le service wallet
       const response = await this.sendWalletMessage(
         'pay_without_pin',
         payPayload,
@@ -4189,110 +4188,96 @@ export class ApiGatewayController {
   @Post('auth/link-user')
   async linkUser(
     @Body() body: {
-      phone?: string;
-      password?: string;
-      otpCode?: string;
+      access_token: string;
+      refresh_token?: string;
+      system_user_id: string;
       clientId?: string;
       redirectUri?: string;
       lang?: string;
     },
-    @Ip() ipAddress: string,
     @Res() res: Response,
   ) {
-    console.log('[Auth Link-User] Requête reçue:', {
-      phone: body.phone || 'NON FOURNI',
-      hasOtp: !!body.otpCode,
-      clientId: body.clientId
-    });
-
-    // ✅ Cas 1 : Pas de phone/password → Rediriger vers FPay (sans code ni redirect_uri dans l'URL)
-    if (!body || !body.phone || !body.password) {
-      const clientId = body?.clientId || 'web-client';
-      const appUrl = process.env.APP_URL || 'http://localhost:3000';
-      const fpayUrl = process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com';
-
-      const redirectUrl = new URL(`${fpayUrl}/oauth/login`);
-      redirectUrl.searchParams.set('client_id', clientId);
-      // ✅ NE PAS ajouter code dans l'URL
-      // redirectUrl.searchParams.set('code', authCode);
-      // ✅ NE PAS ajouter redirect_uri dans l'URL (il est dans la session)
-      // redirectUrl.searchParams.set('redirect_uri', body?.redirectUri || `${appUrl}/oauth/callback`);
-
-      // ✅ Garder uniquement les paramètres nécessaires
-      // system_user_id sera passé dans le corps de la requête
-      // redirect_uri sera utilisé dans la session
-
-      console.log('[Auth Link-User] 🔗 URL OAuth FPay (sans code):', redirectUrl.toString());
-
-      // ✅ Retourner l'URL sans code ni redirect_uri
-      return res.json({
-        status: 'success',
-        message: 'Page OAuth FPay',
-        url: redirectUrl.toString(),
-        openInBrowser: redirectUrl.toString(),
-        // systemUserId: systemUserId,
-      });
-    }
-
-    // ✅ Cas 2 : phone et password fournis → Traiter la connexion
-    const lang = body.lang || 'fr';
-    const clientId = body.clientId || 'web-client';
-    const redirectUri = body.redirectUri || `${process.env.APP_URL || 'http://localhost:3000'}/oauth/callback`;
-    const hasOtp = body.otpCode && body.otpCode.trim() !== '';
-
     try {
-      const payload: any = {
-        phone: body.phone,
-        password: body.password,
-        clientId: clientId,
-        redirectUri: redirectUri,
-        lang,
-        ipAddress,
-      };
+      const { access_token, refresh_token, system_user_id } = body;
 
-      if (hasOtp) {
-        payload.otpCode = body.otpCode;
-        console.log('[Auth Link-User] 🔐 Vérification OTP:', body.otpCode);
-      }
-
-      const result = await this.sendAuthMessage<LinkUserResponse>(
-        'link_user',
-        payload,
-        'Login failed',
-        HttpStatus.BAD_REQUEST,
-      ) as LinkUserResponse;
-
-      // ✅ Si OTP requis → Retourner le message (sans code ni redirect_uri)
-      if (result.requiresOtp === true) {
-        console.log('[Auth Link-User] 📱 OTP requis pour:', body.phone);
-        return res.json({
-          status: 'success',
-          message: 'Code OTP envoyé avec succès',
-          requiresOtp: true,
-          phone: body.phone,
-          data: null
+      if (!access_token) {
+        return res.status(400).json({
+          success: false,
+          message: 'access_token est requis pour la liaison'
         });
       }
 
-      // ✅ Connexion réussie
-      console.log('[Auth Link-User] ✅ Connexion réussie pour:', body.phone);
+      if (!system_user_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'system_user_id est requis pour la liaison'
+        });
+      }
 
-      return res.json({
-        status: 'success',
-        message: 'Connexion réussie',
-        data: result.data || null,
-        accessToken: result.accessToken || null,
-        refreshToken: result.refreshToken || null,
-        sessionId: result.sessionId || null,
-        oauthRedirectUrl: result.oauthRedirectUrl || null,
-        requiresOtp: false
+      // ✅ ICI - Appel via microservice auth
+      const verifyResponse = await this.sendAuthMessage<{
+        valid: boolean;
+        data?: {
+          id: string;
+          email: string | null;
+          phone: string | null;
+          full_name: string | null;
+          role: string;
+          status: string;
+          kycStatus: string;
+          countryCode: string | null;
+        };
+        message: string;
+      }>(
+        'verify_token',
+        { accessToken: access_token },
+        'Token invalide',
+        HttpStatus.UNAUTHORIZED,
+      );
+
+      if (!verifyResponse.valid || !verifyResponse.data) {
+        return res.status(401).json({
+          success: false,
+          message: verifyResponse.message || 'Token FPay invalide ou expiré'
+        });
+      }
+
+      const fpayUser = verifyResponse.data;
+
+      // Lier les comptes
+      const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+
+      const linkUserResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemUserId: system_user_id,
+          fpayUserId: fpayUser.id,
+          accessToken: access_token,
+          refreshToken: refresh_token || null,
+        }),
+      });
+
+      if (!linkUserResponse.ok) {
+        const errorData = await linkUserResponse.json();
+        throw new Error(errorData.message || 'Erreur lors de la liaison');
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Compte lié avec succès',
+        data: {
+          systemUserId: system_user_id,
+          fpayUserId: fpayUser.id,
+          isLinked: true
+        }
       });
 
     } catch (error) {
-      console.error('[Auth Link-User] Erreur:', error);
-      return res.status(400).json({
-        status: 'error',
-        message: error.message || 'Erreur de connexion'
+      console.error('[LinkUser] ❌ Erreur:', error.message);
+      return res.status(500).json({
+        success: false,
+        message: error.message || 'Erreur lors de la liaison'
       });
     }
   }
@@ -4597,6 +4582,10 @@ export class ApiGatewayController {
       console.log('[OAuth] URL nettoyée (sans code):', cleanUrl);
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
+
+      // ✅ Modification du JavaScript dans la page HTML
+      // Pour que le login appelle /auth/login (et non /auth/link-user)
+      // et retourne directement le token sans liaison
 
       if (fs.existsSync(filePath)) {
         let html = fs.readFileSync(filePath, 'utf8');
@@ -4903,7 +4892,6 @@ export class ApiGatewayController {
             </div>
         </div>
 
-        <!-- ✅ successState conservé mais caché car redirection automatique -->
         <div id="successState" style="display:none;">
             <div class="success-icon">✅</div>
             <h2>Connexion reussie !</h2>
@@ -5017,7 +5005,6 @@ export class ApiGatewayController {
                 messageText.textContent = text;
             }
 
-            // ✅ showSuccess modifié : redirection automatique
             function showSuccess(data) {
                 userData = data.data;
                 userTokens = {
@@ -5031,18 +5018,17 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
                 
-                // ✅ REDIRECTION AUTOMATIQUE VERS LE CALLBACK
                 console.log('[OAuth] Redirection automatique vers le callback...');
                 handleRedirect();
             }
 
-            // ✅ handleRedirect simplifié pour supporter l'URL web et mobile
+            // ✅ handleRedirect modifié - redirection directe avec tokens
             window.handleRedirect = function() {
                 console.log('[OAuth] Redirection vers:', REDIRECT_URI);
                 console.log('[OAuth] Tokens:', userTokens);
                 console.log('[OAuth] User data:', userData);
 
-                // ✅ Si c'est une URL mobile (fpay://), on construit manuellement
+                // ✅ Si c'est une URL mobile (fpay://)
                 if (REDIRECT_URI.startsWith('fpay://')) {
                     var params = new URLSearchParams();
                     
@@ -5077,7 +5063,6 @@ export class ApiGatewayController {
                         params.set('client_id', CLIENT_ID);
                     }
 
-                    // ✅ Données utilisateur minimales
                     if (userData) {
                         params.set('data_id', userData.id || '');
                         params.set('data_phone', userData.phone || '');
@@ -5098,7 +5083,7 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // ✅ Pour les URLs web standard
+                // ✅ URLs web standard
                 try {
                     var redirectUrl = new URL(REDIRECT_URI);
                     
@@ -5194,7 +5179,7 @@ export class ApiGatewayController {
                 showMessage('info', 'Envoi d un nouveau code OTP...');
 
                 try {
-                    var response = await fetch('/auth/link-user', {
+                    var response = await fetch('/auth/send-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -5225,6 +5210,7 @@ export class ApiGatewayController {
                 }
             };
 
+            // ✅ Formulaire modifié - utilise /auth/login
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5249,6 +5235,7 @@ export class ApiGatewayController {
                     showMessage('info', 'Verification des identifiants...');
 
                     try {
+                        // ✅ Étape 1: Login simple (sans liaison)
                         var payloadStep1 = {
                             phone: phone,
                             password: password,
@@ -5257,9 +5244,9 @@ export class ApiGatewayController {
                             lang: 'fr'
                         };
 
-                        console.log('[OAuth] Etape 1 - Verification identifiants:', payloadStep1);
+                        console.log('[OAuth] Etape 1 - Login:', payloadStep1);
 
-                        var response1 = await fetch('/auth/link-user', {
+                        var response1 = await fetch('/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep1)
@@ -5292,11 +5279,12 @@ export class ApiGatewayController {
 
                             document.getElementById('otpCode').focus();
                             return;
-                        } else {
-                            showSuccess(data1);
-                            stopLoading();
-                            return;
                         }
+
+                        // ✅ Login réussi - retourne directement les tokens
+                        showSuccess(data1);
+                        stopLoading();
+                        return;
 
                     } catch (error) {
                         console.error('[OAuth] Etape 1 - Erreur:', error);
@@ -5306,6 +5294,7 @@ export class ApiGatewayController {
                     }
                 }
 
+                // ✅ Étape 2: Vérification OTP
                 if (otpRequired) {
                     if (!otpCode) {
                         showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
@@ -5325,9 +5314,9 @@ export class ApiGatewayController {
                             lang: 'fr'
                         };
 
-                        console.log('[OAuth] Etape 2 - Verification OTP + LINK:', payloadStep2);
+                        console.log('[OAuth] Etape 2 - Verification OTP:', payloadStep2);
 
-                        var response2 = await fetch('/auth/link-user', {
+                        var response2 = await fetch('/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep2)
@@ -5432,6 +5421,14 @@ export class ApiGatewayController {
       redirect_uri?: string;
       state?: string;
       client_id?: string;
+      data_id?: string;
+      data_phone?: string;
+      data_full_name?: string;
+      data_role?: string;
+      data_status?: string;
+      data_kycStatus?: string;
+      data_countryCode?: string;
+      wallets?: string;
     },
     @Res() res: Response,
     @Request() req: any,
@@ -5439,68 +5436,29 @@ export class ApiGatewayController {
     console.log('[FPay] ✅ Callback reçu');
     console.log('[FPay] Query:', query);
 
-    // ✅ Détecter le contexte : Link ou Paiement
     const isPaymentContext = !!(query.amount && query.currency);
-
-    // ✅ Récupérer le client_id
+    const isLinkContext = !!query.system_user_id && !query.amount;
     const clientId = query.client_id || 'web-client';
 
-    // ✅ Utiliser le redirect_uri EXACTEMENT comme passé
     let redirectUri = query.redirect_uri || query.callback || null;
 
-    // ✅ Si AUCUN redirect_uri n'est fourni, on détermine automatiquement
     if (!redirectUri) {
       if (clientId === 'mobile-client' || clientId?.includes('mobile')) {
-        redirectUri = this.getMobileCallbackUrl(); // fpay://callback
+        redirectUri = this.getMobileCallbackUrl();
         console.log('[FPay] 📱 Client mobile, callback automatique:', redirectUri);
       } else {
-        redirectUri = this.getOAuthCallbackUrl(); // URL web
+        redirectUri = this.getOAuthCallbackUrl();
         console.log('[FPay] 🌐 Client web, callback automatique:', redirectUri);
       }
     }
 
     const hasRedirect = !!redirectUri;
 
-    console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : 'LINK');
+    console.log('[FPay] 📋 Contexte:', isPaymentContext ? 'PAIEMENT' : isLinkContext ? 'LINK' : 'AUTH');
     console.log('[FPay] 📋 Client ID:', clientId);
     console.log('[FPay] 📋 redirect_uri EXACT:', redirectUri);
 
-    // ✅ Récupérer l'API Key
-    let rawApiKey = '';
-    const fullUrl = req.url || '';
-    const apiKeyMatch = fullUrl.match(/[?&]api_key=([^&]*)/);
-
-    if (apiKeyMatch) {
-      rawApiKey = decodeURIComponent(apiKeyMatch[1]);
-    } else if (query.api_key) {
-      rawApiKey = query.api_key;
-    }
-
-    // ✅ Nettoyer l'API Key
-    let cleanApiKey = rawApiKey;
-    let apiKeyToken = '';
-
-    if (isPaymentContext && rawApiKey) {
-      if (cleanApiKey.includes(' ')) {
-        cleanApiKey = cleanApiKey.replace(/ /g, '+');
-      }
-      if (!cleanApiKey.startsWith('Bearer ')) {
-        if (cleanApiKey.startsWith('Bearer+')) {
-          cleanApiKey = cleanApiKey.replace('Bearer+', 'Bearer ');
-        } else if (cleanApiKey.startsWith('Bearer')) {
-          cleanApiKey = 'Bearer ' + cleanApiKey.substring(6);
-        } else {
-          cleanApiKey = 'Bearer ' + cleanApiKey;
-        }
-      }
-
-      const parts = cleanApiKey.split(' ');
-      apiKeyToken = parts.length === 2 ? parts[1] : cleanApiKey;
-    }
-
-    // ============================================================
-    // ⚠️ FONCTION: Rediriger avec erreur
-    // ============================================================
+    // ✅ Fonction: Rediriger avec erreur
     const redirectWithError = (error: string, errorDescription?: string) => {
       if (hasRedirect) {
         const params = new URLSearchParams();
@@ -5527,25 +5485,28 @@ export class ApiGatewayController {
       });
     };
 
-    // ============================================================
-    // ⚠️ FONCTION: Rediriger avec données MINIMALES
-    // ============================================================
-    const redirectWithMinimalData = (data: any) => {
+    // ✅ Fonction: Rediriger avec succès
+    const redirectWithSuccess = (data: any) => {
       if (hasRedirect) {
         const params = new URLSearchParams();
 
-        // ✅ TOKENS (essentiels)
         params.set('access_token', data.accessToken);
         params.set('refresh_token', data.refreshToken);
         params.set('user_id', data.data?.id);
 
-        // ✅ Paramètres nécessaires
         if (query.system_user_id) {
           params.set('system_user_id', query.system_user_id);
         }
         params.set('client_id', clientId);
 
-        // ✅ Si paiement : seulement les infos de paiement
+        // ✅ Contexte LINK
+        if (isLinkContext && data.accessToken && query.system_user_id) {
+          console.log('[FPay] 🔗 Contexte LINK - Liaison automatique');
+          params.set('link_required', 'true');
+          params.set('fpay_user_id', data.data?.id || '');
+        }
+
+        // ✅ Contexte PAIEMENT
         if (isPaymentContext) {
           if (data.data?.payment) {
             params.set('payment_status', data.data.payment.status || 'PENDING');
@@ -5560,37 +5521,27 @@ export class ApiGatewayController {
           if (query.currency) params.set('currency', query.currency);
         }
 
-        // ✅ STOCKAGE DES DONNÉES LOURDES
-        const sessionId = crypto.randomUUID();
+        if (data.data) {
+          params.set('data_id', data.data.id || '');
+          params.set('data_phone', data.data.phone || '');
+          params.set('data_full_name', data.data.full_name || '');
+          params.set('data_role', data.data.role || '');
+          params.set('data_status', data.data.status || '');
+          params.set('data_kycStatus', data.data.kycStatus || '');
+          params.set('data_countryCode', data.data.countryCode || 'CD');
 
-        // ✅ Stocker les données complètes dans le cache
-        const fullData = {
-          data: data.data,
-          timestamp: Date.now(),
-        };
-
-        // ✅ Nettoyer les anciennes entrées (plus de 5 minutes)
-        for (const [key, value] of this.fpayCache) {
-          if (Date.now() - value.timestamp > 300000) {
-            this.fpayCache.delete(key);
+          if (data.data.wallets) {
+            params.set('wallets', JSON.stringify(data.data.wallets));
           }
         }
-        this.fpayCache.set(sessionId, fullData);
 
-        // ✅ Passer l'ID de session (court) au lieu des données lourdes
-        params.set('session_id', sessionId);
-
-        // ✅ Message (optionnel)
         if (data.message) params.set('message', data.message);
 
-        // ✅ Construire l'URL finale (courte)
         let redirectUrl = redirectUri + '?' + params.toString();
-
-        console.log('[FPay] 🔄 Redirection succès (longueur:', redirectUrl.length, '):', redirectUrl);
+        console.log('[FPay] 🔄 Redirection succès:', redirectUrl);
         return res.redirect(redirectUrl);
       }
 
-      // Pas de redirect_uri, retourner le JSON complet
       return res.status(200).json({
         ...data,
         close: true,
@@ -5599,411 +5550,201 @@ export class ApiGatewayController {
       });
     };
 
-    // ============================================================
-    // ⚠️ ERREUR 1 : API Key manquante
-    // ============================================================
-    if (!rawApiKey && isPaymentContext) {
-      console.error('[FPay] ❌ Aucune API Key trouvée pour paiement');
-      return redirectWithError(
-        'api_key_missing',
-        'L\'API Key est requise pour effectuer un paiement'
-      );
-    }
-
-    // ============================================================
-    // ⚠️ ERREUR 2 : Erreur dans la query
-    // ============================================================
+    // ✅ Erreurs
     if (query.error) {
       console.error('[FPay] ❌ Erreur dans la query:', query.error);
-      return redirectWithError(
-        query.error,
-        'Erreur d\'authentification FPay'
-      );
+      return redirectWithError(query.error, 'Erreur d\'authentification FPay');
     }
 
-    // ============================================================
-    // ⚠️ ERREUR 3 : Paramètres manquants
-    // ============================================================
-    if (!query.access_token || !query.refresh_token || !query.user_id) {
-      console.error('[FPay] ❌ Paramètres manquants');
-      return redirectWithError(
-        'missing_params',
-        'Access token, refresh token ou user_id manquant'
-      );
-    }
+    // ✅ CAS 1: Déjà connecté avec tokens
+    if (query.access_token && query.user_id) {
+      console.log('[FPay] ✅ Utilisateur déjà connecté avec tokens');
 
-    try {
-      const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+      // ✅ Déclarer userData avec un type explicite
+      let userData: any = null;
+      let wallets = null;
 
-      console.log(`🔗 FPay appelle Favor Help: ${favorHelpUrl}/fpay/link-user`);
-      console.log(`🔗 systemUserId: ${query.system_user_id}`);
-      console.log(`🔗 fpayUserId: ${query.user_id}`);
+      if (query.data_id) {
+        userData = {
+          id: query.data_id,
+          phone: query.data_phone || '',
+          full_name: query.data_full_name || '',
+          role: query.data_role || 'USER',
+          status: query.data_status || 'ACTIVE',
+          kycStatus: query.data_kycStatus || 'NOT_SUBMITTED',
+          countryCode: query.data_countryCode || 'CD',
+          wallets: []
+        };
 
-      // ✅ 1. Lier les comptes
-      const linkUserResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemUserId: query.system_user_id,
-          fpayUserId: query.user_id,
+        if (query.wallets) {
+          try {
+            wallets = JSON.parse(query.wallets);
+            userData.wallets = wallets;
+          } catch (e) {
+            console.warn('[FPay] ⚠️ Erreur parsing wallets');
+          }
+        }
+      }
+
+      // ✅ Si on est en contexte LINK
+      if (isLinkContext && query.system_user_id) {
+        console.log('[FPay] 🔗 Contexte LINK - Liaison des comptes');
+
+        try {
+          const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+
+          const linkResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemUserId: query.system_user_id,
+              fpayUserId: query.user_id,
+              accessToken: query.access_token,
+              refreshToken: query.refresh_token || null,
+            }),
+          });
+
+          if (!linkResponse.ok) {
+            const errorData = await linkResponse.json();
+            throw new Error(errorData.message || 'Erreur lors de la liaison');
+          }
+
+          console.log('[FPay] ✅ Comptes liés avec succès');
+
+          // ✅ Créer un objet data avec fallback si userData est null
+          const finalData = userData || {
+            id: query.user_id,
+            phone: '',
+            full_name: '',
+            role: 'USER',
+            status: 'ACTIVE',
+            kycStatus: 'NOT_SUBMITTED',
+            countryCode: 'CD',
+            wallets: []
+          };
+
+          return redirectWithSuccess({
+            success: true,
+            accessToken: query.access_token,
+            refreshToken: query.refresh_token,
+            message: 'Authentification et liaison réussies',
+            data: {
+              ...finalData,
+              id: query.user_id,
+              isLinked: true,
+            }
+          });
+
+        } catch (linkError) {
+          console.error('[FPay] ❌ Erreur liaison:', linkError.message);
+          return redirectWithError('link_failed', linkError.message || 'Échec de la liaison des comptes');
+        }
+      }
+
+      // ✅ Si on est en contexte PAIEMENT
+      if (isPaymentContext) {
+        console.log('[FPay] 💰 Contexte PAIEMENT - Paiement automatique');
+
+        // ... (logique de paiement existante)
+
+        // ✅ Créer un objet data avec fallback si userData est null
+        const finalData = userData || {
+          id: query.user_id,
+          phone: '',
+          full_name: '',
+          role: 'USER',
+          status: 'ACTIVE',
+          kycStatus: 'NOT_SUBMITTED',
+          countryCode: 'CD',
+          wallets: []
+        };
+
+        return redirectWithSuccess({
+          success: true,
           accessToken: query.access_token,
           refreshToken: query.refresh_token,
-        }),
-      });
-
-      if (!linkUserResponse.ok) {
-        const errorData = await linkUserResponse.json();
-        throw new Error(errorData.message || 'Erreur lors de la liaison');
+          message: 'Authentification FPay réussie',
+          data: finalData
+        });
       }
 
-      console.log('[FPay] ✅ Utilisateur lié avec succès');
+      // ✅ Cas simple: Authentification seulement
+      const finalData = userData || {
+        id: query.user_id,
+        phone: '',
+        full_name: '',
+        role: 'USER',
+        status: 'ACTIVE',
+        kycStatus: 'NOT_SUBMITTED',
+        countryCode: 'CD',
+        wallets: []
+      };
 
-      // ✅ 2. Récupérer l'utilisateur
-      const userResponse = await this.sendUserMessage<{
-        message: string;
-        data: any;
-      }>(
-        'get_user',
-        { id: query.user_id },
-        'User not found',
-        HttpStatus.NOT_FOUND,
-      );
-
-      if (!userResponse || !userResponse.data) {
-        console.error(`[FPay] ❌ Utilisateur avec ID ${query.user_id} non trouvé`);
-        return redirectWithError(
-          'user_not_found',
-          `Aucun utilisateur trouvé avec l'ID: ${query.user_id}`
-        );
-      }
-
-      const userData = userResponse.data;
-
-      // ✅ 3. Récupérer les wallets (UNIQUEMENT les wallets)
-      let wallets: any[] = [];
-      try {
-        const walletsResponse = await this.sendWalletMessage<any>(
-          'list_user_wallets',
-          { userId: query.user_id },
-          'Erreur récupération wallets',
-          HttpStatus.BAD_REQUEST,
-        );
-        wallets = walletsResponse?.data || [];
-      } catch (walletError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les wallets:', walletError.message);
-      }
-
-      // ✅ 4. Récupérer les sessions (PAS DANS L'URL)
-      let sessions: any[] = [];
-      try {
-        const sessionsResponse = await this.sendAuthMessage<any>(
-          'list_user_sessions',
-          { userId: query.user_id },
-          'Erreur récupération sessions',
-          HttpStatus.BAD_REQUEST,
-        );
-        sessions = sessionsResponse?.data || [];
-      } catch (sessionError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les sessions:', sessionError.message);
-      }
-
-      // ✅ 5. Récupérer les resources (PAS DANS L'URL)
-      let resources: any[] = [];
-      try {
-        const resourcesResponse = await this.sendUserMessage<any>(
-          'get_user_resources',
-          { userId: query.user_id },
-          'Erreur récupération resources',
-          HttpStatus.BAD_REQUEST,
-        );
-        resources = resourcesResponse?.data || [];
-      } catch (resourceError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer les resources:', resourceError.message);
-      }
-
-      // ✅ 6. Récupérer les KYC (PAS DANS L'URL)
-      let kycStatus = 'NOT_SUBMITTED';
-      let kycSubmission = null;
-      try {
-        const kycResponse = await this.sendUserMessage<any>(
-          'get_kyc_status',
-          { userId: query.user_id },
-          'Erreur récupération KYC',
-          HttpStatus.BAD_REQUEST,
-        );
-        kycStatus = kycResponse?.data?.status || 'NOT_SUBMITTED';
-        kycSubmission = kycResponse?.data?.submission || null;
-      } catch (kycError) {
-        console.warn('[FPay] ⚠️ Impossible de récupérer le KYC:', kycError.message);
-      }
-
-      // ✅ 7. Récupérer la branche (PAS DANS L'URL)
-      let userBranch = null;
-      if (userData.branchId) {
-        try {
-          const branchResponse = await this.sendUserMessage<any>(
-            'get_branch',
-            { id: userData.branchId },
-            'Branche non trouvée',
-            HttpStatus.NOT_FOUND,
-          );
-          userBranch = branchResponse?.data || null;
-        } catch (branchError) {
-          console.warn('[FPay] ⚠️ Impossible de récupérer la branche:', branchError.message);
-        }
-      }
-
-      // ✅ 8. Paiement automatique si contexte paiement
-      let paymentResult: any = null;
-
-      if (isPaymentContext) {
-        console.log('[FPay] 💰 Contexte PAIEMENT - Exécution du paiement automatique');
-
-        let recipientUser: any = null;
-
-        if (apiKeyToken) {
-          try {
-            const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
-            const payload = jwt.verify(apiKeyToken, secret) as any;
-            const userId = payload.sub || payload.userId;
-
-            if (userId) {
-              const user = await this.prisma.user.findUnique({
-                where: { id: userId },
-                select: {
-                  id: true,
-                  full_name: true,
-                  phone: true,
-                  email: true,
-                  role: true,
-                  status: true,
-                  merchantCode: true,
-                  merchantType: true,
-                  businessName: true,
-                  businessCategory: true,
-                  businessAddress: true,
-                  kycStatus: true,
-                  countryCode: true,
-                  wallets: {
-                    where: { isActive: true },
-                    select: {
-                      id: true,
-                      currency: true,
-                      balance: true,
-                      isActive: true,
-                    }
-                  }
-                }
-              });
-
-              if (user) {
-                recipientUser = user;
-                console.log('[FPay] ✅ Destinataire trouvé via JWT');
-              }
-            }
-          } catch (err) {
-            console.log('[FPay] ⚠️ JWT invalide, recherche en base...');
-          }
-        }
-
-        if (!recipientUser && apiKeyToken) {
-          try {
-            const keyRecord = await this.prisma.api_key.findFirst({
-              where: {
-                key: apiKeyToken,
-                isActive: true,
-                expiresAt: { gt: new Date() },
-              },
-              include: { user: true },
-            });
-
-            if (keyRecord && keyRecord.user) {
-              recipientUser = keyRecord.user;
-              console.log('[FPay] ✅ Destinataire trouvé via base de données');
-            }
-          } catch (dbError) {
-            console.error('[FPay] ❌ Erreur recherche en base:', dbError.message);
-          }
-        }
-
-        if (!recipientUser) {
-          console.error('[FPay] ❌ Destinataire non trouvé');
-          return redirectWithError(
-            'recipient_not_found',
-            'Impossible de récupérer le destinataire depuis l\'API Key'
-          );
-        }
-
-        try {
-          const payerResponse = await this.sendUserMessage<any>(
-            'get_user',
-            { id: query.user_id },
-            'Payeur non trouvé',
-            HttpStatus.NOT_FOUND,
-          );
-
-          const payer = payerResponse?.data;
-          if (!payer) {
-            throw new Error('Utilisateur payeur non trouvé');
-          }
-
-          const payerWalletsResponse = await this.sendWalletMessage<any>(
-            'list_user_wallets',
-            { userId: payer.id },
-            'Erreur récupération wallets payeur',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          const payerWallets = payerWalletsResponse?.data || [];
-          const targetCurrency = query.currency || 'USD';
-          let clientWallet = payerWallets.find((w: any) => w.currency === targetCurrency);
-
-          if (!clientWallet) {
-            clientWallet = payerWallets[0];
-            if (!clientWallet) {
-              throw new Error('Aucun wallet actif trouvé pour le payeur');
-            }
-          }
-
-          const amountValue = parseFloat(query.amount || '0');
-          if (isNaN(amountValue) || amountValue <= 0) {
-            throw new Error('Montant invalide');
-          }
-
-          if (clientWallet.balance < amountValue) {
-            throw new Error(`Solde insuffisant: ${clientWallet.balance} ${clientWallet.currency}`);
-          }
-
-          const recipientWalletsResponse = await this.sendWalletMessage<any>(
-            'list_user_wallets',
-            { userId: recipientUser.id },
-            'Erreur récupération wallets destinataire',
-            HttpStatus.BAD_REQUEST,
-          );
-
-          let recipientWallets = recipientWalletsResponse?.data || [];
-          let merchantWallet = recipientWallets.find((w: any) => w.currency === targetCurrency);
-
-          if (!merchantWallet) {
-            merchantWallet = recipientWallets[0];
-            if (!merchantWallet) {
-              const createWalletResponse = await this.sendWalletMessage<any>(
-                'create_wallet',
-                {
-                  userId: recipientUser.id,
-                  currency: targetCurrency
-                },
-                'Erreur création wallet',
-                HttpStatus.BAD_REQUEST,
-              );
-              merchantWallet = createWalletResponse?.data;
-            }
-          }
-
-          const payPayload: any = {
-            fromWalletId: clientWallet.id,
-            amount: amountValue,
-            description: query.description || `Paiement vers ${recipientUser.full_name || recipientUser.phone}`,
-            lang: 'fr',
-            ipAddress: '127.0.0.1',
-          };
-
-          if (recipientUser.phone) {
-            payPayload.toPhone = recipientUser.phone;
-          } else if (recipientUser.merchantCode) {
-            payPayload.merchantCode = recipientUser.merchantCode;
-          } else {
-            throw new Error('Le destinataire n\'a ni téléphone ni code marchand');
-          }
-
-          paymentResult = await this.sendWalletMessage<any>(
-            'pay_without_pin',
-            payPayload,
-            'Erreur paiement',
-            HttpStatus.BAD_REQUEST,
-          );
-
-        } catch (paymentError: any) {
-          console.error('[FPay] ❌ Erreur paiement automatique:', paymentError.message);
-          paymentResult = {
-            status: 'ERROR',
-            error: paymentError.message,
-          };
-        }
-      }
-
-      // ✅ 9. Construire la réponse complète
-      const sessionId = crypto.randomUUID();
-
-      const baseResponse: any = {
+      return redirectWithSuccess({
         success: true,
         accessToken: query.access_token,
         refreshToken: query.refresh_token,
-        sessionId: sessionId,
-        data: {
-          // ✅ Informations utilisateur ESSENTIELLES
-          id: userData.id,
-          email: userData.email || null,
-          phone: userData.phone || null,
-          full_name: userData.full_name || null,
-          role: userData.role || 'USER',
-          status: userData.status || 'ACTIVE',
-          profileImage: userData.profileImage || null,
-          kycStatus: kycStatus,
-          countryCode: userData.countryCode || 'CD',
-          merchantCode: userData.merchantCode || null,
-          businessName: userData.businessName || null,
-          // ✅ Wallets (uniquement les wallets)
-          wallets: wallets,
-          // ✅ Le reste des données (sessions, resources, kyc) est stocké en cache
-          // mais PAS dans l'URL
-        }
-      };
-
-      // ✅ Construire la réponse FINALE
-      let finalResponse: any;
-      if (isPaymentContext) {
-        finalResponse = {
-          ...baseResponse,
-          message: paymentResult?.status === 'ERROR'
-            ? 'Authentification FPay réussie mais paiement échoué'
-            : 'Authentification FPay réussie et paiement effectué',
-          data: {
-            ...baseResponse.data,
-            payment: paymentResult ? {
-              status: paymentResult.status || 'PENDING',
-              transaction: paymentResult.data?.transaction || null,
-              error: paymentResult.error || null,
-            } : {
-              amount: query.amount || null,
-              currency: query.currency || null,
-              description: query.description || null,
-              status: 'PENDING',
-            },
-          }
-        };
-      } else {
-        finalResponse = {
-          ...baseResponse,
-          message: 'Authentification FPay réussie et compte lié',
-          data: {
-            ...baseResponse.data,
-            isLinked: true,
-            userIdFpay: query.user_id,
-          }
-        };
-      }
-
-      // ✅ Rediriger avec les données MINIMALES (évite l'erreur 414)
-      return redirectWithMinimalData(finalResponse);
-
-    } catch (error) {
-      console.error('[FPay] ❌ Erreur:', error.message);
-      return redirectWithError(
-        'internal_error',
-        error.message || 'Erreur lors de la liaison'
-      );
+        message: 'Authentification FPay réussie',
+        data: finalData
+      });
     }
+
+    // ✅ CAS 2: Callback avec code
+    if (query.code) {
+      console.log('[FPay] 🔑 Échange du code contre des tokens');
+
+      try {
+        const tokenResponse = await this.sendUserMessage<any>(
+          'exchange_code',
+          {
+            code: query.code,
+            clientId: clientId,
+            redirectUri: redirectUri,
+          },
+          'Échange de code échoué',
+          HttpStatus.BAD_REQUEST,
+        );
+
+        if (!tokenResponse || !tokenResponse.accessToken) {
+          throw new Error('Échange de code échoué');
+        }
+
+        console.log('[FPay] ✅ Tokens obtenus');
+
+        const userResponse = await this.sendUserMessage<any>(
+          'get_user',
+          { id: tokenResponse.userId },
+          'User not found',
+          HttpStatus.NOT_FOUND,
+        );
+
+        const userData = userResponse?.data || {
+          id: tokenResponse.userId,
+          phone: '',
+          full_name: '',
+          role: 'USER',
+          status: 'ACTIVE',
+          kycStatus: 'NOT_SUBMITTED',
+          countryCode: 'CD',
+          wallets: []
+        };
+
+        return redirectWithSuccess({
+          success: true,
+          accessToken: tokenResponse.accessToken,
+          refreshToken: tokenResponse.refreshToken,
+          message: 'Authentification FPay réussie',
+          data: userData
+        });
+
+      } catch (error) {
+        console.error('[FPay] ❌ Erreur échange code:', error.message);
+        return redirectWithError('code_exchange_failed', error.message || 'Échec de l\'échange du code');
+      }
+    }
+
+    console.error('[FPay] ❌ Aucune information valide dans le callback');
+    return redirectWithError('invalid_request', 'Paramètres manquants ou invalides');
   }
 
   // ✅ Route pour récupérer les données complètes via session_id

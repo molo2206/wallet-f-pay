@@ -3164,7 +3164,7 @@ export class WalletServiceService {
         });
 
         // ============================================
-        // 4. CALCUL DES FRAIS DE RETRAIT (fee_config)
+        // 4. CALCUL DES FRAIS DE RETRAIT (fee_config) - UNIQUEMENT INTERNATIONAL
         // ============================================
         let withdrawalFee = 0;
         let withdrawalFeeCurrency = fromWallet.currency;
@@ -3270,7 +3270,7 @@ export class WalletServiceService {
         }
 
         // ============================================
-        // 5. CALCUL DES FRAIS INTERNATIONAUX EXISTANTS
+        // 5. CALCUL DES FRAIS INTERNATIONAUX (UNIQUEMENT INTERNATIONAL)
         // ============================================
         let internationalFeePercentage = 0;
         let withdrawalFeePercentage = 0;
@@ -3280,6 +3280,7 @@ export class WalletServiceService {
         let feeCurrency = fromWallet.currency;
         let selectedReceiverNetwork: any = null;
 
+        // ✅ UNIQUEMENT pour les transferts internationaux
         if (isInternational) {
           const senderCountry = await tx.country_provider.findFirst({
             where: {
@@ -3348,6 +3349,7 @@ export class WalletServiceService {
             finalAmount = amount;
           }
         } else {
+          // ✅ NATIONAL : pas de frais internationaux
           internationalFeePercentage = 0;
           withdrawalFeePercentage = 0;
           fee = 0;
@@ -3355,7 +3357,9 @@ export class WalletServiceService {
           finalAmount = amount;
         }
 
-        // 6. Récupérer les wallets du destinataire
+        // ============================================
+        // 6. RÉCUPÉRER LES WALLETS DU DESTINATAIRE
+        // ============================================
         const receiverWallets = await tx.wallet.findMany({
           where: {
             userId: toUser.id,
@@ -3377,10 +3381,27 @@ export class WalletServiceService {
           });
         }
 
+        // ✅ Initialisation des variables avec le premier wallet
         let targetCurrency: string = receiverWallets[0].currency;
         let targetWallet: any = receiverWallets[0];
 
-        if (isInternational) {
+        // ✅ NATIONAL : chercher un wallet dans la même devise que l'expéditeur
+        if (!isInternational) {
+          // Chercher un wallet dans la même devise
+          const sameCurrencyWallet = receiverWallets.find(
+            w => w.currency === fromWallet.currency
+          );
+
+          if (sameCurrencyWallet) {
+            targetWallet = sameCurrencyWallet;
+            targetCurrency = fromWallet.currency;
+            console.log(`[WalletService] ✅ National - Wallet en ${targetCurrency} trouvé pour le destinataire`);
+          } else {
+            // Fallback : garder le premier wallet
+            console.warn(`[WalletService] ⚠️ National - Aucun wallet en ${fromWallet.currency}, utilisation de ${targetCurrency}`);
+          }
+        } else {
+          // 🌍 INTERNATIONAL : utiliser la devise par défaut du pays
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -3410,22 +3431,25 @@ export class WalletServiceService {
             if (foundWallet) {
               targetWallet = foundWallet;
               targetCurrency = preferredCurrency;
+              console.log(`[WalletService] 🌍 International - Wallet en ${targetCurrency} trouvé pour le destinataire`);
             }
           }
 
+          // Si toujours pas de wallet trouvé, garder le premier
           if (!targetWallet || targetWallet.currency !== targetCurrency) {
             targetWallet = receiverWallets[0];
             targetCurrency = targetWallet.currency;
+            console.log(`[WalletService] 🌍 International - Utilisation du premier wallet: ${targetCurrency}`);
           }
-        } else {
-          targetWallet = receiverWallets[0];
-          targetCurrency = targetWallet.currency;
         }
 
-        // 7. Calculer le taux de change
+        // ============================================
+        // 7. CALCULER LE TAUX DE CHANGE (TOUJOURS VÉRIFIER)
+        // ============================================
         let exchangeRate = 1;
         let convertedAmount = finalAmount;
 
+        // ✅ TOUJOURS vérifier si les devises sont différentes
         if (fromWallet.currency !== targetCurrency) {
           exchangeRate = await this.getExchangeRateViaPivot(
             fromWallet.currency,
@@ -3433,6 +3457,11 @@ export class WalletServiceService {
             tx,
           );
           convertedAmount = finalAmount * exchangeRate;
+          console.log(`[WalletService] 💱 Conversion: ${fromWallet.currency} → ${targetCurrency} (taux: ${exchangeRate}) = ${convertedAmount}`);
+        } else {
+          // ✅ Même devise, pas de conversion
+          convertedAmount = finalAmount;
+          console.log(`[WalletService] ✅ Même devise (${fromWallet.currency}), pas de conversion`);
         }
 
         // 8. Vérifier le solde
@@ -3464,11 +3493,11 @@ export class WalletServiceService {
           console.log('[WalletService] 🌍 Transfert international - Balance non modifiée, en attente de validation');
         }
 
-        // 10. COLLECTER LES FRAIS
+        // 10. COLLECTER LES FRAIS (UNIQUEMENT INTERNATIONAL)
         let systemTransaction: any = null;
         const totalFee = fee + withdrawalFee;
 
-        if (totalFee > 0 && !isInternational) {
+        if (totalFee > 0 && isInternational) {
           try {
             const systemUser = await tx.user.findFirst({
               where: { email: 'system@fpay.com' },

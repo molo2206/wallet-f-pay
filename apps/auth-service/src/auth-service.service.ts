@@ -1575,6 +1575,88 @@ export class AuthServiceService {
     return { message: this.i18nService.translate('logout_success', lang) };
   }
 
+  async verifyToken(accessToken: string): Promise<{
+    valid: boolean;
+    data?: {
+      id: string;
+      email: string | null;
+      phone: string | null;
+      full_name: string | null;
+      role: string;
+      status: string;
+      kycStatus: string;
+      countryCode: string | null;
+    };
+    message: string;
+  }> {
+    try {
+      console.log('[AuthService] verifyToken - Vérification du token');
+
+      if (!accessToken) {
+        throw new BadRequestException('Token manquant');
+      }
+
+      // ✅ 1. Vérifier si le token existe dans la table oauthaccesstoken
+      const tokenRecord = await this.prisma.oauthaccesstoken.findFirst({
+        where: {
+          token: accessToken,
+          expiresAt: { gt: new Date() },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              phone: true,
+              full_name: true,
+              role: true,
+              status: true,
+              kycStatus: true,
+              countryCode: true,
+              profileImage: true,
+              account_number: true,
+              merchantCode: true,
+              businessName: true,
+            },
+          },
+        },
+      });
+
+      if (!tokenRecord) {
+        console.log('[AuthService] verifyToken - Token invalide ou expiré');
+        return {
+          valid: false,
+          message: 'Token invalide ou expiré',
+        };
+      }
+
+      console.log(`[AuthService] verifyToken - Token valide pour l'utilisateur ${tokenRecord.userId}`);
+
+      // ✅ 2. Retourner les informations de l'utilisateur
+      return {
+        valid: true,
+        data: {
+          id: tokenRecord.user.id,
+          email: tokenRecord.user.email,
+          phone: tokenRecord.user.phone,
+          full_name: tokenRecord.user.full_name,
+          role: tokenRecord.user.role,
+          status: tokenRecord.user.status,
+          kycStatus: tokenRecord.user.kycStatus || 'NOT_SUBMITTED',
+          countryCode: tokenRecord.user.countryCode || 'CD',
+        },
+        message: 'Token valide',
+      };
+
+    } catch (error) {
+      console.error(`[AuthService] verifyToken - Erreur: ${error.message}`);
+      return {
+        valid: false,
+        message: error.message || 'Erreur lors de la vérification du token',
+      };
+    }
+  }
+
   async verifyOtp(
     email: string,
     code: string,

@@ -208,6 +208,12 @@ export class AuthServiceController {
     }
   }
 
+  @MessagePattern('verify_token')
+  async verifyToken(@Payload() data: { accessToken: string }) {
+    console.log('[AuthController] verify_token:', data.accessToken);
+    return this.authService.verifyToken(data.accessToken);
+  }
+  
   @MessagePattern('get_account_by_number')
   async getAccountByNumber(
     @Payload() data: { accountNumber: string; lang?: string },
