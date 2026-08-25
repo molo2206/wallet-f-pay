@@ -6037,7 +6037,7 @@ export class ApiGatewayController {
   @Get('wallet/balance-transactions')
   async getWalletBalanceAndTransactions(
     @Query('userId') userId: string,
-    @Query('walletId') walletId: string,
+    @Query('walletId') walletId?: string,  // ✅ Optionnel
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('startDate') startDate?: string,
@@ -6057,18 +6057,14 @@ export class ApiGatewayController {
       );
     }
 
-    if (!walletId) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.wallet_id_required', lang),
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    // ✅ walletId n'est PLUS obligatoire
+    // La validation est supprimée
 
     return this.sendWalletMessage(
       'get_wallet_balance_transactions',
       {
         userId,
-        walletId,
+        walletId,  // ✅ Peut être undefined
         lang,
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
