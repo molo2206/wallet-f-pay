@@ -4441,7 +4441,7 @@ export class WalletServiceService {
       message: this.i18nService.translate('wallet.payment_success', lang, {
         amount: amount.toFixed(2),
         currency: result.fromWallet.currency || 'CDF',
-        merchantName: result.toUser.full_name || 'Commerçant',
+        merchant: result.toUser.full_name || 'Commerçant',
         balance: result.fromWallet.balance.toFixed(2),
         reference: result.payerTx.reference || 'N/A',
         fee: fee.toFixed(2),
