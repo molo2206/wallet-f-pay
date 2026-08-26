@@ -3668,11 +3668,11 @@ export class ApiGatewayController {
   async externalPay(
     @Request() req: any,
     @Body() body: {
-      system_user_id: string;      // ✅ ID de l'acheteur (dans Favor Help)
+      system_user_id?: string;     // ✅ Optionnel - ID de l'acheteur (dans Favor Help)
       amount: number;
       currency?: string;
       description?: string;
-      access_token?: string;       // ✅ Token FPay de l'acheteur
+      access_token: string;        // ✅ OBLIGATOIRE - Token FPay de l'acheteur
     },
     @Res() res: Response,
     @Ip() ipAddress: string,
@@ -3683,76 +3683,126 @@ export class ApiGatewayController {
 
     try {
       // ✅ Validation
-      if (!body.system_user_id) {
-        throw new HttpException('system_user_id est requis', HttpStatus.BAD_REQUEST);
-      }
-
-      if (!body.amount || body.amount <= 0) {
-        throw new HttpException('Le montant doit être supérieur à 0', HttpStatus.BAD_REQUEST);
-      }
-
-      console.log('[ExternalPay] 📋 Acheteur ID:', body.system_user_id);
-      console.log('[ExternalPay] 📋 Marchand ID:', apiKeyUser.id);
-
-      // ✅ VÉRIFIER LE TOKEN FPay DE L'ACHETEUR AVEC JWT
-      if (body.access_token) {
-        try {
-          const jwtSecret = process.env.JWT_SECRET || 'fpay-super-secret-key-2024';
-
-          // ✅ Vérifier et décoder le JWT
-          const decodedToken = jwt.verify(body.access_token, jwtSecret) as any;
-
-          if (!decodedToken || !decodedToken.id) {
-            throw new Error('Token invalide - id manquant');
-          }
-
-          // ✅ Vérifier l'expiration (jwt.verify le fait déjà)
-          const now = Math.floor(Date.now() / 1000);
-          if (decodedToken.exp && decodedToken.exp < now) {
-            throw new Error('Token expiré');
-          }
-
-          console.log('[ExternalPay] ✅ Token JWT valide pour acheteur:', decodedToken.id);
-
-          // ✅ Vérifier que l'acheteur correspond au token
-          if (decodedToken.id !== body.system_user_id) {
-            console.warn('[ExternalPay] ⚠️ Mismatch: token userId vs system_user_id');
-            // On continue quand même, le système_user_id est celui de Favor Help
-            // Le token est celui de FPay
-          }
-
-        } catch (tokenError) {
-          console.error('[ExternalPay] ❌ Token invalide:', tokenError.message);
-          throw new HttpException(
-            tokenError.message === 'jwt expired'
-              ? 'Token FPay expiré'
-              : 'Token FPay invalide',
-            HttpStatus.UNAUTHORIZED
-          );
-        }
-      } else {
+      if (!body.access_token) {
         throw new HttpException(
           'access_token est requis pour l\'acheteur',
           HttpStatus.BAD_REQUEST
         );
       }
 
-      // ✅ Récupérer le wallet de l'acheteur
-      const payer = await this.prisma.user.findFirst({
-        where: {
-          id: body.system_user_id,
-          status: 'ACTIVE',
-          deleted: false,
-        },
-        include: {
-          wallets: {
-            where: { isActive: true },
+      if (!body.amount || body.amount <= 0) {
+        throw new HttpException('Le montant doit être supérieur à 0', HttpStatus.BAD_REQUEST);
+      }
+
+      // ✅ VÉRIFIER LE TOKEN FPay DE L'ACHETEUR AVEC JWT
+      let fpayUserId: string;
+      let decodedToken: any;
+
+      try {
+        const jwtSecret = process.env.JWT_SECRET || 'fpay-super-secret-key-2024';
+
+        // ✅ Vérifier et décoder le JWT
+        decodedToken = jwt.verify(body.access_token, jwtSecret) as any;
+
+        if (!decodedToken || !decodedToken.id) {
+          throw new Error('Token invalide - id manquant');
+        }
+
+        // ✅ Vérifier l'expiration (jwt.verify le fait déjà)
+        const now = Math.floor(Date.now() / 1000);
+        if (decodedToken.exp && decodedToken.exp < now) {
+          throw new Error('Token expiré');
+        }
+
+        fpayUserId = decodedToken.id;
+        console.log('[ExternalPay] ✅ Token JWT valide pour acheteur:', fpayUserId);
+
+      } catch (tokenError) {
+        console.error('[ExternalPay] ❌ Token invalide:', tokenError.message);
+        throw new HttpException(
+          tokenError.message === 'jwt expired'
+            ? 'Token FPay expiré'
+            : 'Token FPay invalide',
+          HttpStatus.UNAUTHORIZED
+        );
+      }
+
+      // ✅ Récupérer l'acheteur
+      let payer: any = null;
+
+      // 1️⃣ Essayer de trouver l'acheteur par system_user_id (si fourni)
+      if (body.system_user_id) {
+        payer = await this.prisma.user.findFirst({
+          where: {
+            id: body.system_user_id,
+            status: 'ACTIVE',
+            deleted: false,
           },
-        },
-      });
+          include: {
+            wallets: {
+              where: { isActive: true },
+            },
+          },
+        });
+
+        if (payer) {
+          console.log('[ExternalPay] ✅ Acheteur trouvé via system_user_id:', payer.id);
+        }
+      }
+
+      // 2️⃣ Si non trouvé, essayer de trouver par fpayUserId (userIdFpay)
+      if (!payer && fpayUserId) {
+        payer = await this.prisma.user.findFirst({
+          where: {
+            userIdFpay: fpayUserId,
+            status: 'ACTIVE',
+            deleted: false,
+          },
+          include: {
+            wallets: {
+              where: { isActive: true },
+            },
+          },
+        });
+
+        if (payer) {
+          console.log('[ExternalPay] ✅ Acheteur trouvé via userIdFpay:', payer.id);
+        }
+      }
+
+      // 3️⃣ Si toujours pas trouvé, essayer par phone depuis le token
+      if (!payer && decodedToken.phone) {
+        payer = await this.prisma.user.findFirst({
+          where: {
+            phone: decodedToken.phone,
+            status: 'ACTIVE',
+            deleted: false,
+          },
+          include: {
+            wallets: {
+              where: { isActive: true },
+            },
+          },
+        });
+
+        if (payer) {
+          console.log('[ExternalPay] ✅ Acheteur trouvé via phone:', payer.id);
+        }
+      }
 
       if (!payer) {
-        throw new HttpException(`Acheteur avec ID ${body.system_user_id} non trouvé`, HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          `Acheteur non trouvé. Vérifiez que vous avez lié votre compte FPay.`,
+          HttpStatus.NOT_FOUND
+        );
+      }
+
+      // ✅ Vérifier que l'acheteur a un compte FPay lié
+      if (!payer.userIdFpay || !payer.isLink) {
+        throw new HttpException(
+          'Vous devez d\'abord lier votre compte FPAY. Veuillez vous connecter via OAuth.',
+          HttpStatus.BAD_REQUEST
+        );
       }
 
       // ✅ Trouver le wallet de l'acheteur
