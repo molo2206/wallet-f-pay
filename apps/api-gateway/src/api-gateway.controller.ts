@@ -3750,11 +3750,11 @@ export class ApiGatewayController {
         }
       }
 
-      // 2️⃣ Si non trouvé et system_user_id non fourni, utiliser l'id du token
-      if (!payer && !body.system_user_id) {
+      // 2️⃣ Si non trouvé, utiliser l'id du token (le token JWT contient l'id FPay)
+      if (!payer) {
         payer = await this.prisma.user.findFirst({
           where: {
-            id: fpayUserId,  // ✅ L'id du token JWT est l'id de l'utilisateur
+            id: fpayUserId,
             status: 'ACTIVE',
             deleted: false,
           },
@@ -3858,7 +3858,7 @@ export class ApiGatewayController {
         merchantCode: recipient.merchantCode,
       });
 
-      // ✅ Préparer le payload
+      // ✅ Préparer le payload pour pay_without_pin
       const payPayload: any = {
         fromWalletId: clientWallet.id,
         amount: body.amount,
@@ -3880,9 +3880,9 @@ export class ApiGatewayController {
 
       console.log('[ExternalPay] 📤 Payload envoyé:', payPayload);
 
-      // ✅ Appeler le service wallet
+      // ✅ Appeler le service wallet avec le pattern 'pay_without_pin'
       const response = await this.sendWalletMessage(
-        'pay_without_pin',
+        'pay_without_pin',  // ✅ Pattern créé dans le service wallet
         payPayload,
         this.i18nService.translate('wallet.payment_failed', lang),
         HttpStatus.BAD_REQUEST,
@@ -3906,7 +3906,7 @@ export class ApiGatewayController {
       );
     }
   }
-
+  
   @Post('api/external/send')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('send')
