@@ -77,6 +77,37 @@ interface RpcError {
   statusCode?: number;
 }
 
+interface WalletPayResponse {
+  status?: string;
+  message: string;
+  data: {
+    wallet: {
+      id: string;
+      userId: string;
+      balance: number;
+      currency: string;
+      isActive: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+    transaction: {
+      id: string;
+      userId: string;
+      walletId: string;
+      amount: number;
+      type: string;
+      status: string;
+      reference: string;
+      description: string;
+      movement: string;
+      currency: string;
+      paymentMethod: string;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+  };
+}
+
 interface FpayAuthResponse {
   accessToken: string;
   refreshToken: string;
@@ -453,15 +484,13 @@ export class ApiGatewayController {
     defaultStatus: number,
     timeoutMs: number = 120000,
   ): Promise<T> {
-    this.logger.log(`[sendWalletMessage] 🔍 Début: ${pattern}`);
+    this.logger.log(`[sendWalletMessage] 📤 Envoi: ${pattern}`);
+    this.logger.log(`[sendWalletMessage] 📤 Données:`, JSON.stringify(data, null, 2));
 
     try {
-      this.logger.log(`[sendWalletMessage] 📤 Envoi du message: ${pattern}`);
-      this.logger.log(`[sendWalletMessage] 📤 Données:`, JSON.stringify(data, null, 2));
-
       // ✅ Vérifier la connexion
       if (!this.walletClient) {
-        this.logger.error('[sendWalletMessage] ❌ walletClient non initialisé');
+        this.logger.warn('[sendWalletMessage] Client non initialisé, reconnexion...');
         this.walletClient = ClientProxyFactory.create({
           transport: Transport.RMQ,
           options: {
@@ -473,30 +502,38 @@ export class ApiGatewayController {
           },
         });
         await this.walletClient.connect();
-        this.logger.log('[sendWalletMessage] ✅ Client reconnecté');
       }
-
-      this.logger.log(`[sendWalletMessage] ⏳ Attente de la réponse...`);
 
       const result = await firstValueFrom(
         this.walletClient.send(pattern, data).pipe(
           timeout(timeoutMs),
           catchError((error) => {
             this.logger.error(`[sendWalletMessage] ❌ Erreur RPC ${pattern}:`, error);
+
+            let errorMessage = defaultMessage;
+            let errorStatus = defaultStatus;
+
+            if (error && error.message) {
+              errorMessage = error.message;
+            }
+            if (error && error.statusCode) {
+              errorStatus = error.statusCode;
+            }
+
             throw new HttpException(
               {
                 status: 'error',
-                message: error.message || defaultMessage,
-                statusCode: error.statusCode || defaultStatus,
+                message: errorMessage,
+                statusCode: errorStatus,
               },
-              error.statusCode || defaultStatus,
+              errorStatus,
             );
           }),
         ),
       );
 
       this.logger.log(`[sendWalletMessage] ✅ Réponse reçue pour ${pattern}`);
-      this.logger.log(`[sendWalletMessage] ✅ Réponse:`, JSON.stringify(result, null, 2));
+      this.logger.log(`[sendWalletMessage] 📥 Réponse:`, JSON.stringify(result, null, 2));
 
       return result as T;
     } catch (error) {
@@ -504,7 +541,6 @@ export class ApiGatewayController {
       throw error;
     }
   }
-  
   private async sendAuditMessage<T>(
     pattern: string,
     data: any,
@@ -3715,7 +3751,10 @@ export class ApiGatewayController {
     const apiKeyUser = req.user;   // ✅ Le marchand (API Key owner)
 
     try {
-      // ✅ Validation
+      // ============================================================
+      // 1. VALIDATIONS DE BASE
+      // ============================================================
+
       if (!body.access_token) {
         throw new HttpException(
           'access_token est requis pour l\'acheteur',
@@ -3727,7 +3766,10 @@ export class ApiGatewayController {
         throw new HttpException('Le montant doit être supérieur à 0', HttpStatus.BAD_REQUEST);
       }
 
-      // ✅ VÉRIFIER LE TOKEN FPay DE L'ACHETEUR AVEC JWT
+      // ============================================================
+      // 2. VÉRIFIER LE TOKEN FPay DE L'ACHETEUR AVEC JWT
+      // ============================================================
+
       let fpayUserId: string;
       let decodedToken: any;
 
@@ -3750,7 +3792,7 @@ export class ApiGatewayController {
         fpayUserId = decodedToken.id;
         console.log('[ExternalPay] ✅ Token JWT valide pour acheteur:', fpayUserId);
 
-      } catch (tokenError) {
+      } catch (tokenError: any) {
         console.error('[ExternalPay] ❌ Token invalide:', tokenError.message);
         throw new HttpException(
           tokenError.message === 'jwt expired'
@@ -3760,7 +3802,10 @@ export class ApiGatewayController {
         );
       }
 
-      // ✅ Récupérer l'acheteur
+      // ============================================================
+      // 3. RÉCUPÉRER L'ACHETEUR
+      // ============================================================
+
       let payer: any = null;
 
       // 1️⃣ Essayer de trouver l'acheteur par system_user_id (si fourni)
@@ -3850,9 +3895,12 @@ export class ApiGatewayController {
         );
       }
 
-      // ✅ Vérifier que l'acheteur a un wallet actif
+      // ============================================================
+      // 4. VÉRIFIER LE WALLET DE L'ACHETEUR
+      // ============================================================
+
       const targetCurrency = body.currency || 'USD';
-      let clientWallet = payer.wallets.find(w => w.currency === targetCurrency);
+      let clientWallet = payer.wallets.find((w: any) => w.currency === targetCurrency);
 
       if (!clientWallet) {
         clientWallet = payer.wallets[0];
@@ -3874,7 +3922,10 @@ export class ApiGatewayController {
         );
       }
 
-      // ✅ Le destinataire = le marchand (API Key owner)
+      // ============================================================
+      // 5. VÉRIFIER LE MARCHAND (DESTINATAIRE)
+      // ============================================================
+
       const recipient = apiKeyUser;
 
       if (recipient.status !== 'ACTIVE') {
@@ -3891,7 +3942,10 @@ export class ApiGatewayController {
         merchantCode: recipient.merchantCode,
       });
 
-      // ✅ Préparer le payload pour pay_without_pin
+      // ============================================================
+      // 6. PRÉPARER LE PAYLOAD POUR pay_without_pin
+      // ============================================================
+
       const payPayload: any = {
         fromWalletId: clientWallet.id,
         amount: body.amount,
@@ -3911,29 +3965,48 @@ export class ApiGatewayController {
         throw new HttpException('Le marchand n\'a ni téléphone ni code marchand', HttpStatus.BAD_REQUEST);
       }
 
-      console.log('[ExternalPay] 📤 Payload envoyé:', payPayload);
+      console.log('[ExternalPay] 📤 Payload envoyé:', JSON.stringify(payPayload, null, 2));
 
-      // ✅ Appeler le service wallet avec le pattern 'pay_without_pin'
-      const response = await this.sendWalletMessage(
-        'pay_without_pin',  // ✅ Pattern créé dans le service wallet
+      // ============================================================
+      // 7. APPELER LE SERVICE WALLET
+      // ============================================================
+
+      const response = await this.sendWalletMessage<any>(
+        'pay_without_pin',
         payPayload,
         this.i18nService.translate('wallet.payment_failed', lang),
         HttpStatus.BAD_REQUEST,
+        120000  // ✅ Timeout de 2 minutes
       );
 
-      return response;
+      console.log('[ExternalPay] ✅ Réponse reçue du wallet:', JSON.stringify(response, null, 2));
 
-    } catch (error) {
-      console.error('[ExternalPay] Erreur:', error);
+      // ============================================================
+      // 8. RETOURNER LA RÉPONSE
+      // ============================================================
 
+      return res.status(200).json({
+        status: 'success',
+        message: response?.message || 'Paiement effectué avec succès',
+        data: response?.data || response,
+        transaction: response?.data?.transaction || null,
+        wallet: response?.data?.wallet || null,
+      });
+
+    } catch (error: any) {
+      console.error('[ExternalPay] ❌ Erreur:', error);
+
+      // ✅ Si c'est déjà une HttpException, la relancer
       if (error instanceof HttpException) {
         throw error;
       }
 
+      // ✅ Sinon, créer une nouvelle HttpException
       throw new HttpException(
         {
           status: 'error',
           message: error.message || 'Erreur lors du paiement',
+          code: error.code || 'PAYMENT_ERROR',
         },
         HttpStatus.BAD_REQUEST,
       );

@@ -553,10 +553,15 @@ export class WalletServiceController {
         data.ipAddress || 'unknown'
       );
 
-      console.log('[WalletService] ✅ pay_without_pin SUCCESS - Résultat retourné:', JSON.stringify(result, null, 2));
+      console.log('[WalletService] ✅ pay_without_pin SUCCESS');
+      console.log('[WalletService] 📤 Résultat à retourner:', JSON.stringify(result, null, 2));
 
-      // ✅ RETOURNER LE RÉSULTAT SANS @Ctx()
-      return result;
+      // ✅ RETOURNER UN OBJET SIMPLE AVEC status
+      return {
+        status: 'success',
+        message: result.message,
+        data: result.data
+      };
     } catch (error) {
       console.error('[WalletService] ❌ pay_without_pin error:', error);
       const lang = data.lang || 'fr';
@@ -567,7 +572,7 @@ export class WalletServiceController {
       });
     }
   }
-
+  
   @MessagePattern('link_account')
   async linkAccount(
     @Payload() data: { accountNumber: string; requestId?: string; lang?: string },
