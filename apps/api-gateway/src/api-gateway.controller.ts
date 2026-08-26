@@ -3750,11 +3750,11 @@ export class ApiGatewayController {
         }
       }
 
-      // 2️⃣ Si non trouvé, essayer de trouver par fpayUserId (userIdFpay)
-      if (!payer && fpayUserId) {
+      // 2️⃣ Si non trouvé et system_user_id non fourni, utiliser l'id du token
+      if (!payer && !body.system_user_id) {
         payer = await this.prisma.user.findFirst({
           where: {
-            userIdFpay: fpayUserId,
+            id: fpayUserId,  // ✅ L'id du token JWT est l'id de l'utilisateur
             status: 'ACTIVE',
             deleted: false,
           },
@@ -3766,7 +3766,7 @@ export class ApiGatewayController {
         });
 
         if (payer) {
-          console.log('[ExternalPay] ✅ Acheteur trouvé via userIdFpay:', payer.id);
+          console.log('[ExternalPay] ✅ Acheteur trouvé via id du token:', payer.id);
         }
       }
 
@@ -3790,22 +3790,34 @@ export class ApiGatewayController {
         }
       }
 
+      // 4️⃣ Si toujours pas trouvé, essayer par email depuis le token
+      if (!payer && decodedToken.email) {
+        payer = await this.prisma.user.findFirst({
+          where: {
+            email: decodedToken.email,
+            status: 'ACTIVE',
+            deleted: false,
+          },
+          include: {
+            wallets: {
+              where: { isActive: true },
+            },
+          },
+        });
+
+        if (payer) {
+          console.log('[ExternalPay] ✅ Acheteur trouvé via email:', payer.id);
+        }
+      }
+
       if (!payer) {
         throw new HttpException(
-          `Acheteur non trouvé. Vérifiez que vous avez lié votre compte FPay.`,
+          `Acheteur non trouvé. Vérifiez que vous avez un compte actif.`,
           HttpStatus.NOT_FOUND
         );
       }
 
-      // ✅ Vérifier que l'acheteur a un compte FPay lié
-      if (!payer.userIdFpay || !payer.isLink) {
-        throw new HttpException(
-          'Vous devez d\'abord lier votre compte FPAY. Veuillez vous connecter via OAuth.',
-          HttpStatus.BAD_REQUEST
-        );
-      }
-
-      // ✅ Trouver le wallet de l'acheteur
+      // ✅ Vérifier que l'acheteur a un wallet actif
       const targetCurrency = body.currency || 'USD';
       let clientWallet = payer.wallets.find(w => w.currency === targetCurrency);
 
