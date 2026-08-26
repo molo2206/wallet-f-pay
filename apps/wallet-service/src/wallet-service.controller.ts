@@ -546,17 +546,19 @@ export class WalletServiceController {
   async payWithoutPin(@Payload() data: PayDto & { lang?: string, ipAddress?: string }) {
     console.log('[WalletService] pay_without_pin received:', data);
     try {
-      // ✅ Appeler la fonction et retourner le résultat
       const result = await this.walletService.payWithoutPin(
         data,
         data.lang || 'fr',
         data.ipAddress || 'unknown'
       );
 
-      // ✅ RETOURNER EXPLICITEMENT LE RÉSULTAT
+      // ✅ LOG POUR CONFIRMER QUE LE RÉSULTAT EST RETOURNÉ
+      console.log('[WalletService] ✅ pay_without_pin SUCCESS - Résultat retourné:', JSON.stringify(result, null, 2));
+
+      // ✅ RETOURNER EXPLICITEMENT
       return result;
     } catch (error) {
-      console.error('[WalletService] pay_without_pin error:', error);
+      console.error('[WalletService] ❌ pay_without_pin error:', error);
       const lang = data.lang || 'fr';
       throw new RpcException({
         status: 'error',
@@ -565,7 +567,7 @@ export class WalletServiceController {
       });
     }
   }
-  
+
   @MessagePattern('link_account')
   async linkAccount(
     @Payload() data: { accountNumber: string; requestId?: string; lang?: string },
