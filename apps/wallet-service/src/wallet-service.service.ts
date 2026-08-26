@@ -8786,10 +8786,10 @@ export class WalletServiceService {
 
     return {
       message: this.i18nService.translate('wallet.payment_success', lang, {
-        amount: amount,
+        amount: amount.toFixed(2),
         currency: result.fromWallet.currency || 'CDF',
-        merchantName: result.toUser.full_name || '',
-        balance: result.fromWallet.balance || 0,
+        merchant: result.toUser.full_name || 'Commerçant',  // ← merchant
+        balance: result.fromWallet.balance.toFixed(2),
         reference: result.payerTx.reference || 'N/A',
       }),
       data: {
