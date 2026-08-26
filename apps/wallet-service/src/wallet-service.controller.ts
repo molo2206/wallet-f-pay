@@ -543,15 +543,8 @@ export class WalletServiceController {
   }
 
   @MessagePattern('pay_without_pin')
-  async payWithoutPin(
-    @Payload() data: PayDto & { lang?: string, ipAddress?: string },
-    @Ctx() context: RmqContext,  // ✅ AJOUTER @Ctx()
-  ) {
+  async payWithoutPin(@Payload() data: PayDto & { lang?: string, ipAddress?: string }) {
     console.log('[WalletService] pay_without_pin received:', data);
-
-    // ✅ Accuser réception du message
-    const channel = context.getChannelRef();
-    const originalMsg = context.getMessage();
 
     try {
       const result = await this.walletService.payWithoutPin(
@@ -562,17 +555,11 @@ export class WalletServiceController {
 
       console.log('[WalletService] ✅ pay_without_pin SUCCESS - Résultat retourné:', JSON.stringify(result, null, 2));
 
-      // ✅ Accuser réception
-      channel.ack(originalMsg);
-
+      // ✅ RETOURNER LE RÉSULTAT SANS @Ctx()
       return result;
     } catch (error) {
       console.error('[WalletService] ❌ pay_without_pin error:', error);
       const lang = data.lang || 'fr';
-
-      // ✅ Ne pas accuser réception en cas d'erreur (le message sera réessayé)
-      // channel.nack(originalMsg, false, true);
-
       throw new RpcException({
         status: 'error',
         message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
