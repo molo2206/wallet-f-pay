@@ -4962,7 +4962,7 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
-            // ✅ APPEL VOTRE BACKEND - Pas l'API FPay directe
+            // ✅ APPEL VOTRE BACKEND
             var API_BASE_URL = window.location.origin;
             
             var APP_URL = '${appUrl}';
@@ -5203,15 +5203,14 @@ export class ApiGatewayController {
                 showMessage('info', 'Envoi d un nouveau code OTP...');
 
                 try {
-                    var response = await fetch(API_BASE_URL + '/auth/fpay/send-otp', {
+                    var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             phone: phone,
                             password: password,
-                            clientId: CLIENT_ID,
-                            redirectUri: REDIRECT_URI,
-                            lang: 'fr'
+                            deviceInfo: 'OAuth Web',
+                            platform: 'web'
                         })
                     });
 
@@ -5234,7 +5233,7 @@ export class ApiGatewayController {
                 }
             };
 
-            // ✅ Login via votre backend
+            // ✅ Login via votre backend - utilise /auth/login
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5254,25 +5253,22 @@ export class ApiGatewayController {
                     return;
                 }
 
+                // ✅ Si ce n'est pas la première étape (OTP requis)
                 if (!otpRequired) {
                     startLoading();
                     showMessage('info', 'Verification des identifiants...');
 
                     try {
-                        var payloadStep1 = {
-                            phone: phone,
-                            password: password,
-                            clientId: CLIENT_ID,
-                            redirectUri: REDIRECT_URI,
-                            lang: 'fr'
-                        };
-
-                        console.log('[OAuth] Etape 1 - Login:', payloadStep1);
-
-                        var response1 = await fetch(API_BASE_URL + '/auth/fpay/link-user', {
+                        // ✅ Appel à /auth/login (votre endpoint existant)
+                        var response1 = await fetch(API_BASE_URL + '/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payloadStep1)
+                            body: JSON.stringify({
+                                phone: phone,
+                                password: password,
+                                deviceInfo: 'OAuth Web',
+                                platform: 'web'
+                            })
                         });
 
                         var data1 = await response1.json();
@@ -5283,6 +5279,7 @@ export class ApiGatewayController {
                             throw new Error(data1.message || 'Identifiants invalides');
                         }
 
+                        // Vérifier si OTP est requis
                         if (data1.requiresOtp === true) {
                             otpRequired = true;
                             phoneSaved = phone;
@@ -5304,7 +5301,7 @@ export class ApiGatewayController {
                             return;
                         }
 
-                        // ✅ Login réussi - le token est déjà enregistré par votre backend
+                        // ✅ Login réussi - le token est déjà un JWT valide
                         showSuccess(data1);
                         stopLoading();
                         return;
@@ -5317,7 +5314,7 @@ export class ApiGatewayController {
                     }
                 }
 
-                // ✅ Étape 2: Vérification OTP via votre backend
+                // ✅ Étape 2: Vérification OTP
                 if (otpRequired) {
                     if (!otpCode) {
                         showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
@@ -5328,21 +5325,15 @@ export class ApiGatewayController {
                     showMessage('info', 'Verification du code OTP...');
 
                     try {
-                        var payloadStep2 = {
-                            phone: phoneSaved,
-                            password: passwordSaved,
-                            otpCode: otpCode,
-                            clientId: CLIENT_ID,
-                            redirectUri: REDIRECT_URI,
-                            lang: 'fr'
-                        };
-
-                        console.log('[OAuth] Etape 2 - Verification OTP:', payloadStep2);
-
-                        var response2 = await fetch(API_BASE_URL + '/auth/fpay/verify-otp', {
+                        // ✅ Appel à /auth/verify-otp
+                        var response2 = await fetch(API_BASE_URL + '/auth/verify-otp', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payloadStep2)
+                            body: JSON.stringify({
+                                identifier: phoneSaved,
+                                code: otpCode,
+                                lang: 'fr'
+                            })
                         });
 
                         var data2 = await response2.json();
@@ -5353,8 +5344,26 @@ export class ApiGatewayController {
                             throw new Error(data2.message || 'Code OTP invalide');
                         }
 
-                        // ✅ Login réussi - le token est déjà enregistré par votre backend
-                        showSuccess(data2);
+                        // ✅ OTP vérifié - maintenant faire le login complet
+                        var response3 = await fetch(API_BASE_URL + '/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                phone: phoneSaved,
+                                password: passwordSaved,
+                                deviceInfo: 'OAuth Web',
+                                platform: 'web'
+                            })
+                        });
+
+                        var data3 = await response3.json();
+
+                        if (!response3.ok) {
+                            throw new Error(data3.message || 'Erreur de connexion');
+                        }
+
+                        // ✅ Login réussi - token JWT valide
+                        showSuccess(data3);
                         stopLoading();
 
                     } catch (error) {
