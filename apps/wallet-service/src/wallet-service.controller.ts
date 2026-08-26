@@ -543,11 +543,18 @@ export class WalletServiceController {
   }
 
   @MessagePattern('pay_without_pin')
-  async payWithoutPin(@Payload() data: PayDto & { lang?: string }, ipAddress: string) {
-    console.log('[WalletService] pay_without_pin received:', { ...data, lang: data.lang });
+  async payWithoutPin(@Payload() data: PayDto & { lang?: string, ipAddress?: string }) {
+    console.log('[WalletService] pay_without_pin received:', data);
     try {
-      // ✅ Appeler la nouvelle fonction payWithoutPin
-      return await this.walletService.payWithoutPin(data, data.lang || 'fr', ipAddress);
+      // ✅ Appeler la fonction et retourner le résultat
+      const result = await this.walletService.payWithoutPin(
+        data,
+        data.lang || 'fr',
+        data.ipAddress || 'unknown'
+      );
+
+      // ✅ RETOURNER EXPLICITEMENT LE RÉSULTAT
+      return result;
     } catch (error) {
       console.error('[WalletService] pay_without_pin error:', error);
       const lang = data.lang || 'fr';
@@ -558,7 +565,7 @@ export class WalletServiceController {
       });
     }
   }
-
+  
   @MessagePattern('link_account')
   async linkAccount(
     @Payload() data: { accountNumber: string; requestId?: string; lang?: string },
