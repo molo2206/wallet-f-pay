@@ -4962,8 +4962,8 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
-            // ✅ URL de l'API FPay
-            var FPAY_API_URL = '${process.env.FPAY_API_URL || 'https://f-pay.favorhelp.com'}';
+            // ✅ APPEL VOTRE BACKEND - Pas l'API FPay directe
+            var API_BASE_URL = window.location.origin;
             
             var APP_URL = '${appUrl}';
             var FRONTEND_URL = '${frontendUrl}';
@@ -4979,13 +4979,9 @@ export class ApiGatewayController {
             var REDIRECT_URI = '${callbackUrl}';
 
             console.log('[OAuth] Environnement:', ENV);
-            console.log('[OAuth] APP_URL:', APP_URL);
-            console.log('[OAuth] OAUTH_CALLBACK_URL:', OAUTH_CALLBACK_URL);
-            console.log('[OAuth] SYSTEM_USER_ID:', SYSTEM_USER_ID);
+            console.log('[OAuth] API_BASE_URL:', API_BASE_URL);
             console.log('[OAuth] CLIENT_ID:', CLIENT_ID);
             console.log('[OAuth] REDIRECT_URI:', REDIRECT_URI);
-            console.log('[OAuth] Paiement:', { AMOUNT, CURRENCY, DESCRIPTION });
-            console.log('[OAuth] API_KEY:', API_KEY ? '✅ Présente' : '❌ Absente');
 
             var urlParams = new URLSearchParams(window.location.search);
             var CLIENT_ID = urlParams.get('client_id') || 'web-client';
@@ -5192,6 +5188,7 @@ export class ApiGatewayController {
                 }, 1000);
             }
 
+            // ✅ Renvoyer OTP via votre backend
             window.resendOtp = async function(event) {
                 if (event) { event.preventDefault(); }
 
@@ -5206,8 +5203,7 @@ export class ApiGatewayController {
                 showMessage('info', 'Envoi d un nouveau code OTP...');
 
                 try {
-                    // ✅ Appel direct à FPay
-                    var response = await fetch(FPAY_API_URL + '/auth/send-otp', {
+                    var response = await fetch(API_BASE_URL + '/auth/fpay/send-otp', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -5238,7 +5234,7 @@ export class ApiGatewayController {
                 }
             };
 
-            // ✅ Formulaire modifié - appelle directement FPay
+            // ✅ Login via votre backend
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5273,8 +5269,7 @@ export class ApiGatewayController {
 
                         console.log('[OAuth] Etape 1 - Login:', payloadStep1);
 
-                        // ✅ Appel direct à FPay
-                        var response1 = await fetch(FPAY_API_URL + '/auth/login', {
+                        var response1 = await fetch(API_BASE_URL + '/auth/fpay/link-user', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep1)
@@ -5309,7 +5304,7 @@ export class ApiGatewayController {
                             return;
                         }
 
-                        // ✅ Login réussi - retourne directement les tokens FPay
+                        // ✅ Login réussi - le token est déjà enregistré par votre backend
                         showSuccess(data1);
                         stopLoading();
                         return;
@@ -5322,7 +5317,7 @@ export class ApiGatewayController {
                     }
                 }
 
-                // ✅ Étape 2: Vérification OTP
+                // ✅ Étape 2: Vérification OTP via votre backend
                 if (otpRequired) {
                     if (!otpCode) {
                         showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
@@ -5344,8 +5339,7 @@ export class ApiGatewayController {
 
                         console.log('[OAuth] Etape 2 - Verification OTP:', payloadStep2);
 
-                        // ✅ Appel direct à FPay
-                        var response2 = await fetch(FPAY_API_URL + '/auth/login', {
+                        var response2 = await fetch(API_BASE_URL + '/auth/fpay/verify-otp', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(payloadStep2)
@@ -5359,6 +5353,7 @@ export class ApiGatewayController {
                             throw new Error(data2.message || 'Code OTP invalide');
                         }
 
+                        // ✅ Login réussi - le token est déjà enregistré par votre backend
                         showSuccess(data2);
                         stopLoading();
 
