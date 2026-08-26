@@ -453,34 +453,15 @@ export class ApiGatewayController {
     defaultStatus: number,
     timeoutMs: number = 120000,
   ): Promise<T> {
-    this.logger.log(`[sendWalletMessage] 📤 Envoi du message: ${pattern}`);
-    this.logger.log(`[sendWalletMessage] 📤 Données:`, JSON.stringify(data, null, 2));
+    this.logger.log(`[sendWalletMessage] 🔍 Début: ${pattern}`);
 
     try {
-      // ✅ Vérifier que le client existe
+      this.logger.log(`[sendWalletMessage] 📤 Envoi du message: ${pattern}`);
+      this.logger.log(`[sendWalletMessage] 📤 Données:`, JSON.stringify(data, null, 2));
+
+      // ✅ Vérifier la connexion
       if (!this.walletClient) {
         this.logger.error('[sendWalletMessage] ❌ walletClient non initialisé');
-        // Recréer le client
-        this.walletClient = ClientProxyFactory.create({
-          transport: Transport.RMQ,
-          options: {
-            urls: [process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672'],
-            queue: process.env.WALLET_QUEUE || 'wallet_queue',
-            queueOptions: { durable: false },
-            persistent: true,
-            noAck: true,
-          },
-        });
-      }
-
-      // ✅ S'assurer que le client est connecté (sans pipe)
-      try {
-        // ⚠️ connect() retourne une Promise, pas un Observable
-        await this.walletClient.connect();
-        this.logger.log('[sendWalletMessage] ✅ Connecté à RabbitMQ');
-      } catch (connectError) {
-        this.logger.error('[sendWalletMessage] ❌ Erreur de connexion:', connectError);
-        // Recréer le client et reconnecter
         this.walletClient = ClientProxyFactory.create({
           transport: Transport.RMQ,
           options: {
@@ -492,40 +473,23 @@ export class ApiGatewayController {
           },
         });
         await this.walletClient.connect();
-        this.logger.log('[sendWalletMessage] ✅ Reconnecté à RabbitMQ');
+        this.logger.log('[sendWalletMessage] ✅ Client reconnecté');
       }
 
-      // ✅ Envoyer le message avec un timeout
+      this.logger.log(`[sendWalletMessage] ⏳ Attente de la réponse...`);
+
       const result = await firstValueFrom(
         this.walletClient.send(pattern, data).pipe(
           timeout(timeoutMs),
           catchError((error) => {
             this.logger.error(`[sendWalletMessage] ❌ Erreur RPC ${pattern}:`, error);
-
-            // ✅ Extraire le message d'erreur
-            let errorMessage = defaultMessage;
-            let errorStatus = defaultStatus;
-
-            if (error && error.response) {
-              if (typeof error.response === 'object') {
-                errorMessage = error.response.message || error.response.error || defaultMessage;
-                errorStatus = error.response.statusCode || error.response.status || defaultStatus;
-              } else if (typeof error.response === 'string') {
-                errorMessage = error.response;
-                errorStatus = error.status || defaultStatus;
-              }
-            } else if (error.message) {
-              errorMessage = error.message;
-              errorStatus = error.statusCode || error.status || defaultStatus;
-            }
-
             throw new HttpException(
               {
                 status: 'error',
-                message: errorMessage,
-                statusCode: errorStatus,
+                message: error.message || defaultMessage,
+                statusCode: error.statusCode || defaultStatus,
               },
-              errorStatus,
+              error.statusCode || defaultStatus,
             );
           }),
         ),
@@ -537,22 +501,10 @@ export class ApiGatewayController {
       return result as T;
     } catch (error) {
       this.logger.error(`[sendWalletMessage] ❌ Erreur ${pattern}:`, error);
-
-      if (error instanceof HttpException) {
-        throw error;
-      }
-
-      throw new HttpException(
-        {
-          status: 'error',
-          message: error.message || defaultMessage,
-          statusCode: error.statusCode || defaultStatus,
-        },
-        error.statusCode || defaultStatus,
-      );
+      throw error;
     }
   }
-
+  
   private async sendAuditMessage<T>(
     pattern: string,
     data: any,
