@@ -4232,37 +4232,78 @@ export class ApiGatewayController {
         });
       }
 
-      // ✅ ICI - Appel via microservice auth
-      const verifyResponse = await this.sendAuthMessage<{
-        valid: boolean;
-        data?: {
-          id: string;
-          email: string | null;
-          phone: string | null;
-          full_name: string | null;
-          role: string;
-          status: string;
-          kycStatus: string;
-          countryCode: string | null;
-        };
-        message: string;
-      }>(
-        'verify_token',
-        { accessToken: access_token },
-        'Token invalide',
-        HttpStatus.UNAUTHORIZED,
-      );
+      // ✅ VÉRIFIER LE TOKEN DIRECTEMENT AVEC JWT
+      let fpayUserId: string;
+      let decodedToken: any;
 
-      if (!verifyResponse.valid || !verifyResponse.data) {
+      try {
+        const jwtSecret = process.env.JWT_SECRET || 'fpay-super-secret-key-2024';
+
+        // ✅ Vérifier et décoder le JWT
+        decodedToken = jwt.verify(access_token, jwtSecret) as any;
+
+        if (!decodedToken || !decodedToken.id) {
+          throw new Error('Token invalide - id manquant');
+        }
+
+        fpayUserId = decodedToken.id;
+        console.log(`[LinkUser] ✅ Token JWT vérifié, fpayUserId: ${fpayUserId}`);
+
+        // ✅ Vérifier l'expiration (jwt.verify le fait déjà)
+        const now = Math.floor(Date.now() / 1000);
+        if (decodedToken.exp && decodedToken.exp < now) {
+          throw new Error('Token expiré');
+        }
+
+      } catch (jwtError) {
+        console.error('[LinkUser] ❌ Erreur vérification JWT:', jwtError.message);
         return res.status(401).json({
           success: false,
-          message: verifyResponse.message || 'Token FPay invalide ou expiré'
+          message: jwtError.message === 'jwt expired'
+            ? 'Token FPay expiré'
+            : 'Token FPay invalide'
         });
       }
 
-      const fpayUser = verifyResponse.data;
+      // ✅ ENREGISTRER LE TOKEN DANS oauthaccesstoken
+      try {
+        let expiresAt: Date;
+        if (decodedToken && decodedToken.exp) {
+          expiresAt = new Date(decodedToken.exp * 1000);
+        } else {
+          expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        }
 
-      // Lier les comptes
+        // Vérifier si le token existe déjà
+        const existingToken = await this.prisma.oauthaccesstoken.findFirst({
+          where: { token: access_token },
+        });
+
+        if (!existingToken) {
+          await this.prisma.oauthaccesstoken.create({
+            data: {
+              token: access_token,
+              clientId: body.clientId || 'oauth-link',
+              userId: fpayUserId,
+              scope: 'all',
+              expiresAt: expiresAt,
+              createdAt: new Date(),
+            },
+          });
+          console.log(`[LinkUser] ✅ Token enregistré dans oauthaccesstoken pour l'utilisateur ${fpayUserId}`);
+        } else {
+          console.log(`[LinkUser] ⏳ Token déjà existant, mise à jour de l'expiration`);
+          await this.prisma.oauthaccesstoken.update({
+            where: { id: existingToken.id },
+            data: { expiresAt: expiresAt },
+          });
+        }
+      } catch (dbError) {
+        console.error('[LinkUser] ❌ Erreur lors de l\'enregistrement du token:', dbError.message);
+        // On continue même si l'enregistrement échoue
+      }
+
+      // ✅ Lier les comptes dans Favor Help
       const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
 
       const linkUserResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
@@ -4270,7 +4311,7 @@ export class ApiGatewayController {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           systemUserId: system_user_id,
-          fpayUserId: fpayUser.id,
+          fpayUserId: fpayUserId,
           accessToken: access_token,
           refreshToken: refresh_token || null,
         }),
@@ -4281,13 +4322,16 @@ export class ApiGatewayController {
         throw new Error(errorData.message || 'Erreur lors de la liaison');
       }
 
+      const linkData = await linkUserResponse.json();
+
       return res.status(200).json({
         success: true,
         message: 'Compte lié avec succès',
         data: {
           systemUserId: system_user_id,
-          fpayUserId: fpayUser.id,
-          isLinked: true
+          fpayUserId: fpayUserId,
+          isLinked: true,
+          ...linkData,
         }
       });
 
@@ -4299,7 +4343,6 @@ export class ApiGatewayController {
       });
     }
   }
-
   // ============================================================
   // 3. ENDPOINT SPÉCIFIQUE POUR LA VÉRIFICATION OTP FPAY
   // ============================================================
