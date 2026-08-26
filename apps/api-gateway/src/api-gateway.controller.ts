@@ -3694,29 +3694,39 @@ export class ApiGatewayController {
       console.log('[ExternalPay] 📋 Acheteur ID:', body.system_user_id);
       console.log('[ExternalPay] 📋 Marchand ID:', apiKeyUser.id);
 
-      // ✅ Vérifier le token FPay de l'acheteur
+      // ✅ VÉRIFIER LE TOKEN FPay DE L'ACHETEUR AVEC JWT
       if (body.access_token) {
         try {
-          const verifyResponse = await this.sendUserMessage<{
-            message: string;
-            data: any;
-          }>(
-            'verify_token',
-            { accessToken: body.access_token },
-            'Token invalide',
-            HttpStatus.UNAUTHORIZED,
-          );
+          const jwtSecret = process.env.JWT_SECRET || 'fpay-super-secret-key-2024';
 
-          if (!verifyResponse || !verifyResponse.data) {
-            throw new HttpException('Token FPay invalide', HttpStatus.UNAUTHORIZED);
+          // ✅ Vérifier et décoder le JWT
+          const decodedToken = jwt.verify(body.access_token, jwtSecret) as any;
+
+          if (!decodedToken || !decodedToken.id) {
+            throw new Error('Token invalide - id manquant');
           }
 
-          console.log('[ExternalPay] ✅ Token FPay valide pour acheteur:', verifyResponse.data.id);
+          // ✅ Vérifier l'expiration (jwt.verify le fait déjà)
+          const now = Math.floor(Date.now() / 1000);
+          if (decodedToken.exp && decodedToken.exp < now) {
+            throw new Error('Token expiré');
+          }
+
+          console.log('[ExternalPay] ✅ Token JWT valide pour acheteur:', decodedToken.id);
+
+          // ✅ Vérifier que l'acheteur correspond au token
+          if (decodedToken.id !== body.system_user_id) {
+            console.warn('[ExternalPay] ⚠️ Mismatch: token userId vs system_user_id');
+            // On continue quand même, le système_user_id est celui de Favor Help
+            // Le token est celui de FPay
+          }
 
         } catch (tokenError) {
           console.error('[ExternalPay] ❌ Token invalide:', tokenError.message);
           throw new HttpException(
-            'Token FPay invalide ou expiré',
+            tokenError.message === 'jwt expired'
+              ? 'Token FPay expiré'
+              : 'Token FPay invalide',
             HttpStatus.UNAUTHORIZED
           );
         }
