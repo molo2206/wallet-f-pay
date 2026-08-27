@@ -4210,6 +4210,70 @@ export class ApiGatewayController {
     return response;
   }
 
+  @Post('api/external/pay/mobile_money')
+  @UseGuards(ApiKeyGuard)  // ✅ Utiliser ApiKeyGuard au lieu de JwtAuthGuard
+  @PermissionsApi_Key('pay')  // ✅ Permission requise
+  async payAccount(
+    @Request() req: any,  // ✅ Récupérer l'utilisateur de l'API Key
+    @Body() body: {
+      amount: number;
+      currency?: string;
+      description?: string;
+      paymentMethod?: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const apiKeyUser = req.user;  // ✅ Utilisateur lié à l'API Key
+
+    // ✅ Vérifier que l'utilisateur existe via l'API Key
+    if (!apiKeyUser) {
+      throw new HttpException(
+        'API Key invalide ou utilisateur non trouvé',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    // ✅ Vérifier que l'utilisateur est actif
+    if (apiKeyUser.status !== 'ACTIVE') {
+      throw new HttpException(
+        'L\'utilisateur n\'est pas actif',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    console.log('[PayAccount] API Key user:', {
+      id: apiKeyUser.id,
+      full_name: apiKeyUser.full_name,
+      phone: apiKeyUser.phone,
+      role: apiKeyUser.role,
+    });
+
+    // ✅ Vérifier le montant
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException(
+        'Le montant doit être supérieur à 0',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    return this.sendWalletMessage(
+      'pay_account',
+      {
+        userId: apiKeyUser.id,  // ✅ Le userId est celui de l'API Key
+        amount: body.amount,
+        currency: body.currency || 'CDF',
+        description: body.description || `Paiement via API Key`,
+        paymentMethod: body.paymentMethod || 'MOBILE_MONEY',
+        ipAddress,
+        lang,
+      },
+      this.i18nService.translate('wallet.payment_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
   // ============================================================
   // 1. AUTH / OTP / LINK-USER FPAY (CORRIGÉ)
   // ============================================================

@@ -572,7 +572,40 @@ export class WalletServiceController {
       });
     }
   }
-  
+
+  @MessagePattern('pay_account')
+  async payAccount(@Payload() data: {
+    userId: string;           // BÉNÉFICIAIRE
+    amount: number;
+    currency?: string;
+    description?: string;
+    paymentMethod?: string;
+    ipAddress?: string;
+    lang?: string;
+  }) {
+    console.log('[WalletService] pay_account received:', data);
+
+    try {
+      return await this.walletService.payAccount(
+        data.userId,
+        data.amount,
+        data.currency || 'CDF',
+        data.description,
+        data.paymentMethod || 'MOBILE_MONEY',
+        data.ipAddress,
+        data.lang || 'fr',
+      );
+    } catch (error) {
+      console.error('[WalletService] pay_account error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.payment_failed', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('link_account')
   async linkAccount(
     @Payload() data: { accountNumber: string; requestId?: string; lang?: string },

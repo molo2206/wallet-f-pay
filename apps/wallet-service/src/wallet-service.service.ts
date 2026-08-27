@@ -5232,6 +5232,203 @@ export class WalletServiceService {
     };
   }
 
+  async payAccount(
+    userId: string,           // ✅ BÉNÉFICIAIRE (celui qui reçoit)
+    amount: number,
+    currency: string = 'CDF',
+    description?: string,
+    paymentMethod: string = 'MOBILE_MONEY',
+    ipAddress?: string,
+    lang: string = 'fr',
+  ): Promise<ApiResponse<{
+    wallet: WalletResponseDto;
+    transaction: any;
+    user: any;
+  }>> {
+    console.log('[WalletService] Pay account:', {
+      beneficiaryId: userId,
+      amount,
+      currency,
+      lang
+    });
+
+    // ========== VALIDATIONS ==========
+    if (amount <= 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.amount_positive', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!userId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID du bénéficiaire est requis',
+        statusCode: 400,
+      });
+    }
+
+    // ========== TRANSACTION ==========
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        // 1️⃣ Vérifier que le bénéficiaire existe
+        const beneficiary = await tx.user.findFirst({
+          where: { id: userId, deleted: false },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            status: true,
+            branchId: true,
+          }
+        });
+
+        if (!beneficiary) {
+          throw new RpcException({
+            status: 'error',
+            message: 'Bénéficiaire non trouvé',
+            statusCode: 404,
+          });
+        }
+
+        if (beneficiary.status === user_status.BLOCKED) {
+          throw new RpcException({
+            status: 'error',
+            message: 'Le bénéficiaire est bloqué',
+            statusCode: 403,
+          });
+        }
+
+        // 2️⃣ Récupérer ou créer le wallet du bénéficiaire
+        let wallet = await tx.wallet.findFirst({
+          where: {
+            userId: userId,
+            currency: currency as wallet_currency,
+            isActive: true,
+          },
+        });
+
+        if (!wallet) {
+          // Créer un wallet si inexistant
+          wallet = await tx.wallet.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: userId,
+              currency: currency as wallet_currency,
+              balance: 0,
+              isActive: true,
+              cashCode: await this.generateUniqueCashCode(),
+            },
+          });
+          console.log(`[PayAccount] 💰 Wallet créé en ${currency} pour le bénéficiaire ${userId}`);
+        }
+
+        if (!wallet.isActive) {
+          throw new RpcException({
+            status: 'error',
+            message: 'Le wallet du bénéficiaire est inactif',
+            statusCode: 403,
+          });
+        }
+
+        // 3️⃣ CRÉDITER LE WALLET DU BÉNÉFICIAIRE
+        const updatedWallet = await tx.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            balance: { increment: amount },
+            updatedAt: new Date()
+          },
+        });
+
+        // 4️⃣ CRÉER LA TRANSACTION (PAYMENT en CREDIT pour le bénéficiaire)
+        const reference = await this.generateTransactionReference('', tx);
+
+        const transaction = await tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            walletId: wallet.id,
+            amount: amount,
+            type: 'PAYMENT',  // ✅ Type PAYMENT (pas DEPOSIT)
+            status: 'SUCCESS',
+            reference: reference,
+            description: description || `Paiement de ${amount} ${currency}`,
+            movement: 'CREDIT',  // ✅ CREDIT car le bénéficiaire reçoit
+            currency: currency,
+            paymentMethod: this.mapPaymentMethod(paymentMethod),
+          },
+        });
+
+        // 5️⃣ AUDIT LOG
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            action: 'PAY_ACCOUNT',
+            details: JSON.stringify({
+              transaction: transaction,
+              amount: amount,
+              currency: currency,
+              description: description,
+              beneficiaryId: userId,
+              beneficiaryName: beneficiary.full_name,
+            }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        });
+
+        return {
+          wallet: updatedWallet,
+          transaction: transaction,
+          user: beneficiary,
+        };
+      },
+      {
+        timeout: 30000,
+        maxWait: 30000,
+      }
+    );
+
+    // ========== NOTIFICATIONS ==========
+    try {
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.transaction,
+        result.user,
+        result.wallet,
+        'payment_received',  // ✅ Notification de paiement reçu
+      );
+    } catch (err) {
+      console.error('[Notifications] payAccount error:', err);
+    }
+
+    // ========== RETOUR ==========
+    return {
+      message: this.i18nService.translate('wallet.payment_success', lang, {
+        amount: amount.toFixed(2),
+        currency: result.wallet.currency || 'CDF',
+        balance: result.wallet.balance.toFixed(2),
+        reference: result.transaction.reference || 'N/A',
+      }),
+      data: {
+        wallet: this.toResponse(result.wallet),
+        transaction: result.transaction,
+        user: {
+          id: result.user.id,
+          full_name: result.user.full_name,
+          phone: result.user.phone,
+        },
+      },
+    };
+  }
+
   async validateInternationalTransfer(
     transactionId: string,
     adminId: string,
