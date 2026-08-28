@@ -68,6 +68,7 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as jwt from 'jsonwebtoken';
+import { validateClientToken } from './constants/client-tokens.constants';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
@@ -4817,25 +4818,12 @@ export class ApiGatewayController {
 
   // ============================================================
   // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
-  // ============================================================
-
-  // apps/api-gateway/src/api-gateway.controller.ts
-
-  // ============================================================
-  // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
-  // ============================================================
-
-  // apps/api-gateway/src/api-gateway.controller.ts
-
-  // ============================================================
-  // 6. FONCTION 2: GET /oauth/login (avec OTP dans la page HTML)
-  // ============================================================
 
   @Get('oauth/login')
   async oauthLoginPage(
     @Query() query: {
       code?: string;
-      client_id?: string;
+      client_token?: string;
       redirect_uri?: string;
       access_token?: string;
       refresh_token?: string;
@@ -4852,6 +4840,29 @@ export class ApiGatewayController {
     @Request() req: any,
   ) {
     try {
+      // ============================================================
+      // 1️⃣ RÉCUPÉRATION ET VALIDATION DU client_token
+      // ============================================================
+
+      const clientToken = query.client_token;
+      let clientId = 'web-client';
+
+      if (clientToken) {
+        const result = validateClientToken(clientToken);
+        if (result.valid && result.clientId) {
+          clientId = result.clientId;
+          console.log('[OAuth] ✅ Client authentifié par token:', clientId);
+        } else {
+          console.warn('[OAuth] ⚠️ Token client invalide/expiré, utilisation de web-client par défaut');
+        }
+      } else {
+        console.warn('[OAuth] ⚠️ Aucun client_token fourni, utilisation de web-client par défaut');
+      }
+
+      // ============================================================
+      // 2️⃣ CONFIGURATION DES URLS
+      // ============================================================
+
       const appUrl = this.getAppUrl();
       const frontendUrl = this.getFrontendUrl();
       const oauthCallbackUrl = process.env.OAUTH_CALLBACK_URL || 'https://favorhelp.com';
@@ -4865,7 +4876,9 @@ export class ApiGatewayController {
       const description = query.description || '';
       const apiKey = query.api_key || '';
 
-      const clientId = query.client_id || 'web-client';
+      // ============================================================
+      // 3️⃣ GESTION DU REDIRECT_URI
+      // ============================================================
 
       let callbackUrl = query.redirect_uri || '';
 
@@ -4884,10 +4897,14 @@ export class ApiGatewayController {
       console.log('[OAuth] Client ID:', clientId);
       console.log('[OAuth] Callback URL final:', callbackUrl);
 
+      // ============================================================
+      // 4️⃣ NETTOYAGE DE L'URL
+      // ============================================================
+
       const baseUrl = `${req.protocol}://${req.get('host')}${req.path}`;
       const cleanParams = new URLSearchParams();
 
-      if (clientId) cleanParams.set('client_id', clientId);
+      if (clientToken) cleanParams.set('client_token', clientToken);
       if (systemUserId) cleanParams.set('system_user_id', systemUserId);
       if (amount) cleanParams.set('amount', amount);
       if (currency) cleanParams.set('currency', currency);
@@ -4896,6 +4913,10 @@ export class ApiGatewayController {
 
       const cleanUrl = `${baseUrl}?${cleanParams.toString()}`;
       console.log('[OAuth] URL nettoyée (sans code):', cleanUrl);
+
+      // ============================================================
+      // 5️⃣ CHARGEMENT DE LA PAGE HTML
+      // ============================================================
 
       const filePath = path.join(__dirname, '..', 'src', 'public', 'oauth', 'authorize.html');
 
@@ -4913,11 +4934,15 @@ export class ApiGatewayController {
         html = html.replace(/{{CURRENCY}}/g, currency);
         html = html.replace(/{{DESCRIPTION}}/g, description);
         html = html.replace(/{{API_KEY}}/g, apiKey);
-        html = html.replace(/{{CLIENT_ID}}/g, clientId);
+        html = html.replace(/{{CLIENT_TOKEN}}/g, clientToken || '');
         html = html.replace(/{{REDIRECT_URI}}/g, callbackUrl);
 
         return res.set('Content-Type', 'text/html').send(html);
       }
+
+      // ============================================================
+      // 6️⃣ FALLBACK HTML (si le fichier n'existe pas)
+      // ============================================================
 
       return res.send(`<!DOCTYPE html>
 <html>
@@ -4991,15 +5016,8 @@ export class ApiGatewayController {
             justify-content: space-between;
             padding: 4px 0;
         }
-        .payment-info .label {
-            color: #6b7280;
-            font-size: 13px;
-        }
-        .payment-info .value {
-            color: #1a1a2e;
-            font-weight: 600;
-            font-size: 13px;
-        }
+        .payment-info .label { color: #6b7280; font-size: 13px; }
+        .payment-info .value { color: #1a1a2e; font-weight: 600; font-size: 13px; }
         .form-group { margin-bottom: 18px; }
         .form-group label { display: block; font-size: 14px; font-weight: 500; color: #1a1a2e; margin-bottom: 6px; }
         .form-group input {
@@ -5057,17 +5075,9 @@ export class ApiGatewayController {
         .message.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
         .message.success { background: #f0fdf4; color: #059669; border: 1px solid #bbf7d0; }
         .message.info { background: #eff6ff; color: #0A1CF2; border: 1px solid rgba(10, 28, 242, 0.2); }
-        .otp-section {
-            display: none;
-            animation: fadeIn 0.3s ease-in;
-        }
-        .otp-section.show {
-            display: block;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .otp-section { display: none; animation: fadeIn 0.3s ease-in; }
+        .otp-section.show { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .links { text-align: center; margin-top: 20px; font-size: 14px; color: #6b7280; }
         .links a { color: #0A1CF2; text-decoration: none; font-weight: 500; cursor: pointer; }
         .links a:hover { text-decoration: underline; }
@@ -5075,17 +5085,8 @@ export class ApiGatewayController {
         .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
         .footer a { color: #6b7280; text-decoration: none; }
         .footer a:hover { color: #0A1CF2; }
-        .timer {
-            text-align: center;
-            font-size: 13px;
-            color: #6b7280;
-            margin-top: 8px;
-        }
-        #successState {
-            display: none;
-            text-align: center;
-            padding: 20px 0;
-        }
+        .timer { text-align: center; font-size: 13px; color: #6b7280; margin-top: 8px; }
+        #successState { display: none; text-align: center; padding: 20px 0; }
         #successState .success-icon { font-size: 64px; margin-bottom: 16px; }
         #successState h2 { color: #1a1a2e; margin-bottom: 8px; }
         #successState p { color: #6b7280; margin-bottom: 8px; }
@@ -5106,7 +5107,6 @@ export class ApiGatewayController {
         #successState .user-info .info-row:last-child { border-bottom: none; }
         #successState .user-info .label { color: #6b7280; font-size: 13px; }
         #successState .user-info .value { color: #1a1a2e; font-weight: 500; font-size: 13px; }
-
         @media (prefers-color-scheme: dark) {
             body { background: #1a1a2e; }
             .container { background: #1e293b; border-color: rgba(255, 255, 255, 0.05); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
@@ -5135,7 +5135,6 @@ export class ApiGatewayController {
             #successState .user-info .info-row { border-color: #334155; }
             #successState .user-info .value { color: #f1f5f9; }
         }
-
         @media (max-width: 520px) {
             .container { padding: 32px 20px; }
             .logo h1 { font-size: 24px; }
@@ -5247,9 +5246,7 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
-            // ✅ APPEL VOTRE BACKEND
             var API_BASE_URL = window.location.origin;
-            
             var APP_URL = '${appUrl}';
             var FRONTEND_URL = '${frontendUrl}';
             var OAUTH_CALLBACK_URL = '${callbackUrl}';
@@ -5260,16 +5257,15 @@ export class ApiGatewayController {
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
             var API_KEY = '${apiKey}';
-            var CLIENT_ID = '${clientId}';
+            var CLIENT_TOKEN = '${clientToken || ''}';
             var REDIRECT_URI = '${callbackUrl}';
 
             console.log('[OAuth] Environnement:', ENV);
             console.log('[OAuth] API_BASE_URL:', API_BASE_URL);
-            console.log('[OAuth] CLIENT_ID:', CLIENT_ID);
+            console.log('[OAuth] CLIENT_TOKEN:', CLIENT_TOKEN ? '✅ présent' : '❌ non fourni');
             console.log('[OAuth] REDIRECT_URI:', REDIRECT_URI);
 
             var urlParams = new URLSearchParams(window.location.search);
-            var CLIENT_ID = urlParams.get('client_id') || 'web-client';
             var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
 
             var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
@@ -5368,8 +5364,8 @@ export class ApiGatewayController {
                     if (API_KEY) {
                         params.set('api_key', API_KEY);
                     }
-                    if (CLIENT_ID) {
-                        params.set('client_id', CLIENT_ID);
+                    if (CLIENT_TOKEN) {
+                        params.set('client_token', CLIENT_TOKEN);
                     }
 
                     if (userData) {
@@ -5422,8 +5418,8 @@ export class ApiGatewayController {
                     if (API_KEY) {
                         redirectUrl.searchParams.set('api_key', API_KEY);
                     }
-                    if (CLIENT_ID) {
-                        redirectUrl.searchParams.set('client_id', CLIENT_ID);
+                    if (CLIENT_TOKEN) {
+                        redirectUrl.searchParams.set('client_token', CLIENT_TOKEN);
                     }
 
                     if (userData) {
@@ -5447,7 +5443,7 @@ export class ApiGatewayController {
                     var fallbackUrl = REDIRECT_URI + '?access_token=' + encodeURIComponent(userTokens.accessToken || '') +
                         '&refresh_token=' + encodeURIComponent(userTokens.refreshToken || '') +
                         '&user_id=' + encodeURIComponent(userTokens.userId || '') +
-                        '&client_id=' + encodeURIComponent(CLIENT_ID || '');
+                        '&client_token=' + encodeURIComponent(CLIENT_TOKEN || '');
                     window.location.href = fallbackUrl;
                 }
             };
@@ -5473,7 +5469,6 @@ export class ApiGatewayController {
                 }, 1000);
             }
 
-            // ✅ Renvoyer OTP via votre backend
             window.resendOtp = async function(event) {
                 if (event) { event.preventDefault(); }
 
@@ -5518,7 +5513,6 @@ export class ApiGatewayController {
                 }
             };
 
-            // ✅ Login via votre backend - utilise /auth/login
             document.getElementById('loginForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -5538,13 +5532,11 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // ✅ Si ce n'est pas la première étape (OTP requis)
                 if (!otpRequired) {
                     startLoading();
                     showMessage('info', 'Verification des identifiants...');
 
                     try {
-                        // ✅ Appel à /auth/login (votre endpoint existant)
                         var response1 = await fetch(API_BASE_URL + '/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -5564,7 +5556,6 @@ export class ApiGatewayController {
                             throw new Error(data1.message || 'Identifiants invalides');
                         }
 
-                        // Vérifier si OTP est requis
                         if (data1.requiresOtp === true) {
                             otpRequired = true;
                             phoneSaved = phone;
@@ -5586,7 +5577,6 @@ export class ApiGatewayController {
                             return;
                         }
 
-                        // ✅ Login réussi - le token est déjà un JWT valide
                         showSuccess(data1);
                         stopLoading();
                         return;
@@ -5599,7 +5589,6 @@ export class ApiGatewayController {
                     }
                 }
 
-                // ✅ Étape 2: Vérification OTP
                 if (otpRequired) {
                     if (!otpCode) {
                         showMessage('error', 'Veuillez saisir le code OTP recu par SMS');
@@ -5610,7 +5599,6 @@ export class ApiGatewayController {
                     showMessage('info', 'Verification du code OTP...');
 
                     try {
-                        // ✅ Appel à /auth/verify-otp
                         var response2 = await fetch(API_BASE_URL + '/auth/verify-otp', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -5629,7 +5617,6 @@ export class ApiGatewayController {
                             throw new Error(data2.message || 'Code OTP invalide');
                         }
 
-                        // ✅ OTP vérifié - maintenant faire le login complet
                         var response3 = await fetch(API_BASE_URL + '/auth/login', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -5647,7 +5634,6 @@ export class ApiGatewayController {
                             throw new Error(data3.message || 'Erreur de connexion');
                         }
 
-                        // ✅ Login réussi - token JWT valide
                         showSuccess(data3);
                         stopLoading();
 
@@ -5667,7 +5653,6 @@ export class ApiGatewayController {
                 var code = urlParams.get('code');
                 var accessToken = urlParams.get('access_token');
                 var userId = urlParams.get('user_id');
-                var systemUserIdFromUrl = urlParams.get('system_user_id');
                 
                 if (code && accessToken && userId) {
                     userTokens = {
@@ -5713,12 +5698,12 @@ export class ApiGatewayController {
     </script>
 </body>
 </html>`);
+
     } catch (error) {
       console.error('[OAuth] Error:', error);
       return res.status(500).send('Erreur lors du chargement de la page');
     }
   }
-
   @Post('auth/generate-token')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async generateToken(
