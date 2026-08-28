@@ -4841,23 +4841,38 @@ export class ApiGatewayController {
   ) {
     try {
       // ============================================================
-      // 1️⃣ RÉCUPÉRATION ET VALIDATION DU client_token
+      // 1️⃣ VÉRIFICATION STRICTE : client_token OBLIGATOIRE
       // ============================================================
 
       const clientToken = query.client_token;
-      let clientId = 'web-client';
 
-      if (clientToken) {
-        const result = validateClientToken(clientToken);
-        if (result.valid && result.clientId) {
-          clientId = result.clientId;
-          console.log('[OAuth] ✅ Client authentifié par token:', clientId);
-        } else {
-          console.warn('[OAuth] ⚠️ Token client invalide/expiré, utilisation de web-client par défaut');
-        }
-      } else {
-        console.warn('[OAuth] ⚠️ Aucun client_token fourni, utilisation de web-client par défaut');
+      // ❌ Pas de token = REJETÉ
+      if (!clientToken) {
+        console.warn('[OAuth] ❌ client_token manquant');
+        return res.status(400).json({
+          success: false,
+          error: 'MISSING_CLIENT_TOKEN',
+          message: 'client_token est obligatoire pour accéder à cette page',
+          code: 'CLIENT_TOKEN_REQUIRED'
+        });
       }
+
+      // ✅ Validation STRICTE du token
+      const result = validateClientToken(clientToken);
+
+      // ❌ Token invalide = REJETÉ
+      if (!result.valid || !result.clientId) {
+        console.warn('[OAuth] ❌ Token client invalide:', clientToken);
+        return res.status(401).json({
+          success: false,
+          error: 'INVALID_CLIENT_TOKEN',
+          message: 'Token client invalide. Utilisez un token valide.',
+          code: 'INVALID_TOKEN'
+        });
+      }
+
+      const clientId = result.clientId;
+      console.log('[OAuth] ✅ Client authentifié par token:', clientId);
 
       // ============================================================
       // 2️⃣ CONFIGURATION DES URLS
@@ -4934,7 +4949,7 @@ export class ApiGatewayController {
         html = html.replace(/{{CURRENCY}}/g, currency);
         html = html.replace(/{{DESCRIPTION}}/g, description);
         html = html.replace(/{{API_KEY}}/g, apiKey);
-        html = html.replace(/{{CLIENT_TOKEN}}/g, clientToken || '');
+        html = html.replace(/{{CLIENT_TOKEN}}/g, clientToken);
         html = html.replace(/{{REDIRECT_URI}}/g, callbackUrl);
 
         return res.set('Content-Type', 'text/html').send(html);
@@ -5257,7 +5272,7 @@ export class ApiGatewayController {
             var CURRENCY = '${currency}';
             var DESCRIPTION = '${description}';
             var API_KEY = '${apiKey}';
-            var CLIENT_TOKEN = '${clientToken || ''}';
+            var CLIENT_TOKEN = '${clientToken}';
             var REDIRECT_URI = '${callbackUrl}';
 
             console.log('[OAuth] Environnement:', ENV);
@@ -5704,6 +5719,7 @@ export class ApiGatewayController {
       return res.status(500).send('Erreur lors du chargement de la page');
     }
   }
+
   @Post('auth/generate-token')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async generateToken(

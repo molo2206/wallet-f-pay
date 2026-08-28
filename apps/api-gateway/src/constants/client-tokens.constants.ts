@@ -1,7 +1,3 @@
-// apps/api-gateway/src/constants/client-tokens.constants.ts
-
-import * as crypto from 'crypto';
-
 export const CLIENT_TOKENS = {
     WEB: 'fpay_web_8f9a2e1d3c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b9a0f1',
     MOBILE: 'fpay_mobile_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7',
@@ -9,6 +5,7 @@ export const CLIENT_TOKENS = {
     EXTERNAL: 'fpay_ext_5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7',
 } as const;
 
+// ✅ Mapping token -> client_id
 export const CLIENT_TOKEN_MAP = {
     [CLIENT_TOKENS.WEB]: 'web-client',
     [CLIENT_TOKENS.MOBILE]: 'mobile-client',
@@ -56,9 +53,9 @@ export const CLIENTS = {
 
 export type ClientType = keyof typeof CLIENTS;
 
-// ✅ Fonction pour valider un token client (simple correspondance)
+// ✅ Fonction pour valider un token client (SANS EXPIRATION)
 export function validateClientToken(token: string): { valid: boolean; clientId?: string; error?: string } {
-    // ✅ Vérification par correspondance exacte avec les tokens statiques
+    // ✅ Simple correspondance exacte - PAS D'EXPIRATION
     const clientId = CLIENT_TOKEN_MAP[token as keyof typeof CLIENT_TOKEN_MAP];
     
     if (clientId) {
@@ -69,12 +66,12 @@ export function validateClientToken(token: string): { valid: boolean; clientId?:
 }
 
 // ✅ Afficher les tokens au démarrage
-console.log('🔑 TOKENS CLIENTS STATIQUES');
-console.log('=========================================');
+console.log('🔑 TOKENS CLIENTS STATIQUES (SANS EXPIRATION)');
+console.log('===============================================');
 console.log('WEB_TOKEN:', CLIENT_TOKENS.WEB);
 console.log('MOBILE_TOKEN:', CLIENT_TOKENS.MOBILE);
 console.log('ADMIN_TOKEN:', CLIENT_TOKENS.ADMIN);
 console.log('EXTERNAL_TOKEN:', CLIENT_TOKENS.EXTERNAL);
-console.log('=========================================');
-console.log('✅ Ces tokens sont statiques et ne changent pas.');
+console.log('===============================================');
+console.log('✅ Ces tokens sont statiques et ne expirent JAMAIS.');
 console.log('✅ Vous pouvez les modifier directement dans le code.');
