@@ -2,12 +2,21 @@
 
 import * as crypto from 'crypto';
 
-// ✅ Clés secrètes pour signer les tokens (à mettre dans .env)
-export const CLIENT_SECRETS = {
-    WEB: process.env.CLIENT_SECRET_WEB || 'web_super_secret_key_2024_fpay_xyz_789',
-    MOBILE: process.env.CLIENT_SECRET_MOBILE || 'mobile_super_secret_key_2024_fpay_xyz_789',
-    ADMIN: process.env.CLIENT_SECRET_ADMIN || 'admin_super_secret_key_2024_fpay_xyz_789',
-    EXTERNAL: process.env.CLIENT_SECRET_EXTERNAL || 'external_super_secret_key_2024_fpay_xyz_789',
+// ✅ VOS TOKENS STATIQUES PERSONNALISÉS
+// 🔑 Définissez ici vos propres tokens
+export const CLIENT_TOKENS = {
+    WEB: 'fpay_web_token_2024_secure_static',           // ✅ Votre token WEB
+    MOBILE: 'fpay_mobile_token_2024_secure_static',     // ✅ Votre token MOBILE
+    ADMIN: 'fpay_admin_token_2024_secure_static',       // ✅ Votre token ADMIN
+    EXTERNAL: 'fpay_external_token_2024_secure_static', // ✅ Votre token EXTERNAL
+} as const;
+
+// ✅ Mapping token -> client_id
+export const CLIENT_TOKEN_MAP = {
+    [CLIENT_TOKENS.WEB]: 'web-client',
+    [CLIENT_TOKENS.MOBILE]: 'mobile-client',
+    [CLIENT_TOKENS.ADMIN]: 'admin-client',
+    [CLIENT_TOKENS.EXTERNAL]: 'external-client',
 } as const;
 
 // ✅ Clients autorisés
@@ -50,85 +59,25 @@ export const CLIENTS = {
 
 export type ClientType = keyof typeof CLIENTS;
 
-// ✅ Fonction pour générer un token client sécurisé
-export function generateClientToken(clientType: ClientType): string {
-    const secret = CLIENT_SECRETS[clientType];
-    const client = CLIENTS[clientType];
-
-    // Créer un payload avec expiration
-    const payload = {
-        clientId: client.id,
-        type: client.type,
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 jours
-        nonce: crypto.randomBytes(16).toString('hex'),
-    };
-
-    // Signer le payload avec HMAC-SHA256
-    const payloadStr = JSON.stringify(payload);
-    const signature = crypto
-        .createHmac('sha256', secret)
-        .update(payloadStr)
-        .digest('hex');
-
-    // Encoder en base64
-    const encodedPayload = Buffer.from(payloadStr).toString('base64');
-    const encodedSignature = Buffer.from(signature).toString('base64');
-
-    return `${encodedPayload}.${encodedSignature}`;
-}
-
-// ✅ Fonction pour valider un token client
+// ✅ Fonction pour valider un token client (simple correspondance)
 export function validateClientToken(token: string): { valid: boolean; clientId?: string; error?: string } {
-    try {
-        // Décoder le token
-        const parts = token.split('.');
-        if (parts.length !== 2) {
-            return { valid: false, error: 'Format de token invalide' };
-        }
-
-        const [encodedPayload, encodedSignature] = parts;
-        const payloadStr = Buffer.from(encodedPayload, 'base64').toString('utf-8');
-        const payload = JSON.parse(payloadStr);
-
-        // Vérifier l'expiration
-        const now = Math.floor(Date.now() / 1000);
-        if (payload.exp && payload.exp < now) {
-            return { valid: false, error: 'Token client expiré' };
-        }
-
-        // Trouver le client
-        const clientEntry = Object.entries(CLIENTS).find(([key, value]) => value.id === payload.clientId);
-        if (!clientEntry) {
-            return { valid: false, error: 'Client non autorisé' };
-        }
-
-        const [clientType] = clientEntry;
-        const secret = CLIENT_SECRETS[clientType as ClientType];
-
-        // Vérifier la signature
-        const expectedSignature = crypto
-            .createHmac('sha256', secret)
-            .update(payloadStr)
-            .digest('hex');
-
-        const providedSignature = Buffer.from(encodedSignature, 'base64').toString('hex');
-
-        if (providedSignature !== expectedSignature) {
-            return { valid: false, error: 'Signature invalide' };
-        }
-
-        return { valid: true, clientId: payload.clientId };
-
-    } catch (error) {
-        return { valid: false, error: 'Token invalide' };
+    // ✅ Vérification par correspondance exacte avec les tokens statiques
+    const clientId = CLIENT_TOKEN_MAP[token as keyof typeof CLIENT_TOKEN_MAP];
+    
+    if (clientId) {
+        return { valid: true, clientId };
     }
+    
+    return { valid: false, error: 'Token client invalide' };
 }
 
-// ✅ Générer les tokens statiques (à exécuter une fois)
-console.log('🔑 GÉNÉRATION DES TOKENS CLIENTS STATIQUES');
+// ✅ Afficher les tokens au démarrage
+console.log('🔑 TOKENS CLIENTS STATIQUES');
 console.log('=========================================');
-console.log('WEB_TOKEN:', generateClientToken('WEB'));
-console.log('MOBILE_TOKEN:', generateClientToken('MOBILE'));
-console.log('ADMIN_TOKEN:', generateClientToken('ADMIN'));
-console.log('EXTERNAL_TOKEN:', generateClientToken('EXTERNAL'));
+console.log('WEB_TOKEN:', CLIENT_TOKENS.WEB);
+console.log('MOBILE_TOKEN:', CLIENT_TOKENS.MOBILE);
+console.log('ADMIN_TOKEN:', CLIENT_TOKENS.ADMIN);
+console.log('EXTERNAL_TOKEN:', CLIENT_TOKENS.EXTERNAL);
+console.log('=========================================');
+console.log('✅ Ces tokens sont statiques et ne changent pas.');
+console.log('✅ Vous pouvez les modifier directement dans le code.');
