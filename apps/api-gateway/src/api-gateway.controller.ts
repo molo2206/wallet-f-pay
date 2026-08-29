@@ -4975,19 +4975,18 @@ export class ApiGatewayController {
             align-items: center;
             justify-content: center;
             padding: 20px;
-            /* Dégradé jaune en haut vers noir en bas */
-            background: linear-gradient(180deg, #FFB81C 0%, #1a1a1a 60%, #000000 100%);
-            background-attachment: fixed;
+            background: #000000;
         }
         .container {
             width: 100%;
             max-width: 480px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
             border-radius: 32px;
             padding: 40px 28px 32px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 184, 28, 0.2);
+            /* Dégradé jaune en haut vers noir en bas */
+            background: linear-gradient(180deg, #FFB81C 0%, #1a1a00 40%, #000000 100%);
+            background-attachment: fixed;
         }
 
         /* Logo */
@@ -5002,68 +5001,70 @@ export class ApiGatewayController {
             width: 100px;
             height: auto;
             margin-bottom: 12px;
-            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+            filter: drop-shadow(0 4px 12px rgba(255, 184, 28, 0.3));
         }
         .logo h1 { 
             font-size: 32px; 
-            color: #1a1a2e; 
+            color: #000000; 
             letter-spacing: -0.5px; 
+            text-shadow: 0 2px 8px rgba(255, 184, 28, 0.3);
         }
-        .logo h1 .f { color: #0A1CF2; }
+        .logo h1 .f { color: #000000; }
         .logo h1 .pay { color: #FFB81C; }
 
         /* Header */
         .header { margin-bottom: 24px; }
         .header h2 { 
             font-size: 22px; 
-            color: #1a1a2e; 
+            color: #000000; 
             margin-bottom: 2px; 
             font-weight: 600; 
+            text-shadow: 0 1px 4px rgba(255, 184, 28, 0.2);
         }
-        .header p { color: #6b7280; font-size: 14px; }
+        .header p { color: rgba(0, 0, 0, 0.6); font-size: 14px; }
 
         /* Formulaire */
         .form-group { margin-bottom: 18px; }
         .form-group label {
             display: block;
             font-size: 14px;
-            font-weight: 500;
-            color: #1a1a2e;
+            font-weight: 600;
+            color: #000000;
             margin-bottom: 5px;
         }
         .form-group input {
             width: 100%;
             padding: 14px 16px;
-            border: 1.5px solid #e5e7eb;
+            border: 2px solid rgba(0, 0, 0, 0.2);
             border-radius: 16px;
             font-size: 15px;
             transition: all 0.2s;
-            background: #fafbfc;
-            color: #1a1a2e;
+            background: rgba(0, 0, 0, 0.05);
+            color: #000000;
         }
+        .form-group input::placeholder { color: rgba(0, 0, 0, 0.4); }
         .form-group input:focus {
             outline: none;
-            border-color: #0A1CF2;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
+            border-color: #FFB81C;
+            background: rgba(255, 184, 28, 0.1);
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
-        .form-group input::placeholder { color: #9ca3af; }
         .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
         /* État d'erreur des champs */
         .form-group.error input {
-            border-color: #dc2626;
-            background: #fef2f2;
+            border-color: #000000;
+            background: rgba(0, 0, 0, 0.1);
         }
         .form-group.error input:focus {
-            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
+            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.15);
         }
         .form-group .error-message {
             display: none;
             font-size: 12px;
-            color: #dc2626;
+            color: #000000;
             margin-top: 4px;
-            font-weight: 500;
+            font-weight: 600;
         }
         .form-group.error .error-message {
             display: block;
@@ -5071,41 +5072,41 @@ export class ApiGatewayController {
 
         /* État de succès des champs */
         .form-group.success input {
-            border-color: #059669;
-            background: #f0fdf4;
+            border-color: #FFB81C;
+            background: rgba(255, 184, 28, 0.15);
         }
         .form-group.success input:focus {
-            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
 
         /* Préfixe téléphone avec sélecteur de pays */
         .phone-wrapper {
             display: flex;
             align-items: center;
-            background: #fafbfc;
-            border: 1.5px solid #e5e7eb;
+            background: rgba(0, 0, 0, 0.05);
+            border: 2px solid rgba(0, 0, 0, 0.2);
             border-radius: 16px;
             transition: 0.2s;
             overflow: hidden;
         }
         .phone-wrapper:focus-within {
-            border-color: #0A1CF2;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
+            border-color: #FFB81C;
+            background: rgba(255, 184, 28, 0.1);
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
         .form-group.error .phone-wrapper {
-            border-color: #dc2626;
-            background: #fef2f2;
+            border-color: #000000;
+            background: rgba(0, 0, 0, 0.1);
         }
         .form-group.error .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
+            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.15);
         }
         .form-group.success .phone-wrapper {
-            border-color: #059669;
-            background: #f0fdf4;
+            border-color: #FFB81C;
+            background: rgba(255, 184, 28, 0.15);
         }
         .form-group.success .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
 
         .country-select {
@@ -5113,7 +5114,7 @@ export class ApiGatewayController {
             align-items: center;
             gap: 4px;
             padding: 0 8px 0 12px;
-            border-right: 1.5px solid #e5e7eb;
+            border-right: 2px solid rgba(0, 0, 0, 0.2);
             cursor: pointer;
             background: transparent;
             min-width: 60px;
@@ -5125,12 +5126,12 @@ export class ApiGatewayController {
             background: transparent;
             font-size: 15px;
             font-weight: 600;
-            color: #1f2937;
+            color: #000000;
             padding: 4px 24px 4px 4px;
             cursor: pointer;
             appearance: none;
             -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23000000' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 0 center;
             padding-right: 20px;
@@ -5140,8 +5141,8 @@ export class ApiGatewayController {
             outline: none;
         }
         .country-select select option {
-            background: white;
-            color: #1a1a2e;
+            background: #ffffff;
+            color: #000000;
             font-size: 15px;
             padding: 8px;
         }
@@ -5155,6 +5156,10 @@ export class ApiGatewayController {
             flex: 1;
             min-width: 0;
             height: 52px;
+            color: #000000 !important;
+        }
+        .phone-wrapper input::placeholder {
+            color: rgba(0, 0, 0, 0.4) !important;
         }
         .phone-wrapper input:focus {
             box-shadow: none !important;
@@ -5167,13 +5172,13 @@ export class ApiGatewayController {
             border: none;
             border-radius: 40px;
             font-size: 16px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            background: #0A1CF2;
-            color: white;
+            background: #000000;
+            color: #FFB81C;
             transition: all 0.2s;
             margin-top: 4px;
-            box-shadow: 0 6px 20px rgba(10, 28, 242, 0.30);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
             position: relative;
             display: flex;
             align-items: center;
@@ -5181,16 +5186,20 @@ export class ApiGatewayController {
             gap: 10px;
             height: 56px;
         }
-        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(10, 28, 242, 0.40); }
-        .btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn:hover:not(:disabled) { 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+            background: #1a1a00;
+        }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
         /* Spinner */
         .spinner {
             display: none;
             width: 24px;
             height: 24px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
+            border: 3px solid rgba(255, 184, 28, 0.3);
+            border-top-color: #FFB81C;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             flex-shrink: 0;
@@ -5215,26 +5224,28 @@ export class ApiGatewayController {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: #1a1a2e;
+            background: rgba(0, 0, 0, 0.7);
             padding: 10px 20px;
             border-radius: 40px;
-            color: white;
+            color: #FFB81C;
             text-decoration: none;
             font-weight: 600;
             font-size: 14px;
             transition: 0.2s;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            border: 1px solid rgba(255, 184, 28, 0.2);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
         .store-link:hover {
             transform: translateY(-2px);
-            background: #0A1CF2;
-            border-color: #0A1CF2;
+            background: #000000;
+            border-color: #FFB81C;
+            color: #FFB81C;
         }
         .store-link svg {
             width: 20px;
             height: 20px;
-            fill: currentColor;
+            fill: #FFB81C;
+            transition: 0.2s;
         }
         .store-link span {
             display: flex;
@@ -5249,9 +5260,9 @@ export class ApiGatewayController {
         }
 
         /* Footer */
-        .footer { text-align: center; margin-top: 24px; color: rgba(255, 255, 255, 0.5); font-size: 13px; }
-        .footer a { color: rgba(255, 255, 255, 0.6); text-decoration: none; }
-        .footer a:hover { color: #FFB81C; }
+        .footer { text-align: center; margin-top: 24px; color: rgba(0, 0, 0, 0.5); font-size: 13px; }
+        .footer a { color: rgba(0, 0, 0, 0.6); text-decoration: none; font-weight: 500; }
+        .footer a:hover { color: #000000; }
 
         /* Toastify override */
         .toastify {
@@ -5260,58 +5271,16 @@ export class ApiGatewayController {
             box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
         }
         .toastify.error {
-            background: #dc2626 !important;
+            background: #000000 !important;
+            color: #FFB81C !important;
         }
         .toastify.success {
-            background: #059669 !important;
+            background: #FFB81C !important;
+            color: #000000 !important;
         }
         .toastify.info {
-            background: #0A1CF2 !important;
-        }
-
-        /* Dark mode */
-        @media (prefers-color-scheme: dark) {
-            .container {
-                background: rgba(30, 30, 50, 0.95);
-                border-color: rgba(255, 255, 255, 0.05);
-            }
-            .logo h1 { color: #f1f5f9; }
-            .header h2 { color: #f1f5f9; }
-            .header p { color: #94a3b8; }
-            .form-group label { color: #e5e7f0; }
-            .form-group input, .phone-wrapper {
-                background: #14142a;
-                border-color: #33335a;
-                color: #f0f0ff;
-            }
-            .form-group input:focus, .phone-wrapper:focus-within {
-                background: #1e1e3a;
-                border-color: #4a6aff;
-                box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2);
-            }
-            .form-group.success input, .form-group.success .phone-wrapper {
-                border-color: #34d399;
-                background: #0a2e1f;
-            }
-            .country-select { border-right-color: #33335a; }
-            .country-select select { color: #f0f0ff; background-color: transparent; }
-            .country-select select option { background: #1e1e32; color: #f0f0ff; }
-            .form-group.error input, .form-group.error .phone-wrapper {
-                border-color: #f87171;
-                background: #2a1414;
-            }
-            .form-group .error-message { color: #fca5a5; }
-            .footer { color: rgba(255, 255, 255, 0.4); }
-            .footer a { color: rgba(255, 255, 255, 0.5); }
-            .footer a:hover { color: #FFB81C; }
-            .store-link { background: #2a2a44; border-color: #3a3a5a; }
-            .store-link:hover { background: #0A1CF2; border-color: #0A1CF2; }
-            .btn { background: #3a5aff; }
-            .btn:hover:not(:disabled) { background: #2a4aff; }
-            .toastify { background: #1e1e32 !important; color: #f1f5f9 !important; }
-            .toastify.error { background: #dc2626 !important; }
-            .toastify.success { background: #059669 !important; }
-            .toastify.info { background: #1e3a5f !important; }
+            background: #1a1a00 !important;
+            color: #FFB81C !important;
         }
 
         @media (max-width: 520px) {
@@ -5333,6 +5302,7 @@ export class ApiGatewayController {
             <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw" 
                  alt="Fpay Logo" 
                  onerror="this.style.display='none'">
+            <h1><span class="f">F</span><span class="pay">Pay</span></h1>
         </div>
 
         <div id="loginState">
@@ -5353,7 +5323,7 @@ export class ApiGatewayController {
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" required>
                     </div>
-                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
+                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis (12 chiffres minimum)</div>
                 </div>
 
                 <div class="form-group" id="passwordGroup">
@@ -5445,18 +5415,18 @@ export class ApiGatewayController {
             // TOAST NOTIFICATIONS
             // ============================================================
             function showToast(message, type) {
-                var backgroundColor = '#0A1CF2';
-                var icon = '';
+                var backgroundColor = '#1a1a00';
+                var icon = 'ℹ️';
                 
                 if (type === 'error') {
-                    backgroundColor = '#dc2626';
-                    icon = '';
+                    backgroundColor = '#000000';
+                    icon = '❌';
                 } else if (type === 'success') {
-                    backgroundColor = '#059669';
-                    icon = '';
+                    backgroundColor = '#FFB81C';
+                    icon = '✅';
                 } else if (type === 'info') {
-                    backgroundColor = '#0A1CF2';
-                    icon = 'ℹ';
+                    backgroundColor = '#1a1a00';
+                    icon = 'ℹ️';
                 }
 
                 Toastify({
@@ -5471,6 +5441,7 @@ export class ApiGatewayController {
                         padding: '14px 20px',
                         fontSize: '14px',
                         fontWeight: '500',
+                        color: type === 'success' ? '#000000' : '#FFB81C',
                     },
                     className: type,
                 }).showToast();
@@ -5485,7 +5456,6 @@ export class ApiGatewayController {
             }
 
             function validatePassword(value) {
-                // Au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial
                 var regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
                 return regex.test(value);
             }
