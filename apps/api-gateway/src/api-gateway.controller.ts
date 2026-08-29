@@ -5026,7 +5026,6 @@ export class ApiGatewayController {
             transition: all 0.3s ease;
         }
 
-        /* Effet de brillance en haut avec jaune */
         .container::before {
             content: '';
             position: absolute;
@@ -5127,7 +5126,6 @@ export class ApiGatewayController {
         }
         .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* État d'erreur - ROUGE */
         .form-group.error input {
             border-color: var(--error-color) !important;
             background: var(--error-bg) !important;
@@ -5146,7 +5144,6 @@ export class ApiGatewayController {
             display: block;
         }
 
-        /* État de succès */
         .form-group.success input {
             border-color: var(--secondary);
             background: rgba(255, 184, 28, 0.08);
@@ -5187,7 +5184,6 @@ export class ApiGatewayController {
             box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
 
-        /* Sélecteur de pays */
         .country-select {
             display: flex;
             align-items: center;
@@ -5282,7 +5278,6 @@ export class ApiGatewayController {
             box-shadow: none; 
         }
 
-        /* Spinner */
         .spinner {
             display: none;
             width: 22px;
@@ -5298,7 +5293,7 @@ export class ApiGatewayController {
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ============================================================
-           STORES (Boutons de téléchargement)
+           STORES
            ============================================================ */
         .stores-section {
             margin-top: 24px;
@@ -5357,7 +5352,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           LIENS BAS DE FORMULAIRE
+           LIENS
            ============================================================ */
         .form-links {
             text-align: center; 
@@ -5439,7 +5434,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           RESPONSIVE - MOBILE
+           RESPONSIVE
            ============================================================ */
         @media (max-width: 520px) {
             body {
@@ -5523,9 +5518,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - TRÈS PETITS ÉCRANS
-           ============================================================ */
         @media (max-width: 380px) {
             body {
                 padding: 8px;
@@ -5582,9 +5574,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - TABLETTE
-           ============================================================ */
         @media (min-width: 521px) and (max-width: 768px) {
             .container {
                 max-width: 420px;
@@ -5599,9 +5588,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - GRANDS ÉCRANS
-           ============================================================ */
         @media (min-width: 769px) {
             .container {
                 max-width: 480px;
@@ -5629,9 +5615,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - TRÈS GRANDS ÉCRANS
-           ============================================================ */
         @media (min-width: 1200px) {
             body {
                 padding: 40px;
@@ -6172,7 +6155,7 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // FORM SUBMISSION
+            // FORM SUBMISSION - VERSION CORRIGÉE
             // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -6211,10 +6194,13 @@ export class ApiGatewayController {
                 setLoading(true);
 
                 try {
-                    // Si mode inscription
+                    // ============================================================
+                    // SI MODE INSCRIPTION
+                    // ============================================================
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
+                        // Données exactement comme attendu par le backend
                         var registerData = {
                             full_name: fullName,
                             phone: fullPhone,
@@ -6225,27 +6211,40 @@ export class ApiGatewayController {
                             deviceInfo: 'OAuth Web'
                         };
 
-                        console.log('[Register] Données:', registerData);
+                        console.log('[Register] Envoi des données:', JSON.stringify(registerData, null, 2));
 
                         var registerResponse = await fetch(API_BASE_URL + '/auth/register', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
                             body: JSON.stringify(registerData)
                         });
 
-                        var registerDataResult = await registerResponse.json();
+                        // Lire la réponse même si erreur
+                        var registerResult = await registerResponse.json();
+
+                        console.log('[Register] Réponse brute:', registerResult);
 
                         if (!registerResponse.ok) {
-                            throw new Error(registerDataResult.message || 'Erreur lors de la création du compte');
+                            // Afficher le message d'erreur du backend
+                            var errorMsg = registerResult.message || registerResult.error || 'Erreur lors de la création du compte';
+                            throw new Error(errorMsg);
                         }
 
-                        console.log('[Register] Succès:', registerDataResult);
+                        console.log('[Register] Succès:', registerResult);
                         showToast('Compte créé avec succès ! Connexion en cours...', 'success');
 
-                        // Connexion automatique après inscription
+                        // ============================================================
+                        // CONNEXION AUTOMATIQUE APRÈS INSCRIPTION
+                        // ============================================================
                         var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
                             body: JSON.stringify({
                                 phone: fullPhone,
                                 password: password,
@@ -6265,10 +6264,15 @@ export class ApiGatewayController {
                         return;
                     }
 
-                    // Mode Connexion
+                    // ============================================================
+                    // MODE CONNEXION UNIQUEMENT
+                    // ============================================================
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
                         body: JSON.stringify({
                             phone: fullPhone,
                             password: password,
@@ -6287,8 +6291,8 @@ export class ApiGatewayController {
                     setLoading(false);
 
                 } catch (error) {
-                    console.error('[OAuth] Erreur:', error);
-                    showToast(error.message || 'Identifiants invalides', 'error');
+                    console.error('[OAuth] Erreur détaillée:', error);
+                    showToast(error.message || 'Une erreur est survenue', 'error');
                     setLoading(false);
                 }
             });
