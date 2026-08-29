@@ -5076,15 +5076,15 @@ export class ApiGatewayController {
             border-right: 1.5px solid #e5e7eb;
             cursor: pointer;
             background: transparent;
-            min-width: 80px;
+            min-width: 60px;
             height: 52px;
             flex-shrink: 0;
         }
         .country-select select {
             border: none;
             background: transparent;
-            font-size: 18px;
-            font-weight: 500;
+            font-size: 15px;
+            font-weight: 600;
             color: #1f2937;
             padding: 4px 24px 4px 4px;
             cursor: pointer;
@@ -5094,7 +5094,7 @@ export class ApiGatewayController {
             background-repeat: no-repeat;
             background-position: right 0 center;
             padding-right: 20px;
-            min-width: 50px;
+            min-width: 35px;
         }
         .country-select select:focus {
             outline: none;
@@ -5102,12 +5102,8 @@ export class ApiGatewayController {
         .country-select select option {
             background: white;
             color: #1a1a2e;
-            font-size: 16px;
+            font-size: 15px;
             padding: 8px;
-        }
-        .country-select .flag {
-            font-size: 24px;
-            line-height: 1;
         }
 
         .phone-wrapper input {
@@ -5277,8 +5273,8 @@ export class ApiGatewayController {
             .logo h1 { font-size: 26px; }
             .btn { font-size: 15px; padding: 14px; height: 52px; }
             .store-link { font-size: 12px; padding: 8px 16px; }
-            .country-select { min-width: 65px; padding: 0 6px 0 10px; }
-            .country-select select { font-size: 16px; min-width: 40px; padding-right: 18px; }
+            .country-select { min-width: 50px; padding: 0 6px 0 10px; }
+            .country-select select { font-size: 14px; min-width: 30px; padding-right: 18px; }
             .phone-wrapper input { height: 48px; padding: 10px 10px 10px 10px !important; }
             .country-select { height: 48px; }
         }
@@ -5301,10 +5297,9 @@ export class ApiGatewayController {
                     <label>Numéro Mobile Money *</label>
                     <div class="phone-wrapper">
                         <div class="country-select">
-                            <span class="flag" id="selectedFlag">🇨🇩</span>
                             <select id="countryCode">
-                                <option value="+243" data-flag="🇨🇩">🇨🇩 +243</option>
-                                <option value="+229" data-flag="🇧🇯">🇧🇯 +229</option>
+                                <option value="243">243</option>
+                                <option value="229">229</option>
                             </select>
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" required>
@@ -5389,7 +5384,6 @@ export class ApiGatewayController {
             var btnText = document.getElementById('btnText');
             var submitSpinner = document.getElementById('submitSpinner');
             var countrySelect = document.getElementById('countryCode');
-            var selectedFlag = document.getElementById('selectedFlag');
 
             var urlParams = new URLSearchParams(window.location.search);
             var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
@@ -5397,21 +5391,6 @@ export class ApiGatewayController {
             var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
             var userData = null;
             var isSubmitting = false;
-
-            // ============================================================
-            // COUNTRY SELECT HANDLER
-            // ============================================================
-            countrySelect.addEventListener('change', function() {
-                var selectedOption = this.options[this.selectedIndex];
-                var flag = selectedOption.getAttribute('data-flag');
-                selectedFlag.textContent = flag || '🌍';
-            });
-
-            // Déclencher le changement initial
-            var initialOption = countrySelect.options[countrySelect.selectedIndex];
-            if (initialOption) {
-                selectedFlag.textContent = initialOption.getAttribute('data-flag') || '🇨🇩';
-            }
 
             // ============================================================
             // TOAST NOTIFICATIONS
@@ -5473,7 +5452,7 @@ export class ApiGatewayController {
                 if (field === 'phone') {
                     var phone = phoneInput.value.trim();
                     var isValid = validatePhone(phone);
-                    setFieldError(phoneGroup, phoneError, !isValid, 'Veuillez saisir un numéro valide (6 chiffres minimum)');
+                    setFieldError(phoneGroup, phoneError, !isValid, 'Veuillez saisir un numéro valide');
                     return isValid;
                 }
                 if (field === 'password') {
@@ -5658,7 +5637,7 @@ export class ApiGatewayController {
                 var password = passwordInput.value.trim();
                 var countryCode = countrySelect.value;
 
-                var fullPhone = countryCode + phone;
+                var fullPhone = '+' + countryCode + phone;
 
                 console.log('[OAuth] Phone saisi:', phone);
                 console.log('[OAuth] Country code:', countryCode);
