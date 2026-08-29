@@ -5385,20 +5385,12 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           TOASTIFY - CENTRÉ SANS COLLER AU CONTAINER
+           TOASTIFY - POSITION ORIGINALE (en haut à droite)
            ============================================================ */
         .toastify {
             border-radius: 12px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
-            max-width: 90vw !important;
-            width: auto !important;
-            min-width: 280px !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            top: 20px !important;
-            position: fixed !important;
-            z-index: 9999 !important;
         }
         .toastify.error {
             background: #1a1a1a !important;
@@ -5490,13 +5482,6 @@ export class ApiGatewayController {
                 margin-top: 16px;
                 border-radius: 10px;
             }
-            .toastify {
-                font-size: 13px !important;
-                padding: 12px 16px !important;
-                max-width: 95vw !important;
-                min-width: 200px !important;
-                top: 10px !important;
-            }
         }
 
         /* ============================================================
@@ -5550,12 +5535,6 @@ export class ApiGatewayController {
             }
             .store-link .small {
                 font-size: 8px;
-            }
-            .toastify {
-                font-size: 12px !important;
-                padding: 10px 14px !important;
-                min-width: 160px !important;
-                top: 8px !important;
             }
         }
 
@@ -5766,7 +5745,7 @@ export class ApiGatewayController {
             var isSubmitting = false;
 
             // ============================================================
-            // TOAST NOTIFICATIONS - CENTRÉES ET DÉCOLLÉES
+            // TOAST NOTIFICATIONS - POSITION ORIGINALE (en haut à droite)
             // ============================================================
             function showToast(message, type) {
                 var backgroundColor = '#1a1a1a';
@@ -5775,11 +5754,11 @@ export class ApiGatewayController {
                 
                 if (type === 'error') {
                     backgroundColor = '#1a1a1a';
-                    icon = '❌ ';
+                    icon = ' ';
                     textColor = '#ff4444';
                 } else if (type === 'success') {
                     backgroundColor = '#FFB81C';
-                    icon = '✅ ';
+                    icon = ' ';
                     textColor = '#000000';
                 }
 
@@ -5787,19 +5766,16 @@ export class ApiGatewayController {
                     text: icon + message,
                     duration: 4000,
                     gravity: 'top',
-                    position: 'center',
+                    position: 'right',
                     style: {
                         background: backgroundColor,
                         borderRadius: '12px',
                         boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-                        padding: '14px 24px',
+                        padding: '14px 20px',
                         fontSize: '14px',
                         fontWeight: '500',
                         color: textColor,
                         border: type === 'error' ? '1px solid #ff4444' : 'none',
-                        maxWidth: '90%',
-                        margin: '0 auto',
-                        textAlign: 'center',
                     },
                     className: type,
                 }).showToast();
@@ -5919,7 +5895,7 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
                 
-                showToast('Connexion réussie ! Redirection en cours...', 'success');
+                // showToast('Connexion réussie ! Redirection en cours...', 'success');
                 
                 setTimeout(function() {
                     handleRedirect();
@@ -6050,7 +6026,7 @@ export class ApiGatewayController {
                 // Bloquer si un champ est vide
                 if (!phoneValid || !passwordValid) {
                     focusFirstError();
-                    showToast('Veuillez remplir tous les champs obligatoires', 'error');
+                    // showToast('Veuillez remplir tous les champs obligatoires', 'error');
                     return;
                 }
 
