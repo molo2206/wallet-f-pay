@@ -4983,8 +4983,9 @@ export class ApiGatewayController {
             --border-color: rgba(255, 184, 28, 0.25);
             --shadow-color: rgba(0, 0, 0, 0.8);
             --shadow-secondary: rgba(255, 184, 28, 0.3);
-            --radius: 32px;
-            --radius-btn: 40px;
+            --radius: 20px;
+            --radius-btn: 30px;
+            --radius-input: 12px;
             --max-width: 480px;
             --padding-card: 40px 28px 32px;
             --padding-card-mobile: 28px 18px 24px;
@@ -5009,7 +5010,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           CARTE PRINCIPALE - SANS BORDURE
+           CARTE PRINCIPALE
            ============================================================ */
         .container {
             width: 100%;
@@ -5042,7 +5043,7 @@ export class ApiGatewayController {
            ============================================================ */
         .logo { 
             text-align: center; 
-            margin-bottom: 32px;
+            margin-bottom: 28px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -5052,7 +5053,7 @@ export class ApiGatewayController {
         .logo img {
             width: 100px;
             height: auto;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             filter: drop-shadow(0 4px 20px rgba(255, 184, 28, 0.3));
             transition: all 0.3s ease;
         }
@@ -5070,14 +5071,14 @@ export class ApiGatewayController {
            HEADER
            ============================================================ */
         .header { 
-            margin-bottom: 24px; 
+            margin-bottom: 22px; 
             position: relative;
             z-index: 1;
         }
         .header h2 { 
             font-size: var(--font-size-h2); 
             color: var(--white); 
-            margin-bottom: 6px; 
+            margin-bottom: 4px; 
             font-weight: 700; 
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
@@ -5094,7 +5095,7 @@ export class ApiGatewayController {
            FORMULAIRE
            ============================================================ */
         .form-group { 
-            margin-bottom: 18px; 
+            margin-bottom: 16px; 
             position: relative;
             z-index: 1;
         }
@@ -5103,13 +5104,13 @@ export class ApiGatewayController {
             font-size: 14px;
             font-weight: 600;
             color: var(--white);
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
         .form-group input {
             width: 100%;
-            padding: 14px 16px;
+            padding: 12px 16px;
             border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius-btn);
+            border-radius: var(--radius-input);
             font-size: 15px;
             transition: all 0.25s ease;
             background: rgba(255, 255, 255, 0.08);
@@ -5162,7 +5163,7 @@ export class ApiGatewayController {
             align-items: center;
             background: rgba(255, 255, 255, 0.08);
             border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius-btn);
+            border-radius: var(--radius-input);
             transition: all 0.25s ease;
             overflow: hidden;
         }
@@ -5196,7 +5197,7 @@ export class ApiGatewayController {
             cursor: pointer;
             background: transparent;
             min-width: 60px;
-            height: 52px;
+            height: 48px;
             flex-shrink: 0;
         }
         .country-select select {
@@ -5225,13 +5226,13 @@ export class ApiGatewayController {
 
         .phone-wrapper input {
             border: none !important;
-            padding: 14px 12px 14px 12px !important;
+            padding: 12px 12px 12px 8px !important;
             background: transparent !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             flex: 1;
             min-width: 0;
-            height: 52px;
+            height: 48px;
             color: var(--white) !important;
         }
         .phone-wrapper input::placeholder {
@@ -5246,7 +5247,7 @@ export class ApiGatewayController {
            ============================================================ */
         .btn {
             width: 100%;
-            padding: 16px;
+            padding: 14px;
             border: none;
             border-radius: var(--radius-btn);
             font-size: 16px;
@@ -5262,7 +5263,7 @@ export class ApiGatewayController {
             align-items: center;
             justify-content: center;
             gap: 10px;
-            height: 56px;
+            height: 50px;
             z-index: 1;
             -webkit-tap-highlight-color: transparent;
         }
@@ -5284,8 +5285,8 @@ export class ApiGatewayController {
         /* Spinner */
         .spinner {
             display: none;
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
             border: 3px solid rgba(0, 0, 0, 0.2);
             border-top-color: var(--primary);
             border-radius: 50%;
@@ -5300,15 +5301,15 @@ export class ApiGatewayController {
            STORES (Boutons de téléchargement)
            ============================================================ */
         .stores-section {
-            margin-top: 28px;
-            padding-top: 20px;
-            padding-bottom: 20px;
+            margin-top: 24px;
+            padding-top: 18px;
+            padding-bottom: 18px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
             background: rgba(255, 255, 255, 0.04);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border-radius: var(--radius-btn);
-            padding: 20px 16px;
+            border-radius: var(--radius);
+            padding: 18px 16px;
             position: relative;
             z-index: 1;
         }
@@ -5356,25 +5357,56 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
+           LIENS BAS DE FORMULAIRE
+           ============================================================ */
+        .form-links {
+            text-align: center; 
+            margin-top: 16px; 
+            position: relative; 
+            z-index: 1;
+        }
+        .form-links a {
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 400;
+            transition: 0.2s;
+        }
+        .form-links a:hover {
+            color: var(--secondary);
+        }
+        .form-links .register-link {
+            color: var(--secondary);
+            font-weight: 500;
+        }
+        .form-links .register-link:hover {
+            text-decoration: underline;
+        }
+        .form-links .separator {
+            color: rgba(255, 255, 255, 0.15);
+            margin: 0 10px;
+        }
+
+        /* ============================================================
            FOOTER
            ============================================================ */
         .footer { 
             text-align: center; 
-            margin-top: 20px; 
-            color: rgba(255, 255, 255, 0.3); 
-            font-size: 13px;
+            margin-top: 18px; 
+            color: rgba(255, 255, 255, 0.25); 
+            font-size: 12px;
             font-weight: 400;
             background: rgba(255, 255, 255, 0.04);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            padding: 12px 16px;
-            border-radius: 12px;
+            padding: 10px 16px;
+            border-radius: 10px;
             position: relative;
             z-index: 1;
             transition: all 0.3s ease;
         }
         .footer a { 
-            color: rgba(255, 255, 255, 0.4); 
+            color: rgba(255, 255, 255, 0.35); 
             text-decoration: none; 
             font-weight: 500;
             transition: 0.2s;
@@ -5388,7 +5420,7 @@ export class ApiGatewayController {
            TOASTIFY
            ============================================================ */
         .toastify {
-            border-radius: 12px !important;
+            border-radius: 10px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
         }
@@ -5417,7 +5449,7 @@ export class ApiGatewayController {
             }
             .container {
                 padding: var(--padding-card-mobile);
-                border-radius: 24px;
+                border-radius: 16px;
                 max-width: 100%;
             }
             .logo img {
@@ -5428,7 +5460,7 @@ export class ApiGatewayController {
                 font-size: var(--font-size-title-mobile);
             }
             .logo {
-                margin-bottom: 24px;
+                margin-bottom: 22px;
             }
             .header h2 {
                 font-size: var(--font-size-h2-mobile);
@@ -5442,14 +5474,17 @@ export class ApiGatewayController {
             .form-group {
                 margin-bottom: 14px;
             }
-            .form-group input,
-            .phone-wrapper input {
-                padding: 12px 14px !important;
+            .form-group input {
+                padding: 11px 14px;
                 font-size: 14px;
-                height: 46px;
+            }
+            .phone-wrapper input {
+                padding: 11px 12px 11px 8px !important;
+                font-size: 14px;
+                height: 44px;
             }
             .country-select {
-                height: 46px;
+                height: 44px;
                 min-width: 50px;
                 padding: 0 6px 0 10px;
             }
@@ -5458,29 +5493,33 @@ export class ApiGatewayController {
                 min-width: 30px;
                 padding-right: 18px;
             }
-            .phone-wrapper {
-                border-radius: 30px;
-            }
             .btn {
-                padding: 14px;
+                padding: 13px;
                 font-size: 15px;
-                height: 50px;
-                border-radius: 30px;
+                height: 46px;
+                border-radius: 25px;
             }
             .stores-section {
-                padding: 16px 12px;
-                margin-top: 20px;
-                border-radius: 30px;
+                padding: 14px 12px;
+                margin-top: 18px;
+                border-radius: 16px;
             }
             .store-link {
-                padding: 8px 16px;
+                padding: 8px 14px;
                 font-size: 12px;
+                border-radius: 25px;
             }
             .footer {
                 font-size: 11px;
-                padding: 10px 12px;
-                margin-top: 16px;
-                border-radius: 10px;
+                padding: 8px 12px;
+                margin-top: 14px;
+                border-radius: 8px;
+            }
+            .form-links {
+                margin-top: 14px;
+            }
+            .form-links a {
+                font-size: 13px;
             }
         }
 
@@ -5493,8 +5532,8 @@ export class ApiGatewayController {
                 padding-top: 20px;
             }
             .container {
-                padding: 20px 14px 18px;
-                border-radius: 20px;
+                padding: 18px 14px 18px;
+                border-radius: 14px;
             }
             .logo img {
                 width: 60px;
@@ -5508,14 +5547,17 @@ export class ApiGatewayController {
             .header p {
                 font-size: 12px;
             }
-            .form-group input,
-            .phone-wrapper input {
-                padding: 10px 12px !important;
+            .form-group input {
+                padding: 10px 12px;
                 font-size: 13px;
-                height: 42px;
+            }
+            .phone-wrapper input {
+                padding: 10px 10px 10px 6px !important;
+                font-size: 13px;
+                height: 40px;
             }
             .country-select {
-                height: 42px;
+                height: 40px;
                 min-width: 40px;
                 padding: 0 4px 0 8px;
             }
@@ -5525,13 +5567,15 @@ export class ApiGatewayController {
                 padding-right: 16px;
             }
             .btn {
-                padding: 12px;
+                padding: 11px;
                 font-size: 14px;
-                height: 44px;
+                height: 42px;
+                border-radius: 22px;
             }
             .store-link {
                 padding: 6px 12px;
                 font-size: 11px;
+                border-radius: 22px;
             }
             .store-link .small {
                 font-size: 8px;
@@ -5544,7 +5588,8 @@ export class ApiGatewayController {
         @media (min-width: 521px) and (max-width: 768px) {
             .container {
                 max-width: 420px;
-                padding: 36px 24px 28px;
+                padding: 34px 24px 28px;
+                border-radius: 18px;
             }
             .logo img {
                 width: 90px;
@@ -5560,7 +5605,8 @@ export class ApiGatewayController {
         @media (min-width: 769px) {
             .container {
                 max-width: 480px;
-                padding: 44px 32px 36px;
+                padding: 42px 32px 34px;
+                border-radius: 22px;
             }
             .logo img {
                 width: 110px;
@@ -5572,12 +5618,14 @@ export class ApiGatewayController {
                 font-size: 24px;
             }
             .btn {
-                height: 60px;
+                height: 54px;
                 font-size: 17px;
+                border-radius: 28px;
             }
             .store-link {
                 padding: 12px 24px;
                 font-size: 15px;
+                border-radius: 28px;
             }
         }
 
@@ -5590,8 +5638,8 @@ export class ApiGatewayController {
             }
             .container {
                 max-width: 520px;
-                padding: 50px 40px 40px;
-                border-radius: 40px;
+                padding: 48px 40px 38px;
+                border-radius: 24px;
             }
             .logo img {
                 width: 120px;
@@ -5605,14 +5653,18 @@ export class ApiGatewayController {
             .header p {
                 font-size: 16px;
             }
-            .form-group input,
-            .phone-wrapper input {
-                padding: 16px 18px !important;
+            .form-group input {
+                padding: 14px 18px;
                 font-size: 16px;
-                height: 56px;
+                border-radius: 14px;
+            }
+            .phone-wrapper input {
+                padding: 14px 14px 14px 10px !important;
+                font-size: 16px;
+                height: 52px;
             }
             .country-select {
-                height: 56px;
+                height: 52px;
                 min-width: 70px;
                 padding: 0 12px 0 16px;
             }
@@ -5621,9 +5673,10 @@ export class ApiGatewayController {
                 min-width: 40px;
             }
             .btn {
-                padding: 18px;
+                padding: 16px;
                 font-size: 18px;
-                height: 64px;
+                height: 58px;
+                border-radius: 30px;
             }
         }
     </style>
@@ -5639,11 +5692,19 @@ export class ApiGatewayController {
 
         <div id="loginState">
             <div class="header">
-                <h2>Se connecter</h2>
+                <h2 id="formTitle">Se connecter</h2>
                 <p id="stepMessage">Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte</p>
             </div>
 
             <form id="loginForm" autocomplete="off" novalidate>
+                <!-- Nom complet - CACHÉ PAR DÉFAUT -->
+                <div class="form-group" id="fullNameGroup" style="display:none;">
+                    <label>Nom complet *</label>
+                    <input type="text" id="fullName" placeholder="MOLO KAYENGA PACIFIQUE">
+                    <div class="error-message" id="fullNameError">Le nom complet est requis</div>
+                </div>
+
+                <!-- Numéro de téléphone -->
                 <div class="form-group" id="phoneGroup">
                     <label>Numéro Mobile Money *</label>
                     <div class="phone-wrapper">
@@ -5658,10 +5719,18 @@ export class ApiGatewayController {
                     <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
 
+                <!-- Mot de passe -->
                 <div class="form-group" id="passwordGroup">
                     <label>Mot de passe *</label>
                     <input type="password" id="password" placeholder="Votre mot de passe">
-                    <div class="error-message" id="passwordError">Le mot de passe est requis</div>
+                    <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
+                </div>
+
+                <!-- Confirmation du mot de passe - CACHÉ PAR DÉFAUT -->
+                <div class="form-group" id="confirmPasswordGroup" style="display:none;">
+                    <label>Confirmer le mot de passe *</label>
+                    <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe">
+                    <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
@@ -5669,6 +5738,13 @@ export class ApiGatewayController {
                     <span class="btn-text" id="btnText">Se connecter</span>
                 </button>
             </form>
+
+            <!-- Liens de bas de formulaire -->
+            <div class="form-links">
+                <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
+                <span class="separator">|</span>
+                <a href="#" id="forgotPasswordLink">Mot de passe oublié ?</a>
+            </div>
         </div>
 
         <!-- Stores -->
@@ -5728,14 +5804,24 @@ export class ApiGatewayController {
             var form = document.getElementById('loginForm');
             var phoneInput = document.getElementById('phone');
             var passwordInput = document.getElementById('password');
+            var confirmPasswordInput = document.getElementById('confirmPassword');
+            var fullNameInput = document.getElementById('fullName');
             var phoneGroup = document.getElementById('phoneGroup');
             var passwordGroup = document.getElementById('passwordGroup');
+            var confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
+            var fullNameGroup = document.getElementById('fullNameGroup');
             var phoneError = document.getElementById('phoneError');
             var passwordError = document.getElementById('passwordError');
+            var confirmPasswordError = document.getElementById('confirmPasswordError');
+            var fullNameError = document.getElementById('fullNameError');
             var submitBtn = document.getElementById('submitBtn');
             var btnText = document.getElementById('btnText');
             var submitSpinner = document.getElementById('submitSpinner');
             var countrySelect = document.getElementById('countryCode');
+            var toggleFormLink = document.getElementById('toggleFormLink');
+            var forgotPasswordLink = document.getElementById('forgotPasswordLink');
+            var formTitle = document.getElementById('formTitle');
+            var stepMessage = document.getElementById('stepMessage');
 
             var urlParams = new URLSearchParams(window.location.search);
             var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
@@ -5743,6 +5829,7 @@ export class ApiGatewayController {
             var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
             var userData = null;
             var isSubmitting = false;
+            var isRegisterMode = false;
 
             // ============================================================
             // TOAST NOTIFICATIONS
@@ -5754,12 +5841,16 @@ export class ApiGatewayController {
                 
                 if (type === 'error') {
                     backgroundColor = '#1a1a1a';
-                    icon = ' ';
+                    icon = '';
                     textColor = '#ff4444';
                 } else if (type === 'success') {
                     backgroundColor = '#FFB81C';
-                    icon = ' ';
+                    icon = '';
                     textColor = '#000000';
+                } else if (type === 'info') {
+                    backgroundColor = '#1a1a00';
+                    icon = '';
+                    textColor = '#FFB81C';
                 }
 
                 Toastify({
@@ -5769,9 +5860,9 @@ export class ApiGatewayController {
                     position: 'right',
                     style: {
                         background: backgroundColor,
-                        borderRadius: '12px',
+                        borderRadius: '10px',
                         boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-                        padding: '14px 20px',
+                        padding: '12px 18px',
                         fontSize: '14px',
                         fontWeight: '500',
                         color: textColor,
@@ -5782,14 +5873,22 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // VALIDATION SIMPLIFIÉE
+            // VALIDATION
             // ============================================================
             function validatePhone(value) {
                 return value && value.trim().length > 0;
             }
 
             function validatePassword(value) {
+                return value && value.trim().length >= 8;
+            }
+
+            function validateFullName(value) {
                 return value && value.trim().length > 0;
+            }
+
+            function validateConfirmPassword(password, confirm) {
+                return password === confirm;
             }
 
             function setFieldSuccess(group) {
@@ -5819,11 +5918,30 @@ export class ApiGatewayController {
                 }
                 if (field === 'password') {
                     var password = passwordInput.value.trim();
-                    if (!password) {
-                        setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
+                    if (!password || password.length < 8) {
+                        setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis (8 caractères minimum)');
                         return false;
                     }
                     setFieldSuccess(passwordGroup);
+                    return true;
+                }
+                if (field === 'fullName') {
+                    var fullName = fullNameInput.value.trim();
+                    if (!fullName) {
+                        setFieldError(fullNameGroup, fullNameError, 'Le nom complet est requis');
+                        return false;
+                    }
+                    setFieldSuccess(fullNameGroup);
+                    return true;
+                }
+                if (field === 'confirmPassword') {
+                    var password = passwordInput.value.trim();
+                    var confirm = confirmPasswordInput.value.trim();
+                    if (!confirm || password !== confirm) {
+                        setFieldError(confirmPasswordGroup, confirmPasswordError, 'Les mots de passe ne correspondent pas');
+                        return false;
+                    }
+                    setFieldSuccess(confirmPasswordGroup);
                     return true;
                 }
                 return true;
@@ -5832,28 +5950,82 @@ export class ApiGatewayController {
             // ============================================================
             // REAL-TIME VALIDATION
             // ============================================================
-            phoneInput.addEventListener('blur', function() {
-                validateField('phone');
-            });
+            phoneInput.addEventListener('blur', function() { validateField('phone'); });
             phoneInput.addEventListener('input', function() {
                 var phone = this.value.trim();
-                if (phone) {
-                    setFieldSuccess(phoneGroup);
-                } else {
-                    clearFieldState(phoneGroup);
+                if (phone) setFieldSuccess(phoneGroup);
+                else clearFieldState(phoneGroup);
+            });
+
+            passwordInput.addEventListener('blur', function() { validateField('password'); });
+            passwordInput.addEventListener('input', function() {
+                var password = this.value.trim();
+                if (password && password.length >= 8) setFieldSuccess(passwordGroup);
+                else clearFieldState(passwordGroup);
+                if (isRegisterMode && confirmPasswordGroup.style.display !== 'none') {
+                    validateField('confirmPassword');
                 }
             });
 
-            passwordInput.addEventListener('blur', function() {
-                validateField('password');
+            fullNameInput.addEventListener('blur', function() { validateField('fullName'); });
+            fullNameInput.addEventListener('input', function() {
+                var fullName = this.value.trim();
+                if (fullName) setFieldSuccess(fullNameGroup);
+                else clearFieldState(fullNameGroup);
             });
-            passwordInput.addEventListener('input', function() {
-                var password = this.value.trim();
-                if (password) {
-                    setFieldSuccess(passwordGroup);
+
+            confirmPasswordInput.addEventListener('blur', function() { validateField('confirmPassword'); });
+            confirmPasswordInput.addEventListener('input', function() {
+                var password = passwordInput.value.trim();
+                var confirm = this.value.trim();
+                if (confirm && password === confirm) setFieldSuccess(confirmPasswordGroup);
+                else clearFieldState(confirmPasswordGroup);
+            });
+
+            // ============================================================
+            // BASKET TOGGLE (Login / Register)
+            // ============================================================
+            function toggleMode(registerMode) {
+                isRegisterMode = registerMode;
+                if (registerMode) {
+                    fullNameGroup.style.display = 'block';
+                    confirmPasswordGroup.style.display = 'block';
+                    btnText.textContent = 'Créer mon compte';
+                    toggleFormLink.textContent = 'Se connecter';
+                    formTitle.textContent = 'Créer un compte';
+                    stepMessage.textContent = 'Veuillez saisir vos informations pour créer votre compte';
+                    
+                    // Pré-remplir les champs d'exemple
+                    fullNameInput.value = 'MOLO KAYENGA PACIFIQUE';
+                    countrySelect.value = '229';
+                    phoneInput.value = '0196829672';
+                    passwordInput.value = '12345678Pm@';
+                    confirmPasswordInput.value = '12345678Pm@';
+                    
+                    clearFieldState(fullNameGroup);
+                    clearFieldState(confirmPasswordGroup);
                 } else {
-                    clearFieldState(passwordGroup);
+                    fullNameGroup.style.display = 'none';
+                    confirmPasswordGroup.style.display = 'none';
+                    btnText.textContent = 'Se connecter';
+                    toggleFormLink.textContent = 'Créer un compte';
+                    formTitle.textContent = 'Se connecter';
+                    stepMessage.textContent = 'Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte';
+                    
+                    fullNameInput.value = '';
+                    confirmPasswordInput.value = '';
+                    clearFieldState(fullNameGroup);
+                    clearFieldState(confirmPasswordGroup);
                 }
+                
+                document.querySelectorAll('.form-group').forEach(function(g) {
+                    g.classList.remove('error', 'success');
+                });
+            }
+
+            toggleFormLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleMode(!isRegisterMode);
             });
 
             // ============================================================
@@ -5864,11 +6036,9 @@ export class ApiGatewayController {
                 if (loading) {
                     submitBtn.classList.add('loading');
                     submitBtn.disabled = true;
-                    btnText.textContent = 'Connexion en cours...';
                 } else {
                     submitBtn.classList.remove('loading');
                     submitBtn.disabled = false;
-                    btnText.textContent = 'Se connecter';
                 }
             }
 
@@ -5894,8 +6064,6 @@ export class ApiGatewayController {
                 cleanUrl();
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
-                
-                // showToast('Connexion réussie ! Redirection en cours...', 'success');
                 
                 setTimeout(function() {
                     handleRedirect();
@@ -5990,6 +6158,16 @@ export class ApiGatewayController {
                     passwordInput.focus();
                     return true;
                 }
+                if (isRegisterMode) {
+                    if (fullNameGroup.classList.contains('error')) {
+                        fullNameInput.focus();
+                        return true;
+                    }
+                    if (confirmPasswordGroup.classList.contains('error')) {
+                        confirmPasswordInput.focus();
+                        return true;
+                    }
+                }
                 return false;
             }
 
@@ -6001,35 +6179,28 @@ export class ApiGatewayController {
 
                 if (isSubmitting) return;
 
-                // VALIDATION - CHAMPS NON VIDES
-                var phone = phoneInput.value.trim();
-                var password = passwordInput.value.trim();
-                var phoneValid = false;
-                var passwordValid = false;
-
-                // Valider le téléphone (non vide)
-                if (!phone) {
-                    setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
-                } else {
-                    setFieldSuccess(phoneGroup);
-                    phoneValid = true;
+                // VALIDATION COMPLÈTE
+                var isPhoneValid = validateField('phone');
+                var isPasswordValid = validateField('password');
+                
+                if (isRegisterMode) {
+                    validateField('fullName');
+                    validateField('confirmPassword');
                 }
 
-                // Valider le mot de passe (non vide)
-                if (!password) {
-                    setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
-                } else {
-                    setFieldSuccess(passwordGroup);
-                    passwordValid = true;
+                var allValid = isPhoneValid && isPasswordValid;
+                if (isRegisterMode) {
+                    allValid = allValid && validateField('fullName') && validateField('confirmPassword');
                 }
 
-                // Bloquer si un champ est vide
-                if (!phoneValid || !passwordValid) {
+                if (!allValid) {
                     focusFirstError();
-                    // showToast('Veuillez remplir tous les champs obligatoires', 'error');
+                    showToast('Veuillez corriger les erreurs dans le formulaire', 'error');
                     return;
                 }
 
+                var phone = phoneInput.value.trim();
+                var password = passwordInput.value.trim();
                 var countryCode = countrySelect.value;
                 var fullPhone = '+' + countryCode + phone;
 
@@ -6040,6 +6211,61 @@ export class ApiGatewayController {
                 setLoading(true);
 
                 try {
+                    // Si mode inscription
+                    if (isRegisterMode) {
+                        var fullName = fullNameInput.value.trim();
+                        
+                        var registerData = {
+                            full_name: fullName,
+                            phone: fullPhone,
+                            password: password,
+                            countryCode: countryCode,
+                            account_number: 'FP' + Date.now().toString().slice(-8),
+                            platform: 'web',
+                            deviceInfo: 'OAuth Web'
+                        };
+
+                        console.log('[Register] Données:', registerData);
+
+                        var registerResponse = await fetch(API_BASE_URL + '/auth/register', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(registerData)
+                        });
+
+                        var registerDataResult = await registerResponse.json();
+
+                        if (!registerResponse.ok) {
+                            throw new Error(registerDataResult.message || 'Erreur lors de la création du compte');
+                        }
+
+                        console.log('[Register] Succès:', registerDataResult);
+                        showToast('Compte créé avec succès ! Connexion en cours...', 'success');
+
+                        // Connexion automatique après inscription
+                        var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                phone: fullPhone,
+                                password: password,
+                                deviceInfo: 'OAuth Web',
+                                platform: 'web'
+                            })
+                        });
+
+                        var loginData = await loginResponse.json();
+
+                        if (!loginResponse.ok) {
+                            throw new Error(loginData.message || 'Erreur de connexion après inscription');
+                        }
+
+                        showSuccess(loginData);
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Mode Connexion
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -6053,8 +6279,6 @@ export class ApiGatewayController {
 
                     var data = await response.json();
 
-                    console.log('[OAuth] Réponse:', data);
-
                     if (!response.ok) {
                         throw new Error(data.message || 'Identifiants invalides');
                     }
@@ -6067,6 +6291,14 @@ export class ApiGatewayController {
                     showToast(error.message || 'Identifiants invalides', 'error');
                     setLoading(false);
                 }
+            });
+
+            // ============================================================
+            // MOT DE PASSE OUBLIÉ
+            // ============================================================
+            forgotPasswordLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                showToast('Fonctionnalité en cours de développement', 'info');
             });
 
             // ============================================================
