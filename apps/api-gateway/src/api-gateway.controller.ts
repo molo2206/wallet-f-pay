@@ -5056,7 +5056,7 @@ export class ApiGatewayController {
         .logo h1 .pay { color: var(--yellow); }
 
         /* ============================================================
-           HEADER
+           HEADER - TEXTE MODIFIÉ
            ============================================================ */
         .header { 
             margin-bottom: 24px; 
@@ -5066,14 +5066,15 @@ export class ApiGatewayController {
         .header h2 { 
             font-size: 22px; 
             color: var(--black); 
-            margin-bottom: 2px; 
+            margin-bottom: 6px; 
             font-weight: 700; 
             text-shadow: 0 1px 4px rgba(255, 184, 28, 0.15);
         }
         .header p { 
-            color: rgba(0, 0, 0, 0.6); 
+            color: rgba(0, 0, 0, 0.65); 
             font-size: 14px; 
             font-weight: 500; 
+            line-height: 1.4;
         }
 
         /* ============================================================
@@ -5421,9 +5422,10 @@ export class ApiGatewayController {
         </div>
 
         <div id="loginState">
+            <!-- HEADER AVEC LE NOUVEAU TEXTE -->
             <div class="header">
-                <h2>Connexion</h2>
-                <p id="stepMessage">Accédez à votre portefeuille</p>
+                <h2>Se connecter</h2>
+                <p id="stepMessage">Veuillez saisir le numéro de téléphone associé à votre compte</p>
             </div>
 
             <form id="loginForm" autocomplete="off" novalidate>
@@ -5566,7 +5568,7 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // VALIDATION - VERSION CORRIGÉE
+            // VALIDATION
             // ============================================================
             function validatePhone(value) {
                 var cleaned = value.replace(/\s/g, '');
@@ -5621,12 +5623,6 @@ export class ApiGatewayController {
                     return true;
                 }
                 return true;
-            }
-
-            function validateAll() {
-                var isPhoneValid = validateField('phone');
-                var isPasswordValid = validateField('password');
-                return isPhoneValid && isPasswordValid;
             }
 
             // ============================================================
@@ -5798,21 +5794,20 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // FORM SUBMISSION - Version corrigée avec validation stricte
+            // FORM SUBMISSION
             // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
-                // Empêcher les soumissions multiples
                 if (isSubmitting) return;
 
-                // ============================================================
-                // VALIDATION STRICTE - CHAQUE CHAMP EST VÉRIFIÉ
-                // ============================================================
-                
-                // 1. Valider le téléphone
+                // VALIDATION STRICTE
                 var phone = phoneInput.value.trim();
+                var password = passwordInput.value.trim();
                 var phoneValid = false;
+                var passwordValid = false;
+
+                // Valider le téléphone
                 if (!phone) {
                     setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
                 } else if (!validatePhone(phone)) {
@@ -5822,9 +5817,7 @@ export class ApiGatewayController {
                     phoneValid = true;
                 }
 
-                // 2. Valider le mot de passe
-                var password = passwordInput.value.trim();
-                var passwordValid = false;
+                // Valider le mot de passe
                 if (!password) {
                     setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
                 } else if (!validatePassword(password)) {
@@ -5834,16 +5827,13 @@ export class ApiGatewayController {
                     passwordValid = true;
                 }
 
-                // 3. Si un des champs est invalide, bloquer la soumission
+                // Bloquer si un champ est invalide
                 if (!phoneValid || !passwordValid) {
                     focusFirstError();
                     showToast('Veuillez remplir tous les champs obligatoires', 'error');
                     return;
                 }
 
-                // ============================================================
-                // TOUT EST VALIDE - ON CONTINUE
-                // ============================================================
                 var countryCode = countrySelect.value;
                 var fullPhone = '+' + countryCode + phone;
 
