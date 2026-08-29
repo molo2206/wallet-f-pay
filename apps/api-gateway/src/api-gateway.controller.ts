@@ -5439,13 +5439,13 @@ export class ApiGatewayController {
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641">
                     </div>
-                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis (6 chiffres minimum)</div>
+                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
 
                 <div class="form-group" id="passwordGroup">
                     <label>Mot de passe *</label>
                     <input type="password" id="password" placeholder="Votre mot de passe">
-                    <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
+                    <div class="error-message" id="passwordError">Le mot de passe est requis</div>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
@@ -5567,17 +5567,14 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // VALIDATION - REGEX CORRIGÉE
+            // VALIDATION SIMPLIFIÉE
             // ============================================================
             function validatePhone(value) {
-                var cleaned = value.replace(/\s/g, '');
-                return /^[0-9]{6,}$/.test(cleaned);
+                return value && value.trim().length > 0;
             }
 
             function validatePassword(value) {
-                // Regex corrigée avec échappement des caractères spéciaux
-                var regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
-                return regex.test(value);
+                return value && value.trim().length > 0;
             }
 
             function setFieldSuccess(group) {
@@ -5602,10 +5599,6 @@ export class ApiGatewayController {
                         setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
                         return false;
                     }
-                    if (!validatePhone(phone)) {
-                        setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
-                        return false;
-                    }
                     setFieldSuccess(phoneGroup);
                     return true;
                 }
@@ -5613,10 +5606,6 @@ export class ApiGatewayController {
                     var password = passwordInput.value.trim();
                     if (!password) {
                         setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
-                        return false;
-                    }
-                    if (!validatePassword(password)) {
-                        setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
                         return false;
                     }
                     setFieldSuccess(passwordGroup);
@@ -5633,10 +5622,8 @@ export class ApiGatewayController {
             });
             phoneInput.addEventListener('input', function() {
                 var phone = this.value.trim();
-                if (phone && validatePhone(phone)) {
+                if (phone) {
                     setFieldSuccess(phoneGroup);
-                } else if (phone) {
-                    setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
                 } else {
                     clearFieldState(phoneGroup);
                 }
@@ -5647,10 +5634,8 @@ export class ApiGatewayController {
             });
             passwordInput.addEventListener('input', function() {
                 var password = this.value.trim();
-                if (password && validatePassword(password)) {
+                if (password) {
                     setFieldSuccess(passwordGroup);
-                } else if (password) {
-                    setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
                 } else {
                     clearFieldState(passwordGroup);
                 }
@@ -5801,33 +5786,29 @@ export class ApiGatewayController {
 
                 if (isSubmitting) return;
 
-                // VALIDATION STRICTE
+                // VALIDATION SIMPLIFIÉE - UNIQUEMENT CHAMPS NON VIDES
                 var phone = phoneInput.value.trim();
                 var password = passwordInput.value.trim();
                 var phoneValid = false;
                 var passwordValid = false;
 
-                // Valider le téléphone
+                // Valider le téléphone (non vide)
                 if (!phone) {
                     setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
-                } else if (!validatePhone(phone)) {
-                    setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
                 } else {
                     setFieldSuccess(phoneGroup);
                     phoneValid = true;
                 }
 
-                // Valider le mot de passe
+                // Valider le mot de passe (non vide)
                 if (!password) {
                     setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
-                } else if (!validatePassword(password)) {
-                    setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
                 } else {
                     setFieldSuccess(passwordGroup);
                     passwordValid = true;
                 }
 
-                // Bloquer si un champ est invalide
+                // Bloquer si un champ est vide
                 if (!phoneValid || !passwordValid) {
                     focusFirstError();
                     showToast('Veuillez remplir tous les champs obligatoires', 'error');
