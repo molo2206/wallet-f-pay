@@ -4959,20 +4959,15 @@ export class ApiGatewayController {
       // ============================================================
 
       return res.send(`<!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>F-Pay • Connexion</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f5f7fa;
             min-height: 100vh;
             display: flex;
@@ -4980,231 +4975,42 @@ export class ApiGatewayController {
             justify-content: center;
             padding: 20px;
         }
-
-        .card {
+        .container {
             width: 100%;
-            max-width: 420px;
+            max-width: 480px;
             background: white;
             border-radius: 32px;
             padding: 40px 28px 32px;
-            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.10);
+            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.12);
             border: 1px solid rgba(10, 28, 242, 0.06);
-            transition: background 0.2s;
         }
 
-        /* logo / marque */
-        .brand {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 32px;
-        }
-
-        .brand-icon {
-            width: 48px;
-            height: 48px;
-            background: #0A1CF2;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 26px;
-            font-weight: 700;
-            color: white;
-            letter-spacing: -0.5px;
-            box-shadow: 0 8px 18px rgba(10, 28, 242, 0.25);
-        }
-
-        .brand-text {
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            color: #1a1a2e;
-        }
-        .brand-text .f { color: #0A1CF2; }
-        .brand-text .pay { color: #FFB81C; }
-
+        /* Logo - sans icône */
+        .logo { text-align: center; margin-bottom: 32px; }
+        .logo h1 { font-size: 32px; color: #1a1a2e; letter-spacing: -0.5px; }
+        .logo h1 .f { color: #0A1CF2; }
+        .logo h1 .pay { color: #FFB81C; }
+        .logo p { color: #6b7280; font-size: 14px; margin-top: 2px; }
         .env-badge {
             display: inline-block;
-            background: #10b981;
-            color: white;
+            padding: 3px 12px;
+            border-radius: 30px;
             font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
-            padding: 3px 10px;
-            border-radius: 30px;
-            letter-spacing: 0.4px;
-            margin-left: 6px;
-            vertical-align: middle;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
         }
+        .env-badge.local { background: #10b981; color: white; }
+        .env-badge.test { background: #f59e0b; color: white; }
+        .env-badge.production { background: #ef4444; color: white; }
 
-        /* titre */
-        .login-header {
-            margin-bottom: 24px;
-        }
-        .login-header h2 {
-            font-size: 22px;
-            font-weight: 600;
-            color: #0b0b1a;
-            margin-bottom: 4px;
-        }
-        .login-header p {
-            font-size: 14px;
-            color: #6b7280;
-        }
+        /* Header */
+        .header { margin-bottom: 24px; }
+        .header h2 { font-size: 22px; color: #1a1a2e; margin-bottom: 2px; font-weight: 600; }
+        .header p { color: #6b7280; font-size: 14px; }
 
-        /* montant (comme sur l'image) */
-        .amount-block {
-            background: #f8f9ff;
-            border-radius: 20px;
-            padding: 16px 18px;
-            margin-bottom: 28px;
-            border: 1px solid #eef0f5;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .amount-block .label {
-            font-size: 14px;
-            font-weight: 500;
-            color: #1f2937;
-        }
-
-        .amount-block .value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #0A1CF2;
-        }
-
-        .amount-block .value small {
-            font-weight: 400;
-            font-size: 14px;
-            color: #4b5563;
-            margin-left: 4px;
-        }
-
-        /* formulaire */
-        .form-group {
-            margin-bottom: 18px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            color: #1a1a2e;
-            margin-bottom: 5px;
-        }
-
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 14px 16px;
-            border: 1.5px solid #e5e7eb;
-            border-radius: 16px;
-            font-size: 15px;
-            background: #fafbfc;
-            transition: 0.2s;
-            color: #111827;
-            appearance: none;
-            -webkit-appearance: none;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: #0A1CF2;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
-        }
-
-        .form-group input::placeholder {
-            color: #9ca3af;
-        }
-
-        .form-row {
-            display: flex;
-            gap: 12px;
-        }
-
-        .form-row .form-group {
-            flex: 1;
-        }
-
-        /* opérateur + mobile */
-        .operator-select {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 16px center;
-            padding-right: 40px;
-        }
-
-        .phone-prefix {
-            display: flex;
-            align-items: center;
-            background: #fafbfc;
-            border: 1.5px solid #e5e7eb;
-            border-radius: 16px;
-            padding: 0 4px 0 14px;
-            transition: 0.2s;
-        }
-
-        .phone-prefix:focus-within {
-            border-color: #0A1CF2;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
-        }
-
-        .phone-prefix span {
-            font-weight: 500;
-            color: #1f2937;
-            font-size: 15px;
-            white-space: nowrap;
-        }
-
-        .phone-prefix input {
-            border: none !important;
-            padding: 14px 12px 14px 8px !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            flex: 1;
-            min-width: 0;
-        }
-
-        .phone-prefix input:focus {
-            box-shadow: none !important;
-        }
-
-        /* bouton */
-        .btn-primary {
-            width: 100%;
-            padding: 16px;
-            background: #0A1CF2;
-            border: none;
-            border-radius: 40px;
-            font-size: 16px;
-            font-weight: 600;
-            color: white;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-top: 8px;
-            box-shadow: 0 6px 20px rgba(10, 28, 242, 0.30);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 28px rgba(10, 28, 242, 0.40);
-        }
-
-        .btn-primary:active {
-            transform: scale(0.97);
-        }
-
-        /* message */
+        /* Message */
         .message {
             padding: 12px 16px;
             border-radius: 16px;
@@ -5218,113 +5024,149 @@ export class ApiGatewayController {
         .message.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
         .message.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
 
-        /* OTP */
-        .otp-section {
-            display: none;
-            animation: fadeIn 0.25s ease;
-        }
-        .otp-section.show { display: block; }
-
-        .otp-timer {
-            font-size: 13px;
-            color: #6b7280;
-            margin-top: 6px;
-            text-align: right;
-        }
-
-        .resend-link {
+        /* Formulaire */
+        .form-group { margin-bottom: 18px; }
+        .form-group label {
+            display: block;
             font-size: 14px;
-            color: #0A1CF2;
             font-weight: 500;
+            color: #1a1a2e;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 16px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #fafbfc;
+            color: #1a1a2e;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #0A1CF2;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
+        }
+        .form-group input::placeholder { color: #9ca3af; }
+        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* Préfixe téléphone */
+        .phone-prefix {
+            display: flex;
+            align-items: center;
+            background: #fafbfc;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 16px;
+            padding: 0 4px 0 14px;
+            transition: 0.2s;
+        }
+        .phone-prefix:focus-within {
+            border-color: #0A1CF2;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
+        }
+        .phone-prefix span {
+            font-weight: 500;
+            color: #1f2937;
+            font-size: 15px;
+            white-space: nowrap;
+        }
+        .phone-prefix input {
+            border: none !important;
+            padding: 14px 12px 14px 8px !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            flex: 1;
+            min-width: 0;
+        }
+        .phone-prefix input:focus {
+            box-shadow: none !important;
+        }
+
+        /* Bouton */
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 40px;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
-            display: none;
-            margin-top: 6px;
-            text-align: right;
+            background: #0A1CF2;
+            color: white;
+            transition: all 0.2s;
+            margin-top: 4px;
+            box-shadow: 0 6px 20px rgba(10, 28, 242, 0.30);
         }
-        .resend-link:hover { text-decoration: underline; }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-6px); }
-            to { opacity: 1; transform: translateY(0); }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(10, 28, 242, 0.40); }
+        .btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn .spinner { display: none; }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: none; }
+        .btn .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* stores */
+        /* Stores - sans icônes */
         .stores {
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 12px;
             margin-top: 28px;
             flex-wrap: wrap;
         }
-
         .store-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+            display: inline-block;
             background: #1a1a2e;
-            padding: 10px 18px 10px 16px;
+            padding: 12px 24px;
             border-radius: 40px;
             color: white;
             text-decoration: none;
-            font-weight: 500;
-            font-size: 13px;
+            font-weight: 600;
+            font-size: 14px;
             transition: 0.2s;
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            text-align: center;
         }
-
-        .store-link.google {
-            background: #0b0b1a;
-        }
-        .store-link.apple {
-            background: #0b0b1a;
-        }
-
         .store-link:hover {
             transform: translateY(-2px);
             background: #0A1CF2;
             border-color: #0A1CF2;
         }
-
-        .store-link svg {
-            width: 20px;
-            height: 20px;
-            fill: currentColor;
-        }
-
-        .store-link span {
-            display: flex;
-            flex-direction: column;
-            line-height: 1.2;
-        }
-
         .store-link .small {
+            display: block;
             font-size: 9px;
             opacity: 0.7;
             font-weight: 400;
             letter-spacing: 0.3px;
+            margin-bottom: 2px;
         }
 
-        /* responsive */
-        @media (max-width: 480px) {
-            .card { padding: 28px 18px 24px; }
-            .brand-text { font-size: 24px; }
-            .amount-block .value { font-size: 16px; }
-            .store-link { font-size: 12px; padding: 8px 14px; }
-        }
+        /* Footer */
+        .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
+        .footer a { color: #6b7280; text-decoration: none; }
+        .footer a:hover { color: #0A1CF2; }
 
-        /* dark mode support (optionnel) */
+        /* Dark mode */
         @media (prefers-color-scheme: dark) {
             body { background: #12121e; }
-            .card { background: #1e1e32; border-color: #2a2a44; }
-            .brand-text { color: #f0f0ff; }
-            .login-header h2 { color: #f0f0ff; }
-            .login-header p { color: #9ca3c0; }
-            .amount-block { background: #272744; border-color: #3a3a5a; }
-            .amount-block .label { color: #d1d5e0; }
-            .amount-block .value { color: #6d8aff; }
+            .container { background: #1e1e32; border-color: #2a2a44; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+            .logo h1 { color: #f1f5f9; }
+            .logo p { color: #94a3b8; }
+            .header h2 { color: #f1f5f9; }
+            .header p { color: #94a3b8; }
             .form-group label { color: #e5e7f0; }
-            .form-group input, .form-group select, .phone-prefix {
+            .form-group input, .phone-prefix {
                 background: #14142a;
                 border-color: #33335a;
                 color: #f0f0ff;
@@ -5332,316 +5174,322 @@ export class ApiGatewayController {
             .form-group input:focus, .phone-prefix:focus-within {
                 background: #1e1e3a;
                 border-color: #4a6aff;
+                box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2);
             }
             .phone-prefix span { color: #d1d5e0; }
             .message.error { background: #3b1a1a; color: #fca5a5; border-color: #7f1d1d; }
             .message.success { background: #0a2e1f; color: #6ee7b7; border-color: #0b5a3a; }
             .message.info { background: #162a4a; color: #93c5fd; border-color: #1e3a6a; }
+            .footer { color: #64748b; }
+            .footer a { color: #94a3b8; }
+            .footer a:hover { color: #93c5fd; }
             .store-link { background: #2a2a44; border-color: #3a3a5a; }
             .store-link:hover { background: #0A1CF2; border-color: #0A1CF2; }
-            .btn-primary { background: #3a5aff; }
-            .btn-primary:hover { background: #2a4aff; }
-            .env-badge { background: #0f8b5e; }
+            .btn { background: #3a5aff; }
+            .btn:hover { background: #2a4aff; }
+            .env-badge.local { background: #0f8b5e; }
+            .env-badge.test { background: #b45309; }
+            .env-badge.production { background: #b91c1c; }
+        }
+
+        @media (max-width: 520px) {
+            .container { padding: 28px 18px 24px; }
+            .logo h1 { font-size: 26px; }
+            .btn { font-size: 15px; padding: 14px; }
+            .store-link { font-size: 13px; padding: 10px 18px; }
         }
     </style>
 </head>
 <body>
-
-<div class="card">
-
-    <!-- Brand -->
-    <div class="brand">
-        <div class="brand-icon">F</div>
-        <div class="brand-text">
-            <span class="f">F</span><span class="pay">Pay</span>
-            <span class="env-badge">secure</span>
-        </div>
-    </div>
-
-    <!-- Header -->
-    <div class="login-header">
-        <h2>Connexion</h2>
-        <p>Accédez à votre portefeuille F-Pay</p>
-    </div>
-
-    <!-- Montant / solde (style image) -->
-    <div class="amount-block">
-        <span class="label">💰 Solde disponible</span>
-        <span class="value">95,00 <small>USD</small></span>
-    </div>
-
-    <!-- Message -->
-    <div class="message" id="message">
-        <span id="messageText">Message</span>
-    </div>
-
-    <!-- Formulaire -->
-    <form id="loginForm" autocomplete="on">
-        <!-- Opérateur -->
-        <div class="form-group">
-            <label for="operator">Opérateur *</label>
-            <select id="operator" class="operator-select">
-                <option value="">Sélectionner un opérateur</option>
-                <option value="orange">Orange</option>
-                <option value="vodacom">Vodacom</option>
-                <option value="airtel">Airtel</option>
-                <option value="africell">Africell</option>
-            </select>
+    <div class="container">
+        <div class="logo">
+            <h1><span class="f">F</span><span class="pay">Pay</span></h1>
+            <p>Solutions de paiement sécurisées</p>
+            <div><span class="env-badge ${env}">${envLabel}</span></div>
         </div>
 
-        <!-- Numéro mobile -->
-        <div class="form-group">
-            <label>Numéro Mobile Money *</label>
-            <div class="phone-prefix">
-                <span>+243</span>
-                <input type="tel" id="phone" placeholder="99 999 9999" required>
+        <div id="loginState">
+            <div class="header">
+                <h2>Connexion</h2>
+                <p id="stepMessage">Accédez à votre portefeuille</p>
             </div>
-        </div>
 
-        <!-- Mot de passe -->
-        <div class="form-group" id="passwordGroup">
-            <label for="password">Mot de passe</label>
-            <input type="password" id="password" placeholder="Votre mot de passe" required>
-        </div>
-
-        <!-- OTP (caché par défaut) -->
-        <div class="otp-section" id="otpSection">
-            <div class="form-group">
-                <label for="otpCode">Code OTP</label>
-                <input type="text" id="otpCode" placeholder="Entrez le code reçu" maxlength="6" inputmode="numeric" autocomplete="off">
-                <div class="otp-timer" id="timer">⏱️ 60s</div>
-                <div class="resend-link" id="resendLink">Renvoyer le code</div>
+            <div class="message" id="message">
+                <span id="messageText">Message</span>
             </div>
+
+            <form id="loginForm" autocomplete="off">
+                <div class="form-group">
+                    <label>Numéro Mobile Money *</label>
+                    <div class="phone-prefix">
+                        <span>+243</span>
+                        <input type="tel" id="phone" placeholder="99 999 9999" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Mot de passe</label>
+                    <input type="password" id="password" placeholder="Votre mot de passe" required>
+                </div>
+
+                <button type="submit" class="btn" id="submitBtn">
+                    <span class="spinner"></span>
+                    <span class="btn-text" id="btnText">Se connecter</span>
+                </button>
+            </form>
         </div>
 
-        <button type="submit" class="btn-primary" id="submitBtn">
-            <span id="btnText">Confirmer le retrait</span>
-        </button>
-    </form>
-
-    <!-- Stores: Google Play & App Store -->
-    <div class="stores">
-        <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link google">
-            <svg viewBox="0 0 512 512"><path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>
-            <span>
+        <!-- Stores - texte uniquement -->
+        <div class="stores">
+            <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
                 <span class="small">TÉLÉCHARGER SUR</span>
                 Google Play
-            </span>
-        </a>
-        <a href="#" class="store-link apple" target="_blank">
-            <svg viewBox="0 0 384 512"><path d="M318.7 268.7c-.2-36.7 16.6-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-48.4-19.5-76.1-19.5-42.1 0-80.5 21.9-102.4 55.2-45.8 79.5-11.9 172.1 31 227.3 22.3 28.7 48.5 60.1 84.9 60.1 30.5 0 41.3-17.9 75.8-17.9 33.8 0 45.8 17.9 75.8 17.9 36.9 0 64.9-31.8 84.9-60.1 24.3-34.4 34.2-67.9 34.8-106.9zM257.3 90.3c17.2-20.8 27.7-48.6 24.8-77.1-24.5 1.6-52.5 16.7-69.5 37.6-15.6 19.1-26.5 46.7-23.8 74.3 26.6 2.1 51.7-13.6 68.5-34.8z"/></svg>
-            <span>
+            </a>
+            <a href="#" class="store-link" target="_blank">
                 <span class="small">TÉLÉCHARGER SUR</span>
                 App Store
-            </span>
-        </a>
+            </a>
+        </div>
+
+        <div class="footer">
+            <span>Connexion sécurisée • </span>
+            <a href="#">Conditions d'utilisation</a>
+            <span> • </span>
+            <a href="#">Politique de confidentialité</a>
+        </div>
     </div>
 
-    <!-- petite note de confirmation (comme sur l'image) -->
-    <p style="text-align:center; margin-top: 22px; font-size: 12px; color: #6b7280; letter-spacing: 0.2px;">
-        Vous recevrez une notification de confirmation
-    </p>
+    <script>
+        (function() {
+            'use strict';
 
-</div>
+            var API_BASE_URL = window.location.origin;
+            var APP_URL = '${appUrl}';
+            var FRONTEND_URL = '${frontendUrl}';
+            var OAUTH_CALLBACK_URL = '${callbackUrl}';
+            var MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
+            var ENV = '${env}';
+            var SYSTEM_USER_ID = '${systemUserId}';
+            var AMOUNT = '${amount}';
+            var CURRENCY = '${currency}';
+            var DESCRIPTION = '${description}';
+            var API_KEY = '${apiKey}';
+            var CLIENT_TOKEN = '${clientToken}';
+            var REDIRECT_URI = '${callbackUrl}';
 
-<script>
-    (function() {
-        'use strict';
+            console.log('[OAuth] Environnement:', ENV);
+            console.log('[OAuth] API_BASE_URL:', API_BASE_URL);
+            console.log('[OAuth] CLIENT_TOKEN:', CLIENT_TOKEN ? '✅ présent' : '❌ non fourni');
+            console.log('[OAuth] REDIRECT_URI:', REDIRECT_URI);
 
-        // Éléments
-        const form = document.getElementById('loginForm');
-        const phoneInput = document.getElementById('phone');
-        const passwordInput = document.getElementById('password');
-        const otpInput = document.getElementById('otpCode');
-        const otpSection = document.getElementById('otpSection');
-        const passwordGroup = document.getElementById('passwordGroup');
-        const messageEl = document.getElementById('message');
-        const messageText = document.getElementById('messageText');
-        const submitBtn = document.getElementById('submitBtn');
-        const btnText = document.getElementById('btnText');
-        const timerEl = document.getElementById('timer');
-        const resendLink = document.getElementById('resendLink');
+            var urlParams = new URLSearchParams(window.location.search);
+            var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
 
-        let otpRequired = false;
-        let phoneSaved = '';
-        let passwordSaved = '';
-        let timerInterval = null;
-        let secondsLeft = 60;
+            var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
+            var userData = null;
+            var otpRequired = false;
+            var phoneSaved = '';
+            var passwordSaved = '';
 
-        // Simulation d'API (remplacez par votre vraie logique)
-        const API_BASE = window.location.origin; // ou votre URL
-
-        function showMessage(type, text) {
-            messageEl.className = 'message show ' + type;
-            messageText.textContent = text;
-        }
-
-        function hideMessage() {
-            messageEl.className = 'message';
-        }
-
-        function startLoading() {
-            submitBtn.disabled = true;
-            submitBtn.style.opacity = '0.7';
-            btnText.textContent = 'Chargement...';
-        }
-
-        function stopLoading() {
-            submitBtn.disabled = false;
-            submitBtn.style.opacity = '1';
-            btnText.textContent = otpRequired ? 'Vérifier le code' : 'Confirmer le retrait';
-        }
-
-        function startTimer() {
-            secondsLeft = 60;
-            timerEl.style.display = 'block';
-            timerEl.textContent = '⏱️ 60s';
-            resendLink.style.display = 'none';
-
-            clearInterval(timerInterval);
-            timerInterval = setInterval(function() {
-                secondsLeft--;
-                timerEl.textContent = '⏱️ ' + secondsLeft + 's';
-                if (secondsLeft <= 0) {
-                    clearInterval(timerInterval);
-                    timerEl.textContent = '⏱️ Code expiré';
-                    resendLink.style.display = 'inline';
+            function cleanUrl() {
+                if (window.history && window.history.replaceState) {
+                    var cleanUrl = window.location.origin + window.location.pathname;
+                    window.history.replaceState({}, document.title, cleanUrl);
                 }
-            }, 1000);
-        }
-
-        // Simulation de login (étape 1)
-        async function fakeLogin(phone, password) {
-            // Simule un appel API
-            return new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    if (phone.length < 8 || password.length < 3) {
-                        reject(new Error('Numéro ou mot de passe invalide'));
-                    } else {
-                        // on simule qu'un OTP est requis
-                        resolve({ requiresOtp: true, message: 'Code OTP envoyé' });
-                    }
-                }, 800);
-            });
-        }
-
-        // Simulation vérification OTP
-        async function fakeVerifyOtp(phone, code) {
-            return new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    if (code === '123456') {
-                        resolve({ success: true, token: 'fake_token_123', user: { id: '1', phone: phone, name: 'Jean' } });
-                    } else {
-                        reject(new Error('Code OTP invalide'));
-                    }
-                }, 600);
-            });
-        }
-
-        // Gestion du submit
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            hideMessage();
-
-            const phone = phoneInput.value.trim();
-            const password = passwordInput.value.trim();
-            const otp = otpInput.value.trim();
-
-            // Validation
-            if (!phone || phone.length < 6) {
-                showMessage('error', 'Veuillez saisir un numéro valide');
-                return;
-            }
-            if (!otpRequired && !password) {
-                showMessage('error', 'Mot de passe requis');
-                return;
             }
 
-            // Étape 1 : login sans OTP
-            if (!otpRequired) {
-                startLoading();
-                try {
-                    // Simuler appel login
-                    const result = await fakeLogin(phone, password);
-                    if (result.requiresOtp) {
-                        otpRequired = true;
-                        phoneSaved = phone;
-                        passwordSaved = password;
-
-                        otpSection.classList.add('show');
-                        passwordGroup.style.display = 'none';
-                        btnText.textContent = 'Vérifier le code';
-                        showMessage('success', '✅ Code OTP envoyé par SMS');
-                        startTimer();
-                        otpInput.focus();
-                        stopLoading();
-                        return;
-                    }
-                    // Si pas d'OTP (cas rare) on simule succès
-                    showMessage('success', 'Connexion réussie !');
-                    stopLoading();
-                } catch (err) {
-                    showMessage('error', err.message || 'Erreur de connexion');
-                    stopLoading();
-                }
-                return;
+            function stopLoading() {
+                var btn = document.getElementById('submitBtn');
+                btn.classList.remove('loading');
+                btn.disabled = false;
             }
 
-            // Étape 2 : vérification OTP
-            if (otpRequired) {
-                if (!otp || otp.length < 4) {
-                    showMessage('error', 'Veuillez saisir le code OTP');
+            function startLoading() {
+                var btn = document.getElementById('submitBtn');
+                btn.classList.add('loading');
+                btn.disabled = true;
+            }
+
+            function showMessage(type, text) {
+                var messageEl = document.getElementById('message');
+                var messageText = document.getElementById('messageText');
+                messageEl.className = 'message show ' + type;
+                messageText.textContent = text;
+            }
+
+            function showSuccess(data) {
+                userData = data.data;
+                userTokens = {
+                    accessToken: data.accessToken || (data.data && data.data.accessToken),
+                    refreshToken: data.refreshToken || (data.data && data.data.refreshToken),
+                    userId: data.data && data.data.id,
+                    code: data.code || urlParams.get('code')
+                };
+
+                cleanUrl();
+                console.log('[OAuth] Tokens stockes:', userTokens);
+                console.log('[OAuth] User data:', userData);
+                
+                console.log('[OAuth] Redirection automatique vers le callback...');
+                handleRedirect();
+            }
+
+            window.handleRedirect = function() {
+                console.log('[OAuth] Redirection vers:', REDIRECT_URI);
+                console.log('[OAuth] Tokens:', userTokens);
+                console.log('[OAuth] User data:', userData);
+
+                if (REDIRECT_URI.startsWith('fpay://')) {
+                    var params = new URLSearchParams();
+                    
+                    if (userTokens.accessToken) params.set('access_token', userTokens.accessToken);
+                    if (userTokens.refreshToken) params.set('refresh_token', userTokens.refreshToken);
+                    if (userTokens.userId) params.set('user_id', userTokens.userId);
+                    if (userTokens.code) params.set('code', userTokens.code);
+                    if (SYSTEM_USER_ID) params.set('system_user_id', SYSTEM_USER_ID);
+                    if (AMOUNT) params.set('amount', AMOUNT);
+                    if (CURRENCY) params.set('currency', CURRENCY);
+                    if (DESCRIPTION) params.set('description', DESCRIPTION);
+                    if (API_KEY) params.set('api_key', API_KEY);
+                    if (CLIENT_TOKEN) params.set('client_token', CLIENT_TOKEN);
+
+                    if (userData) {
+                        params.set('data_id', userData.id || '');
+                        params.set('data_phone', userData.phone || '');
+                        params.set('data_full_name', userData.full_name || '');
+                        params.set('data_role', userData.role || '');
+                        params.set('data_status', userData.status || '');
+                        params.set('data_kycStatus', userData.kycStatus || '');
+                        params.set('data_countryCode', userData.countryCode || 'CD');
+                        if (userData.wallets) {
+                            params.set('wallets', JSON.stringify(userData.wallets));
+                        }
+                    }
+
+                    var finalUrl = REDIRECT_URI + '?' + params.toString();
+                    console.log('[OAuth] Redirection mobile:', finalUrl);
+                    window.location.href = finalUrl;
                     return;
                 }
-                startLoading();
+
                 try {
-                    const result = await fakeVerifyOtp(phoneSaved, otp);
-                    if (result.success) {
-                        showMessage('success', '✅ Connexion confirmée ! Redirection...');
-                        // Simulation de redirection ou callback
-                        setTimeout(() => {
-                            alert('Connexion réussie ! (redirection vers callback)');
-                        }, 400);
+                    var redirectUrl = new URL(REDIRECT_URI);
+                    
+                    if (userTokens.accessToken) redirectUrl.searchParams.set('access_token', userTokens.accessToken);
+                    if (userTokens.refreshToken) redirectUrl.searchParams.set('refresh_token', userTokens.refreshToken);
+                    if (userTokens.userId) redirectUrl.searchParams.set('user_id', userTokens.userId);
+                    if (userTokens.code) redirectUrl.searchParams.set('code', userTokens.code);
+                    if (SYSTEM_USER_ID) redirectUrl.searchParams.set('system_user_id', SYSTEM_USER_ID);
+                    if (AMOUNT) redirectUrl.searchParams.set('amount', AMOUNT);
+                    if (CURRENCY) redirectUrl.searchParams.set('currency', CURRENCY);
+                    if (DESCRIPTION) redirectUrl.searchParams.set('description', DESCRIPTION);
+                    if (API_KEY) redirectUrl.searchParams.set('api_key', API_KEY);
+                    if (CLIENT_TOKEN) redirectUrl.searchParams.set('client_token', CLIENT_TOKEN);
+
+                    if (userData) {
+                        redirectUrl.searchParams.set('data_id', userData.id || '');
+                        redirectUrl.searchParams.set('data_phone', userData.phone || '');
+                        redirectUrl.searchParams.set('data_full_name', userData.full_name || '');
+                        redirectUrl.searchParams.set('data_role', userData.role || '');
+                        redirectUrl.searchParams.set('data_status', userData.status || '');
+                        redirectUrl.searchParams.set('data_kycStatus', userData.kycStatus || '');
+                        redirectUrl.searchParams.set('data_countryCode', userData.countryCode || 'CD');
+                        if (userData.wallets) {
+                            redirectUrl.searchParams.set('wallets', JSON.stringify(userData.wallets));
+                        }
                     }
+
+                    console.log('[OAuth] Redirection web:', redirectUrl.toString());
+                    window.location.href = redirectUrl.toString();
+                } catch (error) {
+                    console.error('[OAuth] Erreur redirection:', error);
+                    var fallbackUrl = REDIRECT_URI + '?access_token=' + encodeURIComponent(userTokens.accessToken || '') +
+                        '&refresh_token=' + encodeURIComponent(userTokens.refreshToken || '') +
+                        '&user_id=' + encodeURIComponent(userTokens.userId || '') +
+                        '&client_token=' + encodeURIComponent(CLIENT_TOKEN || '');
+                    window.location.href = fallbackUrl;
+                }
+            };
+
+            document.getElementById('loginForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                console.log('[OAuth] Formulaire soumis');
+
+                var phone = document.getElementById('phone').value.trim();
+                var password = document.getElementById('password').value.trim();
+                var btnText = document.getElementById('btnText');
+                var stepMessage = document.getElementById('stepMessage');
+
+                console.log('[OAuth] Phone:', phone);
+
+                if (!phone || !password) {
+                    showMessage('error', 'Veuillez remplir tous les champs');
+                    return;
+                }
+
+                startLoading();
+                showMessage('info', 'Connexion en cours...');
+
+                try {
+                    var response = await fetch(API_BASE_URL + '/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            phone: phone,
+                            password: password,
+                            deviceInfo: 'OAuth Web',
+                            platform: 'web'
+                        })
+                    });
+
+                    var data = await response.json();
+
+                    console.log('[OAuth] Réponse:', data);
+
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Identifiants invalides');
+                    }
+
+                    showSuccess(data);
                     stopLoading();
-                } catch (err) {
-                    showMessage('error', err.message || 'Code OTP incorrect');
+
+                } catch (error) {
+                    console.error('[OAuth] Erreur:', error);
+                    showMessage('error', error.message || 'Identifiants invalides');
                     stopLoading();
                 }
-            }
-        });
+            });
 
-        // Resend OTP
-        resendLink.addEventListener('click', async function(e) {
-            e.preventDefault();
-            if (!phoneSaved) return;
-            try {
-                showMessage('info', 'Envoi d\'un nouveau code...');
-                await fakeLogin(phoneSaved, passwordSaved);
-                showMessage('success', '✅ Nouveau code envoyé');
-                startTimer();
-            } catch (err) {
-                showMessage('error', err.message || 'Erreur lors du renvoi');
-            }
-        });
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('[OAuth] DOM chargé');
 
-        // Auto submit OTP quand 6 chiffres
-        otpInput.addEventListener('input', function() {
-            this.value = this.value.replace(/\D/g, '').slice(0, 6);
-            if (this.value.length === 6 && otpRequired) {
-                form.dispatchEvent(new Event('submit'));
-            }
-        });
+                var code = urlParams.get('code');
+                var accessToken = urlParams.get('access_token');
+                var userId = urlParams.get('user_id');
+                
+                if (code && accessToken && userId) {
+                    userTokens = {
+                        accessToken: accessToken,
+                        refreshToken: urlParams.get('refresh_token'),
+                        userId: userId,
+                        code: code
+                    };
+                    showSuccess({
+                        data: {
+                            id: userId,
+                            phone: urlParams.get('phone') || 'N/A',
+                            full_name: urlParams.get('full_name') || 'Utilisateur',
+                            role: urlParams.get('role') || 'USER',
+                            status: 'ACTIVE'
+                        }
+                    });
+                    console.log('[OAuth] Déjà connecté');
+                }
+            });
 
-        // Nettoyer timer si besoin
-        window.addEventListener('beforeunload', function() {
-            if (timerInterval) clearInterval(timerInterval);
-        });
-
-        console.log('F-Pay Login page chargée (style Mobile Money)');
-    })();
-</script>
-
+        })();
+    </script>
 </body>
 </html>`);
 
