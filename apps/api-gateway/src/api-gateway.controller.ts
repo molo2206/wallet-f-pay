@@ -5045,6 +5045,15 @@ export class ApiGatewayController {
             display: block;
         }
 
+        /* État de succès des champs */
+        .form-group.success input {
+            border-color: #059669;
+            background: #f0fdf4;
+        }
+        .form-group.success input:focus {
+            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+        }
+
         /* Préfixe téléphone avec sélecteur de pays */
         .phone-wrapper {
             display: flex;
@@ -5066,6 +5075,13 @@ export class ApiGatewayController {
         }
         .form-group.error .phone-wrapper:focus-within {
             box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
+        }
+        .form-group.success .phone-wrapper {
+            border-color: #059669;
+            background: #f0fdf4;
+        }
+        .form-group.success .phone-wrapper:focus-within {
+            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
         }
 
         .country-select {
@@ -5247,6 +5263,10 @@ export class ApiGatewayController {
                 border-color: #4a6aff;
                 box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2);
             }
+            .form-group.success input, .form-group.success .phone-wrapper {
+                border-color: #34d399;
+                background: #0a2e1f;
+            }
             .country-select { border-right-color: #33335a; }
             .country-select select { color: #f0f0ff; background-color: transparent; }
             .country-select select option { background: #1e1e32; color: #f0f0ff; }
@@ -5282,9 +5302,11 @@ export class ApiGatewayController {
 </head>
 <body>
     <div class="container">
-        <div class="logo">
-            <h1><span class="f">F</span><span class="pay">Pay</span></h1>
-        </div>
+       <div class="logo">
+    <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw" 
+         alt="Fpay Logo" 
+         style="width: 80px; height: auto; margin-bottom: 10px;">
+</div>
 
         <div id="loginState">
             <div class="header">
@@ -5304,13 +5326,13 @@ export class ApiGatewayController {
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" required>
                     </div>
-                    <div class="error-message" id="phoneError">Veuillez saisir un numéro valide</div>
+                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
 
                 <div class="form-group" id="passwordGroup">
-                    <label>Mot de passe</label>
+                    <label>Mot de passe *</label>
                     <input type="password" id="password" placeholder="Votre mot de passe" required>
-                    <div class="error-message" id="passwordError">Le mot de passe est requis</div>
+                    <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
@@ -5436,30 +5458,52 @@ export class ApiGatewayController {
             }
 
             function validatePassword(value) {
-                return value && value.length >= 1;
+                // Au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial
+                var regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+                return regex.test(value);
             }
 
-            function setFieldError(group, errorEl, hasError, message) {
-                if (hasError) {
-                    group.classList.add('error');
-                    if (message) errorEl.textContent = message;
-                } else {
-                    group.classList.remove('error');
-                }
+            function setFieldSuccess(group) {
+                group.classList.remove('error');
+                group.classList.add('success');
+            }
+
+            function setFieldError(group, errorEl, message) {
+                group.classList.remove('success');
+                group.classList.add('error');
+                if (message) errorEl.textContent = message;
+            }
+
+            function clearFieldState(group) {
+                group.classList.remove('error', 'success');
             }
 
             function validateField(field) {
                 if (field === 'phone') {
                     var phone = phoneInput.value.trim();
-                    var isValid = validatePhone(phone);
-                    setFieldError(phoneGroup, phoneError, !isValid, 'Veuillez saisir un numéro valide');
-                    return isValid;
+                    if (!phone) {
+                        setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
+                        return false;
+                    }
+                    if (!validatePhone(phone)) {
+                        setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
+                        return false;
+                    }
+                    setFieldSuccess(phoneGroup);
+                    return true;
                 }
                 if (field === 'password') {
                     var password = passwordInput.value.trim();
-                    var isValid = validatePassword(password);
-                    setFieldError(passwordGroup, passwordError, !isValid, 'Le mot de passe est requis');
-                    return isValid;
+                    if (!password) {
+                        setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
+                        return false;
+                    }
+                    if (!validatePassword(password)) {
+                        setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
+                        return false;
+                    }
+                    setFieldSuccess(passwordGroup);
+                    return true;
                 }
                 return true;
             }
@@ -5467,21 +5511,25 @@ export class ApiGatewayController {
             function validateAll() {
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
+                
+                // Si les deux sont valides, retourner true
                 return isPhoneValid && isPasswordValid;
             }
 
             // ============================================================
-            // REAL-TIME VALIDATION
+            // REAL-TIME VALIDATION (onBlur & onInput)
             // ============================================================
             phoneInput.addEventListener('blur', function() {
                 validateField('phone');
             });
             phoneInput.addEventListener('input', function() {
-                if (phoneGroup.classList.contains('error')) {
-                    var phone = this.value.trim();
-                    if (validatePhone(phone)) {
-                        phoneGroup.classList.remove('error');
-                    }
+                var phone = this.value.trim();
+                if (phone && validatePhone(phone)) {
+                    setFieldSuccess(phoneGroup);
+                } else if (phone) {
+                    setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
+                } else {
+                    clearFieldState(phoneGroup);
                 }
             });
 
@@ -5489,11 +5537,13 @@ export class ApiGatewayController {
                 validateField('password');
             });
             passwordInput.addEventListener('input', function() {
-                if (passwordGroup.classList.contains('error')) {
-                    var password = this.value.trim();
-                    if (validatePassword(password)) {
-                        passwordGroup.classList.remove('error');
-                    }
+                var password = this.value.trim();
+                if (password && validatePassword(password)) {
+                    setFieldSuccess(passwordGroup);
+                } else if (password) {
+                    setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
+                } else {
+                    clearFieldState(passwordGroup);
                 }
             });
 
@@ -5620,6 +5670,21 @@ export class ApiGatewayController {
             };
 
             // ============================================================
+            // FOCUS ON FIRST ERROR FIELD
+            // ============================================================
+            function focusFirstError() {
+                if (phoneGroup.classList.contains('error')) {
+                    phoneInput.focus();
+                    return true;
+                }
+                if (passwordGroup.classList.contains('error')) {
+                    passwordInput.focus();
+                    return true;
+                }
+                return false;
+            }
+
+            // ============================================================
             // FORM SUBMISSION
             // ============================================================
             form.addEventListener('submit', async function(e) {
@@ -5627,9 +5692,14 @@ export class ApiGatewayController {
 
                 if (isSubmitting) return;
 
-                var isValid = validateAll();
-                if (!isValid) {
-                    showToast('Veuillez corriger les erreurs dans le formulaire', 'error');
+                // Valider tous les champs
+                var isPhoneValid = validateField('phone');
+                var isPasswordValid = validateField('password');
+                
+                if (!isPhoneValid || !isPasswordValid) {
+                    // Focus sur le premier champ en erreur
+                    focusFirstError();
+                    showToast('Veuillez corriger les champs en erreur', 'error');
                     return;
                 }
 
