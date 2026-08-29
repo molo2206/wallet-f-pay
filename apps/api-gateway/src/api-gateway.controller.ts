@@ -5695,7 +5695,7 @@ export class ApiGatewayController {
                 <!-- Nom complet - CACHÉ PAR DÉFAUT -->
                 <div class="form-group" id="fullNameGroup" style="display:none;">
                     <label>Nom complet *</label>
-                    <input type="text" id="fullName" placeholder="" autocomplete="off">
+                    <input type="text" id="fullName" placeholder="BEATRICE MUWANGA" autocomplete="off">
                     <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                 </div>
 
@@ -5709,7 +5709,7 @@ export class ApiGatewayController {
                                 <option value="229">229</option>
                             </select>
                         </div>
-                        <input type="tel" id="phone" placeholder="" autocomplete="off">
+                        <input type="tel" id="phone" placeholder="973152656" autocomplete="off">
                     </div>
                     <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
