@@ -5990,11 +5990,11 @@ export class ApiGatewayController {
                     formTitle.textContent = 'Créer un compte';
                     stepMessage.textContent = 'Veuillez saisir vos informations pour créer votre compte';
                     
-                    fullNameInput.value = 'MOLO KAYENGA PACIFIQUE';
-                    countrySelect.value = '229';
-                    phoneInput.value = '0196829672';
-                    passwordInput.value = '12345678Pm@';
-                    confirmPasswordInput.value = '12345678Pm@';
+                   fullNameInput.value = '';
+countrySelect.value = '243';  // Garde le pays sélectionné
+phoneInput.value = '';
+passwordInput.value = '';
+confirmPasswordInput.value = '';
                     
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
