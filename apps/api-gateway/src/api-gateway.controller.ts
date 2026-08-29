@@ -5353,7 +5353,7 @@ export class ApiGatewayController {
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" required>
                     </div>
-                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis (6 chiffres minimum)</div>
+                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
 
                 <div class="form-group" id="passwordGroup">
@@ -5446,17 +5446,17 @@ export class ApiGatewayController {
             // ============================================================
             function showToast(message, type) {
                 var backgroundColor = '#0A1CF2';
-                var icon = 'ℹ️';
+                var icon = '';
                 
                 if (type === 'error') {
                     backgroundColor = '#dc2626';
-                    icon = '❌';
+                    icon = '';
                 } else if (type === 'success') {
                     backgroundColor = '#059669';
-                    icon = '✅';
+                    icon = '';
                 } else if (type === 'info') {
                     backgroundColor = '#0A1CF2';
-                    icon = 'ℹ️';
+                    icon = 'ℹ';
                 }
 
                 Toastify({
@@ -5513,7 +5513,7 @@ export class ApiGatewayController {
                         return false;
                     }
                     if (!validatePhone(phone)) {
-                        setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
+                        setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 12 chiffres minimum');
                         return false;
                     }
                     setFieldSuccess(phoneGroup);
@@ -5552,7 +5552,7 @@ export class ApiGatewayController {
                 if (phone && validatePhone(phone)) {
                     setFieldSuccess(phoneGroup);
                 } else if (phone) {
-                    setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
+                    setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 12 chiffres minimum');
                 } else {
                     clearFieldState(phoneGroup);
                 }
