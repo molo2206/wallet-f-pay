@@ -4970,32 +4970,56 @@ export class ApiGatewayController {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            /* Dégradé jaune en haut vers noir en bas */
+            background: linear-gradient(180deg, #FFB81C 0%, #1a1a1a 60%, #000000 100%);
+            background-attachment: fixed;
         }
         .container {
             width: 100%;
             max-width: 480px;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
             border-radius: 32px;
             padding: 40px 28px 32px;
-            box-shadow: 0 20px 60px rgba(10, 28, 242, 0.12);
-            border: 1px solid rgba(10, 28, 242, 0.06);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         /* Logo */
-        .logo { text-align: center; margin-bottom: 32px; }
-        .logo h1 { font-size: 32px; color: #1a1a2e; letter-spacing: -0.5px; }
+        .logo { 
+            text-align: center; 
+            margin-bottom: 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .logo img {
+            width: 100px;
+            height: auto;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+        }
+        .logo h1 { 
+            font-size: 32px; 
+            color: #1a1a2e; 
+            letter-spacing: -0.5px; 
+        }
         .logo h1 .f { color: #0A1CF2; }
         .logo h1 .pay { color: #FFB81C; }
 
         /* Header */
         .header { margin-bottom: 24px; }
-        .header h2 { font-size: 22px; color: #1a1a2e; margin-bottom: 2px; font-weight: 600; }
+        .header h2 { 
+            font-size: 22px; 
+            color: #1a1a2e; 
+            margin-bottom: 2px; 
+            font-weight: 600; 
+        }
         .header p { color: #6b7280; font-size: 14px; }
 
         /* Formulaire */
@@ -5225,9 +5249,9 @@ export class ApiGatewayController {
         }
 
         /* Footer */
-        .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 13px; }
-        .footer a { color: #6b7280; text-decoration: none; }
-        .footer a:hover { color: #0A1CF2; }
+        .footer { text-align: center; margin-top: 24px; color: rgba(255, 255, 255, 0.5); font-size: 13px; }
+        .footer a { color: rgba(255, 255, 255, 0.6); text-decoration: none; }
+        .footer a:hover { color: #FFB81C; }
 
         /* Toastify override */
         .toastify {
@@ -5247,8 +5271,10 @@ export class ApiGatewayController {
 
         /* Dark mode */
         @media (prefers-color-scheme: dark) {
-            body { background: #12121e; }
-            .container { background: #1e1e32; border-color: #2a2a44; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
+            .container {
+                background: rgba(30, 30, 50, 0.95);
+                border-color: rgba(255, 255, 255, 0.05);
+            }
             .logo h1 { color: #f1f5f9; }
             .header h2 { color: #f1f5f9; }
             .header p { color: #94a3b8; }
@@ -5275,9 +5301,9 @@ export class ApiGatewayController {
                 background: #2a1414;
             }
             .form-group .error-message { color: #fca5a5; }
-            .footer { color: #64748b; }
-            .footer a { color: #94a3b8; }
-            .footer a:hover { color: #93c5fd; }
+            .footer { color: rgba(255, 255, 255, 0.4); }
+            .footer a { color: rgba(255, 255, 255, 0.5); }
+            .footer a:hover { color: #FFB81C; }
             .store-link { background: #2a2a44; border-color: #3a3a5a; }
             .store-link:hover { background: #0A1CF2; border-color: #0A1CF2; }
             .btn { background: #3a5aff; }
@@ -5290,6 +5316,7 @@ export class ApiGatewayController {
 
         @media (max-width: 520px) {
             .container { padding: 28px 18px 24px; }
+            .logo img { width: 80px; }
             .logo h1 { font-size: 26px; }
             .btn { font-size: 15px; padding: 14px; height: 52px; }
             .store-link { font-size: 12px; padding: 8px 16px; }
@@ -5302,11 +5329,11 @@ export class ApiGatewayController {
 </head>
 <body>
     <div class="container">
-       <div class="logo">
-    <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw" 
-         alt="Fpay Logo" 
-         style="width: 80px; height: auto; margin-bottom: 10px;">
-</div>
+        <div class="logo">
+            <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw" 
+                 alt="Fpay Logo" 
+                 onerror="this.style.display='none'">
+        </div>
 
         <div id="loginState">
             <div class="header">
@@ -5326,7 +5353,7 @@ export class ApiGatewayController {
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" required>
                     </div>
-                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
+                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis (6 chiffres minimum)</div>
                 </div>
 
                 <div class="form-group" id="passwordGroup">
@@ -5511,13 +5538,11 @@ export class ApiGatewayController {
             function validateAll() {
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
-                
-                // Si les deux sont valides, retourner true
                 return isPhoneValid && isPasswordValid;
             }
 
             // ============================================================
-            // REAL-TIME VALIDATION (onBlur & onInput)
+            // REAL-TIME VALIDATION
             // ============================================================
             phoneInput.addEventListener('blur', function() {
                 validateField('phone');
@@ -5548,7 +5573,7 @@ export class ApiGatewayController {
             });
 
             // ============================================================
-            // LOADING STATE - SPINNER VISIBLE
+            // LOADING STATE
             // ============================================================
             function setLoading(loading) {
                 isSubmitting = loading;
@@ -5692,12 +5717,10 @@ export class ApiGatewayController {
 
                 if (isSubmitting) return;
 
-                // Valider tous les champs
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
                 if (!isPhoneValid || !isPasswordValid) {
-                    // Focus sur le premier champ en erreur
                     focusFirstError();
                     showToast('Veuillez corriger les champs en erreur', 'error');
                     return;
