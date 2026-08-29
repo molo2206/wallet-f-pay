@@ -5076,17 +5076,17 @@ export class ApiGatewayController {
             border-right: 1.5px solid #e5e7eb;
             cursor: pointer;
             background: transparent;
-            min-width: 95px;
+            min-width: 80px;
             height: 52px;
             flex-shrink: 0;
         }
         .country-select select {
             border: none;
             background: transparent;
-            font-size: 15px;
+            font-size: 18px;
             font-weight: 500;
             color: #1f2937;
-            padding: 4px 20px 4px 4px;
+            padding: 4px 24px 4px 4px;
             cursor: pointer;
             appearance: none;
             -webkit-appearance: none;
@@ -5094,7 +5094,7 @@ export class ApiGatewayController {
             background-repeat: no-repeat;
             background-position: right 0 center;
             padding-right: 20px;
-            min-width: 75px;
+            min-width: 50px;
         }
         .country-select select:focus {
             outline: none;
@@ -5102,9 +5102,11 @@ export class ApiGatewayController {
         .country-select select option {
             background: white;
             color: #1a1a2e;
+            font-size: 16px;
+            padding: 8px;
         }
         .country-select .flag {
-            font-size: 20px;
+            font-size: 24px;
             line-height: 1;
         }
 
@@ -5275,8 +5277,8 @@ export class ApiGatewayController {
             .logo h1 { font-size: 26px; }
             .btn { font-size: 15px; padding: 14px; height: 52px; }
             .store-link { font-size: 12px; padding: 8px 16px; }
-            .country-select { min-width: 85px; padding: 0 6px 0 10px; }
-            .country-select select { font-size: 14px; min-width: 65px; }
+            .country-select { min-width: 65px; padding: 0 6px 0 10px; }
+            .country-select select { font-size: 16px; min-width: 40px; padding-right: 18px; }
             .phone-wrapper input { height: 48px; padding: 10px 10px 10px 10px !important; }
             .country-select { height: 48px; }
         }
@@ -5301,8 +5303,8 @@ export class ApiGatewayController {
                         <div class="country-select">
                             <span class="flag" id="selectedFlag">🇨🇩</span>
                             <select id="countryCode">
-                                <option value="+243" data-flag="🇨🇩">+243 (RDC)</option>
-                                <option value="+229" data-flag="🇧🇯">+229 (Bénin)</option>
+                                <option value="+243" data-flag="🇨🇩">🇨🇩 +243</option>
+                                <option value="+229" data-flag="🇧🇯">🇧🇯 +229</option>
                             </select>
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" required>
@@ -5403,13 +5405,6 @@ export class ApiGatewayController {
                 var selectedOption = this.options[this.selectedIndex];
                 var flag = selectedOption.getAttribute('data-flag');
                 selectedFlag.textContent = flag || '🌍';
-                
-                // Mettre à jour le placeholder selon le pays
-                if (this.value === '+243') {
-                    phoneInput.placeholder = '97 376 0641';
-                } else if (this.value === '+229') {
-                    phoneInput.placeholder = '97 376 0641';
-                }
             });
 
             // Déclencher le changement initial
