@@ -4990,7 +4990,6 @@ export class ApiGatewayController {
         .logo h1 { font-size: 32px; color: #1a1a2e; letter-spacing: -0.5px; }
         .logo h1 .f { color: #0A1CF2; }
         .logo h1 .pay { color: #FFB81C; }
-        .logo p { color: #6b7280; font-size: 14px; margin-top: 2px; }
         .env-badge {
             display: inline-block;
             padding: 3px 12px;
@@ -5162,7 +5161,6 @@ export class ApiGatewayController {
             body { background: #12121e; }
             .container { background: #1e1e32; border-color: #2a2a44; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4); }
             .logo h1 { color: #f1f5f9; }
-            .logo p { color: #94a3b8; }
             .header h2 { color: #f1f5f9; }
             .header p { color: #94a3b8; }
             .form-group label { color: #e5e7f0; }
@@ -5204,7 +5202,6 @@ export class ApiGatewayController {
     <div class="container">
         <div class="logo">
             <h1><span class="f">F</span><span class="pay">Pay</span></h1>
-            <p>Solutions de paiement sécurisées</p>
             <div><span class="env-badge ${env}">${envLabel}</span></div>
         </div>
 
@@ -5223,7 +5220,7 @@ export class ApiGatewayController {
                     <label>Numéro Mobile Money *</label>
                     <div class="phone-prefix">
                         <span>+243</span>
-                        <input type="tel" id="phone" placeholder="99 999 9999" required>
+                        <input type="tel" id="phone" placeholder="97 376 0641" required>
                     </div>
                 </div>
 
@@ -5287,9 +5284,6 @@ export class ApiGatewayController {
 
             var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
             var userData = null;
-            var otpRequired = false;
-            var phoneSaved = '';
-            var passwordSaved = '';
 
             function cleanUrl() {
                 if (window.history && window.history.replaceState) {
@@ -5416,17 +5410,22 @@ export class ApiGatewayController {
 
                 console.log('[OAuth] Formulaire soumis');
 
-                var phone = document.getElementById('phone').value.trim();
+                var phoneInput = document.getElementById('phone');
                 var password = document.getElementById('password').value.trim();
                 var btnText = document.getElementById('btnText');
                 var stepMessage = document.getElementById('stepMessage');
 
-                console.log('[OAuth] Phone:', phone);
+                var phone = phoneInput.value.trim();
+
+                console.log('[OAuth] Phone saisi:', phone);
 
                 if (!phone || !password) {
                     showMessage('error', 'Veuillez remplir tous les champs');
                     return;
                 }
+
+                var fullPhone = '+243' + phone;
+                console.log('[OAuth] Phone complet:', fullPhone);
 
                 startLoading();
                 showMessage('info', 'Connexion en cours...');
@@ -5436,7 +5435,7 @@ export class ApiGatewayController {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            phone: phone,
+                            phone: fullPhone,
                             password: password,
                             deviceInfo: 'OAuth Web',
                             platform: 'web'
