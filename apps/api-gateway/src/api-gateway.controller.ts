@@ -4985,6 +4985,13 @@ export class ApiGatewayController {
             --shadow-secondary: rgba(255, 184, 28, 0.3);
             --radius: 16px;
             --radius-btn: 40px;
+            --max-width: 480px;
+            --padding-card: 40px 28px 32px;
+            --padding-card-mobile: 28px 18px 24px;
+            --font-size-title: 34px;
+            --font-size-title-mobile: 26px;
+            --font-size-h2: 22px;
+            --font-size-h2-mobile: 20px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -5003,15 +5010,16 @@ export class ApiGatewayController {
            ============================================================ */
         .container {
             width: 100%;
-            max-width: 480px;
+            max-width: var(--max-width);
             border-radius: 32px;
-            padding: 40px 28px 32px;
+            padding: var(--padding-card);
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
             border: 1px solid var(--border-color);
             background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 40%, var(--primary-dark) 100%);
             background-attachment: fixed;
             position: relative;
             overflow: hidden;
+            transition: all 0.3s ease;
         }
 
         /* Effet de brillance en haut avec jaune */
@@ -5043,12 +5051,14 @@ export class ApiGatewayController {
             height: auto;
             margin-bottom: 12px;
             filter: drop-shadow(0 4px 20px rgba(255, 184, 28, 0.3));
+            transition: all 0.3s ease;
         }
         .logo h1 { 
-            font-size: 34px; 
+            font-size: var(--font-size-title); 
             color: var(--white); 
             letter-spacing: -0.5px; 
             text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
         }
         .logo h1 .f { color: var(--white); }
         .logo h1 .pay { color: var(--secondary); }
@@ -5062,17 +5072,19 @@ export class ApiGatewayController {
             z-index: 1;
         }
         .header h2 { 
-            font-size: 22px; 
+            font-size: var(--font-size-h2); 
             color: var(--white); 
             margin-bottom: 6px; 
             font-weight: 700; 
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
         }
         .header p { 
             color: rgba(255, 255, 255, 0.6); 
             font-size: 14px; 
             font-weight: 400; 
             line-height: 1.4;
+            transition: all 0.3s ease;
         }
 
         /* ============================================================
@@ -5099,6 +5111,8 @@ export class ApiGatewayController {
             transition: all 0.25s ease;
             background: rgba(255, 255, 255, 0.08);
             color: var(--white);
+            -webkit-appearance: none;
+            appearance: none;
         }
         .form-group input::placeholder { color: rgba(255, 255, 255, 0.35); }
         .form-group input:focus {
@@ -5247,6 +5261,7 @@ export class ApiGatewayController {
             gap: 10px;
             height: 56px;
             z-index: 1;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn:hover:not(:disabled) { 
             transform: translateY(-2px); 
@@ -5314,12 +5329,16 @@ export class ApiGatewayController {
             transition: all 0.3s ease;
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            -webkit-tap-highlight-color: transparent;
         }
         .store-link:hover {
             transform: translateY(-2px);
             background: var(--secondary);
             border-color: var(--secondary);
             color: var(--primary);
+        }
+        .store-link:active {
+            transform: scale(0.97);
         }
         .store-link span {
             display: flex;
@@ -5369,6 +5388,7 @@ export class ApiGatewayController {
             border-radius: 12px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+            max-width: 90vw !important;
         }
         .toastify.error {
             background: var(--primary) !important;
@@ -5381,20 +5401,229 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           RESPONSIVE
+           RESPONSIVE - MOBILE
            ============================================================ */
         @media (max-width: 520px) {
-            .container { padding: 28px 18px 24px; }
-            .logo img { width: 80px; }
-            .logo h1 { font-size: 26px; }
-            .btn { font-size: 15px; padding: 14px; height: 52px; }
-            .store-link { font-size: 12px; padding: 8px 16px; }
-            .country-select { min-width: 50px; padding: 0 6px 0 10px; }
-            .country-select select { font-size: 14px; min-width: 30px; padding-right: 18px; }
-            .phone-wrapper input { height: 48px; padding: 10px 10px 10px 10px !important; }
-            .country-select { height: 48px; }
-            .stores-section { padding: 16px 12px; }
-            .footer { font-size: 12px; padding: 10px 12px; }
+            body {
+                padding: 12px;
+                align-items: flex-start;
+                padding-top: 30px;
+            }
+            .container {
+                padding: var(--padding-card-mobile);
+                border-radius: 24px;
+                max-width: 100%;
+            }
+            .logo img {
+                width: 75px;
+                margin-bottom: 8px;
+            }
+            .logo h1 {
+                font-size: var(--font-size-title-mobile);
+            }
+            .logo {
+                margin-bottom: 24px;
+            }
+            .header h2 {
+                font-size: var(--font-size-h2-mobile);
+            }
+            .header p {
+                font-size: 13px;
+            }
+            .header {
+                margin-bottom: 18px;
+            }
+            .form-group {
+                margin-bottom: 14px;
+            }
+            .form-group input,
+            .phone-wrapper input {
+                padding: 12px 14px !important;
+                font-size: 14px;
+                height: 46px;
+            }
+            .country-select {
+                height: 46px;
+                min-width: 50px;
+                padding: 0 6px 0 10px;
+            }
+            .country-select select {
+                font-size: 14px;
+                min-width: 30px;
+                padding-right: 18px;
+            }
+            .phone-wrapper {
+                border-radius: 14px;
+            }
+            .btn {
+                padding: 14px;
+                font-size: 15px;
+                height: 50px;
+                border-radius: 30px;
+            }
+            .stores-section {
+                padding: 16px 12px;
+                margin-top: 20px;
+                border-radius: 14px;
+            }
+            .store-link {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+            .footer {
+                font-size: 11px;
+                padding: 10px 12px;
+                margin-top: 16px;
+                border-radius: 10px;
+            }
+            .toastify {
+                font-size: 13px !important;
+                padding: 12px 16px !important;
+                max-width: 95vw !important;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - TRÈS PETITS ÉCRANS
+           ============================================================ */
+        @media (max-width: 380px) {
+            body {
+                padding: 8px;
+                padding-top: 20px;
+            }
+            .container {
+                padding: 20px 14px 18px;
+                border-radius: 20px;
+            }
+            .logo img {
+                width: 60px;
+            }
+            .logo h1 {
+                font-size: 22px;
+            }
+            .header h2 {
+                font-size: 18px;
+            }
+            .header p {
+                font-size: 12px;
+            }
+            .form-group input,
+            .phone-wrapper input {
+                padding: 10px 12px !important;
+                font-size: 13px;
+                height: 42px;
+            }
+            .country-select {
+                height: 42px;
+                min-width: 40px;
+                padding: 0 4px 0 8px;
+            }
+            .country-select select {
+                font-size: 13px;
+                min-width: 25px;
+                padding-right: 16px;
+            }
+            .btn {
+                padding: 12px;
+                font-size: 14px;
+                height: 44px;
+            }
+            .store-link {
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+            .store-link .small {
+                font-size: 8px;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - TABLETTE
+           ============================================================ */
+        @media (min-width: 521px) and (max-width: 768px) {
+            .container {
+                max-width: 420px;
+                padding: 36px 24px 28px;
+            }
+            .logo img {
+                width: 90px;
+            }
+            .logo h1 {
+                font-size: 30px;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - GRANDS ÉCRANS
+           ============================================================ */
+        @media (min-width: 769px) {
+            .container {
+                max-width: 480px;
+                padding: 44px 32px 36px;
+            }
+            .logo img {
+                width: 110px;
+            }
+            .logo h1 {
+                font-size: 36px;
+            }
+            .header h2 {
+                font-size: 24px;
+            }
+            .btn {
+                height: 60px;
+                font-size: 17px;
+            }
+            .store-link {
+                padding: 12px 24px;
+                font-size: 15px;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - TRÈS GRANDS ÉCRANS
+           ============================================================ */
+        @media (min-width: 1200px) {
+            body {
+                padding: 40px;
+            }
+            .container {
+                max-width: 520px;
+                padding: 50px 40px 40px;
+                border-radius: 40px;
+            }
+            .logo img {
+                width: 120px;
+            }
+            .logo h1 {
+                font-size: 40px;
+            }
+            .header h2 {
+                font-size: 26px;
+            }
+            .header p {
+                font-size: 16px;
+            }
+            .form-group input,
+            .phone-wrapper input {
+                padding: 16px 18px !important;
+                font-size: 16px;
+                height: 56px;
+            }
+            .country-select {
+                height: 56px;
+                min-width: 70px;
+                padding: 0 12px 0 16px;
+            }
+            .country-select select {
+                font-size: 16px;
+                min-width: 40px;
+            }
+            .btn {
+                padding: 18px;
+                font-size: 18px;
+                height: 64px;
+            }
         }
     </style>
 </head>
@@ -5662,7 +5891,7 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
                 
-                showToast('Connexion réussie ! Redirection en cours...', 'success');
+                // showToast('Connexion réussie ! Redirection en cours...', 'success');
                 
                 setTimeout(function() {
                     handleRedirect();
