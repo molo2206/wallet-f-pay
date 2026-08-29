@@ -4990,19 +4990,6 @@ export class ApiGatewayController {
         .logo h1 { font-size: 32px; color: #1a1a2e; letter-spacing: -0.5px; }
         .logo h1 .f { color: #0A1CF2; }
         .logo h1 .pay { color: #FFB81C; }
-        .env-badge {
-            display: inline-block;
-            padding: 3px 12px;
-            border-radius: 30px;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 6px;
-        }
-        .env-badge.local { background: #10b981; color: white; }
-        .env-badge.test { background: #f59e0b; color: white; }
-        .env-badge.production { background: #ef4444; color: white; }
 
         /* Header */
         .header { margin-bottom: 24px; }
@@ -5115,7 +5102,7 @@ export class ApiGatewayController {
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Stores - sans icônes */
+        /* Stores - avec icônes */
         .stores {
             display: flex;
             justify-content: center;
@@ -5124,9 +5111,11 @@ export class ApiGatewayController {
             flex-wrap: wrap;
         }
         .store-link {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
             background: #1a1a2e;
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 40px;
             color: white;
             text-decoration: none;
@@ -5135,20 +5124,27 @@ export class ApiGatewayController {
             transition: 0.2s;
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-            text-align: center;
         }
         .store-link:hover {
             transform: translateY(-2px);
             background: #0A1CF2;
             border-color: #0A1CF2;
         }
+        .store-link svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+        .store-link span {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+        }
         .store-link .small {
-            display: block;
             font-size: 9px;
             opacity: 0.7;
             font-weight: 400;
             letter-spacing: 0.3px;
-            margin-bottom: 2px;
         }
 
         /* Footer */
@@ -5185,16 +5181,13 @@ export class ApiGatewayController {
             .store-link:hover { background: #0A1CF2; border-color: #0A1CF2; }
             .btn { background: #3a5aff; }
             .btn:hover { background: #2a4aff; }
-            .env-badge.local { background: #0f8b5e; }
-            .env-badge.test { background: #b45309; }
-            .env-badge.production { background: #b91c1c; }
         }
 
         @media (max-width: 520px) {
             .container { padding: 28px 18px 24px; }
             .logo h1 { font-size: 26px; }
             .btn { font-size: 15px; padding: 14px; }
-            .store-link { font-size: 13px; padding: 10px 18px; }
+            .store-link { font-size: 12px; padding: 8px 16px; }
         }
     </style>
 </head>
@@ -5202,7 +5195,6 @@ export class ApiGatewayController {
     <div class="container">
         <div class="logo">
             <h1><span class="f">F</span><span class="pay">Pay</span></h1>
-            <div><span class="env-badge ${env}">${envLabel}</span></div>
         </div>
 
         <div id="loginState">
@@ -5236,15 +5228,21 @@ export class ApiGatewayController {
             </form>
         </div>
 
-        <!-- Stores - texte uniquement -->
+        <!-- Stores avec icônes -->
         <div class="stores">
             <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
-                <span class="small">TÉLÉCHARGER SUR</span>
-                Google Play
+                <svg viewBox="0 0 512 512"><path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>
+                <span>
+                    <span class="small">TÉLÉCHARGER SUR</span>
+                    Google Play
+                </span>
             </a>
             <a href="#" class="store-link" target="_blank">
-                <span class="small">TÉLÉCHARGER SUR</span>
-                App Store
+                <svg viewBox="0 0 384 512"><path d="M318.7 268.7c-.2-36.7 16.6-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-48.4-19.5-76.1-19.5-42.1 0-80.5 21.9-102.4 55.2-45.8 79.5-11.9 172.1 31 227.3 22.3 28.7 48.5 60.1 84.9 60.1 30.5 0 41.3-17.9 75.8-17.9 33.8 0 45.8 17.9 75.8 17.9 36.9 0 64.9-31.8 84.9-60.1 24.3-34.4 34.2-67.9 34.8-106.9zM257.3 90.3c17.2-20.8 27.7-48.6 24.8-77.1-24.5 1.6-52.5 16.7-69.5 37.6-15.6 19.1-26.5 46.7-23.8 74.3 26.6 2.1 51.7-13.6 68.5-34.8z"/></svg>
+                <span>
+                    <span class="small">TÉLÉCHARGER SUR</span>
+                    App Store
+                </span>
             </a>
         </div>
 
