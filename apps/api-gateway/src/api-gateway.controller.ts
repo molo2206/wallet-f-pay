@@ -5056,7 +5056,7 @@ export class ApiGatewayController {
         .logo h1 .pay { color: var(--yellow); }
 
         /* ============================================================
-           HEADER - TEXTE MODIFIÉ
+           HEADER
            ============================================================ */
         .header { 
             margin-bottom: 24px; 
@@ -5422,7 +5422,6 @@ export class ApiGatewayController {
         </div>
 
         <div id="loginState">
-            <!-- HEADER AVEC LE NOUVEAU TEXTE -->
             <div class="header">
                 <h2>Se connecter</h2>
                 <p id="stepMessage">Veuillez saisir le numéro de téléphone associé à votre compte</p>
@@ -5568,7 +5567,7 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // VALIDATION
+            // VALIDATION - REGEX CORRIGÉE
             // ============================================================
             function validatePhone(value) {
                 var cleaned = value.replace(/\s/g, '');
@@ -5576,7 +5575,8 @@ export class ApiGatewayController {
             }
 
             function validatePassword(value) {
-                var regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+                // Regex corrigée avec échappement des caractères spéciaux
+                var regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
                 return regex.test(value);
             }
 
