@@ -4964,6 +4964,8 @@ export class ApiGatewayController {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>F-Pay • Connexion</title>
+    <!-- Toastify CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -4985,7 +4987,7 @@ export class ApiGatewayController {
             border: 1px solid rgba(10, 28, 242, 0.06);
         }
 
-        /* Logo - sans icône */
+        /* Logo */
         .logo { text-align: center; margin-bottom: 32px; }
         .logo h1 { font-size: 32px; color: #1a1a2e; letter-spacing: -0.5px; }
         .logo h1 .f { color: #0A1CF2; }
@@ -4995,20 +4997,6 @@ export class ApiGatewayController {
         .header { margin-bottom: 24px; }
         .header h2 { font-size: 22px; color: #1a1a2e; margin-bottom: 2px; font-weight: 600; }
         .header p { color: #6b7280; font-size: 14px; }
-
-        /* Message */
-        .message {
-            padding: 12px 16px;
-            border-radius: 16px;
-            margin-bottom: 16px;
-            font-size: 14px;
-            display: none;
-            font-weight: 500;
-        }
-        .message.show { display: block; }
-        .message.error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-        .message.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-        .message.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
 
         /* Formulaire */
         .form-group { margin-bottom: 18px; }
@@ -5038,37 +5026,99 @@ export class ApiGatewayController {
         .form-group input::placeholder { color: #9ca3af; }
         .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* Préfixe téléphone */
-        .phone-prefix {
+        /* État d'erreur des champs */
+        .form-group.error input {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+        .form-group.error input:focus {
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
+        }
+        .form-group .error-message {
+            display: none;
+            font-size: 12px;
+            color: #dc2626;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        .form-group.error .error-message {
+            display: block;
+        }
+
+        /* Préfixe téléphone avec sélecteur de pays */
+        .phone-wrapper {
             display: flex;
             align-items: center;
             background: #fafbfc;
             border: 1.5px solid #e5e7eb;
             border-radius: 16px;
-            padding: 0 4px 0 14px;
             transition: 0.2s;
+            overflow: hidden;
         }
-        .phone-prefix:focus-within {
+        .phone-wrapper:focus-within {
             border-color: #0A1CF2;
             background: white;
             box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.08);
         }
-        .phone-prefix span {
+        .form-group.error .phone-wrapper {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+        .form-group.error .phone-wrapper:focus-within {
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1);
+        }
+
+        .country-select {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0 8px 0 12px;
+            border-right: 1.5px solid #e5e7eb;
+            cursor: pointer;
+            background: transparent;
+            min-width: 95px;
+            height: 52px;
+            flex-shrink: 0;
+        }
+        .country-select select {
+            border: none;
+            background: transparent;
+            font-size: 15px;
             font-weight: 500;
             color: #1f2937;
-            font-size: 15px;
-            white-space: nowrap;
+            padding: 4px 20px 4px 4px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0 center;
+            padding-right: 20px;
+            min-width: 75px;
         }
-        .phone-prefix input {
+        .country-select select:focus {
+            outline: none;
+        }
+        .country-select select option {
+            background: white;
+            color: #1a1a2e;
+        }
+        .country-select .flag {
+            font-size: 20px;
+            line-height: 1;
+        }
+
+        .phone-wrapper input {
             border: none !important;
-            padding: 14px 12px 14px 8px !important;
+            padding: 14px 12px 14px 12px !important;
             background: transparent !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             flex: 1;
             min-width: 0;
+            height: 52px;
         }
-        .phone-prefix input:focus {
+        .phone-wrapper input:focus {
             box-shadow: none !important;
         }
 
@@ -5086,23 +5136,36 @@ export class ApiGatewayController {
             transition: all 0.2s;
             margin-top: 4px;
             box-shadow: 0 6px 20px rgba(10, 28, 242, 0.30);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            height: 56px;
         }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(10, 28, 242, 0.40); }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(10, 28, 242, 0.40); }
         .btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
-        .btn .spinner { display: none; }
-        .btn.loading .spinner { display: inline-block; }
-        .btn.loading .btn-text { display: none; }
-        .btn .spinner {
-            width: 20px;
-            height: 20px;
+
+        /* Spinner */
+        .spinner {
+            display: none;
+            width: 24px;
+            height: 24px;
             border: 3px solid rgba(255, 255, 255, 0.3);
             border-top-color: white;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        .btn.loading .spinner {
+            display: inline-block;
+        }
+        .btn.loading .btn-text {
+            display: inline;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Stores - avec icônes */
+        /* Stores */
         .stores {
             display: flex;
             justify-content: center;
@@ -5152,6 +5215,22 @@ export class ApiGatewayController {
         .footer a { color: #6b7280; text-decoration: none; }
         .footer a:hover { color: #0A1CF2; }
 
+        /* Toastify override */
+        .toastify {
+            border-radius: 12px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+        }
+        .toastify.error {
+            background: #dc2626 !important;
+        }
+        .toastify.success {
+            background: #059669 !important;
+        }
+        .toastify.info {
+            background: #0A1CF2 !important;
+        }
+
         /* Dark mode */
         @media (prefers-color-scheme: dark) {
             body { background: #12121e; }
@@ -5160,34 +5239,46 @@ export class ApiGatewayController {
             .header h2 { color: #f1f5f9; }
             .header p { color: #94a3b8; }
             .form-group label { color: #e5e7f0; }
-            .form-group input, .phone-prefix {
+            .form-group input, .phone-wrapper {
                 background: #14142a;
                 border-color: #33335a;
                 color: #f0f0ff;
             }
-            .form-group input:focus, .phone-prefix:focus-within {
+            .form-group input:focus, .phone-wrapper:focus-within {
                 background: #1e1e3a;
                 border-color: #4a6aff;
                 box-shadow: 0 0 0 4px rgba(10, 28, 242, 0.2);
             }
-            .phone-prefix span { color: #d1d5e0; }
-            .message.error { background: #3b1a1a; color: #fca5a5; border-color: #7f1d1d; }
-            .message.success { background: #0a2e1f; color: #6ee7b7; border-color: #0b5a3a; }
-            .message.info { background: #162a4a; color: #93c5fd; border-color: #1e3a6a; }
+            .country-select { border-right-color: #33335a; }
+            .country-select select { color: #f0f0ff; background-color: transparent; }
+            .country-select select option { background: #1e1e32; color: #f0f0ff; }
+            .form-group.error input, .form-group.error .phone-wrapper {
+                border-color: #f87171;
+                background: #2a1414;
+            }
+            .form-group .error-message { color: #fca5a5; }
             .footer { color: #64748b; }
             .footer a { color: #94a3b8; }
             .footer a:hover { color: #93c5fd; }
             .store-link { background: #2a2a44; border-color: #3a3a5a; }
             .store-link:hover { background: #0A1CF2; border-color: #0A1CF2; }
             .btn { background: #3a5aff; }
-            .btn:hover { background: #2a4aff; }
+            .btn:hover:not(:disabled) { background: #2a4aff; }
+            .toastify { background: #1e1e32 !important; color: #f1f5f9 !important; }
+            .toastify.error { background: #dc2626 !important; }
+            .toastify.success { background: #059669 !important; }
+            .toastify.info { background: #1e3a5f !important; }
         }
 
         @media (max-width: 520px) {
             .container { padding: 28px 18px 24px; }
             .logo h1 { font-size: 26px; }
-            .btn { font-size: 15px; padding: 14px; }
+            .btn { font-size: 15px; padding: 14px; height: 52px; }
             .store-link { font-size: 12px; padding: 8px 16px; }
+            .country-select { min-width: 85px; padding: 0 6px 0 10px; }
+            .country-select select { font-size: 14px; min-width: 65px; }
+            .phone-wrapper input { height: 48px; padding: 10px 10px 10px 10px !important; }
+            .country-select { height: 48px; }
         }
     </style>
 </head>
@@ -5203,32 +5294,36 @@ export class ApiGatewayController {
                 <p id="stepMessage">Accédez à votre portefeuille</p>
             </div>
 
-            <div class="message" id="message">
-                <span id="messageText">Message</span>
-            </div>
-
-            <form id="loginForm" autocomplete="off">
-                <div class="form-group">
+            <form id="loginForm" autocomplete="off" novalidate>
+                <div class="form-group" id="phoneGroup">
                     <label>Numéro Mobile Money *</label>
-                    <div class="phone-prefix">
-                        <span>+243</span>
+                    <div class="phone-wrapper">
+                        <div class="country-select">
+                            <span class="flag" id="selectedFlag">🇨🇩</span>
+                            <select id="countryCode">
+                                <option value="+243" data-flag="🇨🇩">+243 (RDC)</option>
+                                <option value="+229" data-flag="🇧🇯">+229 (Bénin)</option>
+                            </select>
+                        </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" required>
                     </div>
+                    <div class="error-message" id="phoneError">Veuillez saisir un numéro valide</div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" id="passwordGroup">
                     <label>Mot de passe</label>
                     <input type="password" id="password" placeholder="Votre mot de passe" required>
+                    <div class="error-message" id="passwordError">Le mot de passe est requis</div>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
-                    <span class="spinner"></span>
+                    <span class="spinner" id="submitSpinner"></span>
                     <span class="btn-text" id="btnText">Se connecter</span>
                 </button>
             </form>
         </div>
 
-        <!-- Stores avec icônes -->
+        <!-- Stores -->
         <div class="stores">
             <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
                 <svg viewBox="0 0 512 512"><path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>
@@ -5254,10 +5349,16 @@ export class ApiGatewayController {
         </div>
     </div>
 
+    <!-- Toastify JS -->
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
     <script>
         (function() {
             'use strict';
 
+            // ============================================================
+            // CONFIGURATION
+            // ============================================================
             var API_BASE_URL = window.location.origin;
             var APP_URL = '${appUrl}';
             var FRONTEND_URL = '${frontendUrl}';
@@ -5272,41 +5373,180 @@ export class ApiGatewayController {
             var CLIENT_TOKEN = '${clientToken}';
             var REDIRECT_URI = '${callbackUrl}';
 
-            console.log('[OAuth] Environnement:', ENV);
-            console.log('[OAuth] API_BASE_URL:', API_BASE_URL);
-            console.log('[OAuth] CLIENT_TOKEN:', CLIENT_TOKEN ? '✅ présent' : '❌ non fourni');
-            console.log('[OAuth] REDIRECT_URI:', REDIRECT_URI);
+            // ============================================================
+            // DOM REFS
+            // ============================================================
+            var form = document.getElementById('loginForm');
+            var phoneInput = document.getElementById('phone');
+            var passwordInput = document.getElementById('password');
+            var phoneGroup = document.getElementById('phoneGroup');
+            var passwordGroup = document.getElementById('passwordGroup');
+            var phoneError = document.getElementById('phoneError');
+            var passwordError = document.getElementById('passwordError');
+            var submitBtn = document.getElementById('submitBtn');
+            var btnText = document.getElementById('btnText');
+            var submitSpinner = document.getElementById('submitSpinner');
+            var countrySelect = document.getElementById('countryCode');
+            var selectedFlag = document.getElementById('selectedFlag');
 
             var urlParams = new URLSearchParams(window.location.search);
             var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
 
             var userTokens = { accessToken: null, refreshToken: null, userId: null, code: null };
             var userData = null;
+            var isSubmitting = false;
 
+            // ============================================================
+            // COUNTRY SELECT HANDLER
+            // ============================================================
+            countrySelect.addEventListener('change', function() {
+                var selectedOption = this.options[this.selectedIndex];
+                var flag = selectedOption.getAttribute('data-flag');
+                selectedFlag.textContent = flag || '🌍';
+                
+                // Mettre à jour le placeholder selon le pays
+                if (this.value === '+243') {
+                    phoneInput.placeholder = '97 376 0641';
+                } else if (this.value === '+229') {
+                    phoneInput.placeholder = '97 376 0641';
+                }
+            });
+
+            // Déclencher le changement initial
+            var initialOption = countrySelect.options[countrySelect.selectedIndex];
+            if (initialOption) {
+                selectedFlag.textContent = initialOption.getAttribute('data-flag') || '🇨🇩';
+            }
+
+            // ============================================================
+            // TOAST NOTIFICATIONS
+            // ============================================================
+            function showToast(message, type) {
+                var backgroundColor = '#0A1CF2';
+                var icon = 'ℹ️';
+                
+                if (type === 'error') {
+                    backgroundColor = '#dc2626';
+                    icon = '❌';
+                } else if (type === 'success') {
+                    backgroundColor = '#059669';
+                    icon = '✅';
+                } else if (type === 'info') {
+                    backgroundColor = '#0A1CF2';
+                    icon = 'ℹ️';
+                }
+
+                Toastify({
+                    text: icon + ' ' + message,
+                    duration: 4000,
+                    gravity: 'top',
+                    position: 'right',
+                    style: {
+                        background: backgroundColor,
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+                        padding: '14px 20px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                    },
+                    className: type,
+                }).showToast();
+            }
+
+            // ============================================================
+            // VALIDATION
+            // ============================================================
+            function validatePhone(value) {
+                var cleaned = value.replace(/\s/g, '');
+                return /^[0-9]{6,}$/.test(cleaned);
+            }
+
+            function validatePassword(value) {
+                return value && value.length >= 1;
+            }
+
+            function setFieldError(group, errorEl, hasError, message) {
+                if (hasError) {
+                    group.classList.add('error');
+                    if (message) errorEl.textContent = message;
+                } else {
+                    group.classList.remove('error');
+                }
+            }
+
+            function validateField(field) {
+                if (field === 'phone') {
+                    var phone = phoneInput.value.trim();
+                    var isValid = validatePhone(phone);
+                    setFieldError(phoneGroup, phoneError, !isValid, 'Veuillez saisir un numéro valide (6 chiffres minimum)');
+                    return isValid;
+                }
+                if (field === 'password') {
+                    var password = passwordInput.value.trim();
+                    var isValid = validatePassword(password);
+                    setFieldError(passwordGroup, passwordError, !isValid, 'Le mot de passe est requis');
+                    return isValid;
+                }
+                return true;
+            }
+
+            function validateAll() {
+                var isPhoneValid = validateField('phone');
+                var isPasswordValid = validateField('password');
+                return isPhoneValid && isPasswordValid;
+            }
+
+            // ============================================================
+            // REAL-TIME VALIDATION
+            // ============================================================
+            phoneInput.addEventListener('blur', function() {
+                validateField('phone');
+            });
+            phoneInput.addEventListener('input', function() {
+                if (phoneGroup.classList.contains('error')) {
+                    var phone = this.value.trim();
+                    if (validatePhone(phone)) {
+                        phoneGroup.classList.remove('error');
+                    }
+                }
+            });
+
+            passwordInput.addEventListener('blur', function() {
+                validateField('password');
+            });
+            passwordInput.addEventListener('input', function() {
+                if (passwordGroup.classList.contains('error')) {
+                    var password = this.value.trim();
+                    if (validatePassword(password)) {
+                        passwordGroup.classList.remove('error');
+                    }
+                }
+            });
+
+            // ============================================================
+            // LOADING STATE - SPINNER VISIBLE
+            // ============================================================
+            function setLoading(loading) {
+                isSubmitting = loading;
+                if (loading) {
+                    submitBtn.classList.add('loading');
+                    submitBtn.disabled = true;
+                    btnText.textContent = 'Connexion en cours...';
+                } else {
+                    submitBtn.classList.remove('loading');
+                    submitBtn.disabled = false;
+                    btnText.textContent = 'Se connecter';
+                }
+            }
+
+            // ============================================================
+            // OAUTH HANDLERS
+            // ============================================================
             function cleanUrl() {
                 if (window.history && window.history.replaceState) {
                     var cleanUrl = window.location.origin + window.location.pathname;
                     window.history.replaceState({}, document.title, cleanUrl);
                 }
-            }
-
-            function stopLoading() {
-                var btn = document.getElementById('submitBtn');
-                btn.classList.remove('loading');
-                btn.disabled = false;
-            }
-
-            function startLoading() {
-                var btn = document.getElementById('submitBtn');
-                btn.classList.add('loading');
-                btn.disabled = true;
-            }
-
-            function showMessage(type, text) {
-                var messageEl = document.getElementById('message');
-                var messageText = document.getElementById('messageText');
-                messageEl.className = 'message show ' + type;
-                messageText.textContent = text;
             }
 
             function showSuccess(data) {
@@ -5322,14 +5562,16 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
                 
-                console.log('[OAuth] Redirection automatique vers le callback...');
-                handleRedirect();
+                showToast('Connexion réussie ! Redirection en cours...', 'success');
+                
+                setTimeout(function() {
+                    handleRedirect();
+                }, 800);
             }
 
             window.handleRedirect = function() {
                 console.log('[OAuth] Redirection vers:', REDIRECT_URI);
                 console.log('[OAuth] Tokens:', userTokens);
-                console.log('[OAuth] User data:', userData);
 
                 if (REDIRECT_URI.startsWith('fpay://')) {
                     var params = new URLSearchParams();
@@ -5403,30 +5645,32 @@ export class ApiGatewayController {
                 }
             };
 
-            document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            // ============================================================
+            // FORM SUBMISSION
+            // ============================================================
+            form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
-                console.log('[OAuth] Formulaire soumis');
+                if (isSubmitting) return;
 
-                var phoneInput = document.getElementById('phone');
-                var password = document.getElementById('password').value.trim();
-                var btnText = document.getElementById('btnText');
-                var stepMessage = document.getElementById('stepMessage');
-
-                var phone = phoneInput.value.trim();
-
-                console.log('[OAuth] Phone saisi:', phone);
-
-                if (!phone || !password) {
-                    showMessage('error', 'Veuillez remplir tous les champs');
+                var isValid = validateAll();
+                if (!isValid) {
+                    showToast('Veuillez corriger les erreurs dans le formulaire', 'error');
                     return;
                 }
 
-                var fullPhone = '+243' + phone;
+                var phone = phoneInput.value.trim().replace(/\s/g, '');
+                var password = passwordInput.value.trim();
+                var countryCode = countrySelect.value;
+
+                var fullPhone = countryCode + phone;
+
+                console.log('[OAuth] Phone saisi:', phone);
+                console.log('[OAuth] Country code:', countryCode);
                 console.log('[OAuth] Phone complet:', fullPhone);
 
-                startLoading();
-                showMessage('info', 'Connexion en cours...');
+                setLoading(true);
+                showToast('Connexion en cours...', 'info');
 
                 try {
                     var response = await fetch(API_BASE_URL + '/auth/login', {
@@ -5449,15 +5693,18 @@ export class ApiGatewayController {
                     }
 
                     showSuccess(data);
-                    stopLoading();
+                    setLoading(false);
 
                 } catch (error) {
                     console.error('[OAuth] Erreur:', error);
-                    showMessage('error', error.message || 'Identifiants invalides');
-                    stopLoading();
+                    showToast(error.message || 'Identifiants invalides', 'error');
+                    setLoading(false);
                 }
             });
 
+            // ============================================================
+            // AUTO-REDIRECT IF ALREADY AUTHENTICATED
+            // ============================================================
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM chargé');
 
