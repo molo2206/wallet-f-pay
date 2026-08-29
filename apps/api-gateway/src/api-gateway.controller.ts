@@ -4992,6 +4992,9 @@ export class ApiGatewayController {
             --font-size-title-mobile: 26px;
             --font-size-h2: 22px;
             --font-size-h2-mobile: 20px;
+            --error-color: #ff3333;
+            --error-bg: rgba(255, 51, 51, 0.1);
+            --error-border: #ff3333;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -5123,20 +5126,20 @@ export class ApiGatewayController {
         }
         .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* État d'erreur */
+        /* État d'erreur - ROUGE */
         .form-group.error input {
-            border-color: #ff4444;
-            background: rgba(255, 68, 68, 0.1);
+            border-color: var(--error-color);
+            background: var(--error-bg);
         }
         .form-group.error input:focus {
-            box-shadow: 0 0 0 4px rgba(255, 68, 68, 0.15);
+            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15);
         }
         .form-group .error-message {
             display: none;
             font-size: 12px;
-            color: #ff6666;
+            color: var(--error-color);
             margin-top: 4px;
-            font-weight: 500;
+            font-weight: 600;
         }
         .form-group.error .error-message {
             display: block;
@@ -5169,11 +5172,11 @@ export class ApiGatewayController {
             box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
         .form-group.error .phone-wrapper {
-            border-color: #ff4444;
-            background: rgba(255, 68, 68, 0.1);
+            border-color: var(--error-color);
+            background: var(--error-bg);
         }
         .form-group.error .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(255, 68, 68, 0.15);
+            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15);
         }
         .form-group.success .phone-wrapper {
             border-color: var(--secondary);
@@ -5382,13 +5385,17 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           TOASTIFY
+           TOASTIFY - CENTRÉ
            ============================================================ */
         .toastify {
             border-radius: 12px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
             max-width: 90vw !important;
+            margin: 0 auto !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            top: 20px !important;
         }
         .toastify.error {
             background: var(--primary) !important;
@@ -5398,6 +5405,10 @@ export class ApiGatewayController {
         .toastify.success {
             background: var(--secondary) !important;
             color: var(--primary) !important;
+        }
+        .toastify .toast-close {
+            color: inherit !important;
+            opacity: 0.7 !important;
         }
 
         /* ============================================================
@@ -5480,6 +5491,7 @@ export class ApiGatewayController {
                 font-size: 13px !important;
                 padding: 12px 16px !important;
                 max-width: 95vw !important;
+                top: 10px !important;
             }
         }
 
@@ -5534,6 +5546,11 @@ export class ApiGatewayController {
             }
             .store-link .small {
                 font-size: 8px;
+            }
+            .toastify {
+                font-size: 12px !important;
+                padding: 10px 14px !important;
+                top: 8px !important;
             }
         }
 
@@ -5744,7 +5761,7 @@ export class ApiGatewayController {
             var isSubmitting = false;
 
             // ============================================================
-            // TOAST NOTIFICATIONS
+            // TOAST NOTIFICATIONS - CENTRÉES
             // ============================================================
             function showToast(message, type) {
                 var backgroundColor = '#000000';
@@ -5762,16 +5779,19 @@ export class ApiGatewayController {
                     text: icon + message,
                     duration: 4000,
                     gravity: 'top',
-                    position: 'right',
+                    position: 'center',
                     style: {
                         background: backgroundColor,
                         borderRadius: '12px',
                         boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
-                        padding: '14px 20px',
+                        padding: '14px 24px',
                         fontSize: '14px',
                         fontWeight: '500',
                         color: type === 'success' ? '#000000' : '#FFB81C',
                         border: type === 'error' ? '1px solid rgba(255, 184, 28, 0.2)' : 'none',
+                        maxWidth: '90%',
+                        margin: '0 auto',
+                        textAlign: 'center',
                     },
                     className: type,
                 }).showToast();
