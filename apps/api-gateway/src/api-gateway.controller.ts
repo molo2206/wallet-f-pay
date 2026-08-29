@@ -4983,9 +4983,9 @@ export class ApiGatewayController {
             --border-color: rgba(255, 184, 28, 0.25);
             --shadow-color: rgba(0, 0, 0, 0.8);
             --shadow-secondary: rgba(255, 184, 28, 0.3);
-            --radius: 20px;
-            --radius-btn: 30px;
-            --radius-input: 12px;
+            --radius: 16px;
+            --radius-btn: 10px;
+            --radius-input: 10px;
             --max-width: 480px;
             --padding-card: 40px 28px 32px;
             --padding-card-mobile: 28px 18px 24px;
@@ -5239,7 +5239,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           BOUTON
+           BOUTON PRINCIPAL
            ============================================================ */
         .btn {
             width: 100%;
@@ -5293,7 +5293,7 @@ export class ApiGatewayController {
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ============================================================
-           STORES
+           STORES (Boutons de téléchargement)
            ============================================================ */
         .stores-section {
             margin-top: 24px;
@@ -5395,7 +5395,7 @@ export class ApiGatewayController {
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
             padding: 10px 16px;
-            border-radius: 10px;
+            border-radius: var(--radius-input);
             position: relative;
             z-index: 1;
             transition: all 0.3s ease;
@@ -5415,7 +5415,7 @@ export class ApiGatewayController {
            TOASTIFY
            ============================================================ */
         .toastify {
-            border-radius: 10px !important;
+            border-radius: var(--radius-input) !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
         }
@@ -5434,7 +5434,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           RESPONSIVE
+           RESPONSIVE - MOBILE
            ============================================================ */
         @media (max-width: 520px) {
             body {
@@ -5444,7 +5444,7 @@ export class ApiGatewayController {
             }
             .container {
                 padding: var(--padding-card-mobile);
-                border-radius: 16px;
+                border-radius: 14px;
                 max-width: 100%;
             }
             .logo img {
@@ -5492,23 +5492,23 @@ export class ApiGatewayController {
                 padding: 13px;
                 font-size: 15px;
                 height: 46px;
-                border-radius: 25px;
+                border-radius: var(--radius-btn);
             }
             .stores-section {
                 padding: 14px 12px;
                 margin-top: 18px;
-                border-radius: 16px;
+                border-radius: 14px;
             }
             .store-link {
                 padding: 8px 14px;
                 font-size: 12px;
-                border-radius: 25px;
+                border-radius: var(--radius-btn);
             }
             .footer {
                 font-size: 11px;
                 padding: 8px 12px;
                 margin-top: 14px;
-                border-radius: 8px;
+                border-radius: var(--radius-input);
             }
             .form-links {
                 margin-top: 14px;
@@ -5518,6 +5518,9 @@ export class ApiGatewayController {
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - TRÈS PETITS ÉCRANS
+           ============================================================ */
         @media (max-width: 380px) {
             body {
                 padding: 8px;
@@ -5525,7 +5528,7 @@ export class ApiGatewayController {
             }
             .container {
                 padding: 18px 14px 18px;
-                border-radius: 14px;
+                border-radius: 12px;
             }
             .logo img {
                 width: 60px;
@@ -5562,23 +5565,26 @@ export class ApiGatewayController {
                 padding: 11px;
                 font-size: 14px;
                 height: 42px;
-                border-radius: 22px;
+                border-radius: var(--radius-btn);
             }
             .store-link {
                 padding: 6px 12px;
                 font-size: 11px;
-                border-radius: 22px;
+                border-radius: var(--radius-btn);
             }
             .store-link .small {
                 font-size: 8px;
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - TABLETTE
+           ============================================================ */
         @media (min-width: 521px) and (max-width: 768px) {
             .container {
                 max-width: 420px;
                 padding: 34px 24px 28px;
-                border-radius: 18px;
+                border-radius: 14px;
             }
             .logo img {
                 width: 90px;
@@ -5588,11 +5594,14 @@ export class ApiGatewayController {
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - GRANDS ÉCRANS
+           ============================================================ */
         @media (min-width: 769px) {
             .container {
                 max-width: 480px;
                 padding: 42px 32px 34px;
-                border-radius: 22px;
+                border-radius: 16px;
             }
             .logo img {
                 width: 110px;
@@ -5606,15 +5615,18 @@ export class ApiGatewayController {
             .btn {
                 height: 54px;
                 font-size: 17px;
-                border-radius: 28px;
+                border-radius: var(--radius-btn);
             }
             .store-link {
                 padding: 12px 24px;
                 font-size: 15px;
-                border-radius: 28px;
+                border-radius: var(--radius-btn);
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - TRÈS GRANDS ÉCRANS
+           ============================================================ */
         @media (min-width: 1200px) {
             body {
                 padding: 40px;
@@ -5622,7 +5634,7 @@ export class ApiGatewayController {
             .container {
                 max-width: 520px;
                 padding: 48px 40px 38px;
-                border-radius: 24px;
+                border-radius: 18px;
             }
             .logo img {
                 width: 120px;
@@ -5639,7 +5651,7 @@ export class ApiGatewayController {
             .form-group input {
                 padding: 14px 18px;
                 font-size: 16px;
-                border-radius: 14px;
+                border-radius: var(--radius-input);
             }
             .phone-wrapper input {
                 padding: 14px 14px 14px 10px !important;
@@ -5659,7 +5671,7 @@ export class ApiGatewayController {
                 padding: 16px;
                 font-size: 18px;
                 height: 58px;
-                border-radius: 30px;
+                border-radius: var(--radius-btn);
             }
         }
     </style>
@@ -5683,7 +5695,7 @@ export class ApiGatewayController {
                 <!-- Nom complet - CACHÉ PAR DÉFAUT -->
                 <div class="form-group" id="fullNameGroup" style="display:none;">
                     <label>Nom complet *</label>
-                    <input type="text" id="fullName" placeholder="MOLO KAYENGA PACIFIQUE">
+                    <input type="text" id="fullName" placeholder="MOLO KAYENGA PACIFIQUE" autocomplete="off">
                     <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                 </div>
 
@@ -5692,12 +5704,12 @@ export class ApiGatewayController {
                     <label>Numéro Mobile Money *</label>
                     <div class="phone-wrapper">
                         <div class="country-select">
-                            <select id="countryCode">
+                            <select id="countryCode" autocomplete="off">
                                 <option value="243">243</option>
                                 <option value="229">229</option>
                             </select>
                         </div>
-                        <input type="tel" id="phone" placeholder="97 376 0641">
+                        <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
                     </div>
                     <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
@@ -5705,14 +5717,14 @@ export class ApiGatewayController {
                 <!-- Mot de passe -->
                 <div class="form-group" id="passwordGroup">
                     <label>Mot de passe *</label>
-                    <input type="password" id="password" placeholder="Votre mot de passe">
+                    <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
                     <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
                 </div>
 
                 <!-- Confirmation du mot de passe - CACHÉ PAR DÉFAUT -->
                 <div class="form-group" id="confirmPasswordGroup" style="display:none;">
                     <label>Confirmer le mot de passe *</label>
-                    <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe">
+                    <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe" autocomplete="new-password">
                     <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
                 </div>
 
@@ -5978,7 +5990,6 @@ export class ApiGatewayController {
                     formTitle.textContent = 'Créer un compte';
                     stepMessage.textContent = 'Veuillez saisir vos informations pour créer votre compte';
                     
-                    // Pré-remplir les champs d'exemple
                     fullNameInput.value = 'MOLO KAYENGA PACIFIQUE';
                     countrySelect.value = '229';
                     phoneInput.value = '0196829672';
@@ -6155,14 +6166,13 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // FORM SUBMISSION - VERSION CORRIGÉE
+            // FORM SUBMISSION
             // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
                 if (isSubmitting) return;
 
-                // VALIDATION COMPLÈTE
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -6178,7 +6188,7 @@ export class ApiGatewayController {
 
                 if (!allValid) {
                     focusFirstError();
-                    showToast('Veuillez corriger les erreurs dans le formulaire', 'error');
+                    showToast('Veuillez remplir tous les champs obligatoires', 'error');
                     return;
                 }
 
@@ -6194,13 +6204,9 @@ export class ApiGatewayController {
                 setLoading(true);
 
                 try {
-                    // ============================================================
-                    // SI MODE INSCRIPTION
-                    // ============================================================
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
-                        // Données exactement comme attendu par le backend
                         var registerData = {
                             full_name: fullName,
                             phone: fullPhone,
@@ -6222,13 +6228,11 @@ export class ApiGatewayController {
                             body: JSON.stringify(registerData)
                         });
 
-                        // Lire la réponse même si erreur
                         var registerResult = await registerResponse.json();
 
                         console.log('[Register] Réponse brute:', registerResult);
 
                         if (!registerResponse.ok) {
-                            // Afficher le message d'erreur du backend
                             var errorMsg = registerResult.message || registerResult.error || 'Erreur lors de la création du compte';
                             throw new Error(errorMsg);
                         }
@@ -6236,9 +6240,6 @@ export class ApiGatewayController {
                         console.log('[Register] Succès:', registerResult);
                         showToast('Compte créé avec succès ! Connexion en cours...', 'success');
 
-                        // ============================================================
-                        // CONNEXION AUTOMATIQUE APRÈS INSCRIPTION
-                        // ============================================================
                         var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
                             method: 'POST',
                             headers: { 
@@ -6264,9 +6265,6 @@ export class ApiGatewayController {
                         return;
                     }
 
-                    // ============================================================
-                    // MODE CONNEXION UNIQUEMENT
-                    // ============================================================
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
                         headers: { 
