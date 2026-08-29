@@ -5112,16 +5112,16 @@ export class ApiGatewayController {
 
         /* État d'erreur */
         .form-group.error input {
-            border-color: var(--black);
-            background: rgba(255, 255, 255, 0.95);
+            border-color: #cc0000;
+            background: rgba(255, 200, 200, 0.3);
         }
         .form-group.error input:focus {
-            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 0 0 4px rgba(204, 0, 0, 0.15);
         }
         .form-group .error-message {
             display: none;
             font-size: 12px;
-            color: var(--black);
+            color: #cc0000;
             margin-top: 4px;
             font-weight: 600;
         }
@@ -5156,11 +5156,11 @@ export class ApiGatewayController {
             box-shadow: 0 0 0 4px var(--shadow-yellow);
         }
         .form-group.error .phone-wrapper {
-            border-color: var(--black);
-            background: rgba(255, 255, 255, 0.95);
+            border-color: #cc0000;
+            background: rgba(255, 200, 200, 0.3);
         }
         .form-group.error .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 0 0 4px rgba(204, 0, 0, 0.15);
         }
         .form-group.success .phone-wrapper {
             border-color: var(--yellow);
@@ -5436,14 +5436,14 @@ export class ApiGatewayController {
                                 <option value="229">229</option>
                             </select>
                         </div>
-                        <input type="tel" id="phone" placeholder="97 376 0641" required>
+                        <input type="tel" id="phone" placeholder="97 376 0641">
                     </div>
                     <div class="error-message" id="phoneError">Le numéro de téléphone est requis (6 chiffres minimum)</div>
                 </div>
 
                 <div class="form-group" id="passwordGroup">
                     <label>Mot de passe *</label>
-                    <input type="password" id="password" placeholder="Votre mot de passe" required>
+                    <input type="password" id="password" placeholder="Votre mot de passe">
                     <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
                 </div>
 
@@ -5566,7 +5566,7 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // VALIDATION
+            // VALIDATION - VERSION CORRIGÉE
             // ============================================================
             function validatePhone(value) {
                 var cleaned = value.replace(/\s/g, '');
@@ -5798,43 +5798,56 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // FORM SUBMISSION
+            // FORM SUBMISSION - Version corrigée avec validation stricte
             // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
+                // Empêcher les soumissions multiples
                 if (isSubmitting) return;
 
-                // FORCER la validation de tous les champs
-                var isPhoneValid = validateField('phone');
-                var isPasswordValid = validateField('password');
+                // ============================================================
+                // VALIDATION STRICTE - CHAQUE CHAMP EST VÉRIFIÉ
+                // ============================================================
                 
-                if (!isPhoneValid || !isPasswordValid) {
+                // 1. Valider le téléphone
+                var phone = phoneInput.value.trim();
+                var phoneValid = false;
+                if (!phone) {
+                    setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
+                } else if (!validatePhone(phone)) {
+                    setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
+                } else {
+                    setFieldSuccess(phoneGroup);
+                    phoneValid = true;
+                }
+
+                // 2. Valider le mot de passe
+                var password = passwordInput.value.trim();
+                var passwordValid = false;
+                if (!password) {
+                    setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
+                } else if (!validatePassword(password)) {
+                    setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
+                } else {
+                    setFieldSuccess(passwordGroup);
+                    passwordValid = true;
+                }
+
+                // 3. Si un des champs est invalide, bloquer la soumission
+                if (!phoneValid || !passwordValid) {
                     focusFirstError();
                     showToast('Veuillez remplir tous les champs obligatoires', 'error');
                     return;
                 }
 
-                var phone = phoneInput.value.trim().replace(/\s/g, '');
-                var password = passwordInput.value.trim();
+                // ============================================================
+                // TOUT EST VALIDE - ON CONTINUE
+                // ============================================================
                 var countryCode = countrySelect.value;
-
-                // Vérification supplémentaire de sécurité
-                if (!phone || phone.length < 6) {
-                    showToast('Le numéro de téléphone est requis (6 chiffres minimum)', 'error');
-                    phoneInput.focus();
-                    return;
-                }
-
-                if (!password || password.length < 8) {
-                    showToast('Le mot de passe doit contenir au moins 8 caractères', 'error');
-                    passwordInput.focus();
-                    return;
-                }
-
                 var fullPhone = '+' + countryCode + phone;
 
-                console.log('[OAuth] Phone saisi:', phone);
+                console.log('[OAuth] Phone:', phone);
                 console.log('[OAuth] Country code:', countryCode);
                 console.log('[OAuth] Phone complet:', fullPhone);
 
