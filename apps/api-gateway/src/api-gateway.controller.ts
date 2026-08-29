@@ -4967,6 +4967,36 @@ export class ApiGatewayController {
     <!-- Toastify CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <style>
+        /* ============================================================
+           VARIABLES COULEURS
+           ============================================================ */
+        :root {
+            --primary: #000000;
+            --primary-light: #1a1a1a;
+            --primary-dark: #0d0d0d;
+            --secondary: #FFB81C;
+            --secondary-dark: #e6a500;
+            --secondary-light: #ffd966;
+            --secondary-bg: rgba(255, 184, 28, 0.12);
+            --white: #ffffff;
+            --white-transparent: rgba(255, 255, 255, 0.95);
+            --border-color: rgba(255, 184, 28, 0.25);
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --shadow-secondary: rgba(255, 184, 28, 0.3);
+            --radius: 16px;
+            --radius-btn: 40px;
+            --max-width: 480px;
+            --padding-card: 40px 28px 32px;
+            --padding-card-mobile: 28px 18px 24px;
+            --font-size-title: 34px;
+            --font-size-title-mobile: 26px;
+            --font-size-h2: 22px;
+            --font-size-h2-mobile: 20px;
+            --error-color: #ff3333;
+            --error-bg: rgba(255, 51, 51, 0.1);
+            --error-border: #ff3333;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -4975,94 +5005,139 @@ export class ApiGatewayController {
             align-items: center;
             justify-content: center;
             padding: 20px;
-            background: #000000;
-        }
-        .container {
-            width: 100%;
-            max-width: 480px;
-            border-radius: 32px;
-            padding: 40px 28px 32px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-            border: 1px solid rgba(255, 184, 28, 0.2);
-            /* Dégradé jaune en haut vers noir en bas */
-            background: linear-gradient(180deg, #FFB81C 0%, #1a1a00 40%, #000000 100%);
-            background-attachment: fixed;
+            background: var(--primary);
         }
 
-        /* Logo */
+        /* ============================================================
+           CARTE PRINCIPALE
+           ============================================================ */
+        .container {
+            width: 100%;
+            max-width: var(--max-width);
+            border-radius: 32px;
+            padding: var(--padding-card);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--border-color);
+            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 40%, var(--primary-dark) 100%);
+            background-attachment: fixed;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* Effet de brillance en haut avec jaune */
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 100%;
+            background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 28, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* ============================================================
+           LOGO
+           ============================================================ */
         .logo { 
             text-align: center; 
             margin-bottom: 32px;
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: relative;
+            z-index: 1;
         }
         .logo img {
             width: 100px;
             height: auto;
             margin-bottom: 12px;
-            filter: drop-shadow(0 4px 12px rgba(255, 184, 28, 0.3));
+            filter: drop-shadow(0 4px 20px rgba(255, 184, 28, 0.3));
+            transition: all 0.3s ease;
         }
         .logo h1 { 
-            font-size: 32px; 
-            color: #000000; 
+            font-size: var(--font-size-title); 
+            color: var(--white); 
             letter-spacing: -0.5px; 
-            text-shadow: 0 2px 8px rgba(255, 184, 28, 0.3);
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
         }
-        .logo h1 .f { color: #000000; }
-        .logo h1 .pay { color: #FFB81C; }
+        .logo h1 .f { color: var(--white); }
+        .logo h1 .pay { color: var(--secondary); }
 
-        /* Header */
-        .header { margin-bottom: 24px; }
+        /* ============================================================
+           HEADER
+           ============================================================ */
+        .header { 
+            margin-bottom: 24px; 
+            position: relative;
+            z-index: 1;
+        }
         .header h2 { 
-            font-size: 22px; 
-            color: #000000; 
-            margin-bottom: 2px; 
-            font-weight: 600; 
-            text-shadow: 0 1px 4px rgba(255, 184, 28, 0.2);
+            font-size: var(--font-size-h2); 
+            color: var(--white); 
+            margin-bottom: 6px; 
+            font-weight: 700; 
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
         }
-        .header p { color: rgba(0, 0, 0, 0.6); font-size: 14px; }
+        .header p { 
+            color: rgba(255, 255, 255, 0.6); 
+            font-size: 14px; 
+            font-weight: 400; 
+            line-height: 1.4;
+            transition: all 0.3s ease;
+        }
 
-        /* Formulaire */
-        .form-group { margin-bottom: 18px; }
+        /* ============================================================
+           FORMULAIRE
+           ============================================================ */
+        .form-group { 
+            margin-bottom: 18px; 
+            position: relative;
+            z-index: 1;
+        }
         .form-group label {
             display: block;
             font-size: 14px;
             font-weight: 600;
-            color: #000000;
+            color: var(--white);
             margin-bottom: 5px;
         }
         .form-group input {
             width: 100%;
             padding: 14px 16px;
-            border: 2px solid rgba(0, 0, 0, 0.2);
-            border-radius: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius);
             font-size: 15px;
-            transition: all 0.2s;
-            background: rgba(0, 0, 0, 0.05);
-            color: #000000;
+            transition: all 0.25s ease;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--white);
+            -webkit-appearance: none;
+            appearance: none;
         }
-        .form-group input::placeholder { color: rgba(0, 0, 0, 0.4); }
+        .form-group input::placeholder { color: rgba(255, 255, 255, 0.35); }
         .form-group input:focus {
             outline: none;
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.1);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            border-color: var(--secondary);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
         .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        /* État d'erreur des champs */
+        /* État d'erreur - ROUGE */
         .form-group.error input {
-            border-color: #000000;
-            background: rgba(0, 0, 0, 0.1);
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
         }
         .form-group.error input:focus {
-            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
         }
         .form-group .error-message {
             display: none;
             font-size: 12px;
-            color: #000000;
+            color: var(--error-color) !important;
             margin-top: 4px;
             font-weight: 600;
         }
@@ -5070,51 +5145,54 @@ export class ApiGatewayController {
             display: block;
         }
 
-        /* État de succès des champs */
+        /* État de succès */
         .form-group.success input {
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.15);
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.08);
         }
         .form-group.success input:focus {
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
 
-        /* Préfixe téléphone avec sélecteur de pays */
+        /* ============================================================
+           WRAPPER TÉLÉPHONE
+           ============================================================ */
         .phone-wrapper {
             display: flex;
             align-items: center;
-            background: rgba(0, 0, 0, 0.05);
-            border: 2px solid rgba(0, 0, 0, 0.2);
-            border-radius: 16px;
-            transition: 0.2s;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius);
+            transition: all 0.25s ease;
             overflow: hidden;
         }
         .phone-wrapper:focus-within {
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.1);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            border-color: var(--secondary);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
         .form-group.error .phone-wrapper {
-            border-color: #000000;
-            background: rgba(0, 0, 0, 0.1);
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
         }
         .form-group.error .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
         }
         .form-group.success .phone-wrapper {
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.15);
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.08);
         }
         .form-group.success .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
 
+        /* Sélecteur de pays */
         .country-select {
             display: flex;
             align-items: center;
             gap: 4px;
             padding: 0 8px 0 12px;
-            border-right: 2px solid rgba(0, 0, 0, 0.2);
+            border-right: 2px solid rgba(255, 255, 255, 0.1);
             cursor: pointer;
             background: transparent;
             min-width: 60px;
@@ -5126,23 +5204,21 @@ export class ApiGatewayController {
             background: transparent;
             font-size: 15px;
             font-weight: 600;
-            color: #000000;
+            color: var(--white);
             padding: 4px 24px 4px 4px;
             cursor: pointer;
             appearance: none;
             -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23000000' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 0 center;
             padding-right: 20px;
             min-width: 35px;
         }
-        .country-select select:focus {
-            outline: none;
-        }
+        .country-select select:focus { outline: none; }
         .country-select select option {
-            background: #ffffff;
-            color: #000000;
+            background: var(--primary-light);
+            color: var(--white);
             font-size: 15px;
             padding: 8px;
         }
@@ -5156,96 +5232,116 @@ export class ApiGatewayController {
             flex: 1;
             min-width: 0;
             height: 52px;
-            color: #000000 !important;
+            color: var(--white) !important;
         }
         .phone-wrapper input::placeholder {
-            color: rgba(0, 0, 0, 0.4) !important;
+            color: rgba(255, 255, 255, 0.35) !important;
         }
         .phone-wrapper input:focus {
             box-shadow: none !important;
         }
 
-        /* Bouton */
+        /* ============================================================
+           BOUTON
+           ============================================================ */
         .btn {
             width: 100%;
             padding: 16px;
             border: none;
-            border-radius: 40px;
+            border-radius: var(--radius-btn);
             font-size: 16px;
             font-weight: 700;
             cursor: pointer;
-            background: #000000;
-            color: #FFB81C;
-            transition: all 0.2s;
+            background: var(--secondary);
+            color: var(--primary);
+            transition: all 0.3s ease;
             margin-top: 4px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 6px 24px rgba(255, 184, 28, 0.3);
             position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
             height: 56px;
+            z-index: 1;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn:hover:not(:disabled) { 
             transform: translateY(-2px); 
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
-            background: #1a1a00;
+            box-shadow: 0 10px 32px rgba(255, 184, 28, 0.5);
+            background: var(--secondary-dark);
         }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+        .btn:disabled { 
+            opacity: 0.6; 
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none; 
+        }
 
         /* Spinner */
         .spinner {
             display: none;
             width: 24px;
             height: 24px;
-            border: 3px solid rgba(255, 184, 28, 0.3);
-            border-top-color: #FFB81C;
+            border: 3px solid rgba(0, 0, 0, 0.2);
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             flex-shrink: 0;
         }
-        .btn.loading .spinner {
-            display: inline-block;
-        }
-        .btn.loading .btn-text {
-            display: inline;
-        }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: inline; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Stores */
+        /* ============================================================
+           STORES (Boutons de téléchargement)
+           ============================================================ */
+        .stores-section {
+            margin-top: 28px;
+            padding-top: 20px;
+            padding-bottom: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: var(--radius);
+            padding: 20px 16px;
+            position: relative;
+            z-index: 1;
+        }
         .stores {
             display: flex;
             justify-content: center;
             gap: 12px;
-            margin-top: 28px;
             flex-wrap: wrap;
         }
         .store-link {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(255, 255, 255, 0.08);
             padding: 10px 20px;
-            border-radius: 40px;
-            color: #FFB81C;
+            border-radius: var(--radius-btn);
+            color: var(--white);
             text-decoration: none;
             font-weight: 600;
             font-size: 14px;
-            transition: 0.2s;
-            border: 1px solid rgba(255, 184, 28, 0.2);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            -webkit-tap-highlight-color: transparent;
         }
         .store-link:hover {
             transform: translateY(-2px);
-            background: #000000;
-            border-color: #FFB81C;
-            color: #FFB81C;
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: var(--primary);
         }
-        .store-link svg {
-            width: 20px;
-            height: 20px;
-            fill: #FFB81C;
-            transition: 0.2s;
+        .store-link:active {
+            transform: scale(0.97);
         }
         .store-link span {
             display: flex;
@@ -5254,45 +5350,302 @@ export class ApiGatewayController {
         }
         .store-link .small {
             font-size: 9px;
-            opacity: 0.7;
+            opacity: 0.6;
             font-weight: 400;
             letter-spacing: 0.3px;
         }
 
-        /* Footer */
-        .footer { text-align: center; margin-top: 24px; color: rgba(0, 0, 0, 0.5); font-size: 13px; }
-        .footer a { color: rgba(0, 0, 0, 0.6); text-decoration: none; font-weight: 500; }
-        .footer a:hover { color: #000000; }
+        /* ============================================================
+           FOOTER
+           ============================================================ */
+        .footer { 
+            text-align: center; 
+            margin-top: 20px; 
+            color: rgba(255, 255, 255, 0.3); 
+            font-size: 13px;
+            font-weight: 400;
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 12px 16px;
+            border-radius: 12px;
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+        .footer a { 
+            color: rgba(255, 255, 255, 0.4); 
+            text-decoration: none; 
+            font-weight: 500;
+            transition: 0.2s;
+        }
+        .footer a:hover { 
+            color: var(--secondary);
+            text-decoration: underline;
+        }
 
-        /* Toastify override */
+        /* ============================================================
+           TOASTIFY - CENTRÉ SANS COLLER AU CONTAINER
+           ============================================================ */
         .toastify {
             border-radius: 12px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+            max-width: 90vw !important;
+            width: auto !important;
+            min-width: 280px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            top: 20px !important;
+            position: fixed !important;
+            z-index: 9999 !important;
         }
         .toastify.error {
-            background: #000000 !important;
-            color: #FFB81C !important;
+            background: #1a1a1a !important;
+            color: #ff4444 !important;
+            border: 1px solid #ff4444 !important;
         }
         .toastify.success {
-            background: #FFB81C !important;
-            color: #000000 !important;
+            background: var(--secondary) !important;
+            color: var(--primary) !important;
         }
-        .toastify.info {
-            background: #1a1a00 !important;
-            color: #FFB81C !important;
+        .toastify .toast-close {
+            color: inherit !important;
+            opacity: 0.7 !important;
         }
 
+        /* ============================================================
+           RESPONSIVE - MOBILE
+           ============================================================ */
         @media (max-width: 520px) {
-            .container { padding: 28px 18px 24px; }
-            .logo img { width: 80px; }
-            .logo h1 { font-size: 26px; }
-            .btn { font-size: 15px; padding: 14px; height: 52px; }
-            .store-link { font-size: 12px; padding: 8px 16px; }
-            .country-select { min-width: 50px; padding: 0 6px 0 10px; }
-            .country-select select { font-size: 14px; min-width: 30px; padding-right: 18px; }
-            .phone-wrapper input { height: 48px; padding: 10px 10px 10px 10px !important; }
-            .country-select { height: 48px; }
+            body {
+                padding: 12px;
+                align-items: flex-start;
+                padding-top: 30px;
+            }
+            .container {
+                padding: var(--padding-card-mobile);
+                border-radius: 24px;
+                max-width: 100%;
+            }
+            .logo img {
+                width: 75px;
+                margin-bottom: 8px;
+            }
+            .logo h1 {
+                font-size: var(--font-size-title-mobile);
+            }
+            .logo {
+                margin-bottom: 24px;
+            }
+            .header h2 {
+                font-size: var(--font-size-h2-mobile);
+            }
+            .header p {
+                font-size: 13px;
+            }
+            .header {
+                margin-bottom: 18px;
+            }
+            .form-group {
+                margin-bottom: 14px;
+            }
+            .form-group input,
+            .phone-wrapper input {
+                padding: 12px 14px !important;
+                font-size: 14px;
+                height: 46px;
+            }
+            .country-select {
+                height: 46px;
+                min-width: 50px;
+                padding: 0 6px 0 10px;
+            }
+            .country-select select {
+                font-size: 14px;
+                min-width: 30px;
+                padding-right: 18px;
+            }
+            .phone-wrapper {
+                border-radius: 14px;
+            }
+            .btn {
+                padding: 14px;
+                font-size: 15px;
+                height: 50px;
+                border-radius: 30px;
+            }
+            .stores-section {
+                padding: 16px 12px;
+                margin-top: 20px;
+                border-radius: 14px;
+            }
+            .store-link {
+                padding: 8px 16px;
+                font-size: 12px;
+            }
+            .footer {
+                font-size: 11px;
+                padding: 10px 12px;
+                margin-top: 16px;
+                border-radius: 10px;
+            }
+            .toastify {
+                font-size: 13px !important;
+                padding: 12px 16px !important;
+                max-width: 95vw !important;
+                min-width: 200px !important;
+                top: 10px !important;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - TRÈS PETITS ÉCRANS
+           ============================================================ */
+        @media (max-width: 380px) {
+            body {
+                padding: 8px;
+                padding-top: 20px;
+            }
+            .container {
+                padding: 20px 14px 18px;
+                border-radius: 20px;
+            }
+            .logo img {
+                width: 60px;
+            }
+            .logo h1 {
+                font-size: 22px;
+            }
+            .header h2 {
+                font-size: 18px;
+            }
+            .header p {
+                font-size: 12px;
+            }
+            .form-group input,
+            .phone-wrapper input {
+                padding: 10px 12px !important;
+                font-size: 13px;
+                height: 42px;
+            }
+            .country-select {
+                height: 42px;
+                min-width: 40px;
+                padding: 0 4px 0 8px;
+            }
+            .country-select select {
+                font-size: 13px;
+                min-width: 25px;
+                padding-right: 16px;
+            }
+            .btn {
+                padding: 12px;
+                font-size: 14px;
+                height: 44px;
+            }
+            .store-link {
+                padding: 6px 12px;
+                font-size: 11px;
+            }
+            .store-link .small {
+                font-size: 8px;
+            }
+            .toastify {
+                font-size: 12px !important;
+                padding: 10px 14px !important;
+                min-width: 160px !important;
+                top: 8px !important;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - TABLETTE
+           ============================================================ */
+        @media (min-width: 521px) and (max-width: 768px) {
+            .container {
+                max-width: 420px;
+                padding: 36px 24px 28px;
+            }
+            .logo img {
+                width: 90px;
+            }
+            .logo h1 {
+                font-size: 30px;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - GRANDS ÉCRANS
+           ============================================================ */
+        @media (min-width: 769px) {
+            .container {
+                max-width: 480px;
+                padding: 44px 32px 36px;
+            }
+            .logo img {
+                width: 110px;
+            }
+            .logo h1 {
+                font-size: 36px;
+            }
+            .header h2 {
+                font-size: 24px;
+            }
+            .btn {
+                height: 60px;
+                font-size: 17px;
+            }
+            .store-link {
+                padding: 12px 24px;
+                font-size: 15px;
+            }
+        }
+
+        /* ============================================================
+           RESPONSIVE - TRÈS GRANDS ÉCRANS
+           ============================================================ */
+        @media (min-width: 1200px) {
+            body {
+                padding: 40px;
+            }
+            .container {
+                max-width: 520px;
+                padding: 50px 40px 40px;
+                border-radius: 40px;
+            }
+            .logo img {
+                width: 120px;
+            }
+            .logo h1 {
+                font-size: 40px;
+            }
+            .header h2 {
+                font-size: 26px;
+            }
+            .header p {
+                font-size: 16px;
+            }
+            .form-group input,
+            .phone-wrapper input {
+                padding: 16px 18px !important;
+                font-size: 16px;
+                height: 56px;
+            }
+            .country-select {
+                height: 56px;
+                min-width: 70px;
+                padding: 0 12px 0 16px;
+            }
+            .country-select select {
+                font-size: 16px;
+                min-width: 40px;
+            }
+            .btn {
+                padding: 18px;
+                font-size: 18px;
+                height: 64px;
+            }
         }
     </style>
 </head>
@@ -5307,8 +5660,8 @@ export class ApiGatewayController {
 
         <div id="loginState">
             <div class="header">
-                <h2>Connexion</h2>
-                <p id="stepMessage">Accédez à votre portefeuille</p>
+                <h2>Se connecter</h2>
+                <p id="stepMessage">Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte</p>
             </div>
 
             <form id="loginForm" autocomplete="off" novalidate>
@@ -5321,15 +5674,15 @@ export class ApiGatewayController {
                                 <option value="229">229</option>
                             </select>
                         </div>
-                        <input type="tel" id="phone" placeholder="97 376 0641" required>
+                        <input type="tel" id="phone" placeholder="97 376 0641">
                     </div>
-                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis (12 chiffres minimum)</div>
+                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
 
                 <div class="form-group" id="passwordGroup">
                     <label>Mot de passe *</label>
-                    <input type="password" id="password" placeholder="Votre mot de passe" required>
-                    <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
+                    <input type="password" id="password" placeholder="Votre mot de passe">
+                    <div class="error-message" id="passwordError">Le mot de passe est requis</div>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
@@ -5340,23 +5693,24 @@ export class ApiGatewayController {
         </div>
 
         <!-- Stores -->
-        <div class="stores">
-            <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
-                <svg viewBox="0 0 512 512"><path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>
-                <span>
-                    <span class="small">TÉLÉCHARGER SUR</span>
-                    Google Play
-                </span>
-            </a>
-            <a href="#" class="store-link" target="_blank">
-                <svg viewBox="0 0 384 512"><path d="M318.7 268.7c-.2-36.7 16.6-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-48.4-19.5-76.1-19.5-42.1 0-80.5 21.9-102.4 55.2-45.8 79.5-11.9 172.1 31 227.3 22.3 28.7 48.5 60.1 84.9 60.1 30.5 0 41.3-17.9 75.8-17.9 33.8 0 45.8 17.9 75.8 17.9 36.9 0 64.9-31.8 84.9-60.1 24.3-34.4 34.2-67.9 34.8-106.9zM257.3 90.3c17.2-20.8 27.7-48.6 24.8-77.1-24.5 1.6-52.5 16.7-69.5 37.6-15.6 19.1-26.5 46.7-23.8 74.3 26.6 2.1 51.7-13.6 68.5-34.8z"/></svg>
-                <span>
-                    <span class="small">TÉLÉCHARGER SUR</span>
-                    App Store
-                </span>
-            </a>
+        <div class="stores-section">
+            <div class="stores">
+                <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
+                    <span>
+                        <span class="small">TÉLÉCHARGER SUR</span>
+                        Google Play
+                    </span>
+                </a>
+                <a href="#" class="store-link" target="_blank">
+                    <span>
+                        <span class="small">TÉLÉCHARGER SUR</span>
+                        App Store
+                    </span>
+                </a>
+            </div>
         </div>
 
+        <!-- Footer -->
         <div class="footer">
             <span>Connexion sécurisée • </span>
             <a href="#">Conditions d'utilisation</a>
@@ -5412,52 +5766,54 @@ export class ApiGatewayController {
             var isSubmitting = false;
 
             // ============================================================
-            // TOAST NOTIFICATIONS
+            // TOAST NOTIFICATIONS - CENTRÉES ET DÉCOLLÉES
             // ============================================================
             function showToast(message, type) {
-                var backgroundColor = '#1a1a00';
+                var backgroundColor = '#1a1a1a';
                 var icon = '';
+                var textColor = '#ff4444';
                 
                 if (type === 'error') {
-                    backgroundColor = '#000000';
-                    icon = '';
+                    backgroundColor = '#1a1a1a';
+                    icon = '❌ ';
+                    textColor = '#ff4444';
                 } else if (type === 'success') {
                     backgroundColor = '#FFB81C';
-                    icon = '';
-                } else if (type === 'info') {
-                    backgroundColor = '#1a1a00';
-                    icon = '';
+                    icon = '✅ ';
+                    textColor = '#000000';
                 }
 
                 Toastify({
-                    text: icon + ' ' + message,
+                    text: icon + message,
                     duration: 4000,
                     gravity: 'top',
-                    position: 'right',
+                    position: 'center',
                     style: {
                         background: backgroundColor,
                         borderRadius: '12px',
-                        boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-                        padding: '14px 20px',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+                        padding: '14px 24px',
                         fontSize: '14px',
                         fontWeight: '500',
-                        color: type === 'success' ? '#000000' : '#FFB81C',
+                        color: textColor,
+                        border: type === 'error' ? '1px solid #ff4444' : 'none',
+                        maxWidth: '90%',
+                        margin: '0 auto',
+                        textAlign: 'center',
                     },
                     className: type,
                 }).showToast();
             }
 
             // ============================================================
-            // VALIDATION
+            // VALIDATION SIMPLIFIÉE
             // ============================================================
             function validatePhone(value) {
-                var cleaned = value.replace(/\s/g, '');
-                return /^[0-9]{6,}$/.test(cleaned);
+                return value && value.trim().length > 0;
             }
 
             function validatePassword(value) {
-                var regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
-                return regex.test(value);
+                return value && value.trim().length > 0;
             }
 
             function setFieldSuccess(group) {
@@ -5482,10 +5838,6 @@ export class ApiGatewayController {
                         setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
                         return false;
                     }
-                    if (!validatePhone(phone)) {
-                        setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 12 chiffres minimum');
-                        return false;
-                    }
                     setFieldSuccess(phoneGroup);
                     return true;
                 }
@@ -5495,20 +5847,10 @@ export class ApiGatewayController {
                         setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
                         return false;
                     }
-                    if (!validatePassword(password)) {
-                        setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
-                        return false;
-                    }
                     setFieldSuccess(passwordGroup);
                     return true;
                 }
                 return true;
-            }
-
-            function validateAll() {
-                var isPhoneValid = validateField('phone');
-                var isPasswordValid = validateField('password');
-                return isPhoneValid && isPasswordValid;
             }
 
             // ============================================================
@@ -5519,10 +5861,8 @@ export class ApiGatewayController {
             });
             phoneInput.addEventListener('input', function() {
                 var phone = this.value.trim();
-                if (phone && validatePhone(phone)) {
+                if (phone) {
                     setFieldSuccess(phoneGroup);
-                } else if (phone) {
-                    setFieldError(phoneGroup, phoneError, 'Le numéro doit contenir 6 chiffres minimum');
                 } else {
                     clearFieldState(phoneGroup);
                 }
@@ -5533,10 +5873,8 @@ export class ApiGatewayController {
             });
             passwordInput.addEventListener('input', function() {
                 var password = this.value.trim();
-                if (password && validatePassword(password)) {
+                if (password) {
                     setFieldSuccess(passwordGroup);
-                } else if (password) {
-                    setFieldError(passwordGroup, passwordError, 'Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial');
                 } else {
                     clearFieldState(passwordGroup);
                 }
@@ -5581,7 +5919,7 @@ export class ApiGatewayController {
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
                 
-                // showToast('Connexion réussie ! Redirection en cours...', 'success');
+                showToast('Connexion réussie ! Redirection en cours...', 'success');
                 
                 setTimeout(function() {
                     handleRedirect();
@@ -5687,27 +6025,43 @@ export class ApiGatewayController {
 
                 if (isSubmitting) return;
 
-                var isPhoneValid = validateField('phone');
-                var isPasswordValid = validateField('password');
-                
-                if (!isPhoneValid || !isPasswordValid) {
+                // VALIDATION - CHAMPS NON VIDES
+                var phone = phoneInput.value.trim();
+                var password = passwordInput.value.trim();
+                var phoneValid = false;
+                var passwordValid = false;
+
+                // Valider le téléphone (non vide)
+                if (!phone) {
+                    setFieldError(phoneGroup, phoneError, 'Le numéro de téléphone est requis');
+                } else {
+                    setFieldSuccess(phoneGroup);
+                    phoneValid = true;
+                }
+
+                // Valider le mot de passe (non vide)
+                if (!password) {
+                    setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis');
+                } else {
+                    setFieldSuccess(passwordGroup);
+                    passwordValid = true;
+                }
+
+                // Bloquer si un champ est vide
+                if (!phoneValid || !passwordValid) {
                     focusFirstError();
-                    // showToast('Veuillez corriger les champs en erreur', 'error');
+                    showToast('Veuillez remplir tous les champs obligatoires', 'error');
                     return;
                 }
 
-                var phone = phoneInput.value.trim().replace(/\s/g, '');
-                var password = passwordInput.value.trim();
                 var countryCode = countrySelect.value;
-
                 var fullPhone = '+' + countryCode + phone;
 
-                console.log('[OAuth] Phone saisi:', phone);
+                console.log('[OAuth] Phone:', phone);
                 console.log('[OAuth] Country code:', countryCode);
                 console.log('[OAuth] Phone complet:', fullPhone);
 
                 setLoading(true);
-                showToast('Connexion en cours...', 'info');
 
                 try {
                     var response = await fetch(API_BASE_URL + '/auth/login', {
