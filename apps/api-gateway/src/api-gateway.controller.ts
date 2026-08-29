@@ -4981,9 +4981,9 @@ export class ApiGatewayController {
             --white: #ffffff;
             --white-transparent: rgba(255, 255, 255, 0.95);
             --border-color: rgba(255, 184, 28, 0.25);
-            --shadow-color: rgba(0, 0, 0, 0.5);
+            --shadow-color: rgba(0, 0, 0, 0.8);
             --shadow-secondary: rgba(255, 184, 28, 0.3);
-            --radius: 16px;
+            --radius: 32px;
             --radius-btn: 40px;
             --max-width: 480px;
             --padding-card: 40px 28px 32px;
@@ -5009,15 +5009,15 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           CARTE PRINCIPALE
+           CARTE PRINCIPALE - SANS BORDURE
            ============================================================ */
         .container {
             width: 100%;
             max-width: var(--max-width);
-            border-radius: 32px;
+            border-radius: var(--radius);
             padding: var(--padding-card);
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-            border: 1px solid var(--border-color);
+            border: none;
             background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 40%, var(--primary-dark) 100%);
             background-attachment: fixed;
             position: relative;
@@ -5109,7 +5109,7 @@ export class ApiGatewayController {
             width: 100%;
             padding: 14px 16px;
             border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius);
+            border-radius: var(--radius-btn);
             font-size: 15px;
             transition: all 0.25s ease;
             background: rgba(255, 255, 255, 0.08);
@@ -5162,7 +5162,7 @@ export class ApiGatewayController {
             align-items: center;
             background: rgba(255, 255, 255, 0.08);
             border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius);
+            border-radius: var(--radius-btn);
             transition: all 0.25s ease;
             overflow: hidden;
         }
@@ -5307,7 +5307,7 @@ export class ApiGatewayController {
             background: rgba(255, 255, 255, 0.04);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border-radius: var(--radius);
+            border-radius: var(--radius-btn);
             padding: 20px 16px;
             position: relative;
             z-index: 1;
@@ -5385,7 +5385,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           TOASTIFY - POSITION ORIGINALE (en haut à droite)
+           TOASTIFY
            ============================================================ */
         .toastify {
             border-radius: 12px !important;
@@ -5459,7 +5459,7 @@ export class ApiGatewayController {
                 padding-right: 18px;
             }
             .phone-wrapper {
-                border-radius: 14px;
+                border-radius: 30px;
             }
             .btn {
                 padding: 14px;
@@ -5470,7 +5470,7 @@ export class ApiGatewayController {
             .stores-section {
                 padding: 16px 12px;
                 margin-top: 20px;
-                border-radius: 14px;
+                border-radius: 30px;
             }
             .store-link {
                 padding: 8px 16px;
@@ -5745,7 +5745,7 @@ export class ApiGatewayController {
             var isSubmitting = false;
 
             // ============================================================
-            // TOAST NOTIFICATIONS - POSITION ORIGINALE (en haut à droite)
+            // TOAST NOTIFICATIONS
             // ============================================================
             function showToast(message, type) {
                 var backgroundColor = '#1a1a1a';
