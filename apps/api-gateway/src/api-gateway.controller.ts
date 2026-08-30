@@ -5849,10 +5849,10 @@ export class ApiGatewayController {
                         <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="5">
                     </div>
                     <div class="otp-error-message" id="otpError">Le code OTP est requis</div>
-                    <div class="otp-timer">
-                        <span id="otpTimer">⏱️ 60s</span>
-                        <a href="#" id="resendOtpLink">Renvoyer le code</a>
-                    </div>
+                    // <div class="otp-timer">
+                    //     <span id="otpTimer">⏱️ 60s</span>
+                    //     <a href="#" id="resendOtpLink">Renvoyer le code</a>
+                    // </div>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
