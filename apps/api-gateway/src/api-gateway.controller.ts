@@ -5009,6 +5009,9 @@ export class ApiGatewayController {
             background: var(--primary);
         }
 
+        /* ============================================================
+           CARTE PRINCIPALE
+           ============================================================ */
         .container {
             width: 100%;
             max-width: var(--max-width);
@@ -5034,6 +5037,9 @@ export class ApiGatewayController {
             pointer-events: none;
         }
 
+        /* ============================================================
+           LOGO
+           ============================================================ */
         .logo { 
             text-align: center; 
             margin-bottom: 28px;
@@ -5060,6 +5066,9 @@ export class ApiGatewayController {
         .logo h1 .f { color: var(--white); }
         .logo h1 .pay { color: var(--secondary); }
 
+        /* ============================================================
+           HEADER
+           ============================================================ */
         .header { 
             margin-bottom: 22px; 
             position: relative;
@@ -5081,6 +5090,9 @@ export class ApiGatewayController {
             transition: all 0.3s ease;
         }
 
+        /* ============================================================
+           FORMULAIRE
+           ============================================================ */
         .form-group { 
             margin-bottom: 16px; 
             position: relative;
@@ -5140,6 +5152,9 @@ export class ApiGatewayController {
             box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
 
+        /* ============================================================
+           WRAPPER TÉLÉPHONE
+           ============================================================ */
         .phone-wrapper {
             display: flex;
             align-items: center;
@@ -5223,6 +5238,9 @@ export class ApiGatewayController {
             box-shadow: none !important;
         }
 
+        /* ============================================================
+           BOUTON PRINCIPAL
+           ============================================================ */
         .btn {
             width: 100%;
             padding: 14px;
@@ -5274,6 +5292,9 @@ export class ApiGatewayController {
         .btn.loading .btn-text { display: inline; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ============================================================
+           STORES (Boutons de téléchargement)
+           ============================================================ */
         .stores-section {
             margin-top: 24px;
             padding-top: 18px;
@@ -5330,6 +5351,9 @@ export class ApiGatewayController {
             letter-spacing: 0.3px;
         }
 
+        /* ============================================================
+           LIENS
+           ============================================================ */
         .form-links {
             text-align: center; 
             margin-top: 16px; 
@@ -5358,6 +5382,9 @@ export class ApiGatewayController {
             margin: 0 10px;
         }
 
+        /* ============================================================
+           FOOTER
+           ============================================================ */
         .footer { 
             text-align: center; 
             margin-top: 18px; 
@@ -5384,6 +5411,9 @@ export class ApiGatewayController {
             text-decoration: underline;
         }
 
+        /* ============================================================
+           TOASTIFY
+           ============================================================ */
         .toastify {
             border-radius: var(--radius-input) !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
@@ -5403,7 +5433,9 @@ export class ApiGatewayController {
             opacity: 0.7 !important;
         }
 
-        /* OTP Timer */
+        /* ============================================================
+           OTP TIMER
+           ============================================================ */
         .otp-timer {
             margin-top: 8px;
             font-size: 13px;
@@ -5421,6 +5453,9 @@ export class ApiGatewayController {
             text-decoration: underline;
         }
 
+        /* ============================================================
+           RESPONSIVE - MOBILE
+           ============================================================ */
         @media (max-width: 520px) {
             body {
                 padding: 12px;
@@ -5503,6 +5538,9 @@ export class ApiGatewayController {
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - TRÈS PETITS ÉCRANS
+           ============================================================ */
         @media (max-width: 380px) {
             body {
                 padding: 8px;
@@ -5559,6 +5597,9 @@ export class ApiGatewayController {
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - TABLETTE
+           ============================================================ */
         @media (min-width: 521px) and (max-width: 768px) {
             .container {
                 max-width: 420px;
@@ -5573,6 +5614,9 @@ export class ApiGatewayController {
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - GRANDS ÉCRANS
+           ============================================================ */
         @media (min-width: 769px) {
             .container {
                 max-width: 480px;
@@ -5600,6 +5644,9 @@ export class ApiGatewayController {
             }
         }
 
+        /* ============================================================
+           RESPONSIVE - TRÈS GRANDS ÉCRANS
+           ============================================================ */
         @media (min-width: 1200px) {
             body {
                 padding: 40px;
@@ -5668,7 +5715,7 @@ export class ApiGatewayController {
                 <!-- Nom complet - CACHÉ PAR DÉFAUT -->
                 <div class="form-group" id="fullNameGroup" style="display:none;">
                     <label>Nom complet *</label>
-                    <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
+                    <input type="text" id="fullName" placeholder="BEATRICE MUWANGA" autocomplete="off">
                     <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                 </div>
 
@@ -5682,7 +5729,7 @@ export class ApiGatewayController {
                                 <option value="229">229</option>
                             </select>
                         </div>
-                        <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
+                        <input type="tel" id="phone" placeholder="973152656" autocomplete="off">
                     </div>
                     <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
@@ -5718,6 +5765,7 @@ export class ApiGatewayController {
                 </button>
             </form>
 
+            <!-- Liens de bas de formulaire -->
             <div class="form-links">
                 <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
                 <span class="separator">|</span>
@@ -5725,6 +5773,7 @@ export class ApiGatewayController {
             </div>
         </div>
 
+        <!-- Stores -->
         <div class="stores-section">
             <div class="stores">
                 <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
@@ -5742,6 +5791,7 @@ export class ApiGatewayController {
             </div>
         </div>
 
+        <!-- Footer -->
         <div class="footer">
             <span>Connexion sécurisée • </span>
             <a href="#">Conditions d'utilisation</a>
@@ -5750,6 +5800,7 @@ export class ApiGatewayController {
         </div>
     </div>
 
+    <!-- Toastify JS -->
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 
     <script>
@@ -6224,7 +6275,6 @@ export class ApiGatewayController {
             async function handleRegister(phone, password, fullName, countryCode) {
                 var fullPhone = '+' + countryCode + phone;
                 
-                // Étape 1 : Envoyer sans OTP
                 if (registerStep === 'init') {
                     var registerData = {
                         full_name: fullName,
@@ -6265,7 +6315,6 @@ export class ApiGatewayController {
                     };
                 }
 
-                // Étape 2 : Envoyer avec OTP
                 if (registerStep === 'verify') {
                     var otpCode = otpCodeInput.value.trim();
                     
@@ -6316,7 +6365,6 @@ export class ApiGatewayController {
 
                 if (isSubmitting) return;
 
-                // Si on est en mode vérification OTP
                 if (isRegisterMode && registerStep === 'verify') {
                     var otpValid = validateField('otp');
                     if (!otpValid) {
@@ -6335,7 +6383,6 @@ export class ApiGatewayController {
                         );
                         
                         if (result.step === 'done') {
-                            // Connexion automatique après inscription
                             var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
                                 method: 'POST',
                                 headers: { 
@@ -6367,7 +6414,6 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // Validation normale (login ou première étape d'inscription)
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -6394,14 +6440,12 @@ export class ApiGatewayController {
                 setLoading(true);
 
                 try {
-                    // MODE INSCRIPTION
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
                         var result = await handleRegister(phone, password, fullName, countryCode);
                         
                         if (result.step === 'verify') {
-                            // Afficher le champ OTP
                             otpGroup.style.display = 'block';
                             otpCodeInput.value = '';
                             clearFieldState(otpGroup);
@@ -6420,7 +6464,6 @@ export class ApiGatewayController {
                         }
                     }
 
-                    // MODE CONNEXION
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
                         headers: { 
