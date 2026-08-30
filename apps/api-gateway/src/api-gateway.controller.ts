@@ -5434,15 +5434,65 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           OTP TIMER
+           OTP - INTERFACE AVEC 6 CASES
            ============================================================ */
-        .otp-timer {
+        .otp-container {
+            display: none;
             margin-top: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+        .otp-container.show {
+            display: block;
+        }
+
+        .otp-inputs {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 8px;
+        }
+
+        .otp-inputs input {
+            width: 48px;
+            height: 56px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: var(--radius-input);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--white);
+            transition: all 0.25s ease;
+            caret-color: var(--secondary);
+        }
+
+        .otp-inputs input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.1);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
+        }
+
+        .otp-inputs input.error {
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
+        }
+
+        .otp-inputs input.filled {
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.06);
+        }
+
+        .otp-inputs input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .otp-timer {
             font-size: 13px;
             color: rgba(255, 255, 255, 0.5);
-            display: flex;
-            align-items: center;
-            gap: 12px;
+            text-align: center;
+            margin-top: 6px;
         }
         .otp-timer a {
             color: var(--secondary);
@@ -5451,6 +5501,23 @@ export class ApiGatewayController {
         }
         .otp-timer a:hover {
             text-decoration: underline;
+        }
+
+        .otp-error-message {
+            display: none;
+            font-size: 12px;
+            color: var(--error-color) !important;
+            text-align: center;
+            margin-top: 4px;
+            font-weight: 600;
+        }
+        .otp-error-message.show {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* ============================================================
@@ -5536,6 +5603,14 @@ export class ApiGatewayController {
             .form-links a {
                 font-size: 13px;
             }
+            .otp-inputs input {
+                width: 40px;
+                height: 48px;
+                font-size: 20px;
+            }
+            .otp-inputs {
+                gap: 8px;
+            }
         }
 
         @media (max-width: 380px) {
@@ -5591,6 +5666,14 @@ export class ApiGatewayController {
             }
             .store-link .small {
                 font-size: 8px;
+            }
+            .otp-inputs input {
+                width: 34px;
+                height: 42px;
+                font-size: 18px;
+            }
+            .otp-inputs {
+                gap: 6px;
             }
         }
 
@@ -5681,6 +5764,14 @@ export class ApiGatewayController {
                 height: 58px;
                 border-radius: var(--radius-btn);
             }
+            .otp-inputs input {
+                width: 54px;
+                height: 62px;
+                font-size: 28px;
+            }
+            .otp-inputs {
+                gap: 12px;
+            }
         }
     </style>
 </head>
@@ -5736,10 +5827,17 @@ export class ApiGatewayController {
                 </div>
 
                 <!-- Champ OTP - CACHÉ PAR DÉFAUT -->
-                <div class="form-group" id="otpGroup" style="display:none;">
-                    <label>Code OTP *</label>
-                    <input type="text" id="otpCodeInput" placeholder="Entrez le code reçu par SMS" autocomplete="off" maxlength="6">
-                    <div class="error-message" id="otpError">Le code OTP est requis</div>
+                <div class="otp-container" id="otpContainer">
+                    <label style="display: block; font-size: 14px; font-weight: 600; color: var(--white); margin-bottom: 8px;">Code OTP *</label>
+                    <div class="otp-inputs" id="otpInputs">
+                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="0">
+                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="1">
+                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="2">
+                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="3">
+                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="4">
+                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="5">
+                    </div>
+                    <div class="otp-error-message" id="otpError">Le code OTP est requis</div>
                     <div class="otp-timer">
                         <span id="otpTimer">⏱️ 60s</span>
                         <a href="#" id="resendOtpLink">Renvoyer le code</a>
@@ -5819,17 +5917,14 @@ export class ApiGatewayController {
             var passwordInput = document.getElementById('password');
             var confirmPasswordInput = document.getElementById('confirmPassword');
             var fullNameInput = document.getElementById('fullName');
-            var otpCodeInput = document.getElementById('otpCodeInput');
             var phoneGroup = document.getElementById('phoneGroup');
             var passwordGroup = document.getElementById('passwordGroup');
             var confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
             var fullNameGroup = document.getElementById('fullNameGroup');
-            var otpGroup = document.getElementById('otpGroup');
             var phoneError = document.getElementById('phoneError');
             var passwordError = document.getElementById('passwordError');
             var confirmPasswordError = document.getElementById('confirmPasswordError');
             var fullNameError = document.getElementById('fullNameError');
-            var otpError = document.getElementById('otpError');
             var submitBtn = document.getElementById('submitBtn');
             var btnText = document.getElementById('btnText');
             var submitSpinner = document.getElementById('submitSpinner');
@@ -5838,6 +5933,9 @@ export class ApiGatewayController {
             var forgotPasswordLink = document.getElementById('forgotPasswordLink');
             var formTitle = document.getElementById('formTitle');
             var stepMessage = document.getElementById('stepMessage');
+            var otpContainer = document.getElementById('otpContainer');
+            var otpInputs = document.querySelectorAll('#otpInputs input');
+            var otpError = document.getElementById('otpError');
             var otpTimer = document.getElementById('otpTimer');
             var resendOtpLink = document.getElementById('resendOtpLink');
 
@@ -5853,6 +5951,116 @@ export class ApiGatewayController {
             var otpTimerInterval = null;
             var otpSecondsLeft = 60;
             var countriesData = [];
+
+            // ============================================================
+            // GESTION DES INPUTS OTP
+            // ============================================================
+            function getOtpCode() {
+                var code = '';
+                otpInputs.forEach(function(input) {
+                    code += input.value.trim();
+                });
+                return code;
+            }
+
+            function clearOtpInputs() {
+                otpInputs.forEach(function(input) {
+                    input.value = '';
+                    input.classList.remove('filled', 'error');
+                });
+                otpInputs[0].focus();
+            }
+
+            function setOtpError(show) {
+                if (show) {
+                    otpError.classList.add('show');
+                    otpInputs.forEach(function(input) {
+                        input.classList.add('error');
+                    });
+                } else {
+                    otpError.classList.remove('show');
+                    otpInputs.forEach(function(input) {
+                        input.classList.remove('error');
+                    });
+                }
+            }
+
+            // Navigation automatique entre les inputs OTP
+            otpInputs.forEach(function(input, index) {
+                input.addEventListener('input', function(e) {
+                    // Ne garder que les chiffres
+                    this.value = this.value.replace(/\D/g, '').slice(0, 1);
+                    
+                    if (this.value) {
+                        this.classList.remove('error');
+                        this.classList.add('filled');
+                    } else {
+                        this.classList.remove('filled');
+                    }
+                    
+                    // Effacer le message d'erreur
+                    setOtpError(false);
+                    
+                    // Passer au champ suivant
+                    if (this.value && index < otpInputs.length - 1) {
+                        otpInputs[index + 1].focus();
+                    }
+                    
+                    // Si tous les champs sont remplis, soumettre automatiquement
+                    var allFilled = true;
+                    otpInputs.forEach(function(inp) {
+                        if (!inp.value.trim()) allFilled = false;
+                    });
+                    if (allFilled && otpContainer.classList.contains('show')) {
+                        // Soumettre automatiquement
+                        form.dispatchEvent(new Event('submit'));
+                    }
+                });
+
+                input.addEventListener('keydown', function(e) {
+                    // Retour arrière
+                    if (e.key === 'Backspace' && !this.value && index > 0) {
+                        otpInputs[index - 1].focus();
+                        otpInputs[index - 1].value = '';
+                        otpInputs[index - 1].classList.remove('filled');
+                    }
+                    
+                    // Flèche gauche
+                    if (e.key === 'ArrowLeft' && index > 0) {
+                        otpInputs[index - 1].focus();
+                    }
+                    
+                    // Flèche droite
+                    if (e.key === 'ArrowRight' && index < otpInputs.length - 1) {
+                        otpInputs[index + 1].focus();
+                    }
+                    
+                    // Suppression
+                    if (e.key === 'Delete' && !this.value && index < otpInputs.length - 1) {
+                        otpInputs[index + 1].focus();
+                        otpInputs[index + 1].value = '';
+                        otpInputs[index + 1].classList.remove('filled');
+                    }
+                });
+
+                // Gestion du collage
+                input.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    var pasteData = (e.clipboardData || window.clipboardData).getData('text');
+                    pasteData = pasteData.replace(/\D/g, '').slice(0, 6);
+                    
+                    for (var i = 0; i < pasteData.length && i < otpInputs.length; i++) {
+                        otpInputs[i].value = pasteData[i] || '';
+                        otpInputs[i].classList.add('filled');
+                    }
+                    
+                    if (pasteData.length >= 6) {
+                        form.dispatchEvent(new Event('submit'));
+                    } else {
+                        otpInputs[pasteData.length].focus();
+                    }
+                });
+            });
 
             // ============================================================
             // RÉCUPÉRATION DES PAYS DEPUIS L'API
@@ -6051,10 +6259,9 @@ export class ApiGatewayController {
                         if (result.step === 'verify') {
                             showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
-                            otpGroup.style.display = 'block';
-                            otpCodeInput.value = '';
-                            clearFieldState(otpGroup);
-                            otpCodeInput.focus();
+                            otpContainer.classList.add('show');
+                            clearOtpInputs();
+                            setOtpError(false);
                         }
                     }).catch(function(error) {
                         console.error('[Resend OTP] Erreur:', error);
@@ -6082,8 +6289,14 @@ export class ApiGatewayController {
                 return password === confirm;
             }
 
-            function validateOtp(value) {
-                return value && value.trim().length > 0;
+            function validateOtp() {
+                var code = getOtpCode();
+                if (code.length < 6) {
+                    setOtpError(true);
+                    return false;
+                }
+                setOtpError(false);
+                return true;
             }
 
             function setFieldSuccess(group) {
@@ -6139,15 +6352,6 @@ export class ApiGatewayController {
                     setFieldSuccess(confirmPasswordGroup);
                     return true;
                 }
-                if (field === 'otp') {
-                    var otp = otpCodeInput.value.trim();
-                    if (!otp) {
-                        setFieldError(otpGroup, otpError, 'Le code OTP est requis');
-                        return false;
-                    }
-                    setFieldSuccess(otpGroup);
-                    return true;
-                }
                 return true;
             }
 
@@ -6186,13 +6390,6 @@ export class ApiGatewayController {
                 else clearFieldState(confirmPasswordGroup);
             });
 
-            otpCodeInput.addEventListener('blur', function() { validateField('otp'); });
-            otpCodeInput.addEventListener('input', function() {
-                var otp = this.value.trim();
-                if (otp) setFieldSuccess(otpGroup);
-                else clearFieldState(otpGroup);
-            });
-
             // ============================================================
             // TOGGLE MODE
             // ============================================================
@@ -6205,7 +6402,7 @@ export class ApiGatewayController {
                 if (registerMode) {
                     fullNameGroup.style.display = 'block';
                     confirmPasswordGroup.style.display = 'block';
-                    otpGroup.style.display = 'none';
+                    otpContainer.classList.remove('show');
                     btnText.textContent = 'Créer mon compte';
                     toggleFormLink.textContent = 'Se connecter';
                     formTitle.textContent = 'Créer un compte';
@@ -6218,15 +6415,15 @@ export class ApiGatewayController {
                     phoneInput.value = '';
                     passwordInput.value = '';
                     confirmPasswordInput.value = '';
-                    otpCodeInput.value = '';
+                    clearOtpInputs();
+                    setOtpError(false);
                     
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
-                    clearFieldState(otpGroup);
                 } else {
                     fullNameGroup.style.display = 'none';
                     confirmPasswordGroup.style.display = 'none';
-                    otpGroup.style.display = 'none';
+                    otpContainer.classList.remove('show');
                     btnText.textContent = 'Se connecter';
                     toggleFormLink.textContent = 'Créer un compte';
                     formTitle.textContent = 'Se connecter';
@@ -6234,11 +6431,11 @@ export class ApiGatewayController {
                     
                     fullNameInput.value = '';
                     confirmPasswordInput.value = '';
-                    otpCodeInput.value = '';
+                    clearOtpInputs();
+                    setOtpError(false);
                     
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
-                    clearFieldState(otpGroup);
                 }
                 
                 document.querySelectorAll('.form-group').forEach(function(g) {
@@ -6390,10 +6587,6 @@ export class ApiGatewayController {
                         confirmPasswordInput.focus();
                         return true;
                     }
-                    if (otpGroup.style.display !== 'none' && otpGroup.classList.contains('error')) {
-                        otpCodeInput.focus();
-                        return true;
-                    }
                 }
                 return false;
             }
@@ -6447,10 +6640,11 @@ export class ApiGatewayController {
                 }
 
                 if (registerStep === 'verify') {
-                    var otpCode = otpCodeInput.value.trim();
+                    var otpCode = getOtpCode();
                     
-                    if (!otpCode) {
-                        throw new Error('Veuillez saisir le code OTP reçu par SMS');
+                    if (otpCode.length < 6) {
+                        setOtpError(true);
+                        throw new Error('Veuillez saisir le code OTP complet (6 chiffres)');
                     }
 
                     var registerDataWithOtp = {
@@ -6497,10 +6691,9 @@ export class ApiGatewayController {
                 if (isSubmitting) return;
 
                 if (isRegisterMode && registerStep === 'verify') {
-                    var otpValid = validateField('otp');
+                    var otpValid = validateOtp();
                     if (!otpValid) {
-                        focusFirstError();
-                        showToast('Veuillez saisir le code OTP reçu par SMS', 'error');
+                        showToast('Veuillez saisir le code OTP complet (6 chiffres)', 'error');
                         return;
                     }
                     
@@ -6576,10 +6769,9 @@ export class ApiGatewayController {
                         var result = await handleRegister(phone, password, fullName);
                         
                         if (result.step === 'verify') {
-                            otpGroup.style.display = 'block';
-                            otpCodeInput.value = '';
-                            clearFieldState(otpGroup);
-                            otpCodeInput.focus();
+                            otpContainer.classList.add('show');
+                            clearOtpInputs();
+                            setOtpError(false);
                             btnText.textContent = 'Vérifier le code';
                             showToast('Un code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
@@ -6639,7 +6831,6 @@ export class ApiGatewayController {
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM chargé');
                 
-                // Charger les pays depuis l'API
                 fetchCountries();
 
                 var code = urlParams.get('code');
