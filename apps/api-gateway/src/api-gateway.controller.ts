@@ -5506,7 +5506,7 @@ export class ApiGatewayController {
                     console.log('[Register] Étape 1 - Réponse:', result);
 
                     if (!response.ok) {
-                        throw new Error(result.message || 'Erreur lors de l\'envoi');
+                        throw new Error(result.message || 'Erreur lors de envoi');
                     }
 
                     tempRegisterData = registerData;
