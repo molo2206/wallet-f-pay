@@ -5009,9 +5009,6 @@ export class ApiGatewayController {
             background: var(--primary);
         }
 
-        /* ============================================================
-           CARTE PRINCIPALE
-           ============================================================ */
         .container {
             width: 100%;
             max-width: var(--max-width);
@@ -5037,9 +5034,6 @@ export class ApiGatewayController {
             pointer-events: none;
         }
 
-        /* ============================================================
-           LOGO
-           ============================================================ */
         .logo { 
             text-align: center; 
             margin-bottom: 28px;
@@ -5066,9 +5060,6 @@ export class ApiGatewayController {
         .logo h1 .f { color: var(--white); }
         .logo h1 .pay { color: var(--secondary); }
 
-        /* ============================================================
-           HEADER
-           ============================================================ */
         .header { 
             margin-bottom: 22px; 
             position: relative;
@@ -5090,9 +5081,6 @@ export class ApiGatewayController {
             transition: all 0.3s ease;
         }
 
-        /* ============================================================
-           FORMULAIRE
-           ============================================================ */
         .form-group { 
             margin-bottom: 16px; 
             position: relative;
@@ -5152,9 +5140,6 @@ export class ApiGatewayController {
             box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
 
-        /* ============================================================
-           WRAPPER TÉLÉPHONE
-           ============================================================ */
         .phone-wrapper {
             display: flex;
             align-items: center;
@@ -5238,9 +5223,6 @@ export class ApiGatewayController {
             box-shadow: none !important;
         }
 
-        /* ============================================================
-           BOUTON PRINCIPAL
-           ============================================================ */
         .btn {
             width: 100%;
             padding: 14px;
@@ -5292,9 +5274,6 @@ export class ApiGatewayController {
         .btn.loading .btn-text { display: inline; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ============================================================
-           STORES (Boutons de téléchargement)
-           ============================================================ */
         .stores-section {
             margin-top: 24px;
             padding-top: 18px;
@@ -5351,9 +5330,6 @@ export class ApiGatewayController {
             letter-spacing: 0.3px;
         }
 
-        /* ============================================================
-           LIENS
-           ============================================================ */
         .form-links {
             text-align: center; 
             margin-top: 16px; 
@@ -5382,9 +5358,6 @@ export class ApiGatewayController {
             margin: 0 10px;
         }
 
-        /* ============================================================
-           FOOTER
-           ============================================================ */
         .footer { 
             text-align: center; 
             margin-top: 18px; 
@@ -5411,9 +5384,6 @@ export class ApiGatewayController {
             text-decoration: underline;
         }
 
-        /* ============================================================
-           TOASTIFY
-           ============================================================ */
         .toastify {
             border-radius: var(--radius-input) !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
@@ -5433,9 +5403,24 @@ export class ApiGatewayController {
             opacity: 0.7 !important;
         }
 
-        /* ============================================================
-           RESPONSIVE - MOBILE
-           ============================================================ */
+        /* OTP Timer */
+        .otp-timer {
+            margin-top: 8px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .otp-timer a {
+            color: var(--secondary);
+            text-decoration: none;
+            display: none;
+        }
+        .otp-timer a:hover {
+            text-decoration: underline;
+        }
+
         @media (max-width: 520px) {
             body {
                 padding: 12px;
@@ -5518,9 +5503,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - TRÈS PETITS ÉCRANS
-           ============================================================ */
         @media (max-width: 380px) {
             body {
                 padding: 8px;
@@ -5577,9 +5559,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - TABLETTE
-           ============================================================ */
         @media (min-width: 521px) and (max-width: 768px) {
             .container {
                 max-width: 420px;
@@ -5594,9 +5573,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - GRANDS ÉCRANS
-           ============================================================ */
         @media (min-width: 769px) {
             .container {
                 max-width: 480px;
@@ -5624,9 +5600,6 @@ export class ApiGatewayController {
             }
         }
 
-        /* ============================================================
-           RESPONSIVE - TRÈS GRANDS ÉCRANS
-           ============================================================ */
         @media (min-width: 1200px) {
             body {
                 padding: 40px;
@@ -5695,7 +5668,7 @@ export class ApiGatewayController {
                 <!-- Nom complet - CACHÉ PAR DÉFAUT -->
                 <div class="form-group" id="fullNameGroup" style="display:none;">
                     <label>Nom complet *</label>
-                    <input type="text" id="fullName" placeholder="BEATRICE MUWANGA" autocomplete="off">
+                    <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
                     <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                 </div>
 
@@ -5709,7 +5682,7 @@ export class ApiGatewayController {
                                 <option value="229">229</option>
                             </select>
                         </div>
-                        <input type="tel" id="phone" placeholder="973152656" autocomplete="off">
+                        <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
                     </div>
                     <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                 </div>
@@ -5728,13 +5701,23 @@ export class ApiGatewayController {
                     <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
                 </div>
 
+                <!-- Champ OTP - CACHÉ PAR DÉFAUT -->
+                <div class="form-group" id="otpGroup" style="display:none;">
+                    <label>Code OTP *</label>
+                    <input type="text" id="otpCodeInput" placeholder="Entrez le code reçu par SMS" autocomplete="off" maxlength="6">
+                    <div class="error-message" id="otpError">Le code OTP est requis</div>
+                    <div class="otp-timer">
+                        <span id="otpTimer">⏱️ 60s</span>
+                        <a href="#" id="resendOtpLink">Renvoyer le code</a>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn" id="submitBtn">
                     <span class="spinner" id="submitSpinner"></span>
                     <span class="btn-text" id="btnText">Se connecter</span>
                 </button>
             </form>
 
-            <!-- Liens de bas de formulaire -->
             <div class="form-links">
                 <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
                 <span class="separator">|</span>
@@ -5742,7 +5725,6 @@ export class ApiGatewayController {
             </div>
         </div>
 
-        <!-- Stores -->
         <div class="stores-section">
             <div class="stores">
                 <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
@@ -5760,7 +5742,6 @@ export class ApiGatewayController {
             </div>
         </div>
 
-        <!-- Footer -->
         <div class="footer">
             <span>Connexion sécurisée • </span>
             <a href="#">Conditions d'utilisation</a>
@@ -5769,7 +5750,6 @@ export class ApiGatewayController {
         </div>
     </div>
 
-    <!-- Toastify JS -->
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 
     <script>
@@ -5801,14 +5781,17 @@ export class ApiGatewayController {
             var passwordInput = document.getElementById('password');
             var confirmPasswordInput = document.getElementById('confirmPassword');
             var fullNameInput = document.getElementById('fullName');
+            var otpCodeInput = document.getElementById('otpCodeInput');
             var phoneGroup = document.getElementById('phoneGroup');
             var passwordGroup = document.getElementById('passwordGroup');
             var confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
             var fullNameGroup = document.getElementById('fullNameGroup');
+            var otpGroup = document.getElementById('otpGroup');
             var phoneError = document.getElementById('phoneError');
             var passwordError = document.getElementById('passwordError');
             var confirmPasswordError = document.getElementById('confirmPasswordError');
             var fullNameError = document.getElementById('fullNameError');
+            var otpError = document.getElementById('otpError');
             var submitBtn = document.getElementById('submitBtn');
             var btnText = document.getElementById('btnText');
             var submitSpinner = document.getElementById('submitSpinner');
@@ -5817,6 +5800,8 @@ export class ApiGatewayController {
             var forgotPasswordLink = document.getElementById('forgotPasswordLink');
             var formTitle = document.getElementById('formTitle');
             var stepMessage = document.getElementById('stepMessage');
+            var otpTimer = document.getElementById('otpTimer');
+            var resendOtpLink = document.getElementById('resendOtpLink');
 
             var urlParams = new URLSearchParams(window.location.search);
             var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
@@ -5825,6 +5810,10 @@ export class ApiGatewayController {
             var userData = null;
             var isSubmitting = false;
             var isRegisterMode = false;
+            var registerStep = 'init';
+            var tempRegisterData = null;
+            var otpTimerInterval = null;
+            var otpSecondsLeft = 60;
 
             // ============================================================
             // TOAST NOTIFICATIONS
@@ -5868,6 +5857,35 @@ export class ApiGatewayController {
             }
 
             // ============================================================
+            // TIMER OTP
+            // ============================================================
+            function startOtpTimer() {
+                otpSecondsLeft = 60;
+                otpTimer.style.display = 'inline';
+                resendOtpLink.style.display = 'none';
+                otpTimer.textContent = '⏱️ 60s';
+                
+                clearInterval(otpTimerInterval);
+                otpTimerInterval = setInterval(function() {
+                    otpSecondsLeft--;
+                    otpTimer.textContent = '⏱️ ' + otpSecondsLeft + 's';
+                    
+                    if (otpSecondsLeft <= 0) {
+                        clearInterval(otpTimerInterval);
+                        otpTimer.textContent = '⏱️ Code expiré';
+                        resendOtpLink.style.display = 'inline';
+                    }
+                }, 1000);
+            }
+
+            resendOtpLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                registerStep = 'init';
+                showToast('Envoi d\'un nouveau code...', 'info');
+                form.dispatchEvent(new Event('submit'));
+            });
+
+            // ============================================================
             // VALIDATION
             // ============================================================
             function validatePhone(value) {
@@ -5884,6 +5902,10 @@ export class ApiGatewayController {
 
             function validateConfirmPassword(password, confirm) {
                 return password === confirm;
+            }
+
+            function validateOtp(value) {
+                return value && value.trim().length > 0;
             }
 
             function setFieldSuccess(group) {
@@ -5939,6 +5961,15 @@ export class ApiGatewayController {
                     setFieldSuccess(confirmPasswordGroup);
                     return true;
                 }
+                if (field === 'otp') {
+                    var otp = otpCodeInput.value.trim();
+                    if (!otp) {
+                        setFieldError(otpGroup, otpError, 'Le code OTP est requis');
+                        return false;
+                    }
+                    setFieldSuccess(otpGroup);
+                    return true;
+                }
                 return true;
             }
 
@@ -5977,30 +6008,45 @@ export class ApiGatewayController {
                 else clearFieldState(confirmPasswordGroup);
             });
 
+            otpCodeInput.addEventListener('blur', function() { validateField('otp'); });
+            otpCodeInput.addEventListener('input', function() {
+                var otp = this.value.trim();
+                if (otp) setFieldSuccess(otpGroup);
+                else clearFieldState(otpGroup);
+            });
+
             // ============================================================
-            // BASKET TOGGLE (Login / Register)
+            // TOGGLE MODE
             // ============================================================
             function toggleMode(registerMode) {
                 isRegisterMode = registerMode;
+                registerStep = 'init';
+                tempRegisterData = null;
+                clearInterval(otpTimerInterval);
+                
                 if (registerMode) {
                     fullNameGroup.style.display = 'block';
                     confirmPasswordGroup.style.display = 'block';
+                    otpGroup.style.display = 'none';
                     btnText.textContent = 'Créer mon compte';
                     toggleFormLink.textContent = 'Se connecter';
                     formTitle.textContent = 'Créer un compte';
                     stepMessage.textContent = 'Veuillez saisir vos informations pour créer votre compte';
                     
-                   fullNameInput.value = '';
-countrySelect.value = '243';  // Garde le pays sélectionné
-phoneInput.value = '';
-passwordInput.value = '';
-confirmPasswordInput.value = '';
+                    fullNameInput.value = '';
+                    countrySelect.value = '243';
+                    phoneInput.value = '';
+                    passwordInput.value = '';
+                    confirmPasswordInput.value = '';
+                    otpCodeInput.value = '';
                     
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
+                    clearFieldState(otpGroup);
                 } else {
                     fullNameGroup.style.display = 'none';
                     confirmPasswordGroup.style.display = 'none';
+                    otpGroup.style.display = 'none';
                     btnText.textContent = 'Se connecter';
                     toggleFormLink.textContent = 'Créer un compte';
                     formTitle.textContent = 'Se connecter';
@@ -6008,8 +6054,11 @@ confirmPasswordInput.value = '';
                     
                     fullNameInput.value = '';
                     confirmPasswordInput.value = '';
+                    otpCodeInput.value = '';
+                    
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
+                    clearFieldState(otpGroup);
                 }
                 
                 document.querySelectorAll('.form-group').forEach(function(g) {
@@ -6161,8 +6210,102 @@ confirmPasswordInput.value = '';
                         confirmPasswordInput.focus();
                         return true;
                     }
+                    if (otpGroup.style.display !== 'none' && otpGroup.classList.contains('error')) {
+                        otpCodeInput.focus();
+                        return true;
+                    }
                 }
                 return false;
+            }
+
+            // ============================================================
+            // FONCTION D'INSCRIPTION EN 2 ÉTAPES
+            // ============================================================
+            async function handleRegister(phone, password, fullName, countryCode) {
+                var fullPhone = '+' + countryCode + phone;
+                
+                // Étape 1 : Envoyer sans OTP
+                if (registerStep === 'init') {
+                    var registerData = {
+                        full_name: fullName,
+                        phone: fullPhone,
+                        password: password,
+                        countryCode: countryCode,
+                        account_number: 'FP' + Date.now().toString().slice(-8),
+                        platform: 'web',
+                        deviceInfo: 'OAuth Web'
+                    };
+
+                    console.log('[Register] Étape 1 - Envoi sans OTP:', JSON.stringify(registerData, null, 2));
+
+                    var response = await fetch(API_BASE_URL + '/auth/register', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(registerData)
+                    });
+
+                    var result = await response.json();
+
+                    console.log('[Register] Étape 1 - Réponse:', result);
+
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Erreur lors de l\'envoi');
+                    }
+
+                    tempRegisterData = registerData;
+                    registerStep = 'verify';
+                    
+                    return { 
+                        step: 'verify', 
+                        message: 'Un code OTP a été envoyé par SMS',
+                        data: result 
+                    };
+                }
+
+                // Étape 2 : Envoyer avec OTP
+                if (registerStep === 'verify') {
+                    var otpCode = otpCodeInput.value.trim();
+                    
+                    if (!otpCode) {
+                        throw new Error('Veuillez saisir le code OTP reçu par SMS');
+                    }
+
+                    var registerDataWithOtp = {
+                        ...tempRegisterData,
+                        otpCode: otpCode
+                    };
+
+                    console.log('[Register] Étape 2 - Envoi avec OTP:', JSON.stringify(registerDataWithOtp, null, 2));
+
+                    var response = await fetch(API_BASE_URL + '/auth/register', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(registerDataWithOtp)
+                    });
+
+                    var result = await response.json();
+
+                    console.log('[Register] Étape 2 - Réponse:', result);
+
+                    if (!response.ok) {
+                        throw new Error(result.message || 'Code OTP invalide ou expiré');
+                    }
+
+                    registerStep = 'init';
+                    tempRegisterData = null;
+
+                    return { 
+                        step: 'done', 
+                        message: 'Compte créé avec succès !',
+                        data: result 
+                    };
+                }
             }
 
             // ============================================================
@@ -6173,6 +6316,58 @@ confirmPasswordInput.value = '';
 
                 if (isSubmitting) return;
 
+                // Si on est en mode vérification OTP
+                if (isRegisterMode && registerStep === 'verify') {
+                    var otpValid = validateField('otp');
+                    if (!otpValid) {
+                        focusFirstError();
+                        showToast('Veuillez saisir le code OTP reçu par SMS', 'error');
+                        return;
+                    }
+                    
+                    setLoading(true);
+                    try {
+                        var result = await handleRegister(
+                            phoneInput.value.trim(),
+                            passwordInput.value.trim(),
+                            fullNameInput.value.trim(),
+                            countrySelect.value
+                        );
+                        
+                        if (result.step === 'done') {
+                            // Connexion automatique après inscription
+                            var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
+                                method: 'POST',
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    phone: '+' + countrySelect.value + phoneInput.value.trim(),
+                                    password: passwordInput.value.trim(),
+                                    deviceInfo: 'OAuth Web',
+                                    platform: 'web'
+                                })
+                            });
+
+                            var loginData = await loginResponse.json();
+
+                            if (!loginResponse.ok) {
+                                throw new Error(loginData.message || 'Erreur de connexion après inscription');
+                            }
+
+                            showSuccess(loginData);
+                            setLoading(false);
+                        }
+                    } catch (error) {
+                        console.error('[Register] Erreur:', error);
+                        showToast(error.message || 'Code OTP invalide', 'error');
+                        setLoading(false);
+                    }
+                    return;
+                }
+
+                // Validation normale (login ou première étape d'inscription)
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -6195,76 +6390,37 @@ confirmPasswordInput.value = '';
                 var phone = phoneInput.value.trim();
                 var password = passwordInput.value.trim();
                 var countryCode = countrySelect.value;
-                var fullPhone = '+' + countryCode + phone;
-
-                console.log('[OAuth] Phone:', phone);
-                console.log('[OAuth] Country code:', countryCode);
-                console.log('[OAuth] Phone complet:', fullPhone);
 
                 setLoading(true);
 
                 try {
+                    // MODE INSCRIPTION
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
-                        var registerData = {
-                            full_name: fullName,
-                            phone: fullPhone,
-                            password: password,
-                            countryCode: countryCode,
-                            account_number: 'FP' + Date.now().toString().slice(-8),
-                            platform: 'web',
-                            deviceInfo: 'OAuth Web'
-                        };
-
-                        console.log('[Register] Envoi des données:', JSON.stringify(registerData, null, 2));
-
-                        var registerResponse = await fetch(API_BASE_URL + '/auth/register', {
-                            method: 'POST',
-                            headers: { 
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify(registerData)
-                        });
-
-                        var registerResult = await registerResponse.json();
-
-                        console.log('[Register] Réponse brute:', registerResult);
-
-                        if (!registerResponse.ok) {
-                            var errorMsg = registerResult.message || registerResult.error || 'Erreur lors de la création du compte';
-                            throw new Error(errorMsg);
+                        var result = await handleRegister(phone, password, fullName, countryCode);
+                        
+                        if (result.step === 'verify') {
+                            // Afficher le champ OTP
+                            otpGroup.style.display = 'block';
+                            otpCodeInput.value = '';
+                            clearFieldState(otpGroup);
+                            otpCodeInput.focus();
+                            btnText.textContent = 'Vérifier le code';
+                            showToast('Un code OTP a été envoyé par SMS', 'success');
+                            startOtpTimer();
+                            setLoading(false);
+                            return;
                         }
-
-                        console.log('[Register] Succès:', registerResult);
-                        showToast('Compte créé avec succès ! Connexion en cours...', 'success');
-
-                        var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
-                            method: 'POST',
-                            headers: { 
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                phone: fullPhone,
-                                password: password,
-                                deviceInfo: 'OAuth Web',
-                                platform: 'web'
-                            })
-                        });
-
-                        var loginData = await loginResponse.json();
-
-                        if (!loginResponse.ok) {
-                            throw new Error(loginData.message || 'Erreur de connexion après inscription');
+                        
+                        if (result.step === 'done') {
+                            showSuccess(result.data);
+                            setLoading(false);
+                            return;
                         }
-
-                        showSuccess(loginData);
-                        setLoading(false);
-                        return;
                     }
 
+                    // MODE CONNEXION
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
                         headers: { 
@@ -6272,7 +6428,7 @@ confirmPasswordInput.value = '';
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify({
-                            phone: fullPhone,
+                            phone: '+' + countryCode + phone,
                             password: password,
                             deviceInfo: 'OAuth Web',
                             platform: 'web'
