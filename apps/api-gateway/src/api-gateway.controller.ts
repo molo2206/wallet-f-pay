@@ -3972,7 +3972,7 @@ export class ApiGatewayController {
       // ============================================================
 
       const response = await this.sendWalletMessage<any>(
-        'c',
+        'pay_without_pin',
         payPayload,
         this.i18nService.translate('wallet.payment_failed', lang),
         HttpStatus.BAD_REQUEST,
@@ -5695,7 +5695,7 @@ export class ApiGatewayController {
                 <!-- Nom complet - CACHÉ PAR DÉFAUT -->
                 <div class="form-group" id="fullNameGroup" style="display:none;">
                     <label>Nom complet *</label>
-                    <input type="text" id="fullName" placeholder="MOLO KAYENGA PACIFIQUE" autocomplete="off">
+                    <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
                     <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                 </div>
 
@@ -5791,18 +5791,18 @@ export class ApiGatewayController {
             // CONFIGURATION
             // ============================================================
             var API_BASE_URL = window.location.origin;
-            var APP_URL = '${appUrl}';
-            var FRONTEND_URL = '${frontendUrl}';
-            var OAUTH_CALLBACK_URL = '${callbackUrl}';
-            var MOBILE_CALLBACK_URL = '${mobileCallbackUrl}';
-            var ENV = '${env}';
-            var SYSTEM_USER_ID = '${systemUserId}';
-            var AMOUNT = '${amount}';
-            var CURRENCY = '${currency}';
-            var DESCRIPTION = '${description}';
-            var API_KEY = '${apiKey}';
-            var CLIENT_TOKEN = '${clientToken}';
-            var REDIRECT_URI = '${callbackUrl}';
+            var APP_URL = '{{APP_URL}}';
+            var FRONTEND_URL = '{{FRONTEND_URL}}';
+            var OAUTH_CALLBACK_URL = '{{OAUTH_CALLBACK_URL}}';
+            var MOBILE_CALLBACK_URL = '{{MOBILE_CALLBACK_URL}}';
+            var ENV = '{{ENV}}';
+            var SYSTEM_USER_ID = '{{SYSTEM_USER_ID}}';
+            var AMOUNT = '{{AMOUNT}}';
+            var CURRENCY = '{{CURRENCY}}';
+            var DESCRIPTION = '{{DESCRIPTION}}';
+            var API_KEY = '{{API_KEY}}';
+            var CLIENT_TOKEN = '{{CLIENT_TOKEN}}';
+            var REDIRECT_URI = '{{REDIRECT_URI}}';
 
             // ============================================================
             // DOM REFS
@@ -5841,7 +5841,7 @@ export class ApiGatewayController {
             var userData = null;
             var isSubmitting = false;
             var isRegisterMode = false;
-            var registerStep = 'init'; // 'init' ou 'verify'
+            var registerStep = 'init';
             var tempRegisterData = null;
             var otpTimerInterval = null;
             var otpSecondsLeft = 60;
@@ -5913,7 +5913,6 @@ export class ApiGatewayController {
                 e.preventDefault();
                 registerStep = 'init';
                 showToast('Envoi d\'un nouveau code...', 'info');
-                // Déclencher la soumission du formulaire pour renvoyer l'OTP
                 form.dispatchEvent(new Event('submit'));
             });
 
@@ -6048,29 +6047,23 @@ export class ApiGatewayController {
             });
 
             // ============================================================
-            // TOGGLE MODE (Login / Register) - CORRIGÉ
+            // TOGGLE MODE
             // ============================================================
             function toggleMode(registerMode) {
                 isRegisterMode = registerMode;
                 registerStep = 'init';
                 tempRegisterData = null;
-                
-                // Réinitialiser le timer
                 clearInterval(otpTimerInterval);
                 
                 if (registerMode) {
-                    // Afficher les champs d'inscription
                     fullNameGroup.style.display = 'block';
                     confirmPasswordGroup.style.display = 'block';
                     otpGroup.style.display = 'none';
-                    
-                    // Changer le texte du bouton
                     btnText.textContent = 'Créer mon compte';
                     toggleFormLink.textContent = 'Se connecter';
                     formTitle.textContent = 'Créer un compte';
                     stepMessage.textContent = 'Veuillez saisir vos informations pour créer votre compte';
                     
-                    // Vider les champs
                     fullNameInput.value = '';
                     countrySelect.value = '243';
                     phoneInput.value = '';
@@ -6078,45 +6071,34 @@ export class ApiGatewayController {
                     confirmPasswordInput.value = '';
                     otpCodeInput.value = '';
                     
-                    // Nettoyer les états
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
                     clearFieldState(otpGroup);
                 } else {
-                    // Cacher les champs d'inscription
                     fullNameGroup.style.display = 'none';
                     confirmPasswordGroup.style.display = 'none';
                     otpGroup.style.display = 'none';
-                    
-                    // Changer le texte du bouton
                     btnText.textContent = 'Se connecter';
                     toggleFormLink.textContent = 'Créer un compte';
                     formTitle.textContent = 'Se connecter';
                     stepMessage.textContent = 'Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte';
                     
-                    // Vider les champs
                     fullNameInput.value = '';
                     confirmPasswordInput.value = '';
                     otpCodeInput.value = '';
                     
-                    // Nettoyer les états
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
                     clearFieldState(otpGroup);
                 }
                 
-                // Nettoyer toutes les erreurs
                 document.querySelectorAll('.form-group').forEach(function(g) {
                     g.classList.remove('error', 'success');
                 });
             }
 
-            // ============================================================
-            // ÉVÉNEMENT DU LIEN "Créer un compte" / "Se connecter"
-            // ============================================================
             toggleFormLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                console.log('Toggle cliqué, mode actuel:', isRegisterMode ? 'Register' : 'Login');
                 toggleMode(!isRegisterMode);
             });
 
@@ -6273,7 +6255,6 @@ export class ApiGatewayController {
             async function handleRegister(phone, password, fullName, countryCode) {
                 var fullPhone = '+' + countryCode + phone;
                 
-                // Étape 1 : Envoyer les données sans OTP
                 if (registerStep === 'init') {
                     var registerData = {
                         full_name: fullName,
@@ -6314,7 +6295,6 @@ export class ApiGatewayController {
                     };
                 }
 
-                // Étape 2 : Envoyer avec l'OTP
                 if (registerStep === 'verify') {
                     var otpCode = otpCodeInput.value.trim();
                     
@@ -6365,7 +6345,6 @@ export class ApiGatewayController {
 
                 if (isSubmitting) return;
 
-                // Si on est en mode vérification OTP
                 if (isRegisterMode && registerStep === 'verify') {
                     var otpValid = validateField('otp');
                     if (!otpValid) {
@@ -6384,7 +6363,6 @@ export class ApiGatewayController {
                         );
                         
                         if (result.step === 'done') {
-                            // Connexion automatique après inscription
                             var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
                                 method: 'POST',
                                 headers: { 
@@ -6416,7 +6394,6 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // Validation normale (login ou première étape d'inscription)
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -6443,14 +6420,12 @@ export class ApiGatewayController {
                 setLoading(true);
 
                 try {
-                    // MODE INSCRIPTION
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
                         var result = await handleRegister(phone, password, fullName, countryCode);
                         
                         if (result.step === 'verify') {
-                            // Afficher le champ OTP
                             otpGroup.style.display = 'block';
                             otpCodeInput.value = '';
                             clearFieldState(otpGroup);
@@ -6469,7 +6444,6 @@ export class ApiGatewayController {
                         }
                     }
 
-                    // MODE CONNEXION
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
                         headers: { 
