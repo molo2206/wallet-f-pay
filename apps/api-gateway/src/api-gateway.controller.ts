@@ -5116,7 +5116,7 @@ export class ApiGatewayController {
                     return;
                 }
                 
-                showToast('Envoi d\'un nouveau code...', 'info');
+                showToast('Envoi nouveau nouveau otp...', 'info');
                 
                 // Appeler directement la fonction handleRegister sans passer par le submit
                 handleRegister(
