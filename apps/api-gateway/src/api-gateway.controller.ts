@@ -6048,22 +6048,29 @@ export class ApiGatewayController {
             });
 
             // ============================================================
-            // BASKET TOGGLE (Login / Register)
+            // TOGGLE MODE (Login / Register) - CORRIGÉ
             // ============================================================
             function toggleMode(registerMode) {
                 isRegisterMode = registerMode;
                 registerStep = 'init';
                 tempRegisterData = null;
                 
+                // Réinitialiser le timer
+                clearInterval(otpTimerInterval);
+                
                 if (registerMode) {
+                    // Afficher les champs d'inscription
                     fullNameGroup.style.display = 'block';
                     confirmPasswordGroup.style.display = 'block';
                     otpGroup.style.display = 'none';
+                    
+                    // Changer le texte du bouton
                     btnText.textContent = 'Créer mon compte';
                     toggleFormLink.textContent = 'Se connecter';
                     formTitle.textContent = 'Créer un compte';
                     stepMessage.textContent = 'Veuillez saisir vos informations pour créer votre compte';
                     
+                    // Vider les champs
                     fullNameInput.value = '';
                     countrySelect.value = '243';
                     phoneInput.value = '';
@@ -6071,33 +6078,45 @@ export class ApiGatewayController {
                     confirmPasswordInput.value = '';
                     otpCodeInput.value = '';
                     
+                    // Nettoyer les états
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
                     clearFieldState(otpGroup);
                 } else {
+                    // Cacher les champs d'inscription
                     fullNameGroup.style.display = 'none';
                     confirmPasswordGroup.style.display = 'none';
                     otpGroup.style.display = 'none';
+                    
+                    // Changer le texte du bouton
                     btnText.textContent = 'Se connecter';
                     toggleFormLink.textContent = 'Créer un compte';
                     formTitle.textContent = 'Se connecter';
                     stepMessage.textContent = 'Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte';
                     
+                    // Vider les champs
                     fullNameInput.value = '';
                     confirmPasswordInput.value = '';
                     otpCodeInput.value = '';
+                    
+                    // Nettoyer les états
                     clearFieldState(fullNameGroup);
                     clearFieldState(confirmPasswordGroup);
                     clearFieldState(otpGroup);
                 }
                 
+                // Nettoyer toutes les erreurs
                 document.querySelectorAll('.form-group').forEach(function(g) {
                     g.classList.remove('error', 'success');
                 });
             }
 
+            // ============================================================
+            // ÉVÉNEMENT DU LIEN "Créer un compte" / "Se connecter"
+            // ============================================================
             toggleFormLink.addEventListener('click', function(e) {
                 e.preventDefault();
+                console.log('Toggle cliqué, mode actuel:', isRegisterMode ? 'Register' : 'Login');
                 toggleMode(!isRegisterMode);
             });
 
