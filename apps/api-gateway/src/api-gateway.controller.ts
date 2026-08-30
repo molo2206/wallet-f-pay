@@ -5515,7 +5515,6 @@ export class ApiGatewayController {
             display: block;
         }
 
-        /* Masquer les champs pendant la vérification OTP */
         .hidden-fields {
             transition: all 0.3s ease;
         }
@@ -5799,22 +5798,18 @@ export class ApiGatewayController {
             </div>
 
             <form id="loginForm" autocomplete="off" novalidate>
-                <!-- Groupe des champs cachés pendant l'OTP -->
                 <div id="hiddenFields" class="hidden-fields">
-                    <!-- Nom complet - CACHÉ PAR DÉFAUT -->
                     <div class="form-group" id="fullNameGroup" style="display:none;">
                         <label>Nom complet *</label>
                         <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
                         <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                     </div>
 
-                    <!-- Numéro de téléphone -->
                     <div class="form-group" id="phoneGroup">
                         <label>Numéro Mobile Money *</label>
                         <div class="phone-wrapper">
                             <div class="country-select">
                                 <select id="countryCode" autocomplete="off">
-                                    <!-- Les options seront chargées dynamiquement depuis l'API -->
                                 </select>
                             </div>
                             <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
@@ -5822,14 +5817,12 @@ export class ApiGatewayController {
                         <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
                     </div>
 
-                    <!-- Mot de passe -->
                     <div class="form-group" id="passwordGroup">
                         <label>Mot de passe *</label>
                         <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
                         <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
                     </div>
 
-                    <!-- Confirmation du mot de passe - CACHÉ PAR DÉFAUT -->
                     <div class="form-group" id="confirmPasswordGroup" style="display:none;">
                         <label>Confirmer le mot de passe *</label>
                         <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe" autocomplete="new-password">
@@ -5837,7 +5830,6 @@ export class ApiGatewayController {
                     </div>
                 </div>
 
-                <!-- Champ OTP - CACHÉ PAR DÉFAUT -->
                 <div class="otp-container" id="otpContainer">
                     <label style="display: block; font-size: 14px; font-weight: 600; color: var(--white); margin-bottom: 8px;">Code OTP *</label>
                     <div class="otp-inputs" id="otpInputs">
@@ -5849,6 +5841,10 @@ export class ApiGatewayController {
                         <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="5">
                     </div>
                     <div class="otp-error-message" id="otpError">Le code OTP est requis</div>
+                    <div class="otp-timer">
+                        <span id="otpTimer"></span>
+                        <a href="#" id="resendOtpLink">Renvoyer le code</a>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn" id="submitBtn">
@@ -5857,7 +5853,6 @@ export class ApiGatewayController {
                 </button>
             </form>
 
-            <!-- Liens de bas de formulaire -->
             <div class="form-links">
                 <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
                 <span class="separator">|</span>
@@ -5865,7 +5860,6 @@ export class ApiGatewayController {
             </div>
         </div>
 
-        <!-- Stores -->
         <div class="stores-section">
             <div class="stores">
                 <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
@@ -5883,7 +5877,6 @@ export class ApiGatewayController {
             </div>
         </div>
 
-        <!-- Footer -->
         <div class="footer">
             <span>Connexion sécurisée • </span>
             <a href="#">Conditions d'utilisation</a>
@@ -5892,7 +5885,6 @@ export class ApiGatewayController {
         </div>
     </div>
 
-    <!-- Toastify JS -->
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 
     <script>
@@ -5957,7 +5949,6 @@ export class ApiGatewayController {
             var registerStep = 'init';
             var tempRegisterData = null;
             var otpTimerInterval = null;
-            var otpSecondsLeft = 60;
             var countriesData = [];
 
             // ============================================================
@@ -6001,7 +5992,6 @@ export class ApiGatewayController {
                 otpContainer.classList.add('show');
                 btnText.textContent = 'Vérifier le code';
                 stepMessage.textContent = 'Saisissez le code OTP reçu par SMS';
-                // Cacher les liens
                 document.querySelector('.form-links').style.display = 'none';
             }
 
@@ -6209,25 +6199,24 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // TIMER OTP
+            // TIMER OTP - SANS AFFICHAGE DES SECONDES
             // ============================================================
             function startOtpTimer() {
-                otpSecondsLeft = 60;
-                otpTimer.style.display = 'inline';
+                // Ne rien afficher dans le timer
+                otpTimer.style.display = 'none';
                 resendOtpLink.style.display = 'none';
-                otpTimer.textContent = '⏱️ 60s';
                 
                 clearInterval(otpTimerInterval);
                 otpTimerInterval = setInterval(function() {
-                    otpSecondsLeft--;
-                    otpTimer.textContent = '⏱️ ' + otpSecondsLeft + 's';
-                    
-                    if (otpSecondsLeft <= 0) {
-                        clearInterval(otpTimerInterval);
-                        otpTimer.textContent = '⏱️ Code expiré';
-                        resendOtpLink.style.display = 'inline';
-                    }
+                    // Timer silencieux - pas d'affichage
+                    // Le bouton "Renvoyer" s'affiche après 60 secondes
                 }, 1000);
+                
+                // Afficher "Renvoyer" après 60 secondes
+                setTimeout(function() {
+                    clearInterval(otpTimerInterval);
+                    resendOtpLink.style.display = 'inline';
+                }, 60000);
             }
 
             // ============================================================
