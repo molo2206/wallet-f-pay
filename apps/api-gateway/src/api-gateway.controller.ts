@@ -5713,8 +5713,7 @@ export class ApiGatewayController {
                     <div class="phone-wrapper">
                         <div class="country-select">
                             <select id="countryCode" autocomplete="off">
-                                <option value="243">243</option>
-                                <option value="229">229</option>
+                                <!-- Les options seront chargées dynamiquement depuis l'API -->
                             </select>
                         </div>
                         <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
@@ -5853,6 +5852,112 @@ export class ApiGatewayController {
             var tempRegisterData = null;
             var otpTimerInterval = null;
             var otpSecondsLeft = 60;
+            var countriesData = [];
+
+            // ============================================================
+            // RÉCUPÉRATION DES PAYS DEPUIS L'API
+            // ============================================================
+            async function fetchCountries() {
+                try {
+                    var response = await fetch(API_BASE_URL + '/pawapay/countries', {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': 'Bearer ' + CLIENT_TOKEN
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Erreur lors de la récupération des pays');
+                    }
+
+                    var result = await response.json();
+                    console.log('[Countries] Données reçues:', result);
+
+                    if (result.data && result.data.length > 0) {
+                        countriesData = result.data;
+                        populateCountrySelect(countriesData);
+                    } else {
+                        setDefaultCountries();
+                    }
+                } catch (error) {
+                    console.error('[Countries] Erreur:', error);
+                    setDefaultCountries();
+                }
+            }
+
+            // ============================================================
+            // REMPLIR LE SELECT DES PAYS
+            // ============================================================
+            function populateCountrySelect(countries) {
+                if (!countrySelect) return;
+                
+                countrySelect.innerHTML = '';
+                
+                countries.forEach(function(country) {
+                    if (country.prefix) {
+                        var option = document.createElement('option');
+                        option.value = country.prefix;
+                        option.text = country.code + ' (' + country.prefix + ')';
+                        option.dataset.countryCode = country.countryCode;
+                        option.dataset.name = country.name;
+                        option.dataset.flag = country.flag;
+                        option.dataset.currency = country.default_currency;
+                        countrySelect.appendChild(option);
+                    }
+                });
+                
+                if (countrySelect.options.length > 0) {
+                    countrySelect.selectedIndex = 0;
+                }
+            }
+
+            // ============================================================
+            // PAYS PAR DÉFAUT (FALLBACK)
+            // ============================================================
+            function setDefaultCountries() {
+                if (!countrySelect) return;
+                
+                var defaultCountries = [
+                    { prefix: '243', countryCode: 'CD', code: 'COD', name: 'Congo-Kinshasa' },
+                    { prefix: '229', countryCode: 'BJ', code: 'BEN', name: 'Bénin' }
+                ];
+                
+                countrySelect.innerHTML = '';
+                defaultCountries.forEach(function(country) {
+                    var option = document.createElement('option');
+                    option.value = country.prefix;
+                    option.text = country.code + ' (' + country.prefix + ')';
+                    option.dataset.countryCode = country.countryCode;
+                    option.dataset.name = country.name;
+                    countrySelect.appendChild(option);
+                });
+                
+                if (countrySelect.options.length > 0) {
+                    countrySelect.selectedIndex = 0;
+                }
+            }
+
+            // ============================================================
+            // GET COUNTRY CODE
+            // ============================================================
+            function getSelectedCountryCode() {
+                if (countrySelect && countrySelect.selectedIndex >= 0) {
+                    var option = countrySelect.options[countrySelect.selectedIndex];
+                    return option ? option.dataset.countryCode : 'CD';
+                }
+                return 'CD';
+            }
+
+            // ============================================================
+            // GET PREFIX
+            // ============================================================
+            function getSelectedPrefix() {
+                if (countrySelect && countrySelect.selectedIndex >= 0) {
+                    return countrySelect.value;
+                }
+                return '243';
+            }
 
             // ============================================================
             // TOAST NOTIFICATIONS
@@ -5918,7 +6023,7 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // RESEND OTP - CORRIGÉ AVEC VÉRIFICATION
+            // RESEND OTP
             // ============================================================
             if (resendOtpLink) {
                 resendOtpLink.addEventListener('click', function(e) {
@@ -5929,10 +6034,8 @@ export class ApiGatewayController {
                         return;
                     }
                     
-                    // Réinitialiser l'étape pour renvoyer un nouveau code
                     registerStep = 'init';
                     
-                    // Vérifier que les données sont toujours disponibles
                     if (!tempRegisterData) {
                         showToast('Veuillez remplir à nouveau le formulaire', 'error');
                         return;
@@ -5940,17 +6043,14 @@ export class ApiGatewayController {
                     
                     showToast('Envoi nouveau OTP...', 'info');
                     
-                    // Appeler directement la fonction handleRegister sans passer par le submit
                     handleRegister(
                         phoneInput.value.trim(),
                         passwordInput.value.trim(),
-                        fullNameInput.value.trim(),
-                        countrySelect.value
+                        fullNameInput.value.trim()
                     ).then(function(result) {
                         if (result.step === 'verify') {
                             showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
-                            // Réafficher le champ OTP
                             otpGroup.style.display = 'block';
                             otpCodeInput.value = '';
                             clearFieldState(otpGroup);
@@ -5961,8 +6061,6 @@ export class ApiGatewayController {
                         showToast(error.message || 'Erreur lors du renvoi du code', 'error');
                     });
                 });
-            } else {
-                console.warn('[Resend OTP] Élément resendOtpLink non trouvé dans le DOM');
             }
 
             // ============================================================
@@ -6114,7 +6212,9 @@ export class ApiGatewayController {
                     stepMessage.textContent = 'Veuillez saisir vos informations pour créer votre compte';
                     
                     fullNameInput.value = '';
-                    countrySelect.value = '243';
+                    if (countrySelect && countrySelect.options.length > 0) {
+                        countrySelect.selectedIndex = 0;
+                    }
                     phoneInput.value = '';
                     passwordInput.value = '';
                     confirmPasswordInput.value = '';
@@ -6301,8 +6401,10 @@ export class ApiGatewayController {
             // ============================================================
             // FONCTION D'INSCRIPTION EN 2 ÉTAPES
             // ============================================================
-            async function handleRegister(phone, password, fullName, countryCode) {
-                var fullPhone = '+' + countryCode + phone;
+            async function handleRegister(phone, password, fullName) {
+                var prefix = getSelectedPrefix();
+                var countryCode = getSelectedCountryCode();
+                var fullPhone = '+' + prefix + phone;
                 
                 if (registerStep === 'init') {
                     var registerData = {
@@ -6407,11 +6509,11 @@ export class ApiGatewayController {
                         var result = await handleRegister(
                             phoneInput.value.trim(),
                             passwordInput.value.trim(),
-                            fullNameInput.value.trim(),
-                            countrySelect.value
+                            fullNameInput.value.trim()
                         );
                         
                         if (result.step === 'done') {
+                            var prefix = getSelectedPrefix();
                             var loginResponse = await fetch(API_BASE_URL + '/auth/login', {
                                 method: 'POST',
                                 headers: { 
@@ -6419,7 +6521,7 @@ export class ApiGatewayController {
                                     'Accept': 'application/json'
                                 },
                                 body: JSON.stringify({
-                                    phone: '+' + countrySelect.value + phoneInput.value.trim(),
+                                    phone: '+' + prefix + phoneInput.value.trim(),
                                     password: passwordInput.value.trim(),
                                     deviceInfo: 'OAuth Web',
                                     platform: 'web'
@@ -6464,7 +6566,6 @@ export class ApiGatewayController {
 
                 var phone = phoneInput.value.trim();
                 var password = passwordInput.value.trim();
-                var countryCode = countrySelect.value;
 
                 setLoading(true);
 
@@ -6472,7 +6573,7 @@ export class ApiGatewayController {
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
-                        var result = await handleRegister(phone, password, fullName, countryCode);
+                        var result = await handleRegister(phone, password, fullName);
                         
                         if (result.step === 'verify') {
                             otpGroup.style.display = 'block';
@@ -6493,6 +6594,7 @@ export class ApiGatewayController {
                         }
                     }
 
+                    var prefix = getSelectedPrefix();
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
                         headers: { 
@@ -6500,7 +6602,7 @@ export class ApiGatewayController {
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify({
-                            phone: '+' + countryCode + phone,
+                            phone: '+' + prefix + phone,
                             password: password,
                             deviceInfo: 'OAuth Web',
                             platform: 'web'
@@ -6536,6 +6638,9 @@ export class ApiGatewayController {
             // ============================================================
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM chargé');
+                
+                // Charger les pays depuis l'API
+                fetchCountries();
 
                 var code = urlParams.get('code');
                 var accessToken = urlParams.get('access_token');
