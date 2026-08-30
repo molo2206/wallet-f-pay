@@ -4967,12 +4967,828 @@ export class ApiGatewayController {
     <!-- Toastify CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <style>
-        /* ... (même CSS que précédemment) ... */
+        /* ============================================================
+           VARIABLES COULEURS
+           ============================================================ */
+        :root {
+            --primary: #000000;
+            --primary-light: #1a1a1a;
+            --primary-dark: #0d0d0d;
+            --secondary: #FFB81C;
+            --secondary-dark: #e6a500;
+            --secondary-light: #ffd966;
+            --secondary-bg: rgba(255, 184, 28, 0.12);
+            --white: #ffffff;
+            --white-transparent: rgba(255, 255, 255, 0.95);
+            --border-color: rgba(255, 184, 28, 0.25);
+            --shadow-color: rgba(0, 0, 0, 0.8);
+            --shadow-secondary: rgba(255, 184, 28, 0.3);
+            --radius: 16px;
+            --radius-btn: 10px;
+            --radius-input: 10px;
+            --max-width: 480px;
+            --padding-card: 40px 28px 32px;
+            --padding-card-mobile: 28px 18px 24px;
+            --font-size-title: 34px;
+            --font-size-title-mobile: 26px;
+            --font-size-h2: 22px;
+            --font-size-h2-mobile: 20px;
+            --error-color: #ff3333;
+            --error-bg: rgba(255, 51, 51, 0.1);
+            --error-border: #ff3333;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: var(--primary);
+        }
+
+        /* ============================================================
+           CARTE PRINCIPALE
+           ============================================================ */
+        .container {
+            width: 100%;
+            max-width: var(--max-width);
+            border-radius: var(--radius);
+            padding: var(--padding-card);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            border: none;
+            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 40%, var(--primary-dark) 100%);
+            background-attachment: fixed;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 100%;
+            background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 28, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* ============================================================
+           LOGO
+           ============================================================ */
+        .logo { 
+            text-align: center; 
+            margin-bottom: 28px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+        .logo img {
+            width: 100px;
+            height: auto;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 4px 20px rgba(255, 184, 28, 0.3));
+            transition: all 0.3s ease;
+        }
+        .logo h1 { 
+            font-size: var(--font-size-title); 
+            color: var(--white); 
+            letter-spacing: -0.5px; 
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+        .logo h1 .f { color: var(--white); }
+        .logo h1 .pay { color: var(--secondary); }
+
+        /* ============================================================
+           HEADER
+           ============================================================ */
+        .header { 
+            margin-bottom: 22px; 
+            position: relative;
+            z-index: 1;
+        }
+        .header h2 { 
+            font-size: var(--font-size-h2); 
+            color: var(--white); 
+            margin-bottom: 4px; 
+            font-weight: 700; 
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        .header p { 
+            color: rgba(255, 255, 255, 0.6); 
+            font-size: 14px; 
+            font-weight: 400; 
+            line-height: 1.4;
+            transition: all 0.3s ease;
+        }
+
+        /* ============================================================
+           FORMULAIRE
+           ============================================================ */
+        .form-group { 
+            margin-bottom: 16px; 
+            position: relative;
+            z-index: 1;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--white);
+            margin-bottom: 4px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-input);
+            font-size: 15px;
+            transition: all 0.25s ease;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--white);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .form-group input::placeholder { color: rgba(255, 255, 255, 0.35); }
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
+        }
+        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .form-group.error input {
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
+        }
+        .form-group.error input:focus {
+            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
+        }
+        .form-group .error-message {
+            display: none;
+            font-size: 12px;
+            color: var(--error-color) !important;
+            margin-top: 4px;
+            font-weight: 600;
+        }
+        .form-group.error .error-message {
+            display: block;
+        }
+
+        .form-group.success input {
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.08);
+        }
+        .form-group.success input:focus {
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
+        }
+
+        /* ============================================================
+           WRAPPER TÉLÉPHONE
+           ============================================================ */
+        .phone-wrapper {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-input);
+            transition: all 0.25s ease;
+            overflow: hidden;
+        }
+        .phone-wrapper:focus-within {
+            border-color: var(--secondary);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
+        }
+        .form-group.error .phone-wrapper {
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
+        }
+        .form-group.error .phone-wrapper:focus-within {
+            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
+        }
+        .form-group.success .phone-wrapper {
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.08);
+        }
+        .form-group.success .phone-wrapper:focus-within {
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
+        }
+
+        .country-select {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0 8px 0 12px;
+            border-right: 2px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            background: transparent;
+            min-width: 60px;
+            height: 48px;
+            flex-shrink: 0;
+        }
+        .country-select select {
+            border: none;
+            background: transparent;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--white);
+            padding: 4px 24px 4px 4px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0 center;
+            padding-right: 20px;
+            min-width: 35px;
+        }
+        .country-select select:focus { outline: none; }
+        .country-select select option {
+            background: var(--primary-light);
+            color: var(--white);
+            font-size: 15px;
+            padding: 8px;
+        }
+
+        .phone-wrapper input {
+            border: none !important;
+            padding: 12px 12px 12px 8px !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            flex: 1;
+            min-width: 0;
+            height: 48px;
+            color: var(--white) !important;
+        }
+        .phone-wrapper input::placeholder {
+            color: rgba(255, 255, 255, 0.35) !important;
+        }
+        .phone-wrapper input:focus {
+            box-shadow: none !important;
+        }
+
+        /* ============================================================
+           BOUTON PRINCIPAL
+           ============================================================ */
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: var(--radius-btn);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            background: var(--secondary);
+            color: var(--primary);
+            transition: all 0.3s ease;
+            margin-top: 4px;
+            box-shadow: 0 6px 24px rgba(255, 184, 28, 0.3);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            height: 50px;
+            z-index: 1;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:hover:not(:disabled) { 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 32px rgba(255, 184, 28, 0.5);
+            background: var(--secondary-dark);
+        }
+        .btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+        .btn:disabled { 
+            opacity: 0.6; 
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none; 
+        }
+
+        .spinner {
+            display: none;
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(0, 0, 0, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: inline; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ============================================================
+           STORES (Boutons de téléchargement)
+           ============================================================ */
+        .stores-section {
+            margin-top: 24px;
+            padding-top: 18px;
+            padding-bottom: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: var(--radius);
+            padding: 18px 16px;
+            position: relative;
+            z-index: 1;
+        }
+        .stores {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .store-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 10px 20px;
+            border-radius: var(--radius-btn);
+            color: var(--white);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .store-link:hover {
+            transform: translateY(-2px);
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: var(--primary);
+        }
+        .store-link:active {
+            transform: scale(0.97);
+        }
+        .store-link span {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+        }
+        .store-link .small {
+            font-size: 9px;
+            opacity: 0.6;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+        }
+
+        /* ============================================================
+           LIENS
+           ============================================================ */
+        .form-links {
+            text-align: center; 
+            margin-top: 16px; 
+            position: relative; 
+            z-index: 1;
+        }
+        .form-links a {
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 400;
+            transition: 0.2s;
+        }
+        .form-links a:hover {
+            color: var(--secondary);
+        }
+        .form-links .register-link {
+            color: var(--secondary);
+            font-weight: 500;
+        }
+        .form-links .register-link:hover {
+            text-decoration: underline;
+        }
+        .form-links .separator {
+            color: rgba(255, 255, 255, 0.15);
+            margin: 0 10px;
+        }
+
+        /* ============================================================
+           FOOTER
+           ============================================================ */
+        .footer { 
+            text-align: center; 
+            margin-top: 18px; 
+            color: rgba(255, 255, 255, 0.25); 
+            font-size: 12px;
+            font-weight: 400;
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 10px 16px;
+            border-radius: var(--radius-input);
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s ease;
+        }
+        .footer a { 
+            color: rgba(255, 255, 255, 0.35); 
+            text-decoration: none; 
+            font-weight: 500;
+            transition: 0.2s;
+        }
+        .footer a:hover { 
+            color: var(--secondary);
+            text-decoration: underline;
+        }
+
+        /* ============================================================
+           TOASTIFY
+           ============================================================ */
+        .toastify {
+            border-radius: var(--radius-input) !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+        }
+        .toastify.error {
+            background: #1a1a1a !important;
+            color: #ff4444 !important;
+            border: 1px solid #ff4444 !important;
+        }
+        .toastify.success {
+            background: var(--secondary) !important;
+            color: var(--primary) !important;
+        }
+        .toastify .toast-close {
+            color: inherit !important;
+            opacity: 0.7 !important;
+        }
+
+        /* ============================================================
+           OTP TIMER
+           ============================================================ */
+        .otp-timer {
+            margin-top: 8px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .otp-timer a {
+            color: var(--secondary);
+            text-decoration: none;
+            display: none;
+        }
+        .otp-timer a:hover {
+            text-decoration: underline;
+        }
+
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 520px) {
+            body {
+                padding: 12px;
+                align-items: flex-start;
+                padding-top: 30px;
+            }
+            .container {
+                padding: var(--padding-card-mobile);
+                border-radius: 14px;
+                max-width: 100%;
+            }
+            .logo img {
+                width: 75px;
+                margin-bottom: 8px;
+            }
+            .logo h1 {
+                font-size: var(--font-size-title-mobile);
+            }
+            .logo {
+                margin-bottom: 22px;
+            }
+            .header h2 {
+                font-size: var(--font-size-h2-mobile);
+            }
+            .header p {
+                font-size: 13px;
+            }
+            .header {
+                margin-bottom: 18px;
+            }
+            .form-group {
+                margin-bottom: 14px;
+            }
+            .form-group input {
+                padding: 11px 14px;
+                font-size: 14px;
+            }
+            .phone-wrapper input {
+                padding: 11px 12px 11px 8px !important;
+                font-size: 14px;
+                height: 44px;
+            }
+            .country-select {
+                height: 44px;
+                min-width: 50px;
+                padding: 0 6px 0 10px;
+            }
+            .country-select select {
+                font-size: 14px;
+                min-width: 30px;
+                padding-right: 18px;
+            }
+            .btn {
+                padding: 13px;
+                font-size: 15px;
+                height: 46px;
+                border-radius: var(--radius-btn);
+            }
+            .stores-section {
+                padding: 14px 12px;
+                margin-top: 18px;
+                border-radius: 14px;
+            }
+            .store-link {
+                padding: 8px 14px;
+                font-size: 12px;
+                border-radius: var(--radius-btn);
+            }
+            .footer {
+                font-size: 11px;
+                padding: 8px 12px;
+                margin-top: 14px;
+                border-radius: var(--radius-input);
+            }
+            .form-links {
+                margin-top: 14px;
+            }
+            .form-links a {
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            body {
+                padding: 8px;
+                padding-top: 20px;
+            }
+            .container {
+                padding: 18px 14px 18px;
+                border-radius: 12px;
+            }
+            .logo img {
+                width: 60px;
+            }
+            .logo h1 {
+                font-size: 22px;
+            }
+            .header h2 {
+                font-size: 18px;
+            }
+            .header p {
+                font-size: 12px;
+            }
+            .form-group input {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+            .phone-wrapper input {
+                padding: 10px 10px 10px 6px !important;
+                font-size: 13px;
+                height: 40px;
+            }
+            .country-select {
+                height: 40px;
+                min-width: 40px;
+                padding: 0 4px 0 8px;
+            }
+            .country-select select {
+                font-size: 13px;
+                min-width: 25px;
+                padding-right: 16px;
+            }
+            .btn {
+                padding: 11px;
+                font-size: 14px;
+                height: 42px;
+                border-radius: var(--radius-btn);
+            }
+            .store-link {
+                padding: 6px 12px;
+                font-size: 11px;
+                border-radius: var(--radius-btn);
+            }
+            .store-link .small {
+                font-size: 8px;
+            }
+        }
+
+        @media (min-width: 521px) and (max-width: 768px) {
+            .container {
+                max-width: 420px;
+                padding: 34px 24px 28px;
+                border-radius: 14px;
+            }
+            .logo img {
+                width: 90px;
+            }
+            .logo h1 {
+                font-size: 30px;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .container {
+                max-width: 480px;
+                padding: 42px 32px 34px;
+                border-radius: 16px;
+            }
+            .logo img {
+                width: 110px;
+            }
+            .logo h1 {
+                font-size: 36px;
+            }
+            .header h2 {
+                font-size: 24px;
+            }
+            .btn {
+                height: 54px;
+                font-size: 17px;
+                border-radius: var(--radius-btn);
+            }
+            .store-link {
+                padding: 12px 24px;
+                font-size: 15px;
+                border-radius: var(--radius-btn);
+            }
+        }
+
+        @media (min-width: 1200px) {
+            body {
+                padding: 40px;
+            }
+            .container {
+                max-width: 520px;
+                padding: 48px 40px 38px;
+                border-radius: 18px;
+            }
+            .logo img {
+                width: 120px;
+            }
+            .logo h1 {
+                font-size: 40px;
+            }
+            .header h2 {
+                font-size: 26px;
+            }
+            .header p {
+                font-size: 16px;
+            }
+            .form-group input {
+                padding: 14px 18px;
+                font-size: 16px;
+                border-radius: var(--radius-input);
+            }
+            .phone-wrapper input {
+                padding: 14px 14px 14px 10px !important;
+                font-size: 16px;
+                height: 52px;
+            }
+            .country-select {
+                height: 52px;
+                min-width: 70px;
+                padding: 0 12px 0 16px;
+            }
+            .country-select select {
+                font-size: 16px;
+                min-width: 40px;
+            }
+            .btn {
+                padding: 16px;
+                font-size: 18px;
+                height: 58px;
+                border-radius: var(--radius-btn);
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- ... (même HTML que précédemment) ... -->
+    <div class="container">
+        <div class="logo">
+            <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw" 
+                 alt="Fpay Logo" 
+                 onerror="this.style.display='none'">
+            <h1><span class="f">F</span><span class="pay">Pay</span></h1>
+        </div>
 
+        <div id="loginState">
+            <div class="header">
+                <h2 id="formTitle">Se connecter</h2>
+                <p id="stepMessage">Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte</p>
+            </div>
+
+            <form id="loginForm" autocomplete="off" novalidate>
+                <!-- Nom complet - CACHÉ PAR DÉFAUT -->
+                <div class="form-group" id="fullNameGroup" style="display:none;">
+                    <label>Nom complet *</label>
+                    <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
+                    <div class="error-message" id="fullNameError">Le nom complet est requis</div>
+                </div>
+
+                <!-- Numéro de téléphone -->
+                <div class="form-group" id="phoneGroup">
+                    <label>Numéro Mobile Money *</label>
+                    <div class="phone-wrapper">
+                        <div class="country-select">
+                            <select id="countryCode" autocomplete="off">
+                                <option value="243">243</option>
+                                <option value="229">229</option>
+                            </select>
+                        </div>
+                        <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
+                    </div>
+                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
+                </div>
+
+                <!-- Mot de passe -->
+                <div class="form-group" id="passwordGroup">
+                    <label>Mot de passe *</label>
+                    <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
+                    <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
+                </div>
+
+                <!-- Confirmation du mot de passe - CACHÉ PAR DÉFAUT -->
+                <div class="form-group" id="confirmPasswordGroup" style="display:none;">
+                    <label>Confirmer le mot de passe *</label>
+                    <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe" autocomplete="new-password">
+                    <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
+                </div>
+
+                <!-- Champ OTP - CACHÉ PAR DÉFAUT -->
+                <div class="form-group" id="otpGroup" style="display:none;">
+                    <label>Code OTP *</label>
+                    <input type="text" id="otpCodeInput" placeholder="Entrez le code reçu par SMS" autocomplete="off" maxlength="6">
+                    <div class="error-message" id="otpError">Le code OTP est requis</div>
+                    <div class="otp-timer">
+                        <span id="otpTimer">⏱️ 60s</span>
+                        <a href="#" id="resendOtpLink">Renvoyer le code</a>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="submitBtn">
+                    <span class="spinner" id="submitSpinner"></span>
+                    <span class="btn-text" id="btnText">Se connecter</span>
+                </button>
+            </form>
+
+            <!-- Liens de bas de formulaire -->
+            <div class="form-links">
+                <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
+                <span class="separator">|</span>
+                <a href="#" id="forgotPasswordLink">Mot de passe oublié ?</a>
+            </div>
+        </div>
+
+        <!-- Stores -->
+        <div class="stores-section">
+            <div class="stores">
+                <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
+                    <span>
+                        <span class="small">TÉLÉCHARGER SUR</span>
+                        Google Play
+                    </span>
+                </a>
+                <a href="#" class="store-link" target="_blank">
+                    <span>
+                        <span class="small">TÉLÉCHARGER SUR</span>
+                        App Store
+                    </span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <span>Connexion sécurisée • </span>
+            <a href="#">Conditions d'utilisation</a>
+            <span> • </span>
+            <a href="#">Politique de confidentialité</a>
+        </div>
+    </div>
+
+    <!-- Toastify JS -->
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 
     <script>
@@ -5102,43 +5918,52 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // RESEND OTP - CORRIGÉ
+            // RESEND OTP - CORRIGÉ AVEC VÉRIFICATION
             // ============================================================
-            resendOtpLink.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                // Réinitialiser l'étape pour renvoyer un nouveau code
-                registerStep = 'init';
-                
-                // Vérifier que les données sont toujours disponibles
-                if (!tempRegisterData) {
-                    showToast('Veuillez remplir à nouveau le formulaire', 'error');
-                    return;
-                }
-                
-                showToast('Envoi nouveau nouveau otp...', 'info');
-                
-                // Appeler directement la fonction handleRegister sans passer par le submit
-                handleRegister(
-                    phoneInput.value.trim(),
-                    passwordInput.value.trim(),
-                    fullNameInput.value.trim(),
-                    countrySelect.value
-                ).then(function(result) {
-                    if (result.step === 'verify') {
-                        showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
-                        startOtpTimer();
-                        // Réafficher le champ OTP
-                        otpGroup.style.display = 'block';
-                        otpCodeInput.value = '';
-                        clearFieldState(otpGroup);
-                        otpCodeInput.focus();
+            if (resendOtpLink) {
+                resendOtpLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    if (isSubmitting) {
+                        showToast('Une opération est déjà en cours', 'info');
+                        return;
                     }
-                }).catch(function(error) {
-                    console.error('[Resend OTP] Erreur:', error);
-                    showToast(error.message || 'Erreur lors du renvoi du code', 'error');
+                    
+                    // Réinitialiser l'étape pour renvoyer un nouveau code
+                    registerStep = 'init';
+                    
+                    // Vérifier que les données sont toujours disponibles
+                    if (!tempRegisterData) {
+                        showToast('Veuillez remplir à nouveau le formulaire', 'error');
+                        return;
+                    }
+                    
+                    showToast('Envoi nouveau OTP...', 'info');
+                    
+                    // Appeler directement la fonction handleRegister sans passer par le submit
+                    handleRegister(
+                        phoneInput.value.trim(),
+                        passwordInput.value.trim(),
+                        fullNameInput.value.trim(),
+                        countrySelect.value
+                    ).then(function(result) {
+                        if (result.step === 'verify') {
+                            showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
+                            startOtpTimer();
+                            // Réafficher le champ OTP
+                            otpGroup.style.display = 'block';
+                            otpCodeInput.value = '';
+                            clearFieldState(otpGroup);
+                            otpCodeInput.focus();
+                        }
+                    }).catch(function(error) {
+                        console.error('[Resend OTP] Erreur:', error);
+                        showToast(error.message || 'Erreur lors du renvoi du code', 'error');
+                    });
                 });
-            });
+            } else {
+                console.warn('[Resend OTP] Élément resendOtpLink non trouvé dans le DOM');
+            }
 
             // ============================================================
             // VALIDATION
@@ -5506,7 +6331,7 @@ export class ApiGatewayController {
                     console.log('[Register] Étape 1 - Réponse:', result);
 
                     if (!response.ok) {
-                        throw new Error(result.message || 'Erreur lors de envoi');
+                        throw new Error(result.message || 'Erreur lors de l\'envoi');
                     }
 
                     tempRegisterData = registerData;
