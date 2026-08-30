@@ -5515,6 +5515,14 @@ export class ApiGatewayController {
             display: block;
         }
 
+        /* Masquer les champs pendant la vérification OTP */
+        .hidden-fields {
+            transition: all 0.3s ease;
+        }
+        .hidden-fields.hide {
+            display: none !important;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -5791,39 +5799,42 @@ export class ApiGatewayController {
             </div>
 
             <form id="loginForm" autocomplete="off" novalidate>
-                <!-- Nom complet - CACHÉ PAR DÉFAUT -->
-                <div class="form-group" id="fullNameGroup" style="display:none;">
-                    <label>Nom complet *</label>
-                    <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
-                    <div class="error-message" id="fullNameError">Le nom complet est requis</div>
-                </div>
-
-                <!-- Numéro de téléphone -->
-                <div class="form-group" id="phoneGroup">
-                    <label>Numéro Mobile Money *</label>
-                    <div class="phone-wrapper">
-                        <div class="country-select">
-                            <select id="countryCode" autocomplete="off">
-                                <!-- Les options seront chargées dynamiquement depuis l'API -->
-                            </select>
-                        </div>
-                        <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
+                <!-- Groupe des champs cachés pendant l'OTP -->
+                <div id="hiddenFields" class="hidden-fields">
+                    <!-- Nom complet - CACHÉ PAR DÉFAUT -->
+                    <div class="form-group" id="fullNameGroup" style="display:none;">
+                        <label>Nom complet *</label>
+                        <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
+                        <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                     </div>
-                    <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
-                </div>
 
-                <!-- Mot de passe -->
-                <div class="form-group" id="passwordGroup">
-                    <label>Mot de passe *</label>
-                    <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
-                    <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
-                </div>
+                    <!-- Numéro de téléphone -->
+                    <div class="form-group" id="phoneGroup">
+                        <label>Numéro Mobile Money *</label>
+                        <div class="phone-wrapper">
+                            <div class="country-select">
+                                <select id="countryCode" autocomplete="off">
+                                    <!-- Les options seront chargées dynamiquement depuis l'API -->
+                                </select>
+                            </div>
+                            <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
+                        </div>
+                        <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
+                    </div>
 
-                <!-- Confirmation du mot de passe - CACHÉ PAR DÉFAUT -->
-                <div class="form-group" id="confirmPasswordGroup" style="display:none;">
-                    <label>Confirmer le mot de passe *</label>
-                    <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe" autocomplete="new-password">
-                    <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
+                    <!-- Mot de passe -->
+                    <div class="form-group" id="passwordGroup">
+                        <label>Mot de passe *</label>
+                        <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
+                        <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
+                    </div>
+
+                    <!-- Confirmation du mot de passe - CACHÉ PAR DÉFAUT -->
+                    <div class="form-group" id="confirmPasswordGroup" style="display:none;">
+                        <label>Confirmer le mot de passe *</label>
+                        <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe" autocomplete="new-password">
+                        <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
+                    </div>
                 </div>
 
                 <!-- Champ OTP - CACHÉ PAR DÉFAUT -->
@@ -5913,6 +5924,7 @@ export class ApiGatewayController {
             // DOM REFS
             // ============================================================
             var form = document.getElementById('loginForm');
+            var hiddenFields = document.getElementById('hiddenFields');
             var phoneInput = document.getElementById('phone');
             var passwordInput = document.getElementById('password');
             var confirmPasswordInput = document.getElementById('confirmPassword');
@@ -5985,10 +5997,32 @@ export class ApiGatewayController {
                 }
             }
 
-            // Navigation automatique entre les inputs OTP
+            // ============================================================
+            // AFFICHER/MASQUER LES CHAMPS PENDANT L'OTP
+            // ============================================================
+            function hideFieldsForOtp() {
+                hiddenFields.classList.add('hide');
+                otpContainer.classList.add('show');
+                btnText.textContent = 'Vérifier le code';
+                stepMessage.textContent = 'Saisissez le code OTP reçu par SMS';
+                // Cacher les liens
+                document.querySelector('.form-links').style.display = 'none';
+            }
+
+            function showFieldsAfterOtp() {
+                hiddenFields.classList.remove('hide');
+                otpContainer.classList.remove('show');
+                btnText.textContent = isRegisterMode ? 'Créer mon compte' : 'Se connecter';
+                stepMessage.textContent = isRegisterMode ? 'Veuillez saisir vos informations pour créer votre compte' : 'Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte';
+                document.querySelector('.form-links').style.display = 'block';
+                setOtpError(false);
+            }
+
+            // ============================================================
+            // NAVIGATION OTP
+            // ============================================================
             otpInputs.forEach(function(input, index) {
                 input.addEventListener('input', function(e) {
-                    // Ne garder que les chiffres
                     this.value = this.value.replace(/\D/g, '').slice(0, 1);
                     
                     if (this.value) {
@@ -5998,44 +6032,33 @@ export class ApiGatewayController {
                         this.classList.remove('filled');
                     }
                     
-                    // Effacer le message d'erreur
                     setOtpError(false);
                     
-                    // Passer au champ suivant
                     if (this.value && index < otpInputs.length - 1) {
                         otpInputs[index + 1].focus();
                     }
                     
-                    // Si tous les champs sont remplis, soumettre automatiquement
                     var allFilled = true;
                     otpInputs.forEach(function(inp) {
                         if (!inp.value.trim()) allFilled = false;
                     });
                     if (allFilled && otpContainer.classList.contains('show')) {
-                        // Soumettre automatiquement
                         form.dispatchEvent(new Event('submit'));
                     }
                 });
 
                 input.addEventListener('keydown', function(e) {
-                    // Retour arrière
                     if (e.key === 'Backspace' && !this.value && index > 0) {
                         otpInputs[index - 1].focus();
                         otpInputs[index - 1].value = '';
                         otpInputs[index - 1].classList.remove('filled');
                     }
-                    
-                    // Flèche gauche
                     if (e.key === 'ArrowLeft' && index > 0) {
                         otpInputs[index - 1].focus();
                     }
-                    
-                    // Flèche droite
                     if (e.key === 'ArrowRight' && index < otpInputs.length - 1) {
                         otpInputs[index + 1].focus();
                     }
-                    
-                    // Suppression
                     if (e.key === 'Delete' && !this.value && index < otpInputs.length - 1) {
                         otpInputs[index + 1].focus();
                         otpInputs[index + 1].value = '';
@@ -6043,7 +6066,6 @@ export class ApiGatewayController {
                     }
                 });
 
-                // Gestion du collage
                 input.addEventListener('paste', function(e) {
                     e.preventDefault();
                     var pasteData = (e.clipboardData || window.clipboardData).getData('text');
@@ -6063,7 +6085,7 @@ export class ApiGatewayController {
             });
 
             // ============================================================
-            // RÉCUPÉRATION DES PAYS DEPUIS L'API
+            // RÉCUPÉRATION DES PAYS
             // ============================================================
             async function fetchCountries() {
                 try {
@@ -6094,14 +6116,9 @@ export class ApiGatewayController {
                 }
             }
 
-            // ============================================================
-            // REMPLIR LE SELECT DES PAYS
-            // ============================================================
             function populateCountrySelect(countries) {
                 if (!countrySelect) return;
-                
                 countrySelect.innerHTML = '';
-                
                 countries.forEach(function(country) {
                     if (country.prefix) {
                         var option = document.createElement('option');
@@ -6114,23 +6131,17 @@ export class ApiGatewayController {
                         countrySelect.appendChild(option);
                     }
                 });
-                
                 if (countrySelect.options.length > 0) {
                     countrySelect.selectedIndex = 0;
                 }
             }
 
-            // ============================================================
-            // PAYS PAR DÉFAUT (FALLBACK)
-            // ============================================================
             function setDefaultCountries() {
                 if (!countrySelect) return;
-                
                 var defaultCountries = [
                     { prefix: '243', countryCode: 'CD', code: 'COD', name: 'Congo-Kinshasa' },
                     { prefix: '229', countryCode: 'BJ', code: 'BEN', name: 'Bénin' }
                 ];
-                
                 countrySelect.innerHTML = '';
                 defaultCountries.forEach(function(country) {
                     var option = document.createElement('option');
@@ -6140,15 +6151,11 @@ export class ApiGatewayController {
                     option.dataset.name = country.name;
                     countrySelect.appendChild(option);
                 });
-                
                 if (countrySelect.options.length > 0) {
                     countrySelect.selectedIndex = 0;
                 }
             }
 
-            // ============================================================
-            // GET COUNTRY CODE
-            // ============================================================
             function getSelectedCountryCode() {
                 if (countrySelect && countrySelect.selectedIndex >= 0) {
                     var option = countrySelect.options[countrySelect.selectedIndex];
@@ -6157,9 +6164,6 @@ export class ApiGatewayController {
                 return 'CD';
             }
 
-            // ============================================================
-            // GET PREFIX
-            // ============================================================
             function getSelectedPrefix() {
                 if (countrySelect && countrySelect.selectedIndex >= 0) {
                     return countrySelect.value;
@@ -6168,7 +6172,7 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // TOAST NOTIFICATIONS
+            // TOAST
             // ============================================================
             function showToast(message, type) {
                 var backgroundColor = '#1a1a1a';
@@ -6259,7 +6263,6 @@ export class ApiGatewayController {
                         if (result.step === 'verify') {
                             showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
-                            otpContainer.classList.add('show');
                             clearOtpInputs();
                             setOtpError(false);
                         }
@@ -6398,11 +6401,11 @@ export class ApiGatewayController {
                 registerStep = 'init';
                 tempRegisterData = null;
                 clearInterval(otpTimerInterval);
+                showFieldsAfterOtp();
                 
                 if (registerMode) {
                     fullNameGroup.style.display = 'block';
                     confirmPasswordGroup.style.display = 'block';
-                    otpContainer.classList.remove('show');
                     btnText.textContent = 'Créer mon compte';
                     toggleFormLink.textContent = 'Se connecter';
                     formTitle.textContent = 'Créer un compte';
@@ -6423,7 +6426,6 @@ export class ApiGatewayController {
                 } else {
                     fullNameGroup.style.display = 'none';
                     confirmPasswordGroup.style.display = 'none';
-                    otpContainer.classList.remove('show');
                     btnText.textContent = 'Se connecter';
                     toggleFormLink.textContent = 'Créer un compte';
                     formTitle.textContent = 'Se connecter';
@@ -6769,10 +6771,10 @@ export class ApiGatewayController {
                         var result = await handleRegister(phone, password, fullName);
                         
                         if (result.step === 'verify') {
-                            otpContainer.classList.add('show');
+                            hideFieldsForOtp();
                             clearOtpInputs();
                             setOtpError(false);
-                            btnText.textContent = 'Vérifier le code';
+                            otpInputs[0].focus();
                             showToast('Un code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
                             setLoading(false);
@@ -6826,11 +6828,10 @@ export class ApiGatewayController {
             });
 
             // ============================================================
-            // AUTO-REDIRECT IF ALREADY AUTHENTICATED
+            // AUTO-REDIRECT
             // ============================================================
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM chargé');
-                
                 fetchCountries();
 
                 var code = urlParams.get('code');
