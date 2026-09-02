@@ -7,7 +7,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload, RmqContext, RpcException, Ctx } from '@nestjs/microservices';
 import { WalletServiceService } from './wallet-service.service';
-import { PayDto, SendDto, SendFidelityDto } from './dto/wallet-operation.dto';
+import { PayDto, SendDto, SendFidelityDto, SendParrainageDto } from './dto/wallet-operation.dto';
 import { PawapayService } from './pawapay/pawapay.service';
 import { CreateCountryDto } from './pawapay/dto/create-country.dto';
 import { UpdateCountryDto } from './pawapay/dto/update-country.dto';
@@ -517,6 +517,53 @@ export class WalletServiceController {
       return await this.walletService.sendFidelity(data, data.lang || 'fr', ipAddress);
     } catch (error) {
       console.error('[WalletService] send_fidelity error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('send_parrainage')
+  async sendParrainage(@Payload() data: SendParrainageDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_parrainage received:', {
+      from: data.fromWalletId,
+      to: data.toPhone,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      paymentMethod: data.paymentMethod, //  Ajout du paymentMethod
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
+    //  Validation du paymentMethod
+    const validPaymentMethods = ['MOBILE_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'];
+    if (!data.paymentMethod) {
+      console.error('[WalletService]  paymentMethod manquant');
+      throw new RpcException({
+        status: 'error',
+        message: 'Le paymentMethod est requis (MOBILE_MONEY, CASH, BANK_TRANSFER, CARD)',
+        statusCode: 400,
+      });
+    }
+
+    if (!validPaymentMethods.includes(data.paymentMethod)) {
+      console.error('[WalletService]  paymentMethod invalide:', data.paymentMethod);
+      throw new RpcException({
+        status: 'error',
+        message: `paymentMethod invalide. Valeurs acceptées: ${validPaymentMethods.join(', ')}`,
+        statusCode: 400,
+      });
+    }
+
+    try {
+      return await this.walletService.sendParrainage(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_parrainage error:', error);
       const lang = data.lang || 'fr';
       throw new RpcException({
         status: 'error',

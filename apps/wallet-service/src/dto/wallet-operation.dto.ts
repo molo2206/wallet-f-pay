@@ -164,3 +164,14 @@ export class SendFidelityDto {
   @IsOptional()
   countryCode?: string;
 }
+
+
+export class SendParrainageDto {
+  fromWalletId: string;
+  toPhone: string;
+  amount: number;
+  description?: string;
+  currency?: string;
+  countryCode?: string;
+  paymentMethod?: string; // ✅ Ajout du paymentMethod
+}

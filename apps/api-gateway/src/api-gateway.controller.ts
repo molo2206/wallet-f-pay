@@ -4210,9 +4210,216 @@ export class ApiGatewayController {
     return response;
   }
 
+  @Post('api/external/send/parrainage')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('send_parrainage')
+  async externalSendParrainage(
+    @Request() req: any,
+    @Body() body: {
+      userId: string; // 🔥 userId du DESTINATAIRE (client)
+      amount: number;
+      description?: string;
+      currency?: string;
+      countryCode?: string;
+      paymentMethod?: string; // ✅ AJOUT du paymentMethod
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const apiKeyUser = req.user; // 🔥 API Key owner = PAYEUR (company)
+
+    console.log('[ExternalSendParrainage] 📋 Utilisateur de l\'API Key (PAYEUR):', {
+      id: apiKeyUser.id,
+      full_name: apiKeyUser.full_name,
+      phone: apiKeyUser.phone,
+      merchantCode: apiKeyUser.merchantCode,
+      role: apiKeyUser.role,
+      status: apiKeyUser.status,
+    });
+
+    // ✅ 1. Vérifier que le payeur (API Key owner) a un téléphone
+    if (!apiKeyUser.phone) {
+      throw new HttpException(
+        'API Key user has no phone number',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 2. VÉRIFIER le paymentMethod
+    const validPaymentMethods = ['MOBILE_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'];
+    const paymentMethod = body.paymentMethod || 'MOBILE_MONEY';
+
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      throw new HttpException(
+        `paymentMethod invalide. Valeurs acceptées: ${validPaymentMethods.join(', ')}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 3. Récupérer le DESTINATAIRE (client) par son userId
+    const recipient = await this.prisma.user.findFirst({
+      where: {
+        id: body.userId,
+        status: 'ACTIVE',
+        deleted: false,
+      },
+      include: {
+        wallets: {
+          where: { isActive: true },
+        },
+      },
+    });
+
+    if (!recipient) {
+      throw new HttpException(
+        `Recipient with id ${body.userId} not found`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // ✅ 4. Récupérer le wallet du DESTINATAIRE
+    const targetCurrency = body.currency || 'USD';
+    let recipientWallet = recipient.wallets.find(w => w.currency === targetCurrency);
+
+    if (!recipientWallet) {
+      recipientWallet = recipient.wallets[0];
+      if (!recipientWallet) {
+        throw new HttpException(
+          `No active wallet found for recipient ${body.userId}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      console.warn(`[ExternalSendParrainage] Wallet ${targetCurrency} not found, using ${recipientWallet.currency}`);
+    }
+
+    console.log('[ExternalSendParrainage] Wallet du destinataire trouvé:', {
+      walletId: recipientWallet.id,
+      currency: recipientWallet.currency,
+      balance: recipientWallet.balance,
+    });
+
+    // ✅ 5. Vérifier que le payeur n'est pas le destinataire
+    if (apiKeyUser.id === recipient.id) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.cannot_transfer_self', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 6. Récupérer les wallets du PAYEUR (company)
+    const payerWallets = await this.prisma.wallet.findMany({
+      where: {
+        userId: apiKeyUser.id,
+        isActive: true,
+      },
+    });
+
+    if (!payerWallets || payerWallets.length === 0) {
+      throw new HttpException(
+        `No active wallet found for payer ${apiKeyUser.id}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 7. Chercher le wallet du payeur dans la devise demandée
+    let payerWallet = payerWallets.find(w => w.currency === targetCurrency);
+
+    // ✅ 8. Si pas assez de solde ou pas de wallet dans cette devise, chercher un autre wallet avec assez de solde
+    if (payerWallet) {
+      if (payerWallet.balance < body.amount) {
+        console.log(`[ExternalSendParrainage] Solde insuffisant en ${targetCurrency} (${payerWallet.balance}), recherche d'un autre wallet...`);
+
+        const otherWallet = payerWallets.find(w =>
+          w.currency !== targetCurrency &&
+          w.balance >= body.amount
+        );
+
+        if (otherWallet) {
+          payerWallet = otherWallet;
+          console.log(`[ExternalSendParrainage] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
+        } else {
+          throw new HttpException(
+            `Insufficient balance: ${payerWallet.balance} ${payerWallet.currency}. You have ${payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ')}`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+    } else {
+      console.log(`[ExternalSendParrainage] Aucun wallet en ${targetCurrency}, recherche d'un autre wallet...`);
+
+      const availableWallet = payerWallets.find(w => w.balance >= body.amount);
+
+      if (availableWallet) {
+        payerWallet = availableWallet;
+        console.log(`[ExternalSendParrainage] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
+      } else {
+        const balances = payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ');
+        throw new HttpException(
+          `Insufficient balance in any wallet. Available balances: ${balances}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    console.log('[ExternalSendParrainage] Wallet du payeur sélectionné:', {
+      walletId: payerWallet.id,
+      currency: payerWallet.currency,
+      balance: payerWallet.balance,
+    });
+
+    // ✅ 9. Préparer les données pour le service wallet
+    const sendPayload: any = {
+      fromWalletId: payerWallet.id,
+      toPhone: recipient.phone,
+      amount: body.amount,
+      description: body.description || `Envoi de parrainage vers ${recipient.full_name || recipient.phone}`,
+      countryCode: body.countryCode || 'CD',
+      paymentMethod: paymentMethod, // ✅ AJOUT du paymentMethod
+      lang,
+      ipAddress,
+    };
+
+    console.log('[ExternalSendParrainage] 📤 Payload envoyé au service wallet:', sendPayload);
+
+    // ✅ 10. Appeler le service wallet avec 'send_parrainage'
+    const response = await this.sendWalletMessage(
+      'send_parrainage', // ✅ Message pattern
+      sendPayload,
+      this.i18nService.translate('wallet.parrainage_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+
+    // ✅ 11. Log de l'opération
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: apiKeyUser.id,
+        action: 'EXTERNAL_SEND_PARRAINAGE',
+        details: JSON.stringify({
+          payerId: apiKeyUser.id,
+          payerPhone: apiKeyUser.phone,
+          recipientId: recipient.id,
+          recipientPhone: recipient.phone,
+          amount: body.amount,
+          currency: body.currency,
+          apiKeyId: apiKeyUser.id,
+          description: body.description,
+          countryCode: body.countryCode,
+          paymentMethod: paymentMethod,
+          selectedWalletCurrency: payerWallet.currency,
+        }),
+        ipAddress: ipAddress || null,
+        createdAt: new Date(),
+      },
+    });
+
+    return response;
+  }
+
   @Post('api/external/pay/mobile_money')
-  @UseGuards(ApiKeyGuard)  // ✅ Utiliser ApiKeyGuard au lieu de JwtAuthGuard
-  @PermissionsApi_Key('pay')  // ✅ Permission requise
+  @UseGuards(ApiKeyGuard)  //  Utiliser ApiKeyGuard au lieu de JwtAuthGuard
+  @PermissionsApi_Key('pay')  //  Permission requise
   async payAccount(
     @Request() req: any,  // ✅ Récupérer l'utilisateur de l'API Key
     @Body() body: {

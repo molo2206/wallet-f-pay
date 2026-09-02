@@ -4932,6 +4932,7 @@ export class WalletServiceService {
         let systemWallet: any = null;
         let systemUser: any = null;
 
+
         const feeAmount = fee || 0;
 
         console.log('[WalletService] 🔍 DEBUG - Fee collection:', {
@@ -5223,6 +5224,716 @@ export class WalletServiceService {
           netAmount: result.netAmount,
           fromCurrency: result.fromWallet.currency,
           countryCode: result.receiverCountryCode,
+        }
+      ),
+      data: {
+        wallet: this.toResponse(result.fromWallet),
+        transaction: result.senderTx,
+      },
+    };
+  }
+
+  async sendParrainage(
+    dto: SendFidelityDto,
+    lang: string = 'fr',
+    ipAddress: string = 'system',
+  ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
+    const { fromWalletId, toPhone, amount, description, countryCode, paymentMethod } = dto;
+    console.log('[WalletService] Send Parrainage request:', {
+      fromWalletId,
+      toPhone,
+      amount,
+      lang,
+      countryCode,
+      paymentMethod
+    });
+
+    // ========== VALIDATIONS ==========
+    if (amount <= 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.amount_positive', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!fromWalletId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet source est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!toPhone || toPhone.trim() === '') {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.phone_required', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ✅ VALIDATION DU paymentMethod
+    const validPaymentMethods = ['MOBILE_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'];
+    if (!paymentMethod) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le paymentMethod est requis (MOBILE_MONEY, CASH, BANK_TRANSFER, CARD)',
+        statusCode: 400,
+      });
+    }
+
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      throw new RpcException({
+        status: 'error',
+        message: `paymentMethod invalide. Valeurs acceptées: ${validPaymentMethods.join(', ')}`,
+        statusCode: 400,
+      });
+    }
+
+    const cleanToPhone = toPhone.replace(/[^0-9+]/g, '');
+    console.log('[WalletService] Clean phone:', cleanToPhone);
+
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        // 1. Vérifier que le destinataire existe
+        const toUser = await tx.user.findFirst({
+          where: {
+            phone: {
+              in: [cleanToPhone, toPhone, `+${cleanToPhone.replace(/^\+/, '')}`]
+            }
+          },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            account_number: true,
+            countryCode: true,
+          },
+        });
+
+        if (!toUser) {
+          console.error('[WalletService] ❌ Destinataire non trouvé:', cleanToPhone);
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.receiver_not_found', lang, {
+              phone: toPhone,
+            }),
+            statusCode: 404,
+          });
+        }
+
+        console.log('[WalletService] ✅ Destinataire trouvé:', {
+          id: toUser.id,
+          name: toUser.full_name,
+          phone: toUser.phone,
+          countryCode: toUser.countryCode,
+        });
+
+        // 2. Récupérer le wallet source
+        const fromWallet = await tx.wallet.findFirst({
+          where: { id: fromWalletId },
+          include: {
+            user: {
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                account_number: true,
+                pin: true,
+                status: true,
+                failed_pin_attempts: true,
+                countryCode: true,
+                kycStatus: true,
+              }
+            }
+          },
+        });
+
+        if (!fromWallet) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.wallet_not_found', lang),
+            statusCode: 404,
+          });
+        }
+
+        if (!fromWallet.isActive) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.wallet_inactive', lang),
+            statusCode: 403,
+          });
+        }
+
+        const fromUser = fromWallet.user;
+
+        if (!fromUser) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.sender_not_found', lang),
+            statusCode: 404,
+          });
+        }
+
+        if (fromUser.status === user_status.BLOCKED) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('account_blocked_admin', lang),
+            statusCode: 403,
+          });
+        }
+
+        if (fromUser.id === toUser.id) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.cannot_transfer_self', lang),
+            statusCode: 400,
+          });
+        }
+
+        // 3. Déterminer les pays
+        const senderCountryCode = fromUser.countryCode || 'CD';
+        let receiverCountryCode = toUser.countryCode || 'CD';
+
+        if (countryCode) {
+          receiverCountryCode = countryCode.toUpperCase();
+          console.log('[WalletService] 📌 CountryCode fourni:', countryCode);
+        }
+
+        const isInternational = senderCountryCode !== receiverCountryCode;
+
+        console.log('[WalletService] Transfer type:', {
+          senderCountry: senderCountryCode,
+          receiverCountry: receiverCountryCode,
+          isInternational,
+          fromCurrency: fromWallet.currency,
+          countryCodeProvided: countryCode || 'Non fourni',
+          paymentMethod,
+        });
+
+        // ✅ VÉRIFICATION KYC POUR LES TRANSFERTS INTERNATIONAUX
+        if (isInternational) {
+          const kycStatus = fromUser.kycStatus || 'NOT_SUBMITTED';
+
+          if (kycStatus !== 'VERIFIED') {
+            console.error('[WalletService] ❌ KYC non vérifié pour transfert international:', {
+              userId: fromUser.id,
+              kycStatus: kycStatus,
+            });
+
+            let errorMessage = '';
+            switch (kycStatus) {
+              case 'NOT_SUBMITTED':
+                errorMessage = this.i18nService.translate('wallet.kyc_required_for_international_transfer', lang);
+                break;
+              case 'PENDING':
+                errorMessage = this.i18nService.translate('wallet.kyc_pending_for_international_transfer', lang);
+                break;
+              case 'REJECTED':
+                errorMessage = this.i18nService.translate('wallet.kyc_rejected_for_international_transfer', lang);
+                break;
+              default:
+                errorMessage = this.i18nService.translate('wallet.kyc_required_for_international_transfer', lang);
+            }
+
+            throw new RpcException({
+              status: 'error',
+              message: errorMessage,
+              statusCode: 403,
+            });
+          }
+
+          console.log('[WalletService] ✅ KYC vérifié pour transfert international');
+        }
+
+        // 4. Récupérer les frais internationaux
+        let internationalFeePercentage = 0;
+        let fee = 0;
+        let debitAmount = amount;
+        let netAmount = amount;
+        let feeCurrency = fromWallet.currency;
+
+        if (isInternational) {
+          const senderCountry = await tx.country_provider.findFirst({
+            where: {
+              OR: [
+                { countryCode: senderCountryCode },
+                { code: senderCountryCode },
+              ]
+            },
+            select: {
+              international_transfer_fee: true,
+              cash_percentage: true,
+              momo_percentage: true,
+              deposit_fee: true,
+              withdrawal_fee: true,
+              maintenance_fee: true,
+            },
+          });
+
+          if (!senderCountry) {
+            console.error('[WalletService] ❌ Pays expéditeur non trouvé:', senderCountryCode);
+            throw new RpcException({
+              status: 'error',
+              message: `Pays expéditeur ${senderCountryCode} non trouvé`,
+              statusCode: 404,
+            });
+          }
+
+          // ✅ Utiliser le bon pourcentage selon le paymentMethod
+          if (paymentMethod === 'CASH') {
+            internationalFeePercentage = senderCountry.cash_percentage || 0;
+          } else if (paymentMethod === 'MOBILE_MONEY') {
+            internationalFeePercentage = senderCountry.momo_percentage || 0;
+          } else {
+            internationalFeePercentage = senderCountry.international_transfer_fee ||
+              senderCountry.cash_percentage ||
+              senderCountry.momo_percentage ||
+              0;
+          }
+
+          console.log('[WalletService] Frais du pays expéditeur:', {
+            senderCountryCode,
+            paymentMethod,
+            international_transfer_fee: senderCountry.international_transfer_fee,
+            cash_percentage: senderCountry.cash_percentage,
+            momo_percentage: senderCountry.momo_percentage,
+            internationalFeePercentage,
+          });
+
+          if (internationalFeePercentage > 0) {
+            const percentageDecimal = internationalFeePercentage / 100;
+            netAmount = amount / (1 + percentageDecimal);
+            fee = amount - netAmount;
+            debitAmount = amount;
+            feeCurrency = fromWallet.currency;
+
+            console.log('[WalletService] Frais internationaux appliqués:', {
+              percentage: internationalFeePercentage,
+              brutAmount: amount,
+              netAmount,
+              fee,
+              debitAmount,
+              feeCurrency,
+              senderCountry: senderCountryCode,
+              paymentMethod,
+            });
+          } else {
+            console.log('[WalletService] Aucun frais international configuré pour', senderCountryCode);
+            netAmount = amount;
+            fee = 0;
+            debitAmount = amount;
+          }
+        } else {
+          console.log('[WalletService] ✅ Même pays - Pas de frais');
+          internationalFeePercentage = 0;
+          fee = 0;
+          debitAmount = amount;
+          netAmount = amount;
+        }
+
+        console.log('[WalletService] Fee calculation:', {
+          isInternational,
+          amount,
+          feePercentage: internationalFeePercentage,
+          fee,
+          debitAmount,
+          netAmount,
+          senderCountryCode,
+          paymentMethod,
+        });
+
+        // 5. Récupérer les wallets du destinataire
+        const receiverWallets = await tx.wallet.findMany({
+          where: {
+            userId: toUser.id,
+            isActive: true,
+          },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            currency: true,
+            balance: true,
+          },
+        });
+
+        if (!receiverWallets || receiverWallets.length === 0) {
+          throw new RpcException({
+            status: 'error',
+            message: 'Le destinataire ne possède aucun wallet actif',
+            statusCode: 404,
+          });
+        }
+
+        console.log('[WalletService] Wallets du destinataire:', receiverWallets.map(w => w.currency));
+
+        const paymentCurrency = fromWallet.currency;
+
+        console.log('[WalletService] Devise du paiement:', paymentCurrency);
+
+        let targetWallet = receiverWallets.find(w => w.currency === paymentCurrency);
+
+        if (!targetWallet) {
+          targetWallet = receiverWallets[0];
+          console.log(`[WalletService] ⚠️ Aucun wallet en ${paymentCurrency}, utilisation du premier wallet: ${targetWallet.currency}`);
+        } else {
+          console.log(`[WalletService] ✅ Wallet en ${paymentCurrency} trouvé pour le destinataire`);
+        }
+
+        console.log('[WalletService] Wallet cible du destinataire:', {
+          id: targetWallet.id,
+          currency: targetWallet.currency,
+          balance: targetWallet.balance,
+        });
+
+        // 6. Calculer le taux de change
+        let exchangeRate = 1;
+        let convertedAmount = netAmount;
+
+        if (fromWallet.currency !== targetWallet.currency) {
+          exchangeRate = await this.getExchangeRateViaPivot(
+            fromWallet.currency,
+            targetWallet.currency,
+            tx,
+          );
+          convertedAmount = netAmount * exchangeRate;
+          console.log('[WalletService] Conversion du montant:', {
+            from: fromWallet.currency,
+            to: targetWallet.currency,
+            netAmount,
+            rate: exchangeRate,
+            convertedAmount,
+          });
+        }
+
+        // 7. Vérifier le solde
+        if (fromWallet.balance < debitAmount) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+            statusCode: 400,
+          });
+        }
+
+        // 8. Mettre à jour les soldes
+        const updatedFrom = await tx.wallet.update({
+          where: { id: fromWallet.id },
+          data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
+        });
+
+        let updatedTo: any = null;
+        if (!isInternational) {
+          updatedTo = await tx.wallet.update({
+            where: { id: targetWallet.id },
+            data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
+          });
+          console.log('[WalletService]  Transfert national - Destinataire crédité immédiatement');
+        } else {
+          console.log('[WalletService]  Transfert international - Destinataire en attente de validation');
+          updatedTo = targetWallet;
+        }
+
+        // 8.5 COLLECTER LES FRAIS DANS LE WALLET SYSTÈME
+        let systemTransaction: any = null;
+        let systemWallet: any = null;
+        let systemUser: any = null;
+
+        const feeAmount = fee || 0;
+
+        console.log('[WalletService] 🔍 DEBUG - Fee collection:', {
+          feeAmount,
+          feeCurrency,
+          fromWalletCurrency: fromWallet.currency,
+          targetCurrency: targetWallet.currency,
+          exchangeRate,
+          netAmount,
+          convertedAmount,
+          amount,
+          isInternational,
+          internationalFeePercentage,
+          senderCountryCode,
+          paymentMethod,
+        });
+
+        if (feeAmount > 0 && isInternational) {
+          try {
+            systemUser = await tx.user.findFirst({
+              where: {
+                email: 'system@fpay.com',
+              },
+              select: {
+                id: true,
+                full_name: true,
+                email: true,
+              },
+            });
+
+            if (!systemUser) {
+              console.error('[WalletService]  Utilisateur système non trouvé (system@fpay.com)');
+              throw new RpcException({
+                status: 'error',
+                message: 'Utilisateur système non trouvé',
+                statusCode: 500,
+              });
+            }
+
+            systemWallet = await tx.wallet.findFirst({
+              where: {
+                userId: systemUser.id,
+                currency: feeCurrency,
+                isActive: true,
+              },
+            });
+
+            if (!systemWallet) {
+              console.error(`[WalletService]  Wallet système non trouvé pour ${feeCurrency}`);
+              throw new RpcException({
+                status: 'error',
+                message: `Wallet système non trouvé pour la devise ${feeCurrency}`,
+                statusCode: 500,
+              });
+            }
+
+            console.log('[WalletService] 🔍 DEBUG - System wallet found:', {
+              systemWalletId: systemWallet.id,
+              systemWalletCurrency: systemWallet.currency,
+              systemWalletBalance: systemWallet.balance,
+              feeAmountToCredit: feeAmount,
+            });
+
+            if (systemWallet && systemWallet.id) {
+              const updatedSystemWallet = await tx.wallet.update({
+                where: { id: systemWallet.id },
+                data: {
+                  balance: { increment: feeAmount },
+                  updatedAt: new Date()
+                },
+              });
+
+              console.log('[WalletService]  DEBUG - System wallet updated:', {
+                balanceBefore: systemWallet.balance,
+                balanceAfter: updatedSystemWallet.balance,
+                feeAmount: feeAmount,
+                currency: feeCurrency,
+              });
+
+              const feeReference = await this.generateTransactionReference('', tx);
+              const reference = await this.generateTransactionReference('', tx);
+
+              systemTransaction = await tx.transaction.create({
+                data: {
+                  id: crypto.randomUUID(),
+                  userId: systemUser.id,
+                  walletId: systemWallet.id,
+                  amount: feeAmount,
+                  type: 'DEPOSIT',
+                  status: 'SUCCESS',
+                  reference: feeReference,
+                  description: `Frais de parrainage international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${amount} ${feeCurrency} | Net: ${netAmount} ${feeCurrency} | Taux: 1 ${feeCurrency} = ${exchangeRate} ${targetWallet.currency} | Pays: ${senderCountryCode} | Payment: ${paymentMethod}`,
+                  movement: 'CREDIT',
+                  currency: feeCurrency,
+                  paymentMethod: paymentMethod,
+                  external_reference: reference,
+                },
+              });
+
+              console.log(`[WalletService]  Frais collectés: ${feeAmount} ${feeCurrency} (${internationalFeePercentage}%) dans le wallet système (${systemWallet.id})`);
+            }
+          } catch (err) {
+            console.error('[WalletService]  Erreur lors de la collecte des frais:', err);
+            if (err instanceof RpcException) {
+              throw err;
+            }
+            console.warn('[WalletService]  La collecte des frais a échoué mais le transfert continue');
+          }
+        }
+
+        // 9. Construire les descriptions
+        let senderDescription = description;
+        let receiverDescription = description;
+
+        const toUserDisplay = toUser.full_name ? `${toUser.full_name} (${toUser.phone})` : toUser.phone;
+        const fromUserDisplay = fromUser.full_name ? `${fromUser.full_name} (${fromUser.phone})` : fromUser.phone;
+
+        if (!senderDescription) {
+          senderDescription = `Parrainage vers ${toUserDisplay}`;
+        } else {
+          senderDescription = `${senderDescription} (vers: ${toUserDisplay})`;
+        }
+
+        if (feeAmount > 0) {
+          senderDescription += ` (frais ${internationalFeePercentage}%: ${feeAmount} ${fromWallet.currency})`;
+        }
+
+        if (isInternational && fromWallet.currency !== targetWallet.currency) {
+          senderDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetWallet.currency}`;
+          if (countryCode) {
+            senderDescription += ` - Pays: ${countryCode}`;
+          }
+        }
+
+        if (!receiverDescription) {
+          receiverDescription = `Parrainage reçu de ${fromUserDisplay}`;
+        } else {
+          receiverDescription = `${description} (de: ${fromUserDisplay})`;
+        }
+
+        if (isInternational && fromWallet.currency !== targetWallet.currency) {
+          receiverDescription += ` - Taux: 1 ${fromWallet.currency} = ${exchangeRate} ${targetWallet.currency}`;
+          if (countryCode) {
+            receiverDescription += ` - Pays: ${countryCode}`;
+          }
+        }
+
+        // 10. Créer les transactions
+        const reference = await this.generateTransactionReference('', tx);
+
+        const transactionStatus = isInternational ? 'PENDING' : 'SUCCESS';
+
+        console.log('[WalletService] Transaction status:', {
+          isInternational,
+          transactionStatus,
+          senderStatus: 'SUCCESS',
+          receiverStatus: transactionStatus,
+          paymentMethod,
+        });
+
+        const senderTx = await tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: fromUser.id,
+            walletId: fromWallet.id,
+            amount: debitAmount,
+            type: 'TRANSFER',
+            status: 'SUCCESS',
+            reference: reference,
+            description: senderDescription,
+            movement: 'DEBIT',
+            currency: fromWallet.currency,
+            paymentMethod: paymentMethod,
+          },
+        });
+
+        const receiverTx = await tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: toUser.id,
+            walletId: targetWallet.id,
+            amount: convertedAmount,
+            type: 'DEPOSIT',
+            status: transactionStatus,
+            reference: reference,
+            description: receiverDescription,
+            movement: 'CREDIT',
+            currency: targetWallet.currency,
+            paymentMethod: paymentMethod,
+          },
+        });
+
+        await this.logAudit(toUser.id, 'send_parrainage', updatedTo, ipAddress || null);
+
+        return {
+          fromWallet: updatedFrom,
+          toWallet: updatedTo,
+          fromUser,
+          toUser,
+          senderTx,
+          receiverTx,
+          isInternational,
+          exchangeRate,
+          convertedAmount,
+          targetCurrency: targetWallet.currency,
+          fee: feeAmount,
+          internationalFeePercentage,
+          debitAmount,
+          netAmount,
+          receiverCountryCode,
+          senderCountryCode,
+          systemTransaction: systemTransaction ?? null,
+          systemWallet: systemWallet ?? null,
+          systemUser: systemUser ?? null,
+          paymentMethod,
+        };
+      },
+      { timeout: 60000, maxWait: 60000 },
+    );
+
+    // ========== NOTIFICATIONS ==========
+    try {
+      if (!result.isInternational) {
+        await Promise.all([
+          notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.senderTx,
+            result.fromUser,
+            result.fromWallet,
+            'send_sent',
+            {
+              name: result.toUser.full_name ?? undefined,
+              phone: result.toUser.phone ?? undefined,
+            },
+          ),
+          notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.receiverTx,
+            result.toUser,
+            result.toWallet,
+            'send_received',
+            {
+              name: result.fromUser.full_name ?? undefined,
+              phone: result.fromUser.phone ?? undefined,
+            },
+          ),
+        ]);
+      } else {
+        await notifyTransaction(
+          this.smsService,
+          this.notificationHelper,
+          this.i18nService,
+          this.shouldSendSms.bind(this),
+          this.shouldSendPush.bind(this),
+          this.getUserLanguage.bind(this),
+          result.senderTx,
+          result.fromUser,
+          result.fromWallet,
+          'send_pending',
+          {
+            name: result.toUser.full_name ?? undefined,
+            phone: result.toUser.phone ?? undefined,
+          },
+        );
+        console.log('[WalletService] 🌍 Transfert international en attente - Pas de notification au destinataire');
+      }
+    } catch (err) {
+      console.error('[Notifications] Send parrainage notification error:', err);
+    }
+
+    return {
+      message: this.i18nService.translate(
+        result.isInternational ? 'wallet.transfer_international_pending' : 'wallet.transfer_success',
+        lang,
+        {
+          amount: result.convertedAmount,
+          currency: result.targetCurrency,
+          rate: result.exchangeRate,
+          fee: result.fee,
+          feePercentage: result.internationalFeePercentage,
+          debitAmount: result.debitAmount,
+          netAmount: result.netAmount,
+          fromCurrency: result.fromWallet.currency,
+          countryCode: result.receiverCountryCode,
+          paymentMethod: result.paymentMethod,
         }
       ),
       data: {
