@@ -166,12 +166,12 @@ export class SendFidelityDto {
 }
 
 
+// Dans SendParrainageDto
 export class SendParrainageDto {
   fromWalletId: string;
-  toPhone: string;
+  toWalletId: string;  // ✅ Changé : toWalletId au lieu de toPhone
   amount: number;
   description?: string;
-  currency?: string;
   countryCode?: string;
-  paymentMethod?: string; // ✅ Ajout du paymentMethod
+  paymentMethod?: string;
 }

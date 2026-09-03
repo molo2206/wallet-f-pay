@@ -4216,18 +4216,18 @@ export class ApiGatewayController {
   async externalSendParrainage(
     @Request() req: any,
     @Body() body: {
-      userId: string; // 🔥 userId du DESTINATAIRE (client)
       amount: number;
       description?: string;
       currency?: string;
       countryCode?: string;
-      paymentMethod?: string; // ✅ AJOUT du paymentMethod
+      paymentMethod?: string;
+      toApiKey?: string;  // ✅ API Key du destinataire
     },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-    const apiKeyUser = req.user; // 🔥 API Key owner = PAYEUR (company)
+    const apiKeyUser = req.user; // 🔥 API Key owner = PAYEUR (expéditeur)
 
     console.log('[ExternalSendParrainage] 📋 Utilisateur de l\'API Key (PAYEUR):', {
       id: apiKeyUser.id,
@@ -4238,7 +4238,14 @@ export class ApiGatewayController {
       status: apiKeyUser.status,
     });
 
-    // ✅ 1. Vérifier que le payeur (API Key owner) a un téléphone
+    // ✅ 1. Vérifier que le payeur (API Key owner) existe et est valide
+    if (!apiKeyUser) {
+      throw new HttpException(
+        'Utilisateur API Key non trouvé',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
     if (!apiKeyUser.phone) {
       throw new HttpException(
         'API Key user has no phone number',
@@ -4246,7 +4253,22 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 2. VÉRIFIER le paymentMethod
+    // ✅ 2. Vérifier que le payeur est un marchand
+    if (apiKeyUser.role !== 'MERCHANT') {
+      throw new HttpException(
+        'Seuls les marchands peuvent envoyer des parrainages',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (apiKeyUser.status === 'BLOCKED') {
+      throw new HttpException(
+        'Le compte de l\'expéditeur est bloqué',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    // ✅ 3. VÉRIFIER le paymentMethod (optionnel)
     const validPaymentMethods = ['MOBILE_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'];
     const paymentMethod = body.paymentMethod || 'MOBILE_MONEY';
 
@@ -4257,140 +4279,181 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 3. Récupérer le DESTINATAIRE (client) par son userId
-    const recipient = await this.prisma.user.findFirst({
-      where: {
-        id: body.userId,
-        status: 'ACTIVE',
-        deleted: false,
-      },
-      include: {
-        wallets: {
-          where: { isActive: true },
-        },
-      },
-    });
-
-    if (!recipient) {
-      throw new HttpException(
-        `Recipient with id ${body.userId} not found`,
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    // ✅ 4. Récupérer le wallet du DESTINATAIRE
+    // ✅ 4. Déterminer la devise
     const targetCurrency = body.currency || 'USD';
-    let recipientWallet = recipient.wallets.find(w => w.currency === targetCurrency);
 
-    if (!recipientWallet) {
-      recipientWallet = recipient.wallets[0];
-      if (!recipientWallet) {
-        throw new HttpException(
-          `No active wallet found for recipient ${body.userId}`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      console.warn(`[ExternalSendParrainage] Wallet ${targetCurrency} not found, using ${recipientWallet.currency}`);
-    }
-
-    console.log('[ExternalSendParrainage] Wallet du destinataire trouvé:', {
-      walletId: recipientWallet.id,
-      currency: recipientWallet.currency,
-      balance: recipientWallet.balance,
-    });
-
-    // ✅ 5. Vérifier que le payeur n'est pas le destinataire
-    if (apiKeyUser.id === recipient.id) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.cannot_transfer_self', lang),
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    // ✅ 6. Récupérer les wallets du PAYEUR (company)
+    // ✅ 5. Récupérer le wallet du PAYEUR (expéditeur) dans la devise demandée
     const payerWallets = await this.prisma.wallet.findMany({
       where: {
         userId: apiKeyUser.id,
         isActive: true,
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            role: true,
+            status: true,
+            countryCode: true,
+            kycStatus: true,
+            merchantType: true,
+          }
+        }
+      },
     });
 
     if (!payerWallets || payerWallets.length === 0) {
       throw new HttpException(
-        `No active wallet found for payer ${apiKeyUser.id}`,
-        HttpStatus.BAD_REQUEST,
+        `Aucun wallet actif trouvé pour l'expéditeur`,
+        HttpStatus.NOT_FOUND,
       );
     }
 
-    // ✅ 7. Chercher le wallet du payeur dans la devise demandée
+    // ✅ Chercher le wallet du payeur dans la devise demandée
     let payerWallet = payerWallets.find(w => w.currency === targetCurrency);
 
-    // ✅ 8. Si pas assez de solde ou pas de wallet dans cette devise, chercher un autre wallet avec assez de solde
-    if (payerWallet) {
-      if (payerWallet.balance < body.amount) {
-        console.log(`[ExternalSendParrainage] Solde insuffisant en ${targetCurrency} (${payerWallet.balance}), recherche d'un autre wallet...`);
-
-        const otherWallet = payerWallets.find(w =>
-          w.currency !== targetCurrency &&
-          w.balance >= body.amount
-        );
-
-        if (otherWallet) {
-          payerWallet = otherWallet;
-          console.log(`[ExternalSendParrainage] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
-        } else {
-          throw new HttpException(
-            `Insufficient balance: ${payerWallet.balance} ${payerWallet.currency}. You have ${payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ')}`,
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
-    } else {
-      console.log(`[ExternalSendParrainage] Aucun wallet en ${targetCurrency}, recherche d'un autre wallet...`);
-
-      const availableWallet = payerWallets.find(w => w.balance >= body.amount);
-
-      if (availableWallet) {
-        payerWallet = availableWallet;
-        console.log(`[ExternalSendParrainage] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
-      } else {
-        const balances = payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ');
-        throw new HttpException(
-          `Insufficient balance in any wallet. Available balances: ${balances}`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+    // ✅ Si pas de wallet dans cette devise, prendre le premier wallet actif
+    if (!payerWallet) {
+      payerWallet = payerWallets[0];
+      console.warn(`[ExternalSendParrainage] Aucun wallet en ${targetCurrency}, utilisation du wallet en ${payerWallet.currency}`);
     }
 
     console.log('[ExternalSendParrainage] Wallet du payeur sélectionné:', {
       walletId: payerWallet.id,
       currency: payerWallet.currency,
       balance: payerWallet.balance,
+      user: payerWallet.user?.full_name,
     });
 
-    // ✅ 9. Préparer les données pour le service wallet
+    // ✅ Vérifier le solde du payeur
+    if (payerWallet.balance < body.amount) {
+      throw new HttpException(
+        `Solde insuffisant. Solde actuel: ${payerWallet.balance} ${payerWallet.currency}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 6. Récupérer le DESTINATAIRE via son API Key
+    if (!body.toApiKey) {
+      throw new HttpException(
+        'L\'API Key du destinataire est requise',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Récupérer l'utilisateur via l'API Key du destinataire
+    const recipientApiKey = await this.prisma.api_key.findFirst({
+      where: {
+        key: body.toApiKey,
+        isActive: true,
+      },
+      include: {
+        user: {
+          include: {
+            wallets: {
+              where: { isActive: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!recipientApiKey) {
+      throw new HttpException(
+        'API Key du destinataire invalide ou inactive',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // ✅ Vérifier que l'API Key a un utilisateur associé
+    if (!recipientApiKey.user) {
+      throw new HttpException(
+        'Aucun utilisateur associé à l\'API Key du destinataire',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const recipientUser = recipientApiKey.user;
+
+    // ✅ Vérifier que le destinataire est un marchand
+    if (recipientUser.role !== 'MERCHANT') {
+      throw new HttpException(
+        'Seuls les marchands peuvent recevoir des parrainages',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (recipientUser.status === 'BLOCKED') {
+      throw new HttpException(
+        'Le compte du destinataire est bloqué',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    // ✅ Récupérer le wallet du destinataire dans la même devise
+    let recipientWallet = recipientUser.wallets.find(w => w.currency === targetCurrency);
+
+    // ✅ Si pas de wallet dans cette devise, prendre le premier wallet actif
+    if (!recipientWallet) {
+      recipientWallet = recipientUser.wallets[0];
+      if (!recipientWallet) {
+        throw new HttpException(
+          `Aucun wallet actif trouvé pour le destinataire`,
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      console.warn(`[ExternalSendParrainage] Aucun wallet en ${targetCurrency} pour le destinataire, utilisation du wallet en ${recipientWallet.currency}`);
+    }
+
+    console.log('[ExternalSendParrainage] Destinataire via API Key:', {
+      id: recipientUser.id,
+      full_name: recipientUser.full_name,
+      phone: recipientUser.phone,
+      walletId: recipientWallet.id,
+      currency: recipientWallet.currency,
+    });
+
+    // ✅ 7. Vérifier que l'expéditeur et le destinataire sont différents
+    if (apiKeyUser.id === recipientUser.id) {
+      throw new HttpException(
+        'Vous ne pouvez pas vous envoyer de parrainage à vous-même',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 8. Préparer les données pour le service wallet
     const sendPayload: any = {
       fromWalletId: payerWallet.id,
-      toPhone: recipient.phone,
+      toWalletId: recipientWallet.id,
       amount: body.amount,
-      description: body.description || `Envoi de parrainage vers ${recipient.full_name || recipient.phone}`,
-      countryCode: body.countryCode || 'CD',
-      paymentMethod: paymentMethod, // ✅ AJOUT du paymentMethod
+      description: body.description || `Envoi de parrainage vers ${recipientUser.full_name || recipientUser.phone}`,
+      countryCode: body.countryCode || recipientUser.countryCode || 'CD',
+      paymentMethod: paymentMethod,
       lang,
       ipAddress,
     };
 
-    console.log('[ExternalSendParrainage] 📤 Payload envoyé au service wallet:', sendPayload);
+    console.log('[ExternalSendParrainage] 📤 Payload envoyé au service wallet:', {
+      fromWalletId: sendPayload.fromWalletId,
+      toWalletId: sendPayload.toWalletId,
+      fromUser: apiKeyUser.full_name,
+      toUser: recipientUser.full_name,
+      amount: sendPayload.amount,
+      currency: targetCurrency,
+      paymentMethod: sendPayload.paymentMethod,
+    });
 
-    // ✅ 10. Appeler le service wallet avec 'send_parrainage'
+    // ✅ 9. Appeler le service wallet avec 'send_parrainage'
     const response = await this.sendWalletMessage(
-      'send_parrainage', // ✅ Message pattern
+      'send_parrainage',
       sendPayload,
       this.i18nService.translate('wallet.parrainage_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
 
-    // ✅ 11. Log de l'opération
+    // ✅ 10. Log de l'opération
     await this.prisma.audit_log.create({
       data: {
         id: crypto.randomUUID(),
@@ -4399,15 +4462,17 @@ export class ApiGatewayController {
         details: JSON.stringify({
           payerId: apiKeyUser.id,
           payerPhone: apiKeyUser.phone,
-          recipientId: recipient.id,
-          recipientPhone: recipient.phone,
+          payerWalletId: payerWallet.id,
+          payerWalletCurrency: payerWallet.currency,
+          recipientId: recipientUser.id,
+          recipientPhone: recipientUser.phone,
+          recipientWalletId: recipientWallet.id,
+          recipientWalletCurrency: recipientWallet.currency,
           amount: body.amount,
-          currency: body.currency,
-          apiKeyId: apiKeyUser.id,
+          currency: targetCurrency,
           description: body.description,
           countryCode: body.countryCode,
           paymentMethod: paymentMethod,
-          selectedWalletCurrency: payerWallet.currency,
         }),
         ipAddress: ipAddress || null,
         createdAt: new Date(),

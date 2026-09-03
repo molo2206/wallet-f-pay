@@ -531,34 +531,14 @@ export class WalletServiceController {
     const ipAddress = data.ipAddress || '';
     console.log('[WalletService] send_parrainage received:', {
       from: data.fromWalletId,
-      to: data.toPhone,
+      to: data.toWalletId,
       amount: data.amount,
       countryCode: data.countryCode,
       description: data.description,
-      paymentMethod: data.paymentMethod, //  Ajout du paymentMethod
+      paymentMethod: data.paymentMethod,
       lang: data.lang,
       ipAddress: ipAddress
     });
-
-    //  Validation du paymentMethod
-    const validPaymentMethods = ['MOBILE_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'];
-    if (!data.paymentMethod) {
-      console.error('[WalletService]  paymentMethod manquant');
-      throw new RpcException({
-        status: 'error',
-        message: 'Le paymentMethod est requis (MOBILE_MONEY, CASH, BANK_TRANSFER, CARD)',
-        statusCode: 400,
-      });
-    }
-
-    if (!validPaymentMethods.includes(data.paymentMethod)) {
-      console.error('[WalletService]  paymentMethod invalide:', data.paymentMethod);
-      throw new RpcException({
-        status: 'error',
-        message: `paymentMethod invalide. Valeurs acceptées: ${validPaymentMethods.join(', ')}`,
-        statusCode: 400,
-      });
-    }
 
     try {
       return await this.walletService.sendParrainage(data, data.lang || 'fr', ipAddress);
@@ -572,7 +552,7 @@ export class WalletServiceController {
       });
     }
   }
-
+  
   @MessagePattern('pay')
   async pay(@Payload() data: PayDto & { lang?: string }, ipAddress: string) {
     console.log('[WalletService] pay received:', { ...data, lang: data.lang });
