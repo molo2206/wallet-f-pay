@@ -10937,7 +10937,7 @@ export class WalletServiceService {
     search?: string,
   ): Promise<ApiResponse<{
     wallets: WalletResponseDto[];
-    wallet: WalletResponseDto;
+    wallet: WalletResponseDto | null;
     balance: number;
     currency: string;
     transactions: any[];
@@ -11008,24 +11008,7 @@ export class WalletServiceService {
       orderBy: { createdAt: 'asc' },
     });
 
-    // ========== 3️⃣ VALIDATION DU WALLET SÉLECTIONNÉ ==========
-    let wallet;
-
-    if (walletId) {
-      wallet = allWallets.find(w => w.id === walletId);
-
-      if (!wallet) {
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('wallet.wallet_not_found_or_unauthorized', lang),
-          statusCode: 404,
-        });
-      }
-    } else {
-      wallet = allWallets[0];
-    }
-
-    if (!wallet) {
+    if (allWallets.length === 0) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.no_wallet_found', lang),
@@ -11033,26 +11016,48 @@ export class WalletServiceService {
       });
     }
 
-    if (!wallet.isActive) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.wallet_inactive', lang),
-        statusCode: 403,
-      });
+    // ========== 3️⃣ VALIDATION DU WALLET SÉLECTIONNÉ ==========
+    let selectedWallet: any = null;
+    let walletIds: string[] = [];
+
+    if (walletId) {
+      // ✅ Si walletId est spécifié, on filtre sur ce wallet
+      selectedWallet = allWallets.find(w => w.id === walletId);
+
+      if (!selectedWallet) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_not_found_or_unauthorized', lang),
+          statusCode: 404,
+        });
+      }
+
+      if (!selectedWallet.isActive) {
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.wallet_inactive', lang),
+          statusCode: 403,
+        });
+      }
+
+      walletIds = [selectedWallet.id];
+    } else {
+      // ✅ Si walletId n'est pas spécifié, on prend TOUS les wallets
+      walletIds = allWallets.map(w => w.id);
+      selectedWallet = allWallets[0]; // Pour la compatibilité
     }
 
     // ========== 4️⃣ CONSTRUIRE LES FILTRES ==========
     const skip = (page - 1) * limit;
     const where: any = {
-      walletId: wallet.id,
       userId: userId,
+      walletId: { in: walletIds }, // ✅ Filtrer par TOUS les wallets
     };
 
-    // ✅ Filtrer par type si spécifié (sinon retourner TOUS les types)
+    // ✅ Filtrer par type si spécifié
     if (type) {
       where.type = type;
     }
-    // ✅ PAS DE FILTRE PAR DÉFAUT !!!
 
     // ✅ Filtrer par status si spécifié
     if (status) {
@@ -11198,13 +11203,17 @@ export class WalletServiceService {
     const formattedWallets = allWallets.map(w => this.toResponse(w));
 
     // ========== 9️⃣ RETOURNER LA RÉPONSE ==========
+    // ✅ Déterminer le wallet principal pour la compatibilité
+    const mainWallet = selectedWallet || allWallets[0];
+    const mainWalletFormatted = mainWallet ? this.toResponse(mainWallet) : null;
+
     return {
       message: this.i18nService.translate('wallet.balance_and_transactions_retrieved', lang),
       data: {
         wallets: formattedWallets,
-        wallet: this.toResponse(wallet),
-        balance: wallet.balance,
-        currency: wallet.currency,
+        wallet: mainWalletFormatted,
+        balance: mainWalletFormatted?.balance || 0,
+        currency: mainWalletFormatted?.currency || 'USD',
         transactions: enrichedTransactions,
         total,
         page,
