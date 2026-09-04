@@ -69,8 +69,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as jwt from 'jsonwebtoken';
 import { validateClientToken } from './constants/client-tokens.constants';
-import { HttpService } from '@nestjs/axios';
-
 const gatewayLoginLocks = new Map<string, boolean>();
 
 interface RpcError {
@@ -209,7 +207,7 @@ export class ApiGatewayController {
   private fpayCache: Map<string, any> = new Map();
 
 
-  constructor(private readonly i18nService: I18nService, private readonly prisma: PrismaService, private readonly httpService: HttpService,) { // ✅ injection
+  constructor(private readonly i18nService: I18nService, private readonly prisma: PrismaService) { // ✅ injection
     const rmqUrl =
       process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
     const authQueue = process.env.AUTH_QUEUE || 'auth_queue';
