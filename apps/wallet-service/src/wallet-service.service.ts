@@ -11285,6 +11285,7 @@ export class WalletServiceService {
   * @param lang - Langue
   * @param ipAddress - Adresse IP
   */
+
   async requestDeposit(
     userId: string,
     amount: number,
@@ -11357,7 +11358,7 @@ export class WalletServiceService {
       });
     }
 
-    // ========== RÉCUPÉRER LE WALLET (NE PAS CRÉER) ==========
+    // ========== RÉCUPÉRER LE WALLET ==========
     const wallet = await this.prisma.wallet.findFirst({
       where: {
         userId: userId,
@@ -11398,11 +11399,9 @@ export class WalletServiceService {
     });
 
     if (pendingTransaction) {
-      // ✅ Calculer le temps écoulé depuis la création
       const now = new Date();
       const elapsedMinutes = (now.getTime() - pendingTransaction.createdAt.getTime()) / (1000 * 60);
 
-      // ✅ Si la transaction a plus de 30 minutes, on laisse passer (considérée comme abandonnée)
       if (elapsedMinutes < 30) {
         throw new RpcException({
           status: 'error',
@@ -11418,7 +11417,6 @@ export class WalletServiceService {
           },
         });
       } else {
-        // ✅ Si la transaction a plus de 30 minutes, on annule automatiquement
         console.log(`[WalletService] ⏳ Transaction PENDING expirée (${elapsedMinutes} min) annulée automatiquement: ${pendingTransaction.reference}`);
 
         await this.prisma.transaction.update({
@@ -11429,7 +11427,6 @@ export class WalletServiceService {
           },
         });
 
-        // Log de l'annulation automatique
         await this.prisma.audit_log.create({
           data: {
             id: crypto.randomUUID(),
@@ -11448,10 +11445,53 @@ export class WalletServiceService {
       }
     }
 
-    // ========== CRÉER LA TRANSACTION EN PENDING (DEPOSIT - CREDIT) ==========
+    // ========== CRÉER LA TRANSACTION EN PENDING ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
         const reference = await this.generateTransactionReference('DEP', tx);
+
+        // ✅ EXTERNAL_REFERENCE STRUCTURÉE
+        const externalReference = {
+          // 🔹 Informations de la transaction
+          transactionId: null, // Sera rempli après création
+          reference: reference,
+          type: 'DEPOSIT',
+          status: 'PENDING',
+
+          // 🔹 Informations du demandeur
+          userId: userId,
+          userFullName: user.full_name || null,
+          userPhone: user.phone || null,
+          userCountryCode: user.countryCode || null,
+
+          // 🔹 Informations du wallet
+          walletId: wallet.id,
+          walletCurrency: wallet.currency,
+          walletBalance: wallet.balance,
+
+          // 🔹 Informations du dépôt
+          amount: amount,
+          currency: currency.toUpperCase(),
+          requestedAt: new Date().toISOString(),
+
+          // 🔹 Métadonnées
+          source: 'FAVOR_HELP_API',
+          ipAddress: ipAddress || null,
+          lang: lang || 'fr',
+
+          // 🔹 Pour la validation
+          requiresValidation: true,
+          validatedBy: null,
+          validatedAt: null,
+          statusHistory: [
+            {
+              status: 'PENDING',
+              timestamp: new Date().toISOString(),
+              note: 'Demande de dépôt créée',
+            }
+          ],
+        };
+
         const transaction = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
@@ -11467,13 +11507,20 @@ export class WalletServiceService {
             }),
             movement: 'CREDIT',
             currency: wallet.currency,
-            external_reference: JSON.stringify({
-              requestedAt: new Date().toISOString(),
-              status: 'PENDING',
-              amount: amount,
-              currency: wallet.currency,
-              userId: userId,
-            }),
+            external_reference: JSON.stringify(externalReference),
+          },
+        });
+
+        // ✅ METTRE À JOUR L'ID DE LA TRANSACTION DANS external_reference
+        const updatedExternalRef = {
+          ...externalReference,
+          transactionId: transaction.id,
+        };
+
+        await tx.transaction.update({
+          where: { id: transaction.id },
+          data: {
+            external_reference: JSON.stringify(updatedExternalRef),
           },
         });
 
@@ -11484,9 +11531,10 @@ export class WalletServiceService {
             action: 'DEPOSIT_REQUEST',
             details: JSON.stringify({
               transactionId: transaction.id,
+              reference: reference,
               amount: amount,
               currency: wallet.currency,
-              reference: reference,
+              externalReference: updatedExternalRef,
             }),
             ipAddress: ipAddress || null,
             createdAt: new Date(),
