@@ -8385,34 +8385,46 @@ export class ApiGatewayController {
       HttpStatus.BAD_REQUEST,
     );
 
-    // ✅ 2. Appeler Favor Help pour diminuer les points
+    // ✅ 2. Appeler Favor Help pour diminuer les points avec fetch
     try {
       const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
       const decreasePointsUrl = `${favorHelpUrl}/deposit/decrease-points`;
 
-      const response = await firstValueFrom(
-        this.httpService.post(
-          decreasePointsUrl,
-          {
-            userId: body.userId,
-            amount: body.amount,
-            currency: body.currency.toUpperCase(),
-          },
-          {
-            headers: { 'Content-Type': 'application/json' },
-            timeout: 30000,
-          }
-        )
-      );
+      console.log('[API Gateway] 📤 Appel Favor Help - decrease-points:', {
+        url: decreasePointsUrl,
+        userId: body.userId,
+        amount: body.amount,
+        currency: body.currency.toUpperCase(),
+      });
+
+      const response = await fetch(decreasePointsUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: body.userId,
+          amount: body.amount,
+          currency: body.currency.toUpperCase(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Erreur lors de la diminution des points');
+      }
+
+      console.log('[API Gateway] ✅ Réponse Favor Help:', data);
 
       // ✅ Fusionner les résultats
       return {
         success: true,
         deposit: depositResult,
-        referralPoints: response.data,
+        referralPoints: data,
       };
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('[API Gateway] ❌ Erreur appel Favor Help:', error.message);
 
       return {
@@ -8421,12 +8433,12 @@ export class ApiGatewayController {
         referralPoints: {
           success: false,
           message: `Dépôt confirmé mais erreur lors de la diminution des points: ${error.message}`,
-          error: error.response?.data || error.message,
+          error: error.message,
         },
       };
     }
   }
-  
+
   @Post('wallet/deposit/cancel')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async cancelDepositRequest(

@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { HttpModule } from '@nestjs/axios'; // ✅ AJOUTER
 import { ApiGatewayController } from './api-gateway.controller';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { IpInterceptor } from './inrceptor/ip.interceptor';
@@ -9,11 +8,6 @@ import { I18nModule } from '@app/common';
 
 @Module({
   imports: [
-    // ✅ AJOUTER HttpModule
-    HttpModule.register({
-      timeout: 30000,
-      maxRedirects: 5,
-    }),
     ClientsModule.register([
       {
         name: 'AUTH_SERVICE',
