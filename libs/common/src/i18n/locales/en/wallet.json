@@ -216,11 +216,11 @@
   "wallet.deposit_pawapay_push_body": "Your deposit of {{amount}} {{currency}} via {{provider}} has been completed successfully. Balance: {{balance}} {{currency}}.",
   "wallet.deposit_pawapay_failed_push_title": "Mobile Money deposit failed",
   "wallet.deposit_pawapay_failed_push_body": "The deposit of {{amount}} {{currency}} via {{provider}} failed. Please try again.",
-  "wallet.deposit_request_description": "Deposit request of {{amount}} {{currency}} - Pending validation",
+  "wallet.deposit_request_description": "Referral earning payment request of {{amount}} {{currency}} - Pending validation",
   "wallet.deposit_confirm_description": "Deposit confirmed - CREDIT of {{amount}} {{currency}}",
   "wallet.deposit_debit_description": "Debit of {{amount}} {{currency}} for {{beneficiaryName}}",
-  "wallet.deposit_request_success": "Your deposit request of {{amount}} {{currency}} has been recorded. Reference: {{reference}}",
+  "wallet.deposit_request_success": "Your referral earning payment request of {{amount}} {{currency}} has been recorded. Reference: {{reference}}",
   "wallet.deposit_transfer_success": "Transfer of {{amount}} {{currency}} completed successfully from {{payer}} to {{beneficiary}}. Reference: {{reference}}",
-  "wallet.deposit_cancelled_description": "Deposit request of {{amount}} {{currency}} cancelled by user",
-  "wallet.deposit_cancelled": "Deposit request has been cancelled successfully."
+  "wallet.deposit_cancelled_description": "Referral earning payment request of {{amount}} {{currency}} cancelled by user",
+  "wallet.deposit_cancelled": "Referral earning payment request has been cancelled successfully."
 }

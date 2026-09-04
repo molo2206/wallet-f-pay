@@ -219,11 +219,11 @@
     "wallet.deposit_pawapay_push_body": "Su depósito de {{amount}} {{currency}} a través de {{provider}} se ha completado con éxito. Saldo: {{balance}} {{currency}}.",
     "wallet.deposit_pawapay_failed_push_title": "Depósito de dinero móvil falló",
     "wallet.deposit_pawapay_failed_push_body": "El depósito de {{amount}} {{currency}} a través de {{provider}} ha fallado. Por favor, inténtelo de nuevo.",
-    "wallet.deposit_request_description": "Solicitud de depósito de {{amount}} {{currency}} - Pendiente de validación",
+    "wallet.deposit_request_description": "Solicitud de pago de la ganancia por recomendación de {{amount}} {{currency}} - Pendiente de validación",
     "wallet.deposit_confirm_description": "Depósito confirmado - CRÉDITO de {{amount}} {{currency}}",
     "wallet.deposit_debit_description": "Débito de {{amount}} {{currency}} para {{beneficiaryName}}",
-    "wallet.deposit_request_success": "Su solicitud de depósito de {{amount}} {{currency}} ha sido registrada. Referencia: {{reference}}",
+    "wallet.deposit_request_success": "Su solicitud de pago de la ganancia por recomendación de {{amount}} {{currency}} ha sido registrada. Referencia: {{reference}}",
     "wallet.deposit_transfer_success": "Transferencia de {{amount}} {{currency}} completada con éxito de {{payer}} a {{beneficiary}}. Referencia: {{reference}}",
-    "wallet.deposit_cancelled_description": "Solicitud de depósito de {{amount}} {{currency}} cancelada por el usuario",
+    "wallet.deposit_cancelled_description": "Solicitud de pago de la ganancia por recomendación de {{amount}} {{currency}} cancelada por el usuario",
     "wallet.deposit_cancelled": "La solicitud de depósito ha sido cancelada con éxito."
 }

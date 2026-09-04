@@ -219,11 +219,11 @@
     "wallet.deposit_pawapay_push_body": "تم إتمام إيداعك بمبلغ {{amount}} {{currency}} عبر {{provider}} بنجاح. الرصيد: {{balance}} {{currency}}.",
     "wallet.deposit_pawapay_failed_push_title": "فشل إيداع الهاتف المحمول",
     "wallet.deposit_pawapay_failed_push_body": "فشل إيداع {{amount}} {{currency}} عبر {{provider}}. يرجى المحاولة مرة أخرى.",
-    "wallet.deposit_request_description": "طلب إيداع {{amount}} {{currency}} - في انتظار الموافقة",
+    "wallet.deposit_request_description": "طلب دفع أرباح الإحالة بقيمة {{amount}} {{currency}} - في انتظار الموافقة",
     "wallet.deposit_confirm_description": "تم تأكيد الإيداع - إيداع {{amount}} {{currency}}",
     "wallet.deposit_debit_description": "خصم {{amount}} {{currency}} لصالح {{beneficiaryName}}",
-    "wallet.deposit_request_success": "تم تسجيل طلب الإيداع الخاص بك بمبلغ {{amount}} {{currency}}. المرجع: {{reference}}",
+    "wallet.deposit_request_success": "تم تسجيل طلب دفع أرباح الإحالة الخاص بك بمبلغ {{amount}} {{currency}}. المرجع: {{reference}}",
     "wallet.deposit_transfer_success": "تم تحويل {{amount}} {{currency}} بنجاح من {{payer}} إلى {{beneficiary}}. المرجع: {{reference}}",
-    "wallet.deposit_cancelled_description": "تم إلغاء طلب الإيداع بمبلغ {{amount}} {{currency}} من قبل المستخدم",
-    "wallet.deposit_cancelled": "تم إلغاء طلب الإيداع بنجاح."
+    "wallet.deposit_cancelled_description": "تم إلغاء طلب دفع أرباح الإحالة بمبلغ {{amount}} {{currency}} من قبل المستخدم",
+    "wallet.deposit_cancelled": "تم إلغاء طلب دفع أرباح الإحالة بنجاح."
 }
