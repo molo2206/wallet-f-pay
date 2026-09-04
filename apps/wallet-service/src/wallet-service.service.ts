@@ -10920,8 +10920,6 @@ export class WalletServiceService {
 
     return data;
   }
-
-
   /**
  * Récupère la balance et les transactions d'un utilisateur
  */
@@ -11266,6 +11264,730 @@ export class WalletServiceService {
     if (first === 0) return 0;
     return Math.round(((last - first) / first) * 100);
   }
+
+  /**
+  * Demande de dépôt (transaction en attente)
+  * L'utilisateur fait une demande de dépôt, son compte sera CRÉDITÉ après validation
+  * @param userId - ID de l'utilisateur qui sera crédité
+  * @param amount - Montant à déposer
+  * @param currency - Devise du dépôt (OBLIGATOIRE)
+  * @param lang - Langue
+  * @param ipAddress - Adresse IP
+  */
+  async requestDeposit(
+    userId: string,
+    amount: number,
+    currency: string,
+    lang: string = 'fr',
+    ipAddress?: string,
+  ): Promise<ApiResponse<{ transaction: any; requiresValidation: boolean; wallet: WalletResponseDto }>> {
+    console.log('[WalletService] Request deposit:', { userId, amount, currency, lang });
+
+    // ========== VALIDATIONS ==========
+    if (amount <= 0) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.amount_positive', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!userId) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.user_not_found', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!currency) {
+      throw new RpcException({
+        status: 'error',
+        message: 'La devise est obligatoire',
+        statusCode: 400,
+      });
+    }
+
+    // Valider que la devise est supportée
+    const validCurrencies = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
+    if (!validCurrencies.includes(currency.toUpperCase())) {
+      throw new RpcException({
+        status: 'error',
+        message: `Devise non supportée: ${currency}. Devises autorisées: ${validCurrencies.join(', ')}`,
+        statusCode: 400,
+      });
+    }
+
+    // ========== RÉCUPÉRER L'UTILISATEUR ==========
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        full_name: true,
+        phone: true,
+        status: true,
+        countryCode: true,
+      },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.user_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    if (user.status === user_status.BLOCKED) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('account_blocked_admin', lang),
+        statusCode: 403,
+      });
+    }
+
+    // ========== RÉCUPÉRER LE WALLET (NE PAS CRÉER) ==========
+    const wallet = await this.prisma.wallet.findFirst({
+      where: {
+        userId: userId,
+        currency: currency.toUpperCase() as wallet_currency,
+        isActive: true,
+      },
+    });
+
+    if (!wallet) {
+      throw new RpcException({
+        status: 'error',
+        message: `Aucun wallet actif trouvé pour l'utilisateur en devise ${currency.toUpperCase()}. Veuillez créer un wallet d'abord.`,
+        statusCode: 404,
+      });
+    }
+
+    if (!wallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        statusCode: 403,
+      });
+    }
+
+    // ========== CRÉER LA TRANSACTION EN PENDING (DEPOSIT - CREDIT) ==========
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const reference = await this.generateTransactionReference('DEP', tx);
+        const transaction = await tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            walletId: wallet.id,
+            amount: amount,
+            type: 'DEPOSIT',
+            status: 'PENDING',
+            reference: reference,
+            description: this.i18nService.translate('wallet.deposit_request_description', lang, {
+              amount: amount.toFixed(2),
+              currency: wallet.currency || 'CDF',
+            }),
+            movement: 'CREDIT',
+            currency: wallet.currency,
+            external_reference: JSON.stringify({
+              requestedAt: new Date().toISOString(),
+              status: 'PENDING',
+              amount: amount,
+              currency: wallet.currency,
+              userId: userId,
+            }),
+          },
+        });
+
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            action: 'DEPOSIT_REQUEST',
+            details: JSON.stringify({
+              transactionId: transaction.id,
+              amount: amount,
+              currency: wallet.currency,
+              reference: reference,
+            }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        });
+
+        return {
+          transaction,
+          wallet,
+          user,
+        };
+      },
+      { timeout: 30000 }
+    );
+
+    return {
+      message: this.i18nService.translate('wallet.deposit_request_success', lang, {
+        amount: amount.toFixed(2),
+        currency: wallet.currency || 'CDF',
+        reference: result.transaction.reference || 'N/A',
+      }),
+      data: {
+        transaction: result.transaction,
+        wallet: this.toResponse(result.wallet),
+        requiresValidation: true,
+      },
+    };
+  }
+
+  /**
+ * Valider un dépôt - CRÉDITE le bénéficiaire (de la transaction) et DÉBITE le userId
+ * @param transactionId - ID de la transaction en attente (contient le bénéficiaire)
+ * @param userId - ID de l'utilisateur qui sera DÉBITÉ (payeur)
+ * @param pin - PIN de l'utilisateur (payeur)
+ * @param lang - Langue
+ * @param ipAddress - Adresse IP
+ */
+  async confirmDeposit(
+    transactionId: string,
+    userId: string,
+    pin: string,
+    lang: string = 'fr',
+    ipAddress?: string,
+  ): Promise<ApiResponse<{
+    transaction: any;
+    beneficiaryWallet: WalletResponseDto;
+    payerWallet: WalletResponseDto;
+    message: string;
+  }>> {
+    console.log('[WalletService] Confirm deposit:', {
+      transactionId,
+      payerId: userId,
+      lang
+    });
+
+    // ========== VALIDATIONS ==========
+    if (!transactionId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID de la transaction est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!userId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID du payeur est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!pin || pin.length < 4) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_min_length', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (!/^\d+$/.test(pin)) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_digits_only', lang),
+        statusCode: 400,
+      });
+    }
+
+    // ========== RÉCUPÉRER LE PAYEUR ==========
+    const payer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        full_name: true,
+        phone: true,
+        pin: true,
+        status: true,
+        failed_pin_attempts: true,
+        pin_locked_until: true,
+      },
+    });
+
+    if (!payer) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Payeur non trouvé',
+        statusCode: 404,
+      });
+    }
+
+    if (payer.status === user_status.BLOCKED) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le compte du payeur est bloqué',
+        statusCode: 403,
+      });
+    }
+
+    // ========== VÉRIFICATION DU PIN DU PAYEUR ==========
+    if (!payer.pin) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.no_pin_set', lang),
+        statusCode: 400,
+      });
+    }
+
+    if (payer.pin_locked_until && payer.pin_locked_until > new Date()) {
+      const minutesLeft = Math.ceil(
+        (payer.pin_locked_until.getTime() - Date.now()) / 60000,
+      );
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.pin_locked_auto', lang, {
+          minutes: minutesLeft,
+        }),
+        statusCode: 403,
+      });
+    }
+
+    const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
+    if (payer.pin !== hashedPin) {
+      const newAttempts = (payer.failed_pin_attempts || 0) + 1;
+      let newStatus: user_status = payer.status;
+      let lockedUntil: Date | null = null;
+
+      if (newAttempts >= 10) {
+        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+        newStatus = user_status.SUSPENDED;
+      } else if (newAttempts >= 5) {
+        lockedUntil = null;
+        newStatus = user_status.ACTIVE;
+      }
+
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          failed_pin_attempts: newAttempts,
+          status: newStatus,
+          pin_locked_until: lockedUntil,
+        },
+      });
+
+      await logFailedLoginAttempt(
+        this.prisma,
+        payer.id,
+        payer.phone ?? payer.id,
+        ipAddress,
+        undefined,
+        newAttempts,
+        lockedUntil,
+      );
+
+      let errorMessage: string;
+      if (newAttempts >= 10) {
+        errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
+          minutes: 30,
+        });
+      } else if (newAttempts >= 5) {
+        const remaining = 10 - newAttempts;
+        errorMessage = this.i18nService.translate('wallet.pin_incorrect_warning', lang, {
+          attempts: remaining,
+        });
+      } else {
+        const remaining = 5 - newAttempts;
+        errorMessage = this.i18nService.translate('wallet.pin_incorrect', lang, {
+          attempts: remaining,
+        });
+      }
+
+      throw new RpcException({
+        status: 'error',
+        message: errorMessage,
+        statusCode: 401,
+      });
+    }
+
+    // Réinitialiser les tentatives PIN du payeur
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        failed_pin_attempts: 0,
+        pin_locked_until: null,
+        status: user_status.ACTIVE,
+      },
+    });
+
+    // ========== RÉCUPÉRER LA TRANSACTION ==========
+    const pendingTransaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        status: 'PENDING',
+        type: 'DEPOSIT',
+      },
+      include: {
+        wallet: {
+          include: {
+            user: true,
+          }
+        },
+        user: true, // Bénéficiaire
+      },
+    });
+
+    if (!pendingTransaction) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.transaction_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // Le bénéficiaire est l'utilisateur de la transaction
+    const beneficiaryId = pendingTransaction.userId;
+    const beneficiary = pendingTransaction.user;
+
+    if (!beneficiary) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Bénéficiaire non trouvé',
+        statusCode: 404,
+      });
+    }
+
+    if (beneficiary.status === user_status.BLOCKED) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le compte du bénéficiaire est bloqué',
+        statusCode: 403,
+      });
+    }
+
+    if (beneficiaryId === userId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le bénéficiaire et le payeur ne peuvent pas être le même utilisateur',
+        statusCode: 400,
+      });
+    }
+
+    // ========== RÉCUPÉRER LE WALLET DU BÉNÉFICIAIRE ==========
+    const beneficiaryWallet = await this.prisma.wallet.findFirst({
+      where: {
+        userId: beneficiaryId,
+        currency: pendingTransaction.currency as wallet_currency,
+        isActive: true,
+      },
+    });
+
+    if (!beneficiaryWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: `Aucun wallet actif trouvé pour le bénéficiaire en devise ${pendingTransaction.currency}`,
+        statusCode: 404,
+      });
+    }
+
+    if (!beneficiaryWallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet du bénéficiaire est inactif',
+        statusCode: 403,
+      });
+    }
+
+    // ========== RÉCUPÉRER LE WALLET DU PAYEUR ==========
+    const payerWallet = await this.prisma.wallet.findFirst({
+      where: {
+        userId: userId,
+        currency: pendingTransaction.currency as wallet_currency,
+        isActive: true,
+      },
+    });
+
+    if (!payerWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: `Aucun wallet actif trouvé pour le payeur en devise ${pendingTransaction.currency}`,
+        statusCode: 404,
+      });
+    }
+
+    if (!payerWallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet du payeur est inactif',
+        statusCode: 403,
+      });
+    }
+
+    // ========== EXÉCUTER LE TRANSFERT ==========
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        // 1️⃣ VÉRIFIER LE SOLDE DU PAYEUR
+        const currentPayerWallet = await tx.wallet.findFirst({
+          where: { id: payerWallet.id, isActive: true },
+        });
+
+        if (!currentPayerWallet) {
+          throw new RpcException({
+            status: 'error',
+            message: 'Wallet du payeur non trouvé',
+            statusCode: 404,
+          });
+        }
+
+        if (currentPayerWallet.balance < pendingTransaction.amount) {
+          throw new RpcException({
+            status: 'error',
+            message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+            statusCode: 400,
+          });
+        }
+
+        // 2️⃣ METTRE À JOUR LA TRANSACTION (PENDING → SUCCESS)
+        const updatedTransaction = await tx.transaction.update({
+          where: { id: pendingTransaction.id },
+          data: {
+            status: 'SUCCESS',
+            description: this.i18nService.translate('wallet.deposit_confirm_description', lang, {
+              amount: pendingTransaction.amount.toFixed(2),
+              currency: pendingTransaction.currency || 'CDF',
+            }),
+            updatedAt: new Date(),
+            external_reference: JSON.stringify({
+              confirmedAt: new Date().toISOString(),
+              status: 'SUCCESS',
+              amount: pendingTransaction.amount,
+              currency: pendingTransaction.currency,
+              type: 'CREDIT',
+              payerId: userId,
+              beneficiaryId: beneficiaryId,
+            }),
+          },
+        });
+
+        // 3️⃣ CRÉDITER LE WALLET DU BÉNÉFICIAIRE
+        const updatedBeneficiaryWallet = await tx.wallet.update({
+          where: { id: beneficiaryWallet.id },
+          data: {
+            balance: { increment: pendingTransaction.amount },
+            updatedAt: new Date(),
+          },
+        });
+
+        // 4️⃣ DÉBITER LE WALLET DU PAYEUR
+        const updatedPayerWallet = await tx.wallet.update({
+          where: { id: payerWallet.id },
+          data: {
+            balance: { decrement: pendingTransaction.amount },
+            updatedAt: new Date(),
+          },
+        });
+
+        // 5️⃣ CRÉER UNE NOUVELLE TRANSACTION DE DÉBIT POUR LE PAYEUR
+        const debitReference = await this.generateTransactionReference('DBT', tx);
+        const debitTransaction = await tx.transaction.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            walletId: payerWallet.id,
+            amount: pendingTransaction.amount,
+            type: 'TRANSFER',
+            status: 'SUCCESS',
+            reference: debitReference,
+            description: this.i18nService.translate('wallet.deposit_debit_description', lang, {
+              amount: pendingTransaction.amount.toFixed(2),
+              currency: pendingTransaction.currency || 'CDF',
+              beneficiaryName: beneficiary.full_name || beneficiaryId,
+            }),
+            movement: 'DEBIT',
+            currency: pendingTransaction.currency,
+            external_reference: JSON.stringify({
+              depositTransactionId: pendingTransaction.id,
+              beneficiaryId: beneficiaryId,
+              type: 'DEBIT',
+            }),
+          },
+        });
+
+        // 6️⃣ AUDIT LOG
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            action: 'DEPOSIT_CONFIRMED_DEBIT',
+            details: JSON.stringify({
+              depositTransactionId: updatedTransaction.id,
+              debitTransactionId: debitTransaction.id,
+              amount: pendingTransaction.amount,
+              currency: pendingTransaction.currency,
+              beneficiaryId: beneficiaryId,
+              payerId: userId,
+            }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        });
+
+        return {
+          creditTransaction: updatedTransaction,
+          debitTransaction: debitTransaction,
+          beneficiaryWallet: updatedBeneficiaryWallet,
+          payerWallet: updatedPayerWallet,
+          beneficiary,
+          payer,
+        };
+      },
+      { timeout: 60000, maxWait: 60000 }
+    );
+
+    // ========== NOTIFICATIONS ==========
+    try {
+      // Notification pour le bénéficiaire (CRÉDIT)
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.creditTransaction,
+        result.beneficiary,
+        result.beneficiaryWallet,
+        'deposit_credit',
+      );
+
+      // Notification pour le payeur (DÉBIT)
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.debitTransaction,
+        result.payer,
+        result.payerWallet,
+        'deposit_debit',
+      );
+    } catch (err) {
+      console.error('[Notifications] deposit confirmation error:', err);
+    }
+
+    // ========== RETOUR ==========
+    return {
+      message: this.i18nService.translate('wallet.deposit_transfer_success', lang, {
+        amount: result.creditTransaction.amount.toFixed(2),
+        currency: result.creditTransaction.currency || 'CDF',
+        beneficiary: result.beneficiary.full_name || beneficiaryId,
+        payer: result.payer.full_name || userId,
+        balance: result.beneficiaryWallet.balance.toFixed(2),
+        reference: result.creditTransaction.reference || 'N/A',
+      }),
+      data: {
+        transaction: result.creditTransaction,
+        beneficiaryWallet: this.toResponse(result.beneficiaryWallet),
+        payerWallet: this.toResponse(result.payerWallet),
+        message: this.i18nService.translate('wallet.deposit_transfer_success', lang),
+      },
+    };
+  }
+
+  /**
+ * Annuler une demande de dépôt en attente
+ * @param transactionId - ID de la transaction
+ * @param userId - ID de l'utilisateur
+ * @param lang - Langue
+ * @param ipAddress - Adresse IP
+ */
+  async cancelDepositRequest(
+    transactionId: string,
+    userId: string,
+    lang: string = 'fr',
+    ipAddress?: string,
+  ): Promise<ApiResponse<{ transaction: any }>> {
+    console.log('[WalletService] Cancel deposit request:', { transactionId, userId, lang });
+
+    // ========== VALIDATIONS ==========
+    if (!transactionId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID de la transaction est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!userId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID de l\'utilisateur est requis',
+        statusCode: 400,
+      });
+    }
+
+    // ========== RÉCUPÉRER LA TRANSACTION ==========
+    const pendingTransaction = await this.prisma.transaction.findFirst({
+      where: {
+        id: transactionId,
+        userId: userId,
+        status: 'PENDING',
+        type: 'DEPOSIT',
+      },
+    });
+
+    if (!pendingTransaction) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.transaction_not_found', lang),
+        statusCode: 404,
+      });
+    }
+
+    // ========== ANNULER LA TRANSACTION ==========
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const cancelledTransaction = await tx.transaction.update({
+          where: { id: pendingTransaction.id },
+          data: {
+            status: 'CANCELLED',
+            description: this.i18nService.translate('wallet.deposit_cancelled_description', lang, {
+              amount: pendingTransaction.amount.toFixed(2),
+              currency: pendingTransaction.currency || 'CDF',
+            }),
+            updatedAt: new Date(),
+          },
+        });
+
+        // Audit log
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            action: 'DEPOSIT_CANCELLED',
+            details: JSON.stringify({
+              transactionId: cancelledTransaction.id,
+              amount: pendingTransaction.amount,
+              currency: pendingTransaction.currency,
+              reference: cancelledTransaction.reference,
+            }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        });
+
+        return { transaction: cancelledTransaction };
+      },
+      { timeout: 30000 }
+    );
+
+    return {
+      message: this.i18nService.translate('wallet.deposit_cancelled', lang),
+      data: {
+        transaction: result.transaction,
+      },
+    };
+  }
+
   async healthCheck() {
     return { status: 'ok', service: 'wallet-service' };
   }

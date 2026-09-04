@@ -215,5 +215,12 @@
   "wallet.deposit_pawapay_push_title": "Dépôt Mobile Money effectué",
   "wallet.deposit_pawapay_push_body": "Votre dépôt de {{amount}} {{currency}} via {{provider}} a été effectué avec succès. Solde : {{balance}} {{currency}}.",
   "wallet.deposit_pawapay_failed_push_title": "Échec du dépôt Mobile Money",
-  "wallet.deposit_pawapay_failed_push_body": "Le dépôt de {{amount}} {{currency}} via {{provider}} a échoué. Veuillez réessayer."
+  "wallet.deposit_pawapay_failed_push_body": "Le dépôt de {{amount}} {{currency}} via {{provider}} a échoué. Veuillez réessayer.",
+  "wallet.deposit_request_description": "Demande de dépôt de {{amount}} {{currency}} - En attente de validation",
+  "wallet.deposit_confirm_description": "Dépôt confirmé - CRÉDIT de {{amount}} {{currency}}",
+  "wallet.deposit_debit_description": "Débit de {{amount}} {{currency}} pour {{beneficiaryName}}",
+  "wallet.deposit_request_success": "Votre demande de dépôt de {{amount}} {{currency}} a été enregistrée. Référence: {{reference}}",
+  "wallet.deposit_transfer_success": "Transfert de {{amount}} {{currency}} effectué avec succès de {{payer}} vers {{beneficiary}}. Référence: {{reference}}",
+  "wallet.deposit_cancelled_description": "Demande de dépôt de {{amount}} {{currency}} annulée par l'utilisateur",
+  "wallet.deposit_cancelled": "La demande de dépôt a été annulée avec succès."
 }

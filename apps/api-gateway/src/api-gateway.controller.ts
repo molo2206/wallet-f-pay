@@ -8257,6 +8257,180 @@ export class ApiGatewayController {
     );
   }
 
+  /**
+ * Demande de dépôt - L'utilisateur fait une demande de dépôt
+ * ✅ Route publique - Pas d'authentification requise
+ */
+  @Post('wallet/deposit/request')
+  async requestDeposit(
+    @Body() body: {
+      userId: string;
+      amount: number;
+      currency: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.userId) {
+      throw new HttpException(
+        'L\'ID de l\'utilisateur est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.amount_positive', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.currency) {
+      throw new HttpException(
+        'La devise est obligatoire',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] requestDeposit - Public route:', {
+      userId: body.userId,
+      amount: body.amount,
+      currency: body.currency,
+      ipAddress,
+    });
+
+    return this.sendWalletMessage(
+      'request_deposit',
+      {
+        userId: body.userId,
+        amount: body.amount,
+        currency: body.currency.toUpperCase(),
+        lang,
+        ipAddress,
+      },
+      this.i18nService.translate('wallet.deposit_request_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  /**
+ * Confirmer un dépôt - CRÉDITE le bénéficiaire et DÉBITE le userId
+ * ✅ Route protégée - Seul l'admin peut valider
+ */
+  @Post('wallet/deposit/confirm')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async confirmDeposit(
+    @CurrentUser() currentUser: any,
+    @Body() body: {
+      transactionId: string;
+      userId: string;  // ✅ L'utilisateur qui sera débité (payeur)
+      pin: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    // ✅ Vérifier que l'utilisateur connecté est un admin
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException(
+        'Accès interdit. Seul un administrateur peut confirmer un dépôt.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    // ✅ Validations
+    if (!body.transactionId) {
+      throw new HttpException(
+        'L\'ID de la transaction est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.userId) {
+      throw new HttpException(
+        'L\'ID de l\'utilisateur à débiter est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.pin || body.pin.length < 4) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_min_length', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!/^\d+$/.test(body.pin)) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_digits_only', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    console.log('[API Gateway] confirmDeposit - Admin:', {
+      adminId: currentUser.id,
+      adminRole: currentUser.role,
+      transactionId: body.transactionId,
+      payerId: body.userId,  // ✅ L'utilisateur qui sera débité
+    });
+
+    return this.sendWalletMessage(
+      'confirm_deposit',
+      {
+        transactionId: body.transactionId,
+        userId: body.userId,  // ✅ Le payeur (celui qui sera débité)
+        pin: body.pin,
+        lang,
+        ipAddress,
+      },
+      this.i18nService.translate('wallet.deposit_confirm_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  @Post('wallet/deposit/cancel')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async cancelDepositRequest(
+    @CurrentUser() currentUser: any,
+    @Body() body: {
+      transactionId: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+
+    // ✅ Validations
+    if (!body.transactionId) {
+      throw new HttpException(
+        'L\'ID de la transaction est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!currentUser?.id) {
+      throw new HttpException(
+        'Utilisateur non authentifié',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    return this.sendWalletMessage(
+      'cancel_deposit_request',
+      {
+        transactionId: body.transactionId,
+        userId: currentUser.id,
+        lang,
+        ipAddress,
+      },
+      this.i18nService.translate('wallet.deposit_cancel_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+  }
   // ================================================================
   // BACKUP MANAGEMENT (ADMIN ONLY)
   // ================================================================

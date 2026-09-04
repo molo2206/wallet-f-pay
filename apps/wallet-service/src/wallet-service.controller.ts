@@ -552,7 +552,7 @@ export class WalletServiceController {
       });
     }
   }
-  
+
   @MessagePattern('pay')
   async pay(@Payload() data: PayDto & { lang?: string }, ipAddress: string) {
     console.log('[WalletService] pay received:', { ...data, lang: data.lang });
@@ -1048,6 +1048,108 @@ export class WalletServiceController {
       });
     }
   }
+
+  // ==================== REQUEST DEPOSIT ====================
+  @MessagePattern('request_deposit')
+  async requestDeposit(
+    @Payload() data: {
+      userId: string;
+      amount: number;
+      currency: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] request_deposit received:', data);
+
+    try {
+      return await this.walletService.requestDeposit(
+        data.userId,
+        data.amount,
+        data.currency,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] request_deposit error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: error.statusCode || 400,
+      });
+    }
+  }
+
+  // ==================== CONFIRM DEPOSIT ====================
+  @MessagePattern('confirm_deposit')
+  async confirmDeposit(
+    @Payload() data: {
+      transactionId: string;
+      userId: string;  // Payeur (celui qui sera débité)
+      pin: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] confirm_deposit received:', {
+      transactionId: data.transactionId,
+      payerId: data.userId,
+      lang: data.lang,
+    });
+
+    try {
+      return await this.walletService.confirmDeposit(
+        data.transactionId,
+        data.userId,
+        data.pin,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] confirm_deposit error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: error.statusCode || 400,
+      });
+    }
+  }
+
+  // ==================== CANCEL DEPOSIT REQUEST ====================
+  @MessagePattern('cancel_deposit_request')
+  async cancelDepositRequest(
+    @Payload() data: {
+      transactionId: string;
+      userId: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] cancel_deposit_request received:', {
+      transactionId: data.transactionId,
+      userId: data.userId,
+    });
+
+    try {
+      return await this.walletService.cancelDepositRequest(
+        data.transactionId,
+        data.userId,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] cancel_deposit_request error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: error.statusCode || 400,
+      });
+    }
+  }
+
   // ==================== HEALTH CHECK ====================
 
   @MessagePattern('health_check')

@@ -215,5 +215,12 @@
   "wallet.deposit_pawapay_push_title": "Amana ya Mobile Money imekamilika",
   "wallet.deposit_pawapay_push_body": "Amana yako ya {{amount}} {{currency}} kupitia {{provider}} imekamilika kwa mafanikio. Salio: {{balance}} {{currency}}.",
   "wallet.deposit_pawapay_failed_push_title": "Amana ya Mobile Money imeshindwa",
-  "wallet.deposit_pawapay_failed_push_body": "Amana ya {{amount}} {{currency}} kupitia {{provider}} imeshindwa. Tafadhali jaribu tena."
+  "wallet.deposit_pawapay_failed_push_body": "Amana ya {{amount}} {{currency}} kupitia {{provider}} imeshindwa. Tafadhali jaribu tena.",
+  "wallet.deposit_request_description": "Ombi la amana ya {{amount}} {{currency}} - Inasubiri uthibitisho",
+  "wallet.deposit_confirm_description": "Amana imethibitishwa - CREDIT ya {{amount}} {{currency}}",
+  "wallet.deposit_debit_description": "Deni ya {{amount}} {{currency}} kwa {{beneficiaryName}}",
+  "wallet.deposit_request_success": "Ombi lako la amana ya {{amount}} {{currency}} limeandikwa. Rejea: {{reference}}",
+  "wallet.deposit_transfer_success": "Uhamisho wa {{amount}} {{currency}} umekamilika kutoka {{payer}} kwenda {{beneficiary}}. Rejea: {{reference}}",
+  "wallet.deposit_cancelled_description": "Ombi la amana ya {{amount}} {{currency}} limeghairiwa na mtumiaji",
+  "wallet.deposit_cancelled": "Ombi la amana limeghairiwa kwa mafanikio."
 }
