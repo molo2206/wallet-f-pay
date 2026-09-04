@@ -11371,6 +11371,72 @@ export class WalletServiceService {
       });
     }
 
+    // ============================================================
+    // ✅ VÉRIFIER S'IL EXISTE DÉJÀ UNE TRANSACTION PENDING
+    // ============================================================
+    const pendingTransaction = await this.prisma.transaction.findFirst({
+      where: {
+        userId: userId,
+        walletId: wallet.id,
+        type: 'DEPOSIT',
+        status: 'PENDING',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (pendingTransaction) {
+      // ✅ Calculer le temps écoulé depuis la création
+      const now = new Date();
+      const elapsedMinutes = (now.getTime() - pendingTransaction.createdAt.getTime()) / (1000 * 60);
+
+      // ✅ Si la transaction a plus de 30 minutes, on laisse passer (considérée comme abandonnée)
+      if (elapsedMinutes < 30) {
+        throw new RpcException({
+          status: 'error',
+          message: `Une demande de dépôt est déjà en cours de traitement. Veuillez attendre la validation ou annuler la demande existante. Transaction: ${pendingTransaction.reference}`,
+          statusCode: 409,
+          data: {
+            pendingTransactionId: pendingTransaction.id,
+            pendingReference: pendingTransaction.reference,
+            pendingAmount: pendingTransaction.amount,
+            pendingCurrency: pendingTransaction.currency,
+            createdAt: pendingTransaction.createdAt,
+            elapsedMinutes: Math.round(elapsedMinutes),
+          },
+        });
+      } else {
+        // ✅ Si la transaction a plus de 30 minutes, on annule automatiquement
+        console.log(`[WalletService] ⏳ Transaction PENDING expirée (${elapsedMinutes} min) annulée automatiquement: ${pendingTransaction.reference}`);
+
+        await this.prisma.transaction.update({
+          where: { id: pendingTransaction.id },
+          data: {
+            status: 'CANCELLED',
+            description: `${pendingTransaction.description} - Annulée automatiquement (expiration après 30 minutes)`,
+          },
+        });
+
+        // Log de l'annulation automatique
+        await this.prisma.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: userId,
+            action: 'DEPOSIT_AUTO_CANCEL',
+            details: JSON.stringify({
+              transactionId: pendingTransaction.id,
+              reference: pendingTransaction.reference,
+              reason: 'Expiration après 30 minutes',
+              elapsedMinutes: Math.round(elapsedMinutes),
+            }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        });
+      }
+    }
+
     // ========== CRÉER LA TRANSACTION EN PENDING (DEPOSIT - CREDIT) ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
