@@ -11048,14 +11048,11 @@ export class WalletServiceService {
       userId: userId,
     };
 
-    // ✅ GARDER LE FILTRE EXISTANT
+    // ✅ Filtrer par type si spécifié (sinon retourner TOUS les types)
     if (type) {
       where.type = type;
-    } else {
-      where.type = {
-        notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
-      };
     }
+    // ✅ PAS DE FILTRE PAR DÉFAUT !!!
 
     // ✅ Filtrer par status si spécifié
     if (status) {
