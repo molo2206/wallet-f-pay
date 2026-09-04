@@ -10940,7 +10940,7 @@ export class WalletServiceService {
     wallet: WalletResponseDto;
     balance: number;
     currency: string;
-    transactions: any[];  // ✅ Tableau directement
+    transactions: any[];
     total: number;
     page: number;
     limit: number;
@@ -11048,6 +11048,7 @@ export class WalletServiceService {
       userId: userId,
     };
 
+    // ✅ GARDER LE FILTRE EXISTANT
     if (type) {
       where.type = type;
     } else {
@@ -11056,7 +11057,11 @@ export class WalletServiceService {
       };
     }
 
-    if (status) where.status = status;
+    // ✅ Filtrer par status si spécifié
+    if (status) {
+      where.status = status;
+    }
+
     if (movement) where.movement = movement;
 
     if (startDate || endDate) {
@@ -11203,7 +11208,7 @@ export class WalletServiceService {
         wallet: this.toResponse(wallet),
         balance: wallet.balance,
         currency: wallet.currency,
-        transactions: enrichedTransactions,  // ✅ Tableau directement
+        transactions: enrichedTransactions,
         total,
         page,
         limit,
