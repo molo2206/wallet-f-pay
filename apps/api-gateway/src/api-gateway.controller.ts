@@ -69,6 +69,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as jwt from 'jsonwebtoken';
 import { validateClientToken } from './constants/client-tokens.constants';
+import { HttpService } from '@nestjs/axios';
 
 const gatewayLoginLocks = new Map<string, boolean>();
 
@@ -207,7 +208,8 @@ export class ApiGatewayController {
   private settingsClient: ClientProxy;
   private fpayCache: Map<string, any> = new Map();
 
-  constructor(private readonly i18nService: I18nService, private readonly prisma: PrismaService) { // ✅ injection
+
+  constructor(private readonly i18nService: I18nService, private readonly prisma: PrismaService, private readonly httpService: HttpService,) { // ✅ injection
     const rmqUrl =
       process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
     const authQueue = process.env.AUTH_QUEUE || 'auth_queue';
@@ -8316,18 +8318,16 @@ export class ApiGatewayController {
     );
   }
 
-  /**
- * Confirmer un dépôt - CRÉDITE le bénéficiaire et DÉBITE le userId
- * ✅ Route protégée - Seul l'admin peut valider
- */
   @Post('wallet/deposit/confirm')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async confirmDeposit(
     @CurrentUser() currentUser: any,
     @Body() body: {
       transactionId: string;
-      userId: string;  // ✅ L'utilisateur qui sera débité (payeur)
+      userId: string;
       pin: string;
+      amount: number;
+      currency: string;
     },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
@@ -8344,45 +8344,39 @@ export class ApiGatewayController {
 
     // ✅ Validations
     if (!body.transactionId) {
-      throw new HttpException(
-        'L\'ID de la transaction est requis',
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('L\'ID de la transaction est requis', HttpStatus.BAD_REQUEST);
     }
-
     if (!body.userId) {
-      throw new HttpException(
-        'L\'ID de l\'utilisateur à débiter est requis',
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('L\'ID de l\'utilisateur à débiter est requis', HttpStatus.BAD_REQUEST);
     }
-
     if (!body.pin || body.pin.length < 4) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.pin_min_length', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException(this.i18nService.translate('wallet.pin_min_length', lang), HttpStatus.BAD_REQUEST);
     }
-
     if (!/^\d+$/.test(body.pin)) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.pin_digits_only', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException(this.i18nService.translate('wallet.pin_digits_only', lang), HttpStatus.BAD_REQUEST);
+    }
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException('Le montant est requis pour la diminution des points', HttpStatus.BAD_REQUEST);
+    }
+    if (!body.currency) {
+      throw new HttpException('La devise est requise pour la diminution des points', HttpStatus.BAD_REQUEST);
     }
 
     console.log('[API Gateway] confirmDeposit - Admin:', {
       adminId: currentUser.id,
       adminRole: currentUser.role,
       transactionId: body.transactionId,
-      payerId: body.userId,  // ✅ L'utilisateur qui sera débité
+      payerId: body.userId,
+      amount: body.amount,
+      currency: body.currency,
     });
 
-    return this.sendWalletMessage(
+    // ✅ 1. Confirmer le dépôt
+    const depositResult = await this.sendWalletMessage(
       'confirm_deposit',
       {
         transactionId: body.transactionId,
-        userId: body.userId,  // ✅ Le payeur (celui qui sera débité)
+        userId: body.userId,
         pin: body.pin,
         lang,
         ipAddress,
@@ -8390,8 +8384,49 @@ export class ApiGatewayController {
       this.i18nService.translate('wallet.deposit_confirm_failed', lang),
       HttpStatus.BAD_REQUEST,
     );
-  }
 
+    // ✅ 2. Appeler Favor Help pour diminuer les points
+    try {
+      const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+      const decreasePointsUrl = `${favorHelpUrl}/deposit/decrease-points`;
+
+      const response = await firstValueFrom(
+        this.httpService.post(
+          decreasePointsUrl,
+          {
+            userId: body.userId,
+            amount: body.amount,
+            currency: body.currency.toUpperCase(),
+          },
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 30000,
+          }
+        )
+      );
+
+      // ✅ Fusionner les résultats
+      return {
+        success: true,
+        deposit: depositResult,
+        referralPoints: response.data,
+      };
+
+    } catch (error) {
+      console.error('[API Gateway] ❌ Erreur appel Favor Help:', error.message);
+
+      return {
+        success: true,
+        deposit: depositResult,
+        referralPoints: {
+          success: false,
+          message: `Dépôt confirmé mais erreur lors de la diminution des points: ${error.message}`,
+          error: error.response?.data || error.message,
+        },
+      };
+    }
+  }
+  
   @Post('wallet/deposit/cancel')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async cancelDepositRequest(
