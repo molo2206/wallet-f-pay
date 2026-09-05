@@ -6324,54 +6324,180 @@ export class WalletServiceService {
     if (transactionType === 'DEPOSIT' && (transactionMovement === 'CREDIT' || externalData.movement === 'CREDIT')) {
       console.log('[validateTransaction] 💰 Validation d\'un DÉPÔT');
 
-      const wallet = await this.prisma.wallet.findFirst({
+      // ✅ Récupérer le wallet du bénéficiaire
+      const beneficiaryWallet = await this.prisma.wallet.findFirst({
         where: {
           id: transaction.walletId,
           isActive: true,
         },
       });
 
-      if (!wallet) {
+      if (!beneficiaryWallet) {
         throw new RpcException({
           status: 'error',
-          message: 'Wallet non trouvé ou inactif',
+          message: 'Wallet du bénéficiaire non trouvé ou inactif',
           statusCode: 404,
         });
       }
 
-      // Vérifier le solde si c'est un succès
-      if (status === 'SUCCESS') {
-        // Pas de vérification de solde pour un dépôt (c'est un crédit)
-        console.log(`[validateTransaction] ✅ Dépôt de ${transaction.amount} ${transaction.currency} à valider`);
+      // ✅ Récupérer le payeur depuis externalData
+      let payerWallet: any = null;
+      let payerUser: any = null;
+
+      // Récupérer le payerId depuis externalData
+      const payerId = externalData.payerId;
+
+      if (payerId) {
+        payerUser = await this.prisma.user.findFirst({
+          where: { id: payerId },
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            countryCode: true,
+          },
+        });
+
+        if (payerUser) {
+          payerWallet = await this.prisma.wallet.findFirst({
+            where: {
+              userId: payerUser.id,
+              currency: transaction.currency,
+              isActive: true,
+            },
+          });
+          console.log(`[validateTransaction] ✅ Payeur trouvé: ${payerUser.full_name} (${payerUser.id})`);
+        }
+      }
+
+      // ✅ Si pas de payerId, essayer de récupérer via l'API Key
+      if (!payerWallet && externalData.apiKey) {
+        try {
+          const cleanApiKey = externalData.apiKey.startsWith('Bearer ')
+            ? externalData.apiKey.substring(7)
+            : externalData.apiKey;
+          const decoded = jwt.decode(cleanApiKey) as any;
+          const decodedPayerId = decoded?.userId || decoded?.id || decoded?.sub;
+
+          if (decodedPayerId) {
+            payerUser = await this.prisma.user.findFirst({
+              where: { id: decodedPayerId },
+              select: {
+                id: true,
+                full_name: true,
+                phone: true,
+                countryCode: true,
+              },
+            });
+
+            if (payerUser) {
+              payerWallet = await this.prisma.wallet.findFirst({
+                where: {
+                  userId: payerUser.id,
+                  currency: transaction.currency,
+                  isActive: true,
+                },
+              });
+              console.log(`[validateTransaction] ✅ Payeur trouvé via API Key: ${payerUser.full_name}`);
+            }
+          }
+        } catch (e) {
+          console.warn('[validateTransaction] ⚠️ Erreur décodage API Key:', e.message);
+        }
+      }
+
+      if (status === 'SUCCESS' && !payerWallet) {
+        console.warn('[validateTransaction] ⚠️ Aucun payeur trouvé pour ce dépôt, impossible de débiter');
+      }
+
+      // ✅ Vérifier le solde du payeur (si trouvé)
+      if (status === 'SUCCESS' && payerWallet && payerWallet.balance < transaction.amount) {
+        throw new RpcException({
+          status: 'error',
+          message: `Solde insuffisant pour le payeur. Disponible: ${payerWallet.balance} ${transaction.currency}, Demandé: ${transaction.amount} ${transaction.currency}`,
+          statusCode: 400,
+        });
       }
 
       const result = await this.prisma.$transaction(async (tx) => {
-        let updatedWallet: any;
+        let updatedBeneficiaryWallet: any;
+        let updatedPayerWallet: any = null;
         let updatedTransaction: any;
+        let debitTransaction: any = null;
 
         if (status === 'SUCCESS') {
-          // ✅ CRÉDITER LE WALLET
-          updatedWallet = await tx.wallet.update({
-            where: { id: wallet.id },
+          // ✅ 1. CRÉDITER LE WALLET DU BÉNÉFICIAIRE
+          updatedBeneficiaryWallet = await tx.wallet.update({
+            where: { id: beneficiaryWallet.id },
             data: {
               balance: { increment: transaction.amount },
               updatedAt: new Date(),
             },
           });
+          console.log(`[validateTransaction] ✅ Bénéficiaire CRÉDITÉ: +${transaction.amount} ${transaction.currency}`);
+          console.log(`[validateTransaction] 📊 Nouveau solde bénéficiaire: ${updatedBeneficiaryWallet.balance}`);
 
-          // ✅ METTRE À JOUR LA TRANSACTION
+          // ✅ 2. DÉBITER LE WALLET DU PAYEUR (si trouvé)
+          if (payerWallet) {
+            updatedPayerWallet = await tx.wallet.update({
+              where: { id: payerWallet.id },
+              data: {
+                balance: { decrement: transaction.amount },
+                updatedAt: new Date(),
+              },
+            });
+            console.log(`[validateTransaction] ❌ Payeur DÉBITÉ: -${transaction.amount} ${transaction.currency}`);
+            console.log(`[validateTransaction] 📊 Nouveau solde payeur: ${updatedPayerWallet.balance}`);
+
+            // ✅ 3. CRÉER UNE TRANSACTION DE DÉBIT POUR LE PAYEUR
+            const debitReference = await this.generateTransactionReference('DBT', tx);
+            debitTransaction = await tx.transaction.create({
+              data: {
+                id: crypto.randomUUID(),
+                userId: payerUser.id,
+                walletId: payerWallet.id,
+                amount: transaction.amount,
+                type: 'TRANSFER',
+                status: 'SUCCESS',
+                reference: debitReference,
+                description: `Débit pour dépôt vers ${transaction.user?.full_name || 'bénéficiaire'} - Réf dépôt: ${transaction.reference}`,
+                movement: 'DEBIT',
+                currency: transaction.currency,
+                external_reference: JSON.stringify({
+                  depositTransactionId: transaction.id,
+                  depositReference: transaction.reference,
+                  beneficiaryId: transaction.userId,
+                  beneficiaryName: transaction.user?.full_name || null,
+                  type: 'DEBIT',
+                  status: 'SUCCESS',
+                  validatedBy: adminId,
+                  validatedByName: admin.full_name,
+                  validatedAt: new Date().toISOString(),
+                }),
+              },
+            });
+            console.log(`[validateTransaction] ✅ Transaction de débit créée: ${debitReference}`);
+          } else {
+            console.warn('[validateTransaction] ⚠️ Aucun payeur trouvé, pas de débit');
+          }
+
+          // ✅ 4. METTRE À JOUR LA TRANSACTION DE DÉPÔT
           const updatedExternalRef = {
             ...externalData,
             status: 'SUCCESS',
             validatedBy: adminId,
             validatedByName: admin.full_name,
             validatedAt: new Date().toISOString(),
+            debitTransactionId: debitTransaction?.id || null,
+            debitReference: debitTransaction?.reference || null,
+            payerBalanceAfter: updatedPayerWallet?.balance || null,
+            beneficiaryBalanceAfter: updatedBeneficiaryWallet.balance,
             statusHistory: [
               ...(externalData.statusHistory || []),
               {
                 status: 'SUCCESS',
                 timestamp: new Date().toISOString(),
-                note: `Dépôt validé par ${admin.full_name}`,
+                note: `Dépôt validé par ${admin.full_name}${debitTransaction ? ` - Débit du payeur: ${debitTransaction.reference}` : ''}`,
                 adminId: adminId,
                 adminName: admin.full_name,
               }
@@ -6387,8 +6513,6 @@ export class WalletServiceService {
               external_reference: JSON.stringify(updatedExternalRef),
             },
           });
-
-          console.log(`[validateTransaction] ✅ Dépôt validé: ${transaction.amount} ${transaction.currency}`);
 
         } else {
           // ❌ REJET
@@ -6420,7 +6544,8 @@ export class WalletServiceService {
             },
           });
 
-          updatedWallet = wallet;
+          updatedBeneficiaryWallet = beneficiaryWallet;
+          updatedPayerWallet = payerWallet;
           console.log(`[validateTransaction] ❌ Dépôt rejeté: ${status}`);
         }
 
@@ -6435,7 +6560,14 @@ export class WalletServiceService {
               reference: transaction.reference,
               amount: transaction.amount,
               currency: transaction.currency,
-              userId: transaction.userId,
+              beneficiaryId: transaction.userId,
+              beneficiaryWalletId: beneficiaryWallet.id,
+              payerId: payerUser?.id || null,
+              payerWalletId: payerWallet?.id || null,
+              debitTransactionId: debitTransaction?.id || null,
+              debitReference: debitTransaction?.reference || null,
+              beneficiaryBalanceAfter: updatedBeneficiaryWallet.balance,
+              payerBalanceAfter: updatedPayerWallet?.balance || null,
               previousStatus: transaction.status,
               newStatus: status,
               adminName: admin.full_name,
@@ -6448,15 +6580,16 @@ export class WalletServiceService {
 
         return {
           transaction: updatedTransaction,
-          fromWallet: updatedWallet,
-          toWallet: null,
+          beneficiaryWallet: updatedBeneficiaryWallet,
+          payerWallet: updatedPayerWallet,
+          debitTransaction: debitTransaction,
         };
       });
 
-      // Notifications
-      // Notifications pour dépôt
+      // ✅ Notifications
       if (status === 'SUCCESS') {
         try {
+          // Notification au bénéficiaire (crédit)
           await notifyTransaction(
             this.smsService,
             this.notificationHelper,
@@ -6466,28 +6599,51 @@ export class WalletServiceService {
             this.getUserLanguage.bind(this),
             result.transaction,
             transaction.user,
-            result.fromWallet,
+            result.beneficiaryWallet,
             'deposit_confirmed',
             {
               name: transaction.user?.full_name || 'Client',
               phone: transaction.user?.phone || undefined,
-              // ✅ Ajouter les informations dans le champ accountNumber si disponible
               accountNumber: `${transaction.amount} ${transaction.currency}`,
               status: 'SUCCESS',
             },
           );
+
+          // Notification au payeur (débit)
+          if (result.debitTransaction && payerUser) {
+            await notifyTransaction(
+              this.smsService,
+              this.notificationHelper,
+              this.i18nService,
+              this.shouldSendSms.bind(this),
+              this.shouldSendPush.bind(this),
+              this.getUserLanguage.bind(this),
+              result.debitTransaction,
+              payerUser,
+              result.payerWallet,
+              'deposit_debit',
+              {
+                name: transaction.user?.full_name || 'Bénéficiaire',
+                phone: transaction.user?.phone || undefined,
+                accountNumber: `${transaction.amount} ${transaction.currency}`,
+                status: 'SUCCESS',
+              },
+            );
+          }
         } catch (err) {
           console.error('[Notifications] Error:', err);
         }
       }
+
       return {
         message: status === 'SUCCESS'
-          ? `Dépôt de ${transaction.amount} ${transaction.currency} validé avec succès. Référence: ${transaction.reference}`
+          ? `Dépôt de ${transaction.amount} ${transaction.currency} validé avec succès. Référence: ${transaction.reference}${result.debitTransaction ? ` - Débit: ${result.debitTransaction.reference}` : ''}`
           : `Dépôt de ${transaction.amount} ${transaction.currency} rejeté. Référence: ${transaction.reference}`,
         data: {
           transaction: result.transaction,
-          fromWallet: this.toResponse(result.fromWallet),
-          toWallet: undefined,
+          fromWallet: this.toResponse(result.beneficiaryWallet),
+          toWallet: result.payerWallet ? this.toResponse(result.payerWallet) : undefined,
+          debitTransaction: result.debitTransaction || undefined,
         },
       };
     }
