@@ -11947,16 +11947,7 @@ export class WalletServiceService {
       });
     }
 
-    // ========== VÉRIFIER LE SOLDE DU PAYEUR ==========
-    if (payerWallet.balance < amount) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
-        statusCode: 400,
-      });
-    }
-
-    // ❌ CONDITION SUPPRIMÉE - Plus de vérification des transactions PENDING
+    // ❌ VÉRIFICATION DU SOLDE SUPPRIMÉE - Le débit se fera lors de la validation
 
     // ========== CRÉER LA TRANSACTION EN PENDING ==========
     const result = await this.prisma.$transaction(
@@ -12081,7 +12072,7 @@ export class WalletServiceService {
       { timeout: 30000 }
     );
 
-    // ========== NOTIFICATIONS (RESTAURÉES) ==========
+    // ========== NOTIFICATIONS ==========
     try {
       await notifyTransaction(
         this.smsService,
@@ -12135,7 +12126,7 @@ export class WalletServiceService {
       },
     };
   }
-
+  
   async confirmDeposit(
     transactionId: string,
     userId: string,
