@@ -8259,14 +8259,14 @@ export class ApiGatewayController {
 
   @Post('wallet/deposit/request')
   async requestDeposit(
-    @Body() body: {                                    // ✅ REQUIS - EN PREMIER
+    @Body() body: {
       userId: string;
       amount: number;
       currency: string;
     },
-    @Headers('authorization') authHeader?: string,     // ✅ OPTIONNEL - APRÈS
-    @Headers('lang') langHeader?: string,              // ✅ OPTIONNEL - APRÈS
-    @Ip() ipAddress?: string,                          // ✅ OPTIONNEL - APRÈS
+    @Headers('authorization') authHeader?: string,
+    @Headers('lang') langHeader?: string,
+    @Ip() ipAddress?: string,
   ) {
     const lang = langHeader || 'fr';
 
@@ -8283,24 +8283,40 @@ export class ApiGatewayController {
       );
     }
 
+    // ✅ DEBUG: Afficher le token
+    console.log('[API Gateway] 🔍 Token reçu:');
+    console.log(`  - Longueur: ${token.length}`);
+    console.log(`  - Début: ${token.substring(0, 30)}...`);
+    console.log(`  - Est un JWT valide? ${token.startsWith('eyJ')}`);
+
+    if (!token.startsWith('eyJ')) {
+      console.error('[API Gateway] ❌ Token invalide: ne commence pas par eyJ');
+      throw new HttpException('Token FPay invalide', HttpStatus.UNAUTHORIZED);
+    }
+
     // ✅ 2. Valider le token et extraire le payeur
     let payerId: string;
     try {
-      const jwtSecret = process.env.JWT_SECRET || 'fpay-super-secret-key-2024';
-      const decoded = jwt.verify(token, jwtSecret) as any;
-      payerId = decoded.id || decoded.sub;
+      const parrainageApiKey = process.env.FPAY_API_KEY_PARRAINAGE || '';
+      const cleanSecret = parrainageApiKey.startsWith('Bearer ')
+        ? parrainageApiKey.substring(7)
+        : parrainageApiKey;
+
+      const decoded = jwt.verify(token, cleanSecret) as any;
+      payerId = decoded.userId || decoded.id || decoded.sub;
 
       if (!payerId) {
         throw new Error('Token invalide: ID manquant');
       }
 
-      console.log('[API Gateway] Payeur extrait du token:', {
+      console.log('[API Gateway] ✅ Payeur extrait du token FPay:', {
         payerId,
         email: decoded.email,
         role: decoded.role,
+        permissions: decoded.permissions,
       });
     } catch (error: any) {
-      console.error('[API Gateway] Token validation error:', error.message);
+      console.error('[API Gateway] ❌ Token validation error:', error.message);
       throw new HttpException(
         error.message === 'jwt expired' ? 'Token expiré' : 'Token invalide',
         HttpStatus.UNAUTHORIZED,
@@ -8336,19 +8352,11 @@ export class ApiGatewayController {
       );
     }
 
-    console.log('[API Gateway] requestDeposit:', {
-      beneficiaryId: body.userId,
-      payerId: payerId, // ✅ Extrait du token
-      amount: body.amount,
-      currency: body.currency,
-      ipAddress,
-    });
-
     return this.sendWalletMessage(
       'request_deposit',
       {
-        userId: body.userId,      // BÉNÉFICIAIRE
-        payerId: payerId,         // PAYEUR (extrait du token)
+        userId: body.userId,
+        payerToken: token,  // ✅ Envoyer le token FPay complet
         amount: body.amount,
         currency: body.currency.toUpperCase(),
         lang,
