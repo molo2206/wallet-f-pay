@@ -11594,15 +11594,21 @@ export class WalletServiceService {
     return Math.round(((last - first) / first) * 100);
   }
 
-
   async requestDeposit(
-    userId: string,
+    userId: string,           // ✅ BÉNÉFICIAIRE (celui qui reçoit)
     amount: number,
     currency: string,
+    payerId: string,          // ✅ PAYEUR (celui qui envoie - stocké dans external)
     lang: string = 'fr',
     ipAddress?: string,
   ): Promise<ApiResponse<{ transaction: any; requiresValidation: boolean; wallet: WalletResponseDto }>> {
-    console.log('[WalletService] Request deposit:', { userId, amount, currency, lang });
+    console.log('[WalletService] Request deposit:', {
+      beneficiaryId: userId,
+      payerId,
+      amount,
+      currency,
+      lang
+    });
 
     // ========== VALIDATIONS ==========
     if (amount <= 0) {
@@ -11616,7 +11622,23 @@ export class WalletServiceService {
     if (!userId) {
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.user_not_found', lang),
+        message: 'L\'ID du bénéficiaire est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (!payerId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'L\'ID du payeur est requis',
+        statusCode: 400,
+      });
+    }
+
+    if (userId === payerId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le payeur et le bénéficiaire ne peuvent pas être le même utilisateur',
         statusCode: 400,
       });
     }
@@ -11639,8 +11661,8 @@ export class WalletServiceService {
       });
     }
 
-    // ========== RÉCUPÉRER L'UTILISATEUR ==========
-    const user = await this.prisma.user.findUnique({
+    // ========== RÉCUPÉRER LE BÉNÉFICIAIRE ==========
+    const beneficiary = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -11651,24 +11673,52 @@ export class WalletServiceService {
       },
     });
 
-    if (!user) {
+    if (!beneficiary) {
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.user_not_found', lang),
+        message: 'Bénéficiaire non trouvé',
         statusCode: 404,
       });
     }
 
-    if (user.status === user_status.BLOCKED) {
+    if (beneficiary.status === user_status.BLOCKED) {
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('account_blocked_admin', lang),
+        message: 'Le compte du bénéficiaire est bloqué',
         statusCode: 403,
       });
     }
 
-    // ========== RÉCUPÉRER LE WALLET ==========
-    const wallet = await this.prisma.wallet.findFirst({
+    // ========== RÉCUPÉRER LE PAYEUR ==========
+    const payer = await this.prisma.user.findUnique({
+      where: { id: payerId },
+      select: {
+        id: true,
+        full_name: true,
+        phone: true,
+        status: true,
+        countryCode: true,
+      },
+    });
+
+    if (!payer) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Payeur non trouvé',
+        statusCode: 404,
+      });
+    }
+
+    if (payer.status === user_status.BLOCKED) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le compte du payeur est bloqué',
+        statusCode: 403,
+      });
+    }
+
+    // ========== RÉCUPÉRER LE WALLET DU BÉNÉFICIAIRE ==========
+    const beneficiaryWallet = await this.prisma.wallet.findFirst({
       where: {
         userId: userId,
         currency: currency.toUpperCase() as wallet_currency,
@@ -11676,19 +11726,53 @@ export class WalletServiceService {
       },
     });
 
-    if (!wallet) {
+    if (!beneficiaryWallet) {
       throw new RpcException({
         status: 'error',
-        message: `Aucun wallet actif trouvé pour l'utilisateur en devise ${currency.toUpperCase()}. Veuillez créer un wallet d'abord.`,
+        message: `Aucun wallet actif trouvé pour le bénéficiaire en devise ${currency.toUpperCase()}`,
         statusCode: 404,
       });
     }
 
-    if (!wallet.isActive) {
+    if (!beneficiaryWallet.isActive) {
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.wallet_inactive', lang),
+        message: 'Le wallet du bénéficiaire est inactif',
         statusCode: 403,
+      });
+    }
+
+    // ========== RÉCUPÉRER LE WALLET DU PAYEUR ==========
+    const payerWallet = await this.prisma.wallet.findFirst({
+      where: {
+        userId: payerId,
+        currency: currency.toUpperCase() as wallet_currency,
+        isActive: true,
+      },
+    });
+
+    if (!payerWallet) {
+      throw new RpcException({
+        status: 'error',
+        message: `Aucun wallet actif trouvé pour le payeur en devise ${currency.toUpperCase()}`,
+        statusCode: 404,
+      });
+    }
+
+    if (!payerWallet.isActive) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Le wallet du payeur est inactif',
+        statusCode: 403,
+      });
+    }
+
+    // ========== VÉRIFIER LE SOLDE DU PAYEUR ==========
+    if (payerWallet.balance < amount) {
+      throw new RpcException({
+        status: 'error',
+        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        statusCode: 400,
       });
     }
 
@@ -11697,8 +11781,8 @@ export class WalletServiceService {
     // ============================================================
     const pendingTransaction = await this.prisma.transaction.findFirst({
       where: {
-        userId: userId,
-        walletId: wallet.id,
+        userId: userId, // ← BÉNÉFICIAIRE
+        walletId: beneficiaryWallet.id,
         type: 'DEPOSIT',
         status: 'PENDING',
       },
@@ -11714,7 +11798,7 @@ export class WalletServiceService {
       if (elapsedMinutes < 30) {
         throw new RpcException({
           status: 'error',
-          message: `Une demande de dépôt est déjà en cours de traitement. Veuillez attendre la validation ou annuler la demande existante. Transaction: ${pendingTransaction.reference}`,
+          message: `Une demande de dépôt est déjà en cours de traitement pour ce bénéficiaire. Transaction: ${pendingTransaction.reference}`,
           statusCode: 409,
           data: {
             pendingTransactionId: pendingTransaction.id,
@@ -11759,24 +11843,31 @@ export class WalletServiceService {
       async (tx) => {
         const reference = await this.generateTransactionReference('DEP', tx);
 
-        // ✅ EXTERNAL_REFERENCE STRUCTURÉE
+        // ✅ EXTERNAL_REFERENCE AVEC PAYEUR (celui qui sera débité)
         const externalReference = {
           // 🔹 Informations de la transaction
-          transactionId: null, // Sera rempli après création
+          transactionId: null,
           reference: reference,
           type: 'DEPOSIT',
           status: 'PENDING',
 
-          // 🔹 Informations du demandeur
-          userId: userId,
-          userFullName: user.full_name || null,
-          userPhone: user.phone || null,
-          userCountryCode: user.countryCode || null,
+          // 🔹 Informations du BÉNÉFICIAIRE (userId - celui qui reçoit)
+          beneficiaryId: beneficiary.id,
+          beneficiaryFullName: beneficiary.full_name || null,
+          beneficiaryPhone: beneficiary.phone || null,
+          beneficiaryCountryCode: beneficiary.countryCode || null,
+          beneficiaryWalletId: beneficiaryWallet.id,
+          beneficiaryWalletCurrency: beneficiaryWallet.currency,
+          beneficiaryWalletBalance: beneficiaryWallet.balance,
 
-          // 🔹 Informations du wallet
-          walletId: wallet.id,
-          walletCurrency: wallet.currency,
-          walletBalance: wallet.balance,
+          // 🔹 Informations du PAYEUR (celui qui sera débité après validation)
+          payerId: payer.id,
+          payerFullName: payer.full_name || null,
+          payerPhone: payer.phone || null,
+          payerCountryCode: payer.countryCode || null,
+          payerWalletId: payerWallet.id,
+          payerWalletCurrency: payerWallet.currency,
+          payerWalletBalance: payerWallet.balance,
 
           // 🔹 Informations du dépôt
           amount: amount,
@@ -11792,11 +11883,17 @@ export class WalletServiceService {
           requiresValidation: true,
           validatedBy: null,
           validatedAt: null,
+
+          // 🔹 Historique
           statusHistory: [
             {
               status: 'PENDING',
               timestamp: new Date().toISOString(),
-              note: 'Demande de dépôt créée',
+              note: `Demande de dépôt créée par ${payer.full_name || 'Payeur'} pour ${beneficiary.full_name || 'Bénéficiaire'}`,
+              payerId: payer.id,
+              payerName: payer.full_name,
+              beneficiaryId: beneficiary.id,
+              beneficiaryName: beneficiary.full_name,
             }
           ],
         };
@@ -11804,23 +11901,24 @@ export class WalletServiceService {
         const transaction = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),
-            userId: userId,
-            walletId: wallet.id,
+            userId: userId, // ← BÉNÉFICIAIRE
+            walletId: beneficiaryWallet.id,
             amount: amount,
             type: 'DEPOSIT',
             status: 'PENDING',
             reference: reference,
             description: this.i18nService.translate('wallet.deposit_request_description', lang, {
               amount: amount.toFixed(2),
-              currency: wallet.currency || 'CDF',
+              currency: beneficiaryWallet.currency || 'CDF',
+              payerName: payer.full_name || 'Payeur',
             }),
-            movement: 'CREDIT',
-            currency: wallet.currency,
+            movement: 'CREDIT', // ← CRÉDIT pour le bénéficiaire
+            currency: beneficiaryWallet.currency,
             external_reference: JSON.stringify(externalReference),
           },
         });
 
-        // ✅ METTRE À JOUR L'ID DE LA TRANSACTION DANS external_reference
+        // ✅ METTRE À JOUR L'ID DE LA TRANSACTION
         const updatedExternalRef = {
           ...externalReference,
           transactionId: transaction.id,
@@ -11836,13 +11934,15 @@ export class WalletServiceService {
         await tx.audit_log.create({
           data: {
             id: crypto.randomUUID(),
-            userId: userId,
+            userId: payer.id,
             action: 'DEPOSIT_REQUEST',
             details: JSON.stringify({
               transactionId: transaction.id,
               reference: reference,
               amount: amount,
-              currency: wallet.currency,
+              currency: beneficiaryWallet.currency,
+              payerId: payer.id,
+              beneficiaryId: beneficiary.id,
               externalReference: updatedExternalRef,
             }),
             ipAddress: ipAddress || null,
@@ -11852,23 +11952,90 @@ export class WalletServiceService {
 
         return {
           transaction,
-          wallet,
-          user,
+          beneficiaryWallet,
+          payerWallet,
+          beneficiary,
+          payer,
         };
       },
       { timeout: 30000 }
     );
 
+    // ========== NOTIFICATION AU PAYEUR ==========
+    try {
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.transaction,
+        result.payer,
+        result.payerWallet,
+        'deposit_request_payer',
+        {
+          name: result.beneficiary.full_name || 'Bénéficiaire',
+          phone: result.beneficiary.phone || undefined,
+          accountNumber: result.transaction.reference,
+          status: 'PENDING',
+        },
+      );
+    } catch (err) {
+      console.error('[Notifications] Error sending to payer:', err);
+    }
+
+    // ========== NOTIFICATION AU BÉNÉFICIAIRE ==========
+    try {
+      await notifyTransaction(
+        this.smsService,
+        this.notificationHelper,
+        this.i18nService,
+        this.shouldSendSms.bind(this),
+        this.shouldSendPush.bind(this),
+        this.getUserLanguage.bind(this),
+        result.transaction,
+        result.beneficiary,
+        result.beneficiaryWallet,
+        'deposit_request_beneficiary',
+        {
+          name: result.payer.full_name || 'Payeur',
+          phone: result.payer.phone || undefined,
+          accountNumber: result.transaction.reference,
+          status: 'PENDING',
+        },
+      );
+    } catch (err) {
+      console.error('[Notifications] Error sending to beneficiary:', err);
+    }
+
     return {
       message: this.i18nService.translate('wallet.deposit_request_success', lang, {
         amount: amount.toFixed(2),
-        currency: wallet.currency || 'CDF',
+        currency: beneficiaryWallet.currency || 'CDF',
         reference: result.transaction.reference || 'N/A',
+        payer: result.payer.full_name || 'Payeur',
+        beneficiary: result.beneficiary.full_name || 'Bénéficiaire',
       }),
       data: {
         transaction: result.transaction,
-        wallet: this.toResponse(result.wallet),
+        wallet: this.toResponse(result.beneficiaryWallet),
         requiresValidation: true,
+        // ✅ Informations supplémentaires
+        payer: {
+          id: result.payer.id,
+          full_name: result.payer.full_name,
+          phone: result.payer.phone,
+          walletBalance: result.payerWallet.balance,
+          walletId: result.payerWallet.id,
+        },
+        beneficiary: {
+          id: result.beneficiary.id,
+          full_name: result.beneficiary.full_name,
+          phone: result.beneficiary.phone,
+          walletBalance: result.beneficiaryWallet.balance,
+          walletId: result.beneficiaryWallet.id,
+        },
       },
     };
   }

@@ -1053,20 +1053,28 @@ export class WalletServiceController {
   @MessagePattern('request_deposit')
   async requestDeposit(
     @Payload() data: {
-      userId: string;
+      userId: string;      // BÉNÉFICIAIRE
+      payerId: string;     // PAYEUR
       amount: number;
       currency: string;
       lang?: string;
       ipAddress?: string;
     },
   ) {
-    console.log('[WalletService] request_deposit received:', data);
+    console.log('[WalletService] request_deposit received:', {
+      beneficiaryId: data.userId,
+      payerId: data.payerId,
+      amount: data.amount,
+      currency: data.currency,
+    });
 
     try {
+      // ✅ Ajout de payerId
       return await this.walletService.requestDeposit(
-        data.userId,
+        data.userId,      // BÉNÉFICIAIRE
         data.amount,
         data.currency,
+        data.payerId,     // PAYEUR
         data.lang || 'fr',
         data.ipAddress,
       );

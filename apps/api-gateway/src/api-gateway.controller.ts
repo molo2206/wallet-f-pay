@@ -8257,26 +8257,67 @@ export class ApiGatewayController {
     );
   }
 
-  /**
- * Demande de dépôt - L'utilisateur fait une demande de dépôt
- * ✅ Route publique - Pas d'authentification requise
- */
   @Post('wallet/deposit/request')
   async requestDeposit(
-    @Body() body: {
+    @Body() body: {                                    // ✅ REQUIS - EN PREMIER
       userId: string;
       amount: number;
       currency: string;
     },
-    @Ip() ipAddress: string,
-    @Headers('lang') langHeader?: string,
+    @Headers('authorization') authHeader?: string,     // ✅ OPTIONNEL - APRÈS
+    @Headers('lang') langHeader?: string,              // ✅ OPTIONNEL - APRÈS
+    @Ip() ipAddress?: string,                          // ✅ OPTIONNEL - APRÈS
   ) {
     const lang = langHeader || 'fr';
 
-    // ✅ Validations
+    // ✅ 1. Extraire le token du header
+    let token: string | null = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+
+    if (!token) {
+      throw new HttpException(
+        'Token d\'authentification requis pour identifier le payeur',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    // ✅ 2. Valider le token et extraire le payeur
+    let payerId: string;
+    try {
+      const jwtSecret = process.env.JWT_SECRET || 'fpay-super-secret-key-2024';
+      const decoded = jwt.verify(token, jwtSecret) as any;
+      payerId = decoded.id || decoded.sub;
+
+      if (!payerId) {
+        throw new Error('Token invalide: ID manquant');
+      }
+
+      console.log('[API Gateway] Payeur extrait du token:', {
+        payerId,
+        email: decoded.email,
+        role: decoded.role,
+      });
+    } catch (error: any) {
+      console.error('[API Gateway] Token validation error:', error.message);
+      throw new HttpException(
+        error.message === 'jwt expired' ? 'Token expiré' : 'Token invalide',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    // ✅ 3. Validations
     if (!body.userId) {
       throw new HttpException(
-        'L\'ID de l\'utilisateur est requis',
+        'L\'ID du bénéficiaire est requis',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (body.userId === payerId) {
+      throw new HttpException(
+        'Le payeur et le bénéficiaire ne peuvent pas être le même utilisateur',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -8295,8 +8336,9 @@ export class ApiGatewayController {
       );
     }
 
-    console.log('[API Gateway] requestDeposit - Public route:', {
-      userId: body.userId,
+    console.log('[API Gateway] requestDeposit:', {
+      beneficiaryId: body.userId,
+      payerId: payerId, // ✅ Extrait du token
       amount: body.amount,
       currency: body.currency,
       ipAddress,
@@ -8305,7 +8347,8 @@ export class ApiGatewayController {
     return this.sendWalletMessage(
       'request_deposit',
       {
-        userId: body.userId,
+        userId: body.userId,      // BÉNÉFICIAIRE
+        payerId: payerId,         // PAYEUR (extrait du token)
         amount: body.amount,
         currency: body.currency.toUpperCase(),
         lang,
