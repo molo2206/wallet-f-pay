@@ -6127,10 +6127,12 @@ export class WalletServiceService {
     status: 'SUCCESS' | 'FAILED' | 'CANCELLED',
     lang: string = 'fr',
     ipAddress?: string,
-  ): Promise<ApiResponse<{ transaction: any; fromWallet: WalletResponseDto; toWallet: WalletResponseDto }>> {
-    console.log('[WalletService] Validate international transfer:', { transactionId, adminId, status, lang });
+  ): Promise<ApiResponse<{ transaction: any; fromWallet?: WalletResponseDto; toWallet?: WalletResponseDto }>> {
+    console.log('[WalletService] Validate transaction:', { transactionId, adminId, status, lang });
 
-    // 1️⃣ Vérifier l'admin
+    // ============================================================
+    // 1️⃣ VÉRIFIER L'ADMIN
+    // ============================================================
     const admin = await this.prisma.user.findFirst({
       where: { id: adminId, role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
       select: {
@@ -6163,7 +6165,9 @@ export class WalletServiceService {
       });
     }
 
-    // 2️⃣ Vérifier le PIN de l'admin
+    // ============================================================
+    // 2️⃣ VÉRIFIER LE PIN DE L'ADMIN
+    // ============================================================
     if (!admin.pin) {
       throw new RpcException({
         status: 'error',
@@ -6212,7 +6216,9 @@ export class WalletServiceService {
       data: { failed_pin_attempts: 0, pin_locked_until: null },
     });
 
-    // 3️⃣ Récupérer la transaction expéditeur (PENDING)
+    // ============================================================
+    // 3️⃣ RÉCUPÉRER LA TRANSACTION
+    // ============================================================
     const transaction = await this.prisma.transaction.findFirst({
       where: {
         id: transactionId,
@@ -6239,28 +6245,47 @@ export class WalletServiceService {
       });
     }
 
-    // 4️⃣ Vérifier que c'est un transfert international
-    if (transaction.type !== 'TRANSFER' || transaction.movement !== 'DEBIT') {
-      throw new RpcException({
-        status: 'error',
-        message: 'Cette transaction n\'est pas un transfert sortant',
-        statusCode: 400,
-      });
-    }
-
-    8// 5️⃣ Extraire les informations du destinataire depuis external_reference
-    let receiverData: any;
+    // ============================================================
+    // 4️⃣ EXTRAIRE external_reference
+    // ============================================================
+    let externalData: any;
     try {
-      // ✅ Vérifier que external_reference n'est pas null
       if (!transaction.external_reference) {
+        console.log('[validateTransaction] ⚠️ external_reference est null');
         throw new RpcException({
           status: 'error',
           message: 'Données de la transaction manquantes',
           statusCode: 400,
         });
       }
-      receiverData = JSON.parse(transaction.external_reference);
+
+      if (typeof transaction.external_reference === 'string') {
+        externalData = JSON.parse(transaction.external_reference);
+      } else if (typeof transaction.external_reference === 'object') {
+        externalData = transaction.external_reference;
+      } else {
+        throw new RpcException({
+          status: 'error',
+          message: 'Format de external_reference invalide',
+          statusCode: 400,
+        });
+      }
+
+      console.log('[validateTransaction] 📦 external_reference parsée:', {
+        type: externalData.type,
+        status: externalData.status,
+        userId: externalData.userId,
+        amount: externalData.amount,
+        currency: externalData.currency,
+        receiverUserId: externalData.receiverUserId,
+        receiverWalletId: externalData.receiverWalletId,
+        isInternational: externalData.isInternational,
+        transferType: externalData.transferType,
+        source: externalData.source,
+      });
+
     } catch (e) {
+      console.error('[validateTransaction] ❌ Erreur parsing external_reference:', e);
       throw new RpcException({
         status: 'error',
         message: 'Données de la transaction corrompues',
@@ -6268,456 +6293,769 @@ export class WalletServiceService {
       });
     }
 
-    // ✅ AFFICHER LES DONNÉES RÉCUPÉRÉES
-    console.log('[validateInternationalTransfer] 📦 Données récupérées de external_reference:', {
-      receiverUserId: receiverData.receiverUserId,
-      receiverWalletId: receiverData.receiverWalletId,
-      receiverAmount: receiverData.receiverAmount,
-      receiverCurrency: receiverData.receiverCurrency,
-      receiverPhone: receiverData.receiverPhone,
-      receiverName: receiverData.receiverName,
-      isInternational: receiverData.isInternational,
-      originalAmount: receiverData.originalAmount,
-      fee: receiverData.fee,
-      netAmount: receiverData.netAmount,
-      finalAmount: receiverData.finalAmount,
-      exchangeRate: receiverData.exchangeRate,
-    });
+    const transactionType = externalData.type || transaction.type;
+    const transactionMovement = externalData.movement || transaction.movement;
 
-    // 6️⃣ Récupérer les informations
-    const fromUser = transaction.user;
-    const fromWallet = transaction.wallet;
+    console.log(`[validateTransaction] 📊 Type: ${transactionType}, Movement: ${transactionMovement}`);
 
-    // 7️⃣ Récupérer le wallet du destinataire
-    const toWallet = await this.prisma.wallet.findFirst({
-      where: {
-        id: receiverData.receiverWalletId,
-        isActive: true,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            full_name: true,
-            phone: true,
-            countryCode: true,
-          },
+    // ============================================================
+    // 5️⃣ VALIDER SELON LE TYPE DE TRANSACTION
+    // ============================================================
+
+    // ========== CAS 1: DÉPÔT (DEPOSIT) ==========
+    if (transactionType === 'DEPOSIT' && (transactionMovement === 'CREDIT' || externalData.movement === 'CREDIT')) {
+      console.log('[validateTransaction] 💰 Validation d\'un DÉPÔT');
+
+      const wallet = await this.prisma.wallet.findFirst({
+        where: {
+          id: transaction.walletId,
+          isActive: true,
         },
-      },
-    });
-
-    if (!toWallet) {
-      throw new RpcException({
-        status: 'error',
-        message: `Wallet du destinataire non trouvé (ID: ${receiverData.receiverWalletId})`,
-        statusCode: 404,
       });
-    }
 
-    const toUser = toWallet.user;
-
-    const senderCountryCode = fromUser.countryCode || 'CD';
-    const receiverCountryCode = toUser.countryCode || 'CD';
-
-    // 8️⃣ VÉRIFIER LE SOLDE DE L'EXPÉDITEUR (si validation)
-    if (status === 'SUCCESS') {
-      const currentBalance = fromWallet.balance;
-      if (currentBalance < transaction.amount) {
+      if (!wallet) {
         throw new RpcException({
           status: 'error',
-          message: `Solde insuffisant. Disponible: ${currentBalance} ${transaction.currency}, Demandé: ${transaction.amount} ${transaction.currency}`,
+          message: 'Wallet non trouvé ou inactif',
+          statusCode: 404,
+        });
+      }
+
+      // Vérifier le solde si c'est un succès
+      if (status === 'SUCCESS') {
+        // Pas de vérification de solde pour un dépôt (c'est un crédit)
+        console.log(`[validateTransaction] ✅ Dépôt de ${transaction.amount} ${transaction.currency} à valider`);
+      }
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        let updatedWallet: any;
+        let updatedTransaction: any;
+
+        if (status === 'SUCCESS') {
+          // ✅ CRÉDITER LE WALLET
+          updatedWallet = await tx.wallet.update({
+            where: { id: wallet.id },
+            data: {
+              balance: { increment: transaction.amount },
+              updatedAt: new Date(),
+            },
+          });
+
+          // ✅ METTRE À JOUR LA TRANSACTION
+          const updatedExternalRef = {
+            ...externalData,
+            status: 'SUCCESS',
+            validatedBy: adminId,
+            validatedByName: admin.full_name,
+            validatedAt: new Date().toISOString(),
+            statusHistory: [
+              ...(externalData.statusHistory || []),
+              {
+                status: 'SUCCESS',
+                timestamp: new Date().toISOString(),
+                note: `Dépôt validé par ${admin.full_name}`,
+                adminId: adminId,
+                adminName: admin.full_name,
+              }
+            ],
+          };
+
+          updatedTransaction = await tx.transaction.update({
+            where: { id: transaction.id },
+            data: {
+              status: 'SUCCESS',
+              updatedAt: new Date(),
+              description: `${transaction.description} - Validé par ${admin.full_name}`,
+              external_reference: JSON.stringify(updatedExternalRef),
+            },
+          });
+
+          console.log(`[validateTransaction] ✅ Dépôt validé: ${transaction.amount} ${transaction.currency}`);
+
+        } else {
+          // ❌ REJET
+          const updatedExternalRef = {
+            ...externalData,
+            status: status,
+            validatedBy: adminId,
+            validatedByName: admin.full_name,
+            validatedAt: new Date().toISOString(),
+            statusHistory: [
+              ...(externalData.statusHistory || []),
+              {
+                status: status,
+                timestamp: new Date().toISOString(),
+                note: `Dépôt rejeté par ${admin.full_name}`,
+                adminId: adminId,
+                adminName: admin.full_name,
+              }
+            ],
+          };
+
+          updatedTransaction = await tx.transaction.update({
+            where: { id: transaction.id },
+            data: {
+              status: status === 'FAILED' ? 'FAILED' : 'CANCELLED',
+              updatedAt: new Date(),
+              description: `${transaction.description} - Rejeté par ${admin.full_name}`,
+              external_reference: JSON.stringify(updatedExternalRef),
+            },
+          });
+
+          updatedWallet = wallet;
+          console.log(`[validateTransaction] ❌ Dépôt rejeté: ${status}`);
+        }
+
+        // Audit log
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: admin.id,
+            action: status === 'SUCCESS' ? 'VALIDATE_DEPOSIT' : 'REJECT_DEPOSIT',
+            details: JSON.stringify({
+              transactionId: transaction.id,
+              reference: transaction.reference,
+              amount: transaction.amount,
+              currency: transaction.currency,
+              userId: transaction.userId,
+              previousStatus: transaction.status,
+              newStatus: status,
+              adminName: admin.full_name,
+              branchId: admin.branchId,
+            }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        });
+
+        return {
+          transaction: updatedTransaction,
+          fromWallet: updatedWallet,
+          toWallet: null,
+        };
+      });
+
+      // Notifications
+      // Notifications pour dépôt
+      if (status === 'SUCCESS') {
+        try {
+          await notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.transaction,
+            transaction.user,
+            result.fromWallet,
+            'deposit_confirmed',
+            {
+              name: transaction.user?.full_name || 'Client',
+              phone: transaction.user?.phone || undefined,
+              // ✅ Ajouter les informations dans le champ accountNumber si disponible
+              accountNumber: `${transaction.amount} ${transaction.currency}`,
+              status: 'SUCCESS',
+            },
+          );
+        } catch (err) {
+          console.error('[Notifications] Error:', err);
+        }
+      }
+      return {
+        message: status === 'SUCCESS'
+          ? `Dépôt de ${transaction.amount} ${transaction.currency} validé avec succès. Référence: ${transaction.reference}`
+          : `Dépôt de ${transaction.amount} ${transaction.currency} rejeté. Référence: ${transaction.reference}`,
+        data: {
+          transaction: result.transaction,
+          fromWallet: this.toResponse(result.fromWallet),
+          toWallet: undefined,
+        },
+      };
+    }
+
+    // ========== CAS 2: TRANSFERT SORTANT (TRANSFER / WITHDRAW) ==========
+    const validTransferTypes = ['TRANSFER', 'WITHDRAW', 'SEND', 'WITHDRAWAL'];
+    const validMovements = ['DEBIT', 'OUT', 'OUTGOING'];
+
+    const isTransfer = validTransferTypes.includes(transactionType) &&
+      validMovements.includes(transactionMovement);
+
+    if (isTransfer) {
+      console.log('[validateTransaction] 📤 Validation d\'un TRANSFERT SORTANT');
+
+      // Récupérer les données du destinataire depuis external_reference
+      const receiverData = externalData;
+
+      if (!receiverData.receiverWalletId && !receiverData.receiverUserId) {
+        throw new RpcException({
+          status: 'error',
+          message: 'Données du destinataire manquantes pour ce transfert',
           statusCode: 400,
         });
       }
-      console.log(`[validateInternationalTransfer] ✅ Solde suffisant: ${currentBalance} ${transaction.currency}`);
-    }
 
-    // 9️⃣ RECALCULER LES FRAIS INTERNATIONAUX
-    let internationalFeePercentage = 0;
-    let withdrawalFeePercentage = 0;
-    let fee = 0;
-    let debitAmount = transaction.amount;
-    let netAmount = transaction.amount;
-    let finalAmount = transaction.amount;
-    let feeCurrency: string = transaction.currency || 'CDF';
-    let selectedReceiverNetwork: any = null;
+      const fromUser = transaction.user;
+      const fromWallet = transaction.wallet;
 
-    // ✅ Récupérer les frais du pays expéditeur
-    const senderCountry = await this.prisma.country_provider.findFirst({
-      where: {
-        OR: [
-          { countryCode: senderCountryCode },
-          { code: senderCountryCode },
-        ]
-      },
-      select: {
-        international_transfer_fee: true,
-        cash_percentage: true,
-        momo_percentage: true,
-      },
-    });
-
-    if (!senderCountry) {
-      throw new RpcException({
-        status: 'error',
-        message: `Pays expéditeur ${senderCountryCode} non trouvé`,
-        statusCode: 404,
-      });
-    }
-
-    // ✅ Récupérer les networks du pays destinataire
-    const receiverNetworks = await this.prisma.network_provider.findMany({
-      where: {
-        country_provider: {
-          OR: [
-            { countryCode: receiverCountryCode },
-            { code: receiverCountryCode },
-          ],
-        },
-      },
-    });
-
-    if (receiverNetworks.length > 0) {
-      selectedReceiverNetwork = receiverNetworks[0];
-      for (const network of receiverNetworks) {
-        if (network.pourcentage_payout && network.pourcentage_payout > (selectedReceiverNetwork.pourcentage_payout || 0)) {
-          selectedReceiverNetwork = network;
-        }
-      }
-    }
-
-    // ✅ Pourcentage international
-    internationalFeePercentage = senderCountry.international_transfer_fee ||
-      senderCountry.cash_percentage ||
-      senderCountry.momo_percentage ||
-      0;
-
-    // ✅ Frais de retrait du destinataire
-    if (selectedReceiverNetwork && selectedReceiverNetwork.pourcentage_payout) {
-      withdrawalFeePercentage = selectedReceiverNetwork.pourcentage_payout;
-    } else {
-      withdrawalFeePercentage = 0;
-    }
-
-    // ✅ CALCUL DES FRAIS
-    if (internationalFeePercentage > 0) {
-      const percentageDecimal = internationalFeePercentage / 100;
-
-      netAmount = transaction.amount / (1 + percentageDecimal);
-      fee = transaction.amount - netAmount;
-      debitAmount = transaction.amount;
-      const withdrawalDecimal = withdrawalFeePercentage / 100;
-      finalAmount = netAmount + (netAmount * withdrawalDecimal);
-      feeCurrency = transaction.currency || 'CDF';
-    } else {
-      netAmount = transaction.amount;
-      fee = 0;
-      debitAmount = transaction.amount;
-      finalAmount = transaction.amount;
-      feeCurrency = transaction.currency || 'CDF';
-    }
-
-    // 🔟 CONVERTIR LE MONTANT FINAL
-    const sourceCurrency = transaction.currency || 'USD';
-    const targetCurrency = receiverData.receiverCurrency || toWallet.currency || 'CDF';
-    let exchangeRate = receiverData.exchangeRate || 1;
-    let convertedAmount = receiverData.receiverAmount || (finalAmount * exchangeRate);
-
-    // ✅ Vérifier si le taux de change a changé
-    if (sourceCurrency !== targetCurrency) {
-      const rateRecord = await this.prisma.exchange_rate.findFirst({
+      // Récupérer le wallet du destinataire
+      const toWallet = await this.prisma.wallet.findFirst({
         where: {
-          from_currency: sourceCurrency,
-          to_currency: targetCurrency,
+          id: receiverData.receiverWalletId,
+          isActive: true,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              full_name: true,
+              phone: true,
+              countryCode: true,
+            },
+          },
         },
       });
 
-      if (rateRecord && rateRecord.rate !== exchangeRate) {
-        console.log(`[validateInternationalTransfer] ⚠️ Taux de change mis à jour: ${exchangeRate} → ${rateRecord.rate}`);
-        exchangeRate = rateRecord.rate;
-        convertedAmount = finalAmount * exchangeRate;
-      } else if (!rateRecord) {
-        console.warn(`[validateInternationalTransfer] ⚠️ Taux de change non trouvé pour ${sourceCurrency} → ${targetCurrency}, utilisation du taux stocké: ${exchangeRate}`);
+      if (!toWallet) {
+        throw new RpcException({
+          status: 'error',
+          message: `Wallet du destinataire non trouvé (ID: ${receiverData.receiverWalletId})`,
+          statusCode: 404,
+        });
       }
-    }
 
-    convertedAmount = Math.round(convertedAmount * 100) / 100;
+      const toUser = toWallet.user;
 
-    console.log('[validateInternationalTransfer] 📊 Données de validation:', {
-      fromUser: fromUser.id,
-      fromWallet: fromWallet.id,
-      toUser: toUser.id,
-      toWallet: toWallet.id,
-      transactionAmount: transaction.amount,
-      transactionCurrency: transaction.currency,
-      sourceCurrency: sourceCurrency,
-      targetCurrency: targetCurrency,
-      receiverAmount: receiverData.receiverAmount,
-      finalAmount: finalAmount,
-      exchangeRate: exchangeRate,
-      convertedAmount: convertedAmount,
-      fee: fee,
-      netAmount: netAmount,
-      internationalFeePercentage: internationalFeePercentage,
-      withdrawalFeePercentage: withdrawalFeePercentage,
-    });
+      // Déterminer si c'est international
+      const senderCountryCode = fromUser.countryCode || 'CD';
+      const receiverCountryCode = toUser.countryCode || 'CD';
+      const isInternational = receiverData.isInternational || (senderCountryCode !== receiverCountryCode);
+      const transferType = isInternational ? 'INTERNATIONAL' : 'NATIONAL';
 
-    // 1️⃣1️⃣ Valider ou Rejeter la transaction
-    const result = await this.prisma.$transaction(async (tx) => {
-      let updatedFromWallet: any;
-      let updatedToWallet: any;
-      let updatedSender: any;
-      let createdReceiver: any;
-      let systemTransaction: any = null;
+      console.log(`[validateTransaction] 🌍 Type: ${transferType}`);
+      console.log(`[validateTransaction] 📍 Expéditeur: ${senderCountryCode}, Destinataire: ${receiverCountryCode}`);
 
+      // Vérifier le solde
       if (status === 'SUCCESS') {
-        // ✅ VALIDATION
+        const currentBalance = fromWallet.balance;
+        if (currentBalance < transaction.amount) {
+          throw new RpcException({
+            status: 'error',
+            message: `Solde insuffisant. Disponible: ${currentBalance} ${transaction.currency}, Demandé: ${transaction.amount} ${transaction.currency}`,
+            statusCode: 400,
+          });
+        }
+        console.log(`[validateTransaction] ✅ Solde suffisant: ${currentBalance} ${transaction.currency}`);
+      }
 
-        // 1️⃣1a. DÉBITER LE WALLET DE L'EXPÉDITEUR
-        updatedFromWallet = await tx.wallet.update({
-          where: { id: fromWallet.id },
-          data: {
-            balance: { decrement: debitAmount },
-            updatedAt: new Date(),
+      // ============================================================
+      // 6️⃣ CALCUL DES FRAIS (INTERNATIONAL UNIQUEMENT)
+      // ============================================================
+      let fee = receiverData.fee || 0;
+      let feeCurrency = transaction.currency || 'CDF';
+      let exchangeRate = receiverData.exchangeRate || 1;
+      let convertedAmount = receiverData.receiverAmount || transaction.amount;
+      let netAmount = receiverData.netAmount || transaction.amount;
+      let finalAmount = receiverData.finalAmount || transaction.amount;
+      let debitAmount = transaction.amount;
+
+      if (isInternational) {
+        console.log('[validateTransaction] 💰 Recalcul des frais internationaux...');
+
+        // Récupérer les frais du pays expéditeur
+        const senderCountry = await this.prisma.country_provider.findFirst({
+          where: {
+            OR: [
+              { countryCode: senderCountryCode },
+              { code: senderCountryCode },
+            ]
+          },
+          select: {
+            international_transfer_fee: true,
+            cash_percentage: true,
+            momo_percentage: true,
           },
         });
 
-        // 1️⃣1b. CRÉDITER LE WALLET DU DESTINATAIRE
-        updatedToWallet = await tx.wallet.update({
-          where: { id: toWallet.id },
-          data: {
-            balance: { increment: convertedAmount },
-            updatedAt: new Date(),
+        if (!senderCountry) {
+          throw new RpcException({
+            status: 'error',
+            message: `Pays expéditeur ${senderCountryCode} non trouvé`,
+            statusCode: 404,
+          });
+        }
+
+        // Récupérer les networks du pays destinataire
+        const receiverNetworks = await this.prisma.network_provider.findMany({
+          where: {
+            country_provider: {
+              OR: [
+                { countryCode: receiverCountryCode },
+                { code: receiverCountryCode },
+              ],
+            },
           },
         });
 
-        // 1️⃣1c. Mettre à jour la transaction expéditeur
-        updatedSender = await tx.transaction.update({
-          where: { id: transaction.id },
-          data: {
-            status: 'SUCCESS',
-            updatedAt: new Date(),
-            description: transaction.description + ` (Validé par admin - Frais: ${fee} ${sourceCurrency}, Taux: 1 ${sourceCurrency} = ${exchangeRate} ${targetCurrency})`,
-          },
-        });
-
-        // 1️⃣1d. CRÉER LA TRANSACTION DESTINATAIRE
-        createdReceiver = await tx.transaction.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId: toUser.id,
-            walletId: toWallet.id,
-            amount: convertedAmount,
-            type: 'DEPOSIT',
-            status: 'SUCCESS',
-            reference: transaction.reference,
-            currency: targetCurrency,
-            description: `Reçu de ${fromUser.full_name || fromUser.phone} - Transfert international validé - Frais: ${fee} ${sourceCurrency}, Taux: 1 ${sourceCurrency} = ${exchangeRate} ${targetCurrency}`,
-            movement: 'CREDIT',
-            branchId: toWallet.branchId ?? null,
-            external_reference: JSON.stringify({
-              senderTransactionId: transaction.id,
-              validatedBy: adminId,
-              validatedAt: new Date().toISOString(),
-            }),
-          },
-        });
-
-        // 1️⃣1e. COLLECTER LES FRAIS DANS LE WALLET SYSTÈME
-        if (fee > 0) {
-          try {
-            const systemUser = await tx.user.findFirst({
-              where: { email: 'system@fpay.com' },
-              select: { id: true, full_name: true, email: true },
-            });
-
-            if (systemUser) {
-              const feeCurrencyValue = feeCurrency || 'CDF';
-
-              const systemWallet = await tx.wallet.findFirst({
-                where: {
-                  userId: systemUser.id,
-                  currency: feeCurrencyValue as wallet_currency,
-                  isActive: true,
-                },
-              });
-
-              if (systemWallet) {
-                await tx.wallet.update({
-                  where: { id: systemWallet.id },
-                  data: { balance: { increment: fee }, updatedAt: new Date() },
-                });
-
-                const feeReference = await this.generateTransactionReference('FEE', tx);
-                systemTransaction = await tx.transaction.create({
-                  data: {
-                    id: crypto.randomUUID(),
-                    userId: systemUser.id,
-                    walletId: systemWallet.id,
-                    amount: fee,
-                    type: 'DEPOSIT',
-                    status: 'SUCCESS',
-                    reference: feeReference,
-                    description: `Frais de transfert international (${internationalFeePercentage}%) - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Brut: ${transaction.amount} ${sourceCurrency} | Net: ${netAmount} ${sourceCurrency} | Taux: 1 ${sourceCurrency} = ${exchangeRate} ${targetCurrency}`,
-                    movement: 'CREDIT',
-                    currency: feeCurrencyValue as wallet_currency,
-                    paymentMethod: 'MOBILE_MONEY',
-                    external_reference: JSON.stringify({
-                      senderTransactionId: transaction.id,
-                      receiverTransactionId: createdReceiver.id,
-                    }),
-                  },
-                });
-
-                console.log(`[validateInternationalTransfer] ✅ Frais collectés: ${fee} ${feeCurrency}`);
-              }
+        let selectedReceiverNetwork: any = null;
+        if (receiverNetworks.length > 0) {
+          selectedReceiverNetwork = receiverNetworks[0];
+          for (const network of receiverNetworks) {
+            if (network.pourcentage_payout && network.pourcentage_payout > (selectedReceiverNetwork.pourcentage_payout || 0)) {
+              selectedReceiverNetwork = network;
             }
-          } catch (err) {
-            console.error('[validateInternationalTransfer] ❌ Erreur collecte frais:', err);
           }
         }
-      } else {
-        // ❌ REJET
 
-        // 1️⃣1a. Mettre à jour la transaction expéditeur
-        updatedSender = await tx.transaction.update({
-          where: { id: transaction.id },
-          data: {
-            status: status === 'FAILED' ? 'FAILED' : 'CANCELLED',
-            updatedAt: new Date(),
-            description: transaction.description + ` (Rejeté par admin - Motif: ${status === 'FAILED' ? 'Échec' : 'Annulé'})`,
-          },
+        const internationalFeePercentage = senderCountry.international_transfer_fee ||
+          senderCountry.cash_percentage ||
+          senderCountry.momo_percentage ||
+          0;
+
+        let withdrawalFeePercentage = 0;
+        if (selectedReceiverNetwork && selectedReceiverNetwork.pourcentage_payout) {
+          withdrawalFeePercentage = selectedReceiverNetwork.pourcentage_payout;
+        }
+
+        console.log('[validateTransaction] 📊 Taux de frais:', {
+          internationalFeePercentage,
+          withdrawalFeePercentage,
         });
 
-        // 1️⃣1b. NE PAS CRÉER la transaction destinataire
-        // 1️⃣1c. Les wallets ne sont pas modifiés
-        updatedFromWallet = fromWallet;
-        updatedToWallet = toWallet;
-        createdReceiver = null;
+        if (internationalFeePercentage > 0) {
+          const percentageDecimal = internationalFeePercentage / 100;
+          netAmount = transaction.amount / (1 + percentageDecimal);
+          fee = transaction.amount - netAmount;
+          debitAmount = transaction.amount;
+          const withdrawalDecimal = withdrawalFeePercentage / 100;
+          finalAmount = netAmount + (netAmount * withdrawalDecimal);
+          feeCurrency = transaction.currency || 'CDF';
+        } else {
+          netAmount = transaction.amount;
+          fee = 0;
+          debitAmount = transaction.amount;
+          finalAmount = transaction.amount;
+          feeCurrency = transaction.currency || 'CDF';
+        }
 
-        console.log(`[validateInternationalTransfer] ❌ Transaction rejetée: ${status}`);
+        // Conversion de devise
+        const sourceCurrency = transaction.currency || 'USD';
+        const targetCurrency = receiverData.receiverCurrency || toWallet.currency || 'CDF';
+
+        if (sourceCurrency !== targetCurrency) {
+          if (receiverData.exchangeRate) {
+            exchangeRate = receiverData.exchangeRate;
+          } else {
+            const rateRecord = await this.prisma.exchange_rate.findFirst({
+              where: {
+                from_currency: sourceCurrency,
+                to_currency: targetCurrency,
+              },
+            });
+            if (rateRecord) {
+              exchangeRate = rateRecord.rate;
+            }
+          }
+          convertedAmount = finalAmount * exchangeRate;
+          convertedAmount = Math.round(convertedAmount * 100) / 100;
+        } else {
+          convertedAmount = finalAmount;
+          exchangeRate = 1;
+        }
+
+      } else {
+        console.log('[validateTransaction] 💰 Transfert NATIONAL - Pas de frais');
+        fee = 0;
+        netAmount = transaction.amount;
+        finalAmount = transaction.amount;
+        convertedAmount = transaction.amount;
+        exchangeRate = 1;
+        feeCurrency = transaction.currency || 'CDF';
+        debitAmount = transaction.amount;
       }
 
-      // 1️⃣1f. Audit log
-      await tx.audit_log.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: admin.id,
-          action: status === 'SUCCESS' ? 'validateInternationalTransfer' : 'rejectInternationalTransfer',
-          details: JSON.stringify({
-            transactionId: transaction.id,
-            reference: transaction.reference,
-            amount: transaction.amount,
-            currency: sourceCurrency,
-            senderId: fromUser.id,
-            receiverId: toUser.id,
-            receiverWalletId: toWallet.id,
-            targetCurrency: targetCurrency,
+      console.log('[validateTransaction] 📊 Récapitulatif:', {
+        transferType: isInternational ? 'INTERNATIONAL' : 'NATIONAL',
+        originalAmount: transaction.amount,
+        fee,
+        netAmount,
+        finalAmount,
+        exchangeRate,
+        convertedAmount,
+        feeCurrency,
+      });
+
+      // ============================================================
+      // 7️⃣ VALIDER OU REJETER LE TRANSFERT
+      // ============================================================
+      const result = await this.prisma.$transaction(async (tx) => {
+        let updatedFromWallet: any;
+        let updatedToWallet: any;
+        let updatedSender: any;
+        let createdReceiver: any;
+        let systemTransaction: any = null;
+
+        if (status === 'SUCCESS') {
+          // DÉBITER L'EXPÉDITEUR
+          updatedFromWallet = await tx.wallet.update({
+            where: { id: fromWallet.id },
+            data: {
+              balance: { decrement: debitAmount },
+              updatedAt: new Date(),
+            },
+          });
+
+          // CRÉDITER LE DESTINATAIRE
+          updatedToWallet = await tx.wallet.update({
+            where: { id: toWallet.id },
+            data: {
+              balance: { increment: convertedAmount },
+              updatedAt: new Date(),
+            },
+          });
+
+          // Mettre à jour la transaction expéditeur
+          const updatedExternalRef = {
+            ...externalData,
+            status: 'SUCCESS',
+            validatedBy: adminId,
+            validatedByName: admin.full_name,
+            validatedAt: new Date().toISOString(),
+            transferType: transferType,
+            isInternational: isInternational,
             fee: fee,
             netAmount: netAmount,
             finalAmount: finalAmount,
-            convertedAmount: convertedAmount,
             exchangeRate: exchangeRate,
-            internationalFeePercentage: internationalFeePercentage,
-            withdrawalFeePercentage: withdrawalFeePercentage,
-            previousStatus: transaction.status,
-            newStatus: status,
-            adminName: admin.full_name,
-            branchId: admin.branchId,
-            isSuperAdmin,
-            systemTransactionId: systemTransaction?.id || null,
-            reason: status === 'SUCCESS' ? 'Validé par admin' : status === 'FAILED' ? 'Échec' : 'Annulé par admin',
-          }),
-          ipAddress: ipAddress || null,
-          createdAt: new Date(),
-        },
+            convertedAmount: convertedAmount,
+            statusHistory: [
+              ...(externalData.statusHistory || []),
+              {
+                status: 'SUCCESS',
+                timestamp: new Date().toISOString(),
+                note: `Transfert ${transferType} validé par ${admin.full_name}`,
+                adminId: adminId,
+                adminName: admin.full_name,
+              }
+            ],
+          };
+
+          updatedSender = await tx.transaction.update({
+            where: { id: transaction.id },
+            data: {
+              status: 'SUCCESS',
+              updatedAt: new Date(),
+              description: `${transaction.description} - Transfert ${transferType} validé par ${admin.full_name}`,
+              external_reference: JSON.stringify(updatedExternalRef),
+            },
+          });
+
+          // CRÉER LA TRANSACTION DESTINATAIRE AVEC LA MÊME RÉFÉRENCE
+          const receiverExternalRef = {
+            transactionId: null,
+            reference: transaction.reference,
+            type: 'DEPOSIT',
+            status: 'SUCCESS',
+            transferType: transferType,
+            isInternational: isInternational,
+            senderUserId: fromUser.id,
+            senderFullName: fromUser.full_name || null,
+            senderPhone: fromUser.phone || null,
+            senderCountryCode: fromUser.countryCode || null,
+            senderTransactionId: transaction.id,
+            senderReference: transaction.reference,
+            receiverUserId: toUser.id,
+            receiverFullName: toUser.full_name || null,
+            receiverPhone: toUser.phone || null,
+            receiverCountryCode: toUser.countryCode || null,
+            receiverWalletId: toWallet.id,
+            receiverCurrency: toWallet.currency,
+            amount: convertedAmount,
+            currency: toWallet.currency,
+            originalAmount: transaction.amount,
+            originalCurrency: transaction.currency,
+            fee: fee,
+            feeCurrency: feeCurrency,
+            netAmount: netAmount,
+            finalAmount: finalAmount,
+            exchangeRate: exchangeRate,
+            validatedBy: adminId,
+            validatedByName: admin.full_name,
+            validatedAt: new Date().toISOString(),
+            source: 'FAVOR_HELP_API',
+            ipAddress: ipAddress || null,
+            statusHistory: [
+              {
+                status: 'SUCCESS',
+                timestamp: new Date().toISOString(),
+                note: `Transfert ${transferType} reçu et validé par ${admin.full_name}`,
+                adminId: adminId,
+                adminName: admin.full_name,
+              }
+            ],
+          };
+
+          createdReceiver = await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: toUser.id,
+              walletId: toWallet.id,
+              amount: convertedAmount,
+              type: 'DEPOSIT',
+              status: 'SUCCESS',
+              reference: transaction.reference,
+              currency: toWallet.currency,
+              description: `Reçu de ${fromUser.full_name || fromUser.phone} - Transfert ${transferType} validé - Réf: ${transaction.reference}`,
+              movement: 'CREDIT',
+              branchId: toWallet.branchId ?? null,
+              external_reference: JSON.stringify(receiverExternalRef),
+            },
+          });
+
+          // Mettre à jour l'ID de la transaction destinataire
+          const updatedReceiverExternalRef = {
+            ...receiverExternalRef,
+            transactionId: createdReceiver.id,
+          };
+
+          await tx.transaction.update({
+            where: { id: createdReceiver.id },
+            data: {
+              external_reference: JSON.stringify(updatedReceiverExternalRef),
+            },
+          });
+
+          // COLLECTER LES FRAIS (INTERNATIONAL UNIQUEMENT)
+          if (isInternational && fee > 0) {
+            try {
+              const systemUser = await tx.user.findFirst({
+                where: { email: 'system@fpay.com' },
+                select: { id: true, full_name: true, email: true },
+              });
+
+              if (systemUser) {
+                const feeCurrencyValue = feeCurrency || 'CDF';
+
+                const systemWallet = await tx.wallet.findFirst({
+                  where: {
+                    userId: systemUser.id,
+                    currency: feeCurrencyValue as wallet_currency,
+                    isActive: true,
+                  },
+                });
+
+                if (systemWallet) {
+                  await tx.wallet.update({
+                    where: { id: systemWallet.id },
+                    data: { balance: { increment: fee }, updatedAt: new Date() },
+                  });
+
+                  const feeReference = await this.generateTransactionReference('FEE', tx);
+                  systemTransaction = await tx.transaction.create({
+                    data: {
+                      id: crypto.randomUUID(),
+                      userId: systemUser.id,
+                      walletId: systemWallet.id,
+                      amount: fee,
+                      type: 'DEPOSIT',
+                      status: 'SUCCESS',
+                      reference: feeReference,
+                      description: `Frais de transfert ${transferType} - ${fromUser.full_name || fromUser.id} → ${toUser.full_name || toUser.id} | Réf: ${transaction.reference}`,
+                      movement: 'CREDIT',
+                      currency: feeCurrencyValue as wallet_currency,
+                      paymentMethod: 'MOBILE_MONEY',
+                      external_reference: JSON.stringify({
+                        senderTransactionId: transaction.id,
+                        receiverTransactionId: createdReceiver.id,
+                        transferReference: transaction.reference,
+                        transferType: transferType,
+                        fee: fee,
+                        feeCurrency: feeCurrencyValue,
+                      }),
+                    },
+                  });
+
+                  console.log(`[validateTransaction] ✅ Frais collectés: ${fee} ${feeCurrency}`);
+                }
+              }
+            } catch (err) {
+              console.error('[validateTransaction] ❌ Erreur collecte frais:', err);
+            }
+          }
+
+        } else {
+          // ❌ REJET
+          const updatedExternalRef = {
+            ...externalData,
+            status: status,
+            validatedBy: adminId,
+            validatedByName: admin.full_name,
+            validatedAt: new Date().toISOString(),
+            statusHistory: [
+              ...(externalData.statusHistory || []),
+              {
+                status: status,
+                timestamp: new Date().toISOString(),
+                note: `Transfert rejeté par ${admin.full_name}`,
+                adminId: adminId,
+                adminName: admin.full_name,
+              }
+            ],
+          };
+
+          updatedSender = await tx.transaction.update({
+            where: { id: transaction.id },
+            data: {
+              status: status === 'FAILED' ? 'FAILED' : 'CANCELLED',
+              updatedAt: new Date(),
+              description: `${transaction.description} - Rejeté par ${admin.full_name}`,
+              external_reference: JSON.stringify(updatedExternalRef),
+            },
+          });
+
+          updatedFromWallet = fromWallet;
+          updatedToWallet = toWallet;
+          createdReceiver = null;
+
+          console.log(`[validateTransaction] ❌ Transfert rejeté: ${status}`);
+        }
+
+        // Audit log
+        await tx.audit_log.create({
+          data: {
+            id: crypto.randomUUID(),
+            userId: admin.id,
+            action: status === 'SUCCESS' ? 'VALIDATE_TRANSFER' : 'REJECT_TRANSFER',
+            details: JSON.stringify({
+              transactionId: transaction.id,
+              reference: transaction.reference,
+              amount: transaction.amount,
+              currency: transaction.currency,
+              senderId: fromUser.id,
+              receiverId: toUser.id,
+              receiverWalletId: toWallet.id,
+              transferType: transferType,
+              isInternational: isInternational,
+              fee: fee,
+              netAmount: netAmount,
+              finalAmount: finalAmount,
+              convertedAmount: convertedAmount,
+              exchangeRate: exchangeRate,
+              previousStatus: transaction.status,
+              newStatus: status,
+              adminName: admin.full_name,
+              branchId: admin.branchId,
+              isSuperAdmin: isSuperAdmin,
+              systemTransactionId: systemTransaction?.id || null,
+              reason: status === 'SUCCESS' ? 'Validé par admin' : status === 'FAILED' ? 'Échec' : 'Annulé par admin',
+            }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        });
+
+        return {
+          senderTx: updatedSender,
+          receiverTx: createdReceiver,
+          fromWallet: updatedFromWallet,
+          toWallet: updatedToWallet,
+          systemTransaction: systemTransaction,
+        };
       });
 
+      // ============================================================
+      // 8️⃣ NOTIFICATIONS
+      // ============================================================
+      if (status === 'SUCCESS') {
+        try {
+          await notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.senderTx,
+            fromUser,
+            result.fromWallet,
+            'send_confirmed',
+            {
+              name: toUser.full_name ?? undefined,
+              phone: toUser.phone ?? undefined,
+            },
+          );
+        } catch (err) {
+          console.error('[Notifications] Error sending to sender:', err);
+        }
+
+        try {
+          await notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.receiverTx,
+            toUser,
+            result.toWallet,
+            'send_received',
+            {
+              name: fromUser.full_name ?? undefined,
+              phone: fromUser.phone ?? undefined,
+            },
+          );
+        } catch (err) {
+          console.error('[Notifications] Error sending to receiver:', err);
+        }
+      } else {
+        try {
+          await notifyTransaction(
+            this.smsService,
+            this.notificationHelper,
+            this.i18nService,
+            this.shouldSendSms.bind(this),
+            this.shouldSendPush.bind(this),
+            this.getUserLanguage.bind(this),
+            result.senderTx,
+            fromUser,
+            result.fromWallet,
+            'send_rejected',
+            {
+              name: toUser.full_name ?? undefined,
+              phone: toUser.phone ?? undefined,
+            },
+          );
+        } catch (err) {
+          console.error('[Notifications] Error sending rejection to sender:', err);
+        }
+      }
+
       return {
-        senderTx: updatedSender,
-        receiverTx: createdReceiver,
-        fromWallet: updatedFromWallet,
-        toWallet: updatedToWallet,
-        systemTransaction: systemTransaction,
+        message: status === 'SUCCESS'
+          ? `Transfert ${transferType} validé avec succès. Référence: ${transaction.reference}`
+          : `Transfert ${transferType} rejeté. Référence: ${transaction.reference}`,
+        data: {
+          transaction: result.senderTx,
+          fromWallet: this.toResponse(result.fromWallet),
+          toWallet: this.toResponse(result.toWallet),
+        },
       };
-    });
-
-    // 1️⃣2️⃣ NOTIFICATIONS
-    if (status === 'SUCCESS') {
-      try {
-        await notifyTransaction(
-          this.smsService,
-          this.notificationHelper,
-          this.i18nService,
-          this.shouldSendSms.bind(this),
-          this.shouldSendPush.bind(this),
-          this.getUserLanguage.bind(this),
-          result.senderTx,
-          fromUser,
-          result.fromWallet,
-          'send_confirmed',
-          {
-            name: toUser.full_name ?? undefined,
-            phone: toUser.phone ?? undefined,
-          },
-        );
-      } catch (err) {
-        console.error('[Notifications] Error sending to sender:', err);
-      }
-
-      try {
-        await notifyTransaction(
-          this.smsService,
-          this.notificationHelper,
-          this.i18nService,
-          this.shouldSendSms.bind(this),
-          this.shouldSendPush.bind(this),
-          this.getUserLanguage.bind(this),
-          result.receiverTx,
-          toUser,
-          result.toWallet,
-          'send_received',
-          {
-            name: fromUser.full_name ?? undefined,
-            phone: fromUser.phone ?? undefined,
-          },
-        );
-      } catch (err) {
-        console.error('[Notifications] Error sending to receiver:', err);
-      }
-    } else {
-      try {
-        await notifyTransaction(
-          this.smsService,
-          this.notificationHelper,
-          this.i18nService,
-          this.shouldSendSms.bind(this),
-          this.shouldSendPush.bind(this),
-          this.getUserLanguage.bind(this),
-          result.senderTx,
-          fromUser,
-          result.fromWallet,
-          'send_rejected',
-          {
-            name: toUser.full_name ?? undefined,
-            phone: toUser.phone ?? undefined,
-          },
-        );
-      } catch (err) {
-        console.error('[Notifications] Error sending rejection to sender:', err);
-      }
     }
 
-    return {
-      message: status === 'SUCCESS'
-        ? this.i18nService.translate('wallet.transfer_validated_success', lang)
-        : this.i18nService.translate('wallet.transfer_rejected_success', lang),
-      data: {
-        transaction: result.senderTx,
-        fromWallet: this.toResponse(result.fromWallet),
-        toWallet: this.toResponse(result.toWallet),
-      },
-    };
+    // ========== CAS 3: TYPE NON RECONNU ==========
+    console.log('[validateTransaction] ❌ Type de transaction non reconnu:', {
+      type: transactionType,
+      movement: transactionMovement,
+      id: transaction.id,
+      reference: transaction.reference,
+    });
+
+    throw new RpcException({
+      status: 'error',
+      message: `Type de transaction non pris en charge: ${transactionType} / ${transactionMovement}. Référence: ${transaction.reference}`,
+      statusCode: 400,
+    });
   }
 
   async reconcileTransaction(
@@ -10709,9 +11047,6 @@ export class WalletServiceService {
     }
   }
 
-  /**
-   * Récupère le pays par devise (dynamique)
-   */
   private async getCountryByCurrency(currency: string): Promise<any> {
     try {
       let country = await this.prisma.country_provider.findFirst({
@@ -10750,9 +11085,6 @@ export class WalletServiceService {
     }
   }
 
-  /**
-   * Extrait le code pays d'un numéro de téléphone (dynamique)
-   */
   private async extractCountryCodeFromPhone(phone: string): Promise<string | null> {
     try {
       const clean = phone.replace(/[^0-9+]/g, '');
@@ -10799,9 +11131,6 @@ export class WalletServiceService {
     }
   }
 
-  /**
-   * Récupère l'activité mensuelle (6 derniers mois)
-   */
   private async getMonthlyActivity(walletId: string, userId: string): Promise<any[]> {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
@@ -10846,9 +11175,6 @@ export class WalletServiceService {
     return Array.from(monthMap.values());
   }
 
-  /**
-   * Récupère l'évolution du solde sur la période
-   */
   private async getBalanceEvolution(
     walletId: string,
     startDate: Date,
@@ -10920,9 +11246,8 @@ export class WalletServiceService {
 
     return data;
   }
-  /**
- * Récupère la balance et les transactions d'un utilisateur
- */
+
+
   async getWalletBalanceAndTransactions(
     userId: string,
     walletId?: string,
@@ -11234,12 +11559,8 @@ export class WalletServiceService {
       },
     };
   }
-  // apps/wallet-service/src/wallet-service.service.ts
-  /**
-   * Récupère les balances des wallets PawaPay
-   * @param country - Code pays (optionnel)
-   * @param provider - Nom du provider (optionnel)
-   */
+
+
   async getPawaPayBalances(
     country?: string,
     provider?: string,
@@ -11265,9 +11586,6 @@ export class WalletServiceService {
     }
   }
 
-  /**
-   * Calcule le pourcentage de changement
-   */
   private calculatePercentageChange(data: any[]): number {
     if (data.length < 2) return 0;
     const first = data[0]?.balance || 0;
@@ -11276,15 +11594,6 @@ export class WalletServiceService {
     return Math.round(((last - first) / first) * 100);
   }
 
-  /**
-  * Demande de dépôt (transaction en attente)
-  * L'utilisateur fait une demande de dépôt, son compte sera CRÉDITÉ après validation
-  * @param userId - ID de l'utilisateur qui sera crédité
-  * @param amount - Montant à déposer
-  * @param currency - Devise du dépôt (OBLIGATOIRE)
-  * @param lang - Langue
-  * @param ipAddress - Adresse IP
-  */
 
   async requestDeposit(
     userId: string,
@@ -11564,14 +11873,6 @@ export class WalletServiceService {
     };
   }
 
-  /**
- * Valider un dépôt - CRÉDITE le bénéficiaire (de la transaction) et DÉBITE le userId
- * @param transactionId - ID de la transaction en attente (contient le bénéficiaire)
- * @param userId - ID de l'utilisateur qui sera DÉBITÉ (payeur)
- * @param pin - PIN de l'utilisateur (payeur)
- * @param lang - Langue
- * @param ipAddress - Adresse IP
- */
   async confirmDeposit(
     transactionId: string,
     userId: string,
@@ -12018,13 +12319,7 @@ export class WalletServiceService {
     };
   }
 
-  /**
- * Annuler une demande de dépôt en attente
- * @param transactionId - ID de la transaction
- * @param userId - ID de l'utilisateur
- * @param lang - Langue
- * @param ipAddress - Adresse IP
- */
+
   async cancelDepositRequest(
     transactionId: string,
     userId: string,

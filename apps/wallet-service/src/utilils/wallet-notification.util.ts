@@ -76,6 +76,11 @@ export async function notifyTransaction(
       'pay_received': 'wallet.payment_merchant_sms',
       'convert': 'wallet.conversion_sms',
       'failed': 'wallet.failed_sms',
+      // ✅ AJOUT
+      'deposit_confirmed': 'wallet.deposit_confirmed_sms',
+      'deposit_rejected': 'wallet.deposit_rejected_sms',
+      'withdrawal_confirmed': 'wallet.withdrawal_confirmed_sms',
+      'withdrawal_rejected': 'wallet.withdrawal_rejected_sms',
     };
 
     const smsKey = smsKeyMap[type];
@@ -117,6 +122,17 @@ export async function notifyTransaction(
         params.fromCurrency = transaction?.fromCurrency || 'CDF';
         params.convertedAmount = transaction?.convertedAmount || defaultAmount;
         break;
+      // ✅ AJOUT
+      case 'deposit_confirmed':
+      case 'deposit_rejected':
+        params.validatedBy = counterparty?.name || 'Admin';
+        params.status = type === 'deposit_confirmed' ? 'SUCCESS' : 'REJECTED';
+        break;
+      case 'withdrawal_confirmed':
+      case 'withdrawal_rejected':
+        params.validatedBy = counterparty?.name || 'Admin';
+        params.status = type === 'withdrawal_confirmed' ? 'SUCCESS' : 'REJECTED';
+        break;
       default:
         break;
     }
@@ -145,6 +161,11 @@ export async function notifyTransaction(
           'wallet.payment_merchant_sms': `Vous avez reçu ${defaultAmount} ${defaultCurrency} de ${params.payerName || 'client'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
           'wallet.conversion_sms': `Conversion réussie: ${defaultAmount} ${params.fromCurrency || 'CDF'} = ${params.convertedAmount || defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}. Solde mis à jour.`,
           'wallet.failed_sms': `Votre transaction de ${defaultAmount} ${defaultCurrency} n'a pas abouti. Ref: ${transaction?.reference || 'N/A'}. Vérifiez vos informations ou contactez le support.`,
+          // ✅ AJOUT
+          'wallet.deposit_confirmed_sms': `✅ Votre dépôt de ${defaultAmount} ${defaultCurrency} a été validé par ${params.validatedBy || 'Admin'}. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'wallet.deposit_rejected_sms': `❌ Votre dépôt de ${defaultAmount} ${defaultCurrency} a été rejeté par ${params.validatedBy || 'Admin'}. Ref: ${transaction?.reference || 'N/A'}. Contactez le support.`,
+          'wallet.withdrawal_confirmed_sms': `✅ Votre retrait de ${defaultAmount} ${defaultCurrency} a été validé. Solde: ${defaultBalance} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`,
+          'wallet.withdrawal_rejected_sms': `❌ Votre retrait de ${defaultAmount} ${defaultCurrency} a été rejeté. Ref: ${transaction?.reference || 'N/A'}. Contactez le support.`,
         };
 
         smsText = fallbackMessages[smsKey] || `Bonjour ${defaultName}, Transaction de ${defaultAmount} ${defaultCurrency}. Ref: ${transaction?.reference || 'N/A'}.`;
@@ -194,6 +215,11 @@ export async function notifyTransaction(
       'send_confirmed': NotificationType.TRANSFER_CONFIRMED,
       'pay_sent': NotificationType.PAYMENT_SENT,
       'pay_received': NotificationType.PAYMENT_RECEIVED,
+      // ✅ AJOUT
+      'deposit_confirmed': NotificationType.TOP_UP_SUCCESS,
+      'deposit_rejected': NotificationType.TRANSFER_FAILED,
+      'withdrawal_confirmed': NotificationType.CASHOUT_SUCCESS,
+      'withdrawal_rejected': NotificationType.CASHOUT_FAILED,
     };
 
     pushType = pushTypeMap[type] || null;
@@ -269,6 +295,47 @@ export async function notifyTransaction(
             customerName: counterparty?.name || 'Client',
             customerPhone: counterparty?.phone || '',
             full_name: defaultName,
+          };
+          break;
+        // ✅ AJOUT
+        case 'deposit_confirmed':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            full_name: defaultName,
+            reference: transaction?.reference || 'N/A',
+            validatedBy: counterparty?.name || 'Admin',
+            status: 'SUCCESS',
+          };
+          break;
+        case 'deposit_rejected':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            full_name: defaultName,
+            reference: transaction?.reference || 'N/A',
+            validatedBy: counterparty?.name || 'Admin',
+            status: 'REJECTED',
+          };
+          break;
+        case 'withdrawal_confirmed':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            balance: defaultBalance,
+            full_name: defaultName,
+            reference: transaction?.reference || 'N/A',
+            status: 'SUCCESS',
+          };
+          break;
+        case 'withdrawal_rejected':
+          pushData = {
+            amount: defaultAmount,
+            currency: defaultCurrency,
+            full_name: defaultName,
+            reference: transaction?.reference || 'N/A',
+            status: 'REJECTED',
           };
           break;
         default:
