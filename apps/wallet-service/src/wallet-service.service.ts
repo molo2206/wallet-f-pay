@@ -49,7 +49,25 @@ type FormattedTransaction = {
   debit: number | null;
   balance: number;
 };
-
+export interface DepositRequestResponse {
+  transaction: any;
+  requiresValidation: boolean;
+  wallet: WalletResponseDto;
+  payer?: {
+    id: string;
+    full_name: string | null;
+    phone: string | null;
+    walletBalance: number;
+    walletId: string;
+  };
+  beneficiary?: {
+    id: string;
+    full_name: string | null;
+    phone: string | null;
+    walletBalance: number;
+    walletId: string;
+  };
+}
 @Injectable()
 export class WalletServiceService {
   constructor(
@@ -11601,7 +11619,7 @@ export class WalletServiceService {
     payerId: string,          // ✅ PAYEUR (celui qui envoie - stocké dans external)
     lang: string = 'fr',
     ipAddress?: string,
-  ): Promise<ApiResponse<{ transaction: any; requiresValidation: boolean; wallet: WalletResponseDto }>> {
+  ): Promise<ApiResponse<DepositRequestResponse>> {
     console.log('[WalletService] Request deposit:', {
       beneficiaryId: userId,
       payerId,
@@ -11776,67 +11794,7 @@ export class WalletServiceService {
       });
     }
 
-    // ============================================================
-    // ✅ VÉRIFIER S'IL EXISTE DÉJÀ UNE TRANSACTION PENDING
-    // ============================================================
-    const pendingTransaction = await this.prisma.transaction.findFirst({
-      where: {
-        userId: userId, // ← BÉNÉFICIAIRE
-        walletId: beneficiaryWallet.id,
-        type: 'DEPOSIT',
-        status: 'PENDING',
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    if (pendingTransaction) {
-      const now = new Date();
-      const elapsedMinutes = (now.getTime() - pendingTransaction.createdAt.getTime()) / (1000 * 60);
-
-      if (elapsedMinutes < 30) {
-        throw new RpcException({
-          status: 'error',
-          message: `Une demande de dépôt est déjà en cours de traitement pour ce bénéficiaire. Transaction: ${pendingTransaction.reference}`,
-          statusCode: 409,
-          data: {
-            pendingTransactionId: pendingTransaction.id,
-            pendingReference: pendingTransaction.reference,
-            pendingAmount: pendingTransaction.amount,
-            pendingCurrency: pendingTransaction.currency,
-            createdAt: pendingTransaction.createdAt,
-            elapsedMinutes: Math.round(elapsedMinutes),
-          },
-        });
-      } else {
-        console.log(`[WalletService] ⏳ Transaction PENDING expirée (${elapsedMinutes} min) annulée automatiquement: ${pendingTransaction.reference}`);
-
-        await this.prisma.transaction.update({
-          where: { id: pendingTransaction.id },
-          data: {
-            status: 'CANCELLED',
-            description: `${pendingTransaction.description} - Annulée automatiquement (expiration après 30 minutes)`,
-          },
-        });
-
-        await this.prisma.audit_log.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId: userId,
-            action: 'DEPOSIT_AUTO_CANCEL',
-            details: JSON.stringify({
-              transactionId: pendingTransaction.id,
-              reference: pendingTransaction.reference,
-              reason: 'Expiration après 30 minutes',
-              elapsedMinutes: Math.round(elapsedMinutes),
-            }),
-            ipAddress: ipAddress || null,
-            createdAt: new Date(),
-          },
-        });
-      }
-    }
+    // ❌ CONDITION SUPPRIMÉE - Plus de vérification des transactions PENDING
 
     // ========== CRÉER LA TRANSACTION EN PENDING ==========
     const result = await this.prisma.$transaction(
@@ -11961,31 +11919,7 @@ export class WalletServiceService {
       { timeout: 30000 }
     );
 
-    // ========== NOTIFICATION AU PAYEUR ==========
-    try {
-      await notifyTransaction(
-        this.smsService,
-        this.notificationHelper,
-        this.i18nService,
-        this.shouldSendSms.bind(this),
-        this.shouldSendPush.bind(this),
-        this.getUserLanguage.bind(this),
-        result.transaction,
-        result.payer,
-        result.payerWallet,
-        'deposit_request_payer',
-        {
-          name: result.beneficiary.full_name || 'Bénéficiaire',
-          phone: result.beneficiary.phone || undefined,
-          accountNumber: result.transaction.reference,
-          status: 'PENDING',
-        },
-      );
-    } catch (err) {
-      console.error('[Notifications] Error sending to payer:', err);
-    }
-
-    // ========== NOTIFICATION AU BÉNÉFICIAIRE ==========
+    // ========== NOTIFICATIONS (RESTAURÉES) ==========
     try {
       await notifyTransaction(
         this.smsService,
@@ -11997,7 +11931,7 @@ export class WalletServiceService {
         result.transaction,
         result.beneficiary,
         result.beneficiaryWallet,
-        'deposit_request_beneficiary',
+        'deposit_request',
         {
           name: result.payer.full_name || 'Payeur',
           phone: result.payer.phone || undefined,
@@ -12006,9 +11940,10 @@ export class WalletServiceService {
         },
       );
     } catch (err) {
-      console.error('[Notifications] Error sending to beneficiary:', err);
+      console.error('[Notifications] Error sending notification:', err);
     }
 
+    // ========== RETOUR ==========
     return {
       message: this.i18nService.translate('wallet.deposit_request_success', lang, {
         amount: amount.toFixed(2),
@@ -12021,7 +11956,6 @@ export class WalletServiceService {
         transaction: result.transaction,
         wallet: this.toResponse(result.beneficiaryWallet),
         requiresValidation: true,
-        // ✅ Informations supplémentaires
         payer: {
           id: result.payer.id,
           full_name: result.payer.full_name,
