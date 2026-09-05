@@ -38,6 +38,7 @@ import { AdminCashoutDto, AdminPayDto, AdminSendDto, AdminTopUpDto } from './dto
 import { ConvertCurrencyDto, ExchangeRateDto } from './dto/currency-convert.dto';
 import { Prisma } from '@prisma/client';
 import { MailService } from 'apps/auth-service/src/email/email.service';
+import * as jwt from 'jsonwebtoken';
 type TransactionPaymentMethod = 'CASH' | 'MOBILE_MONEY' | 'CREDIT_DEBIT_CARD' | 'BANK_TRANSFERT' | 'INTERNAL' | 'EXTERNAL_API';
 
 type FormattedTransaction = {
@@ -6145,7 +6146,12 @@ export class WalletServiceService {
     status: 'SUCCESS' | 'FAILED' | 'CANCELLED',
     lang: string = 'fr',
     ipAddress?: string,
-  ): Promise<ApiResponse<{ transaction: any; fromWallet?: WalletResponseDto; toWallet?: WalletResponseDto }>> {
+  ): Promise<ApiResponse<{
+    transaction: any;
+    fromWallet?: WalletResponseDto;
+    toWallet?: WalletResponseDto;
+    debitTransaction?: any;
+  }>> {
     console.log('[WalletService] Validate transaction:', { transactionId, adminId, status, lang });
 
     // ============================================================
@@ -6362,7 +6368,7 @@ export class WalletServiceService {
           payerWallet = await this.prisma.wallet.findFirst({
             where: {
               userId: payerUser.id,
-              currency: transaction.currency,
+              currency: transaction.currency as wallet_currency,
               isActive: true,
             },
           });
@@ -6394,7 +6400,7 @@ export class WalletServiceService {
               payerWallet = await this.prisma.wallet.findFirst({
                 where: {
                   userId: payerUser.id,
-                  currency: transaction.currency,
+                  currency: transaction.currency as wallet_currency,
                   isActive: true,
                 },
               });
