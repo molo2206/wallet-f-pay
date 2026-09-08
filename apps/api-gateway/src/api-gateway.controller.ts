@@ -5460,7 +5460,7 @@ export class ApiGatewayController {
             border-right: 2px solid rgba(255, 255, 255, 0.08);
             cursor: pointer;
             background: transparent;
-            min-width: clamp(40px, 6vw, 60px);
+            min-width: clamp(35px, 5vw, 55px);
             height: 100%;
             flex-shrink: 0;
         }
@@ -5479,9 +5479,9 @@ export class ApiGatewayController {
             background-repeat: no-repeat;
             background-position: right 0 center;
             padding-right: clamp(14px, 2vw, 20px);
-            min-width: clamp(30px, 4vw, 45px);
+            min-width: clamp(28px, 3.5vw, 42px);
             width: auto;
-            max-width: clamp(50px, 8vw, 80px);
+            max-width: clamp(45px, 7vw, 75px);
         }
 
         .country-select select:focus {
@@ -5681,11 +5681,6 @@ export class ApiGatewayController {
 
         .form-links .register-link:hover {
             text-decoration: underline;
-        }
-
-        .form-links .separator {
-            color: rgba(255, 255, 255, 0.12);
-            margin: 0 clamp(6px, 1vw, 12px);
         }
 
         /* ============================================================
@@ -5920,7 +5915,7 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 30px;
+                min-width: 28px;
                 padding: 0 3px 0 6px;
             }
 
@@ -5928,7 +5923,7 @@ export class ApiGatewayController {
                 font-size: 12px;
                 min-width: 20px;
                 padding-right: 12px;
-                max-width: 50px;
+                max-width: 45px;
             }
 
             .btn {
@@ -6017,7 +6012,7 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 35px;
+                min-width: 32px;
                 padding: 0 4px 0 8px;
             }
 
@@ -6025,7 +6020,7 @@ export class ApiGatewayController {
                 font-size: 13px;
                 min-width: 22px;
                 padding-right: 14px;
-                max-width: 60px;
+                max-width: 55px;
             }
 
             .btn {
@@ -6104,15 +6099,15 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 42px;
+                min-width: 38px;
                 padding: 0 6px 0 10px;
             }
 
             .country-select select {
                 font-size: 14px;
-                min-width: 25px;
+                min-width: 24px;
                 padding-right: 16px;
-                max-width: 65px;
+                max-width: 60px;
             }
 
             .btn {
@@ -6187,15 +6182,15 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 48px;
+                min-width: 42px;
                 padding: 0 8px 0 12px;
             }
 
             .country-select select {
                 font-size: 15px;
-                min-width: 28px;
+                min-width: 26px;
                 padding-right: 18px;
-                max-width: 70px;
+                max-width: 65px;
             }
 
             .btn {
@@ -6265,15 +6260,15 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 52px;
+                min-width: 46px;
                 padding: 0 10px 0 14px;
             }
 
             .country-select select {
                 font-size: 16px;
-                min-width: 30px;
+                min-width: 28px;
                 padding-right: 20px;
-                max-width: 75px;
+                max-width: 70px;
             }
 
             .btn {
@@ -6343,15 +6338,15 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 56px;
+                min-width: 50px;
                 padding: 0 12px 0 16px;
             }
 
             .country-select select {
                 font-size: 17px;
-                min-width: 32px;
+                min-width: 30px;
                 padding-right: 22px;
-                max-width: 80px;
+                max-width: 75px;
             }
 
             .btn {
@@ -6445,15 +6440,15 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 65px;
+                min-width: 58px;
                 padding: 0 14px 0 20px;
             }
 
             .country-select select {
                 font-size: 19px;
-                min-width: 38px;
+                min-width: 34px;
                 padding-right: 26px;
-                max-width: 90px;
+                max-width: 85px;
             }
 
             .btn {
@@ -6593,7 +6588,7 @@ export class ApiGatewayController {
             }
 
             .country-select {
-                min-width: 28px;
+                min-width: 26px;
                 padding: 0 3px 0 6px;
                 height: 32px;
             }
@@ -6602,7 +6597,7 @@ export class ApiGatewayController {
                 font-size: 11px;
                 min-width: 18px;
                 padding-right: 12px;
-                max-width: 45px;
+                max-width: 42px;
             }
 
             .btn {
@@ -6768,10 +6763,9 @@ export class ApiGatewayController {
                 </button>
             </form>
 
+            <!-- ✅ Un seul lien : Créer un compte (plus de "Mot de passe oublié") -->
             <div class="form-links">
                 <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
-                <span class="separator">|</span>
-                <a href="#" id="forgotPasswordLink">Mot de passe oublié ?</a>
             </div>
         </div>
 
@@ -6845,7 +6839,6 @@ export class ApiGatewayController {
             var submitSpinner = document.getElementById('submitSpinner');
             var countrySelect = document.getElementById('countryCode');
             var toggleFormLink = document.getElementById('toggleFormLink');
-            var forgotPasswordLink = document.getElementById('forgotPasswordLink');
             var formTitle = document.getElementById('formTitle');
             var stepMessage = document.getElementById('stepMessage');
             var otpContainer = document.getElementById('otpContainer');
@@ -7021,7 +7014,6 @@ export class ApiGatewayController {
                 if (!countrySelect) return;
                 countrySelect.innerHTML = '';
                 
-                // Rechercher COD en priorité
                 var codCountry = null;
                 var otherCountries = [];
                 
@@ -7035,11 +7027,10 @@ export class ApiGatewayController {
                     }
                 });
 
-                // Mettre COD en premier
                 if (codCountry) {
                     var option = document.createElement('option');
                     option.value = codCountry.prefix;
-                    option.text = '+' + codCountry.prefix;
+                    option.text = codCountry.prefix;
                     option.dataset.countryCode = codCountry.countryCode || codCountry.code;
                     option.dataset.name = codCountry.name;
                     option.dataset.currency = codCountry.default_currency;
@@ -7047,11 +7038,10 @@ export class ApiGatewayController {
                     countrySelect.appendChild(option);
                 }
 
-                // Ajouter les autres pays
                 otherCountries.forEach(function(country) {
                     var option = document.createElement('option');
                     option.value = country.prefix;
-                    option.text = '+' + country.prefix;
+                    option.text = country.prefix;
                     option.dataset.countryCode = country.countryCode || country.code;
                     option.dataset.name = country.name;
                     option.dataset.currency = country.default_currency;
@@ -7066,14 +7056,14 @@ export class ApiGatewayController {
             function setDefaultCountries() {
                 if (!countrySelect) return;
                 var defaultCountries = [
-                    { prefix: '243', countryCode: 'COD', code: 'COD', name: 'Congo-Kinshasa' },
-                    { prefix: '229', countryCode: 'BEN', code: 'BEN', name: 'Bénin' }
+                    { prefix: '243', countryCode: 'COD', name: 'Congo-Kinshasa' },
+                    { prefix: '229', countryCode: 'BEN', name: 'Bénin' }
                 ];
                 countrySelect.innerHTML = '';
                 defaultCountries.forEach(function(country, index) {
                     var option = document.createElement('option');
                     option.value = country.prefix;
-                    option.text = '+' + country.prefix;
+                    option.text = country.prefix;
                     option.dataset.countryCode = country.countryCode;
                     option.dataset.name = country.name;
                     if (index === 0) {
@@ -7334,7 +7324,6 @@ export class ApiGatewayController {
                     
                     fullNameInput.value = '';
                     if (countrySelect && countrySelect.options.length > 0) {
-                        // Garder COD sélectionné
                         var codFound = false;
                         for (var i = 0; i < countrySelect.options.length; i++) {
                             if (countrySelect.options[i].dataset.countryCode === 'COD') {
@@ -7749,14 +7738,6 @@ export class ApiGatewayController {
                     showToast(error.message || 'Une erreur est survenue', 'error');
                     setLoading(false);
                 }
-            });
-
-            // ============================================================
-            // MOT DE PASSE OUBLIÉ
-            // ============================================================
-            forgotPasswordLink.addEventListener('click', function(e) {
-                e.preventDefault();
-                showToast('Fonctionnalité en cours de développement', 'info');
             });
 
             // ============================================================
