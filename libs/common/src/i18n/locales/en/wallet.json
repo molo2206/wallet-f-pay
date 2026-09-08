@@ -222,5 +222,15 @@
   "wallet.deposit_request_success": "Your referral earning payment request of {{amount}} {{currency}} has been recorded. Reference: {{reference}}",
   "wallet.deposit_transfer_success": "Transfer of {{amount}} {{currency}} completed successfully from {{payer}} to {{beneficiary}}. Reference: {{reference}}",
   "wallet.deposit_cancelled_description": "Referral earning payment request of {{amount}} {{currency}} cancelled by user",
-  "wallet.deposit_cancelled": "Referral earning payment request has been cancelled successfully."
+  "wallet.deposit_cancelled": "Referral earning payment request has been cancelled successfully.",
+  "wallet.transaction_not_found": "Transaction not found",
+  "wallet.transfer_failed": "Transfer failed",
+  "wallet.payment_failed": "Payment failed",
+  "wallet.deposit_request_failed": "Deposit request failed",
+  "wallet.deposit_confirm_failed": "Deposit confirmation failed",
+  "wallet.deposit_cancel_failed": "Deposit cancellation failed",
+  "wallet.balance_transactions_error": "Error retrieving transactions",
+  "wallet.admin_send_from_wallet_required": "Source wallet is required for admin send",
+  "wallet.admin_send_to_phone_required": "Recipient phone is required for admin send",
+  "wallet.from_wallet_required": "Source wallet is required"
 }

@@ -3538,7 +3538,7 @@ export class WalletServiceService {
                   data: { balance: { increment: totalFee }, updatedAt: new Date() },
                 });
 
-                const feeReference = await this.generateTransactionReference('FEE', tx);
+                const feeReference = await this.generateTransactionReference('', tx);
                 systemTransaction = await tx.transaction.create({
                   data: {
                     id: crypto.randomUUID(),
@@ -6456,7 +6456,7 @@ export class WalletServiceService {
             console.log(`[validateTransaction] 📊 Nouveau solde payeur: ${updatedPayerWallet.balance}`);
 
             // ✅ 3. CRÉER UNE TRANSACTION DE DÉBIT POUR LE PAYEUR
-            const debitReference = await this.generateTransactionReference('DBT', tx);
+            const debitReference = await this.generateTransactionReference('', tx);
             debitTransaction = await tx.transaction.create({
               data: {
                 id: crypto.randomUUID(),
@@ -7030,7 +7030,7 @@ export class WalletServiceService {
                     data: { balance: { increment: fee }, updatedAt: new Date() },
                   });
 
-                  const feeReference = await this.generateTransactionReference('FEE', tx);
+                  const feeReference = await this.generateTransactionReference('', tx);
                   systemTransaction = await tx.transaction.create({
                     data: {
                       id: crypto.randomUUID(),
@@ -8428,7 +8428,7 @@ export class WalletServiceService {
         });
 
         if (branchWallet) {
-          const cashReference = await this.generateTransactionReference('CASH', tx);
+          const cashReference = await this.generateTransactionReference('', tx);
           await tx.transaction.create({
             data: {
               id: crypto.randomUUID(),
@@ -8975,7 +8975,7 @@ export class WalletServiceService {
 
         // 4️⃣ CRÉER LA TRANSACTION DE CAISSE (CASH_OUT) si caisse existe
         if (branchCashWallet) {
-          const cashReference = await this.generateTransactionReference('CASH', tx);
+          const cashReference = await this.generateTransactionReference('', tx);
           await tx.transaction.create({
             data: {
               id: crypto.randomUUID(),
@@ -9621,7 +9621,7 @@ export class WalletServiceService {
                   data: { balance: { increment: totalFee }, updatedAt: new Date() },
                 });
 
-                const feeReference = await this.generateTransactionReference('FEE', tx);
+                const feeReference = await this.generateTransactionReference('', tx);
                 systemTransaction = await tx.transaction.create({
                   data: {
                     id: crypto.randomUUID(),
@@ -11952,7 +11952,7 @@ export class WalletServiceService {
     // ========== CRÉER LA TRANSACTION EN PENDING ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
-        const reference = await this.generateTransactionReference('DEP', tx);
+        const reference = await this.generateTransactionReference('', tx);
 
         // ✅ EXTERNAL_REFERENCE AVEC PAYEUR (celui qui sera débité)
         const externalReference = {
@@ -12465,7 +12465,7 @@ export class WalletServiceService {
         });
 
         // 5️⃣ CRÉER UNE NOUVELLE TRANSACTION DE DÉBIT POUR LE PAYEUR
-        const debitReference = await this.generateTransactionReference('DBT', tx);
+        const debitReference = await this.generateTransactionReference('', tx);
         const debitTransaction = await tx.transaction.create({
           data: {
             id: crypto.randomUUID(),

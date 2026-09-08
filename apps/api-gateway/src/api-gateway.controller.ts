@@ -5234,68 +5234,47 @@ export class ApiGatewayController {
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>F-Pay • Connexion</title>
     <!-- Toastify CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <style>
         /* ============================================================
-           VARIABLES COULEURS
+           RESET & BASE
            ============================================================ */
-        :root {
-            --primary: #000000;
-            --primary-light: #1a1a1a;
-            --primary-dark: #0d0d0d;
-            --secondary: #FFB81C;
-            --secondary-dark: #e6a500;
-            --secondary-light: #ffd966;
-            --secondary-bg: rgba(255, 184, 28, 0.12);
-            --white: #ffffff;
-            --white-transparent: rgba(255, 255, 255, 0.95);
-            --border-color: rgba(255, 184, 28, 0.25);
-            --shadow-color: rgba(0, 0, 0, 0.8);
-            --shadow-secondary: rgba(255, 184, 28, 0.3);
-            --radius: 16px;
-            --radius-btn: 10px;
-            --radius-input: 10px;
-            --max-width: 480px;
-            --padding-card: 40px 28px 32px;
-            --padding-card-mobile: 28px 18px 24px;
-            --font-size-title: 34px;
-            --font-size-title-mobile: 26px;
-            --font-size-h2: 22px;
-            --font-size-h2-mobile: 20px;
-            --error-color: #ff3333;
-            --error-bg: rgba(255, 51, 51, 0.1);
-            --error-border: #ff3333;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html {
+            font-size: 16px;
+            -webkit-text-size-adjust: 100%;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
             min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
-            background: var(--primary);
+            padding: clamp(12px, 3vw, 40px);
+            background: #000000;
+            background: radial-gradient(ellipse at center bottom, #1a1a00 0%, #000000 70%);
         }
 
         /* ============================================================
-           CARTE PRINCIPALE
+           CONTAINER PRINCIPAL - FLUID
            ============================================================ */
         .container {
             width: 100%;
-            max-width: var(--max-width);
-            border-radius: var(--radius);
-            padding: var(--padding-card);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-            border: none;
-            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 40%, var(--primary-dark) 100%);
-            background-attachment: fixed;
+            max-width: min(520px, 94vw);
+            border-radius: clamp(14px, 2.5vw, 20px);
+            padding: clamp(20px, 4vw, 48px) clamp(16px, 3.5vw, 40px) clamp(20px, 3.5vw, 38px);
+            background: linear-gradient(180deg, #000000 0%, #1a1a1a 40%, #0d0d0d 100%);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 80px rgba(255, 184, 28, 0.05);
             position: relative;
             overflow: hidden;
             transition: all 0.3s ease;
+            border: 1px solid rgba(255, 184, 28, 0.06);
         }
 
         .container::before {
@@ -5305,381 +5284,439 @@ export class ApiGatewayController {
             left: -50%;
             width: 200%;
             height: 100%;
-            background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 28, 0.06) 0%, transparent 70%);
+            background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 28, 0.05) 0%, transparent 70%);
             pointer-events: none;
         }
 
         /* ============================================================
-           LOGO
+           LOGO - ADAPTATIF
            ============================================================ */
-        .logo { 
-            text-align: center; 
-            margin-bottom: 28px;
+        .logo {
+            text-align: center;
+            margin-bottom: clamp(18px, 3.5vw, 32px);
             display: flex;
             flex-direction: column;
             align-items: center;
             position: relative;
             z-index: 1;
         }
+
         .logo img {
-            width: 100px;
+            width: clamp(60px, 12vw, 120px);
             height: auto;
-            margin-bottom: 10px;
-            filter: drop-shadow(0 4px 20px rgba(255, 184, 28, 0.3));
+            max-width: 120px;
+            margin-bottom: clamp(6px, 1vw, 12px);
+            filter: drop-shadow(0 4px 30px rgba(255, 184, 28, 0.25));
             transition: all 0.3s ease;
         }
-        .logo h1 { 
-            font-size: var(--font-size-title); 
-            color: var(--white); 
-            letter-spacing: -0.5px; 
-            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
-            transition: all 0.3s ease;
+
+        .logo h1 {
+            font-size: clamp(24px, 6vw, 42px);
+            color: #ffffff;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+            font-weight: 700;
+            line-height: 1.1;
         }
-        .logo h1 .f { color: var(--white); }
-        .logo h1 .pay { color: var(--secondary); }
+
+        .logo h1 .f { color: #ffffff; }
+        .logo h1 .pay { color: #FFB81C; }
 
         /* ============================================================
-           HEADER
+           HEADER - ADAPTATIF
            ============================================================ */
-        .header { 
-            margin-bottom: 22px; 
+        .header {
+            margin-bottom: clamp(16px, 2.5vw, 26px);
             position: relative;
             z-index: 1;
         }
-        .header h2 { 
-            font-size: var(--font-size-h2); 
-            color: var(--white); 
-            margin-bottom: 4px; 
-            font-weight: 700; 
+
+        .header h2 {
+            font-size: clamp(18px, 4vw, 28px);
+            color: #ffffff;
+            margin-bottom: 4px;
+            font-weight: 700;
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease;
+            line-height: 1.2;
         }
-        .header p { 
-            color: rgba(255, 255, 255, 0.6); 
-            font-size: 14px; 
-            font-weight: 400; 
-            line-height: 1.4;
-            transition: all 0.3s ease;
+
+        .header p {
+            color: rgba(255, 255, 255, 0.55);
+            font-size: clamp(13px, 1.8vw, 17px);
+            font-weight: 400;
+            line-height: 1.5;
+            max-width: 90%;
         }
 
         /* ============================================================
-           FORMULAIRE
+           FORMULAIRE - ADAPTATIF
            ============================================================ */
-        .form-group { 
-            margin-bottom: 16px; 
+        .form-group {
+            margin-bottom: clamp(12px, 2vw, 18px);
             position: relative;
             z-index: 1;
         }
+
         .form-group label {
             display: block;
-            font-size: 14px;
+            font-size: clamp(13px, 1.4vw, 15px);
             font-weight: 600;
-            color: var(--white);
+            color: #ffffff;
             margin-bottom: 4px;
         }
+
         .form-group input {
             width: 100%;
-            padding: 12px 16px;
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius-input);
-            font-size: 15px;
+            padding: clamp(10px, 1.4vw, 16px) clamp(12px, 1.6vw, 18px);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: clamp(8px, 1.2vw, 12px);
+            font-size: clamp(14px, 1.5vw, 17px);
             transition: all 0.25s ease;
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--white);
+            background: rgba(255, 255, 255, 0.06);
+            color: #ffffff;
             -webkit-appearance: none;
             appearance: none;
+            height: clamp(42px, 5.5vw, 56px);
         }
-        .form-group input::placeholder { color: rgba(255, 255, 255, 0.35); }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
         .form-group input:focus {
             outline: none;
-            border-color: var(--secondary);
-            background: rgba(255, 255, 255, 0.12);
-            box-shadow: 0 0 0 4px var(--shadow-secondary);
+            border-color: #FFB81C;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
-        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .form-group.error input {
-            border-color: var(--error-color) !important;
-            background: var(--error-bg) !important;
+        .form-group input:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
-        .form-group.error input:focus {
+
+        /* ============================================================
+           ÉTATS DES CHAMPS
+           ============================================================ */
+        .form-group.error input,
+        .form-group.error .phone-wrapper {
+            border-color: #ff3333 !important;
+            background: rgba(255, 51, 51, 0.08) !important;
+        }
+
+        .form-group.error input:focus,
+        .form-group.error .phone-wrapper:focus-within {
             box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
         }
+
+        .form-group.success input,
+        .form-group.success .phone-wrapper {
+            border-color: #FFB81C;
+            background: rgba(255, 184, 28, 0.06);
+        }
+
+        .form-group.success input:focus,
+        .form-group.success .phone-wrapper:focus-within {
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+        }
+
         .form-group .error-message {
             display: none;
-            font-size: 12px;
-            color: var(--error-color) !important;
+            font-size: clamp(11px, 1.1vw, 13px);
+            color: #ff3333;
             margin-top: 4px;
-            font-weight: 600;
+            font-weight: 500;
         }
+
         .form-group.error .error-message {
             display: block;
         }
 
-        .form-group.success input {
-            border-color: var(--secondary);
-            background: rgba(255, 184, 28, 0.08);
-        }
-        .form-group.success input:focus {
-            box-shadow: 0 0 0 4px var(--shadow-secondary);
-        }
-
         /* ============================================================
-           WRAPPER TÉLÉPHONE
+           WRAPPER TÉLÉPHONE - ADAPTATIF
            ============================================================ */
         .phone-wrapper {
             display: flex;
             align-items: center;
-            background: rgba(255, 255, 255, 0.08);
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius-input);
+            background: rgba(255, 255, 255, 0.06);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: clamp(8px, 1.2vw, 12px);
             transition: all 0.25s ease;
             overflow: hidden;
+            height: clamp(42px, 5.5vw, 56px);
         }
+
         .phone-wrapper:focus-within {
-            border-color: var(--secondary);
-            background: rgba(255, 255, 255, 0.12);
-            box-shadow: 0 0 0 4px var(--shadow-secondary);
-        }
-        .form-group.error .phone-wrapper {
-            border-color: var(--error-color) !important;
-            background: var(--error-bg) !important;
-        }
-        .form-group.error .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
-        }
-        .form-group.success .phone-wrapper {
-            border-color: var(--secondary);
-            background: rgba(255, 184, 28, 0.08);
-        }
-        .form-group.success .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px var(--shadow-secondary);
+            border-color: #FFB81C;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
 
         .country-select {
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 0 8px 0 12px;
-            border-right: 2px solid rgba(255, 255, 255, 0.1);
+            padding: 0 clamp(4px, 0.8vw, 10px) 0 clamp(8px, 1.2vw, 16px);
+            border-right: 2px solid rgba(255, 255, 255, 0.08);
             cursor: pointer;
             background: transparent;
-            min-width: 60px;
-            height: 48px;
+            min-width: clamp(40px, 6vw, 60px);
+            height: 100%;
             flex-shrink: 0;
         }
+
         .country-select select {
             border: none;
             background: transparent;
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--white);
-            padding: 4px 24px 4px 4px;
+            font-size: clamp(14px, 1.5vw, 17px);
+            font-weight: 700;
+            color: #FFB81C;
+            padding: 4px clamp(10px, 1.5vw, 16px) 4px 4px;
             cursor: pointer;
             appearance: none;
             -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23FFB81C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 0 center;
-            padding-right: 20px;
-            min-width: 35px;
+            padding-right: clamp(14px, 2vw, 20px);
+            min-width: clamp(30px, 4vw, 45px);
+            width: auto;
+            max-width: clamp(50px, 8vw, 80px);
         }
-        .country-select select:focus { outline: none; }
+
+        .country-select select:focus {
+            outline: none;
+        }
+
         .country-select select option {
-            background: var(--primary-light);
-            color: var(--white);
-            font-size: 15px;
+            background: #1a1a1a;
+            color: #ffffff;
+            font-size: clamp(13px, 1.3vw, 15px);
+            font-weight: 600;
             padding: 8px;
         }
 
         .phone-wrapper input {
             border: none !important;
-            padding: 12px 12px 12px 8px !important;
+            padding: clamp(10px, 1.2vw, 14px) clamp(8px, 1vw, 14px) clamp(10px, 1.2vw, 14px) clamp(6px, 0.8vw, 10px) !important;
             background: transparent !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             flex: 1;
             min-width: 0;
-            height: 48px;
-            color: var(--white) !important;
+            height: 100%;
+            color: #ffffff !important;
+            font-size: clamp(14px, 1.5vw, 17px);
         }
+
         .phone-wrapper input::placeholder {
-            color: rgba(255, 255, 255, 0.35) !important;
+            color: rgba(255, 255, 255, 0.3) !important;
         }
+
         .phone-wrapper input:focus {
             box-shadow: none !important;
         }
 
         /* ============================================================
-           BOUTON PRINCIPAL
+           BOUTON PRINCIPAL - ADAPTATIF
            ============================================================ */
         .btn {
             width: 100%;
-            padding: 14px;
+            padding: clamp(12px, 1.6vw, 18px);
             border: none;
-            border-radius: var(--radius-btn);
-            font-size: 16px;
+            border-radius: clamp(8px, 1.2vw, 12px);
+            font-size: clamp(15px, 1.6vw, 18px);
             font-weight: 700;
             cursor: pointer;
-            background: var(--secondary);
-            color: var(--primary);
+            background: #FFB81C;
+            color: #000000;
             transition: all 0.3s ease;
-            margin-top: 4px;
-            box-shadow: 0 6px 24px rgba(255, 184, 28, 0.3);
+            margin-top: clamp(2px, 0.5vw, 6px);
+            box-shadow: 0 6px 30px rgba(255, 184, 28, 0.3);
             position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
-            height: 50px;
+            height: clamp(46px, 6vw, 60px);
             z-index: 1;
             -webkit-tap-highlight-color: transparent;
         }
-        .btn:hover:not(:disabled) { 
-            transform: translateY(-2px); 
-            box-shadow: 0 10px 32px rgba(255, 184, 28, 0.5);
-            background: var(--secondary-dark);
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(255, 184, 28, 0.5);
+            background: #e6a500;
         }
+
         .btn:active:not(:disabled) {
             transform: scale(0.98);
         }
-        .btn:disabled { 
-            opacity: 0.6; 
-            cursor: not-allowed; 
-            transform: none; 
-            box-shadow: none; 
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .spinner {
             display: none;
-            width: 22px;
-            height: 22px;
+            width: clamp(18px, 2.2vw, 24px);
+            height: clamp(18px, 2.2vw, 24px);
             border: 3px solid rgba(0, 0, 0, 0.2);
-            border-top-color: var(--primary);
+            border-top-color: #000000;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             flex-shrink: 0;
         }
-        .btn.loading .spinner { display: inline-block; }
-        .btn.loading .btn-text { display: inline; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn.loading .spinner {
+            display: inline-block;
+        }
+
+        .btn.loading .btn-text {
+            display: inline;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
 
         /* ============================================================
-           STORES (Boutons de téléchargement)
+           STORES (Boutons de téléchargement) - ADAPTATIF
            ============================================================ */
         .stores-section {
-            margin-top: 24px;
-            padding-top: 18px;
-            padding-bottom: 18px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.04);
+            margin-top: clamp(18px, 3vw, 28px);
+            padding: clamp(14px, 2vw, 20px) clamp(12px, 1.8vw, 20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border-radius: var(--radius);
-            padding: 18px 16px;
+            border-radius: clamp(12px, 1.8vw, 16px);
             position: relative;
             z-index: 1;
         }
+
         .stores {
             display: flex;
             justify-content: center;
-            gap: 12px;
+            gap: clamp(8px, 1.5vw, 16px);
             flex-wrap: wrap;
         }
+
         .store-link {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            background: rgba(255, 255, 255, 0.08);
-            padding: 10px 20px;
-            border-radius: var(--radius-btn);
-            color: var(--white);
+            gap: clamp(6px, 1vw, 10px);
+            background: rgba(255, 255, 255, 0.06);
+            padding: clamp(8px, 1.2vw, 14px) clamp(14px, 2.5vw, 28px);
+            border-radius: clamp(8px, 1.2vw, 12px);
+            color: #ffffff;
             text-decoration: none;
             font-weight: 600;
-            font-size: 14px;
+            font-size: clamp(12px, 1.3vw, 16px);
             transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
             -webkit-tap-highlight-color: transparent;
+            flex: 0 1 auto;
+            min-width: clamp(110px, 20vw, 180px);
+            justify-content: center;
         }
+
         .store-link:hover {
             transform: translateY(-2px);
-            background: var(--secondary);
-            border-color: var(--secondary);
-            color: var(--primary);
+            background: #FFB81C;
+            border-color: #FFB81C;
+            color: #000000;
         }
+
         .store-link:active {
             transform: scale(0.97);
         }
+
         .store-link span {
             display: flex;
             flex-direction: column;
             line-height: 1.2;
+            text-align: center;
         }
+
         .store-link .small {
-            font-size: 9px;
+            font-size: clamp(8px, 0.8vw, 10px);
             opacity: 0.6;
             font-weight: 400;
             letter-spacing: 0.3px;
         }
 
         /* ============================================================
-           LIENS
+           LIENS - ADAPTATIF
            ============================================================ */
         .form-links {
-            text-align: center; 
-            margin-top: 16px; 
-            position: relative; 
+            text-align: center;
+            margin-top: clamp(14px, 2vw, 20px);
+            position: relative;
             z-index: 1;
         }
+
         .form-links a {
             color: rgba(255, 255, 255, 0.5);
             text-decoration: none;
-            font-size: 14px;
+            font-size: clamp(13px, 1.3vw, 15px);
             font-weight: 400;
             transition: 0.2s;
+            display: inline-block;
+            padding: 4px 0;
         }
+
         .form-links a:hover {
-            color: var(--secondary);
+            color: #FFB81C;
         }
+
         .form-links .register-link {
-            color: var(--secondary);
+            color: #FFB81C;
             font-weight: 500;
         }
+
         .form-links .register-link:hover {
             text-decoration: underline;
         }
+
         .form-links .separator {
-            color: rgba(255, 255, 255, 0.15);
-            margin: 0 10px;
+            color: rgba(255, 255, 255, 0.12);
+            margin: 0 clamp(6px, 1vw, 12px);
         }
 
         /* ============================================================
-           FOOTER
+           FOOTER - ADAPTATIF
            ============================================================ */
-        .footer { 
-            text-align: center; 
-            margin-top: 18px; 
-            color: rgba(255, 255, 255, 0.25); 
-            font-size: 12px;
+        .footer {
+            text-align: center;
+            margin-top: clamp(14px, 2vw, 22px);
+            color: rgba(255, 255, 255, 0.2);
+            font-size: clamp(11px, 1.1vw, 13px);
             font-weight: 400;
-            background: rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
-            padding: 10px 16px;
-            border-radius: var(--radius-input);
+            padding: clamp(8px, 1vw, 12px) clamp(12px, 1.5vw, 18px);
+            border-radius: clamp(8px, 1.2vw, 12px);
             position: relative;
             z-index: 1;
             transition: all 0.3s ease;
+            line-height: 1.6;
         }
-        .footer a { 
-            color: rgba(255, 255, 255, 0.35); 
-            text-decoration: none; 
+
+        .footer a {
+            color: rgba(255, 255, 255, 0.3);
+            text-decoration: none;
             font-weight: 500;
             transition: 0.2s;
         }
-        .footer a:hover { 
-            color: var(--secondary);
+
+        .footer a:hover {
+            color: #FFB81C;
             text-decoration: underline;
         }
 
@@ -5687,72 +5724,78 @@ export class ApiGatewayController {
            TOASTIFY
            ============================================================ */
         .toastify {
-            border-radius: var(--radius-input) !important;
+            border-radius: clamp(8px, 1.2vw, 12px) !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3) !important;
+            font-size: clamp(13px, 1.3vw, 15px) !important;
+            padding: clamp(10px, 1.2vw, 16px) clamp(14px, 1.8vw, 22px) !important;
         }
+
         .toastify.error {
             background: #1a1a1a !important;
             color: #ff4444 !important;
             border: 1px solid #ff4444 !important;
         }
+
         .toastify.success {
-            background: var(--secondary) !important;
-            color: var(--primary) !important;
+            background: #FFB81C !important;
+            color: #000000 !important;
         }
+
         .toastify .toast-close {
             color: inherit !important;
             opacity: 0.7 !important;
         }
 
         /* ============================================================
-           OTP - INTERFACE AVEC 6 CASES
+           OTP - ADAPTATIF
            ============================================================ */
         .otp-container {
             display: none;
             margin-top: 8px;
             animation: fadeIn 0.3s ease;
         }
+
         .otp-container.show {
             display: block;
         }
 
         .otp-inputs {
             display: flex;
-            gap: 10px;
+            gap: clamp(6px, 1.2vw, 14px);
             justify-content: center;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .otp-inputs input {
-            width: 48px;
-            height: 56px;
+            width: clamp(34px, 6vw, 56px);
+            height: clamp(42px, 7vw, 64px);
             text-align: center;
-            font-size: 24px;
+            font-size: clamp(18px, 3.5vw, 28px);
             font-weight: 700;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: var(--radius-input);
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--white);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: clamp(8px, 1.2vw, 12px);
+            background: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
             transition: all 0.25s ease;
-            caret-color: var(--secondary);
+            caret-color: #FFB81C;
         }
 
         .otp-inputs input:focus {
             outline: none;
-            border-color: var(--secondary);
-            background: rgba(255, 184, 28, 0.1);
-            box-shadow: 0 0 0 4px var(--shadow-secondary);
+            border-color: #FFB81C;
+            background: rgba(255, 184, 28, 0.08);
+            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
 
         .otp-inputs input.error {
-            border-color: var(--error-color) !important;
-            background: var(--error-bg) !important;
+            border-color: #ff3333 !important;
+            background: rgba(255, 51, 51, 0.08) !important;
         }
 
         .otp-inputs input.filled {
-            border-color: var(--secondary);
-            background: rgba(255, 184, 28, 0.06);
+            border-color: #FFB81C;
+            background: rgba(255, 184, 28, 0.05);
         }
 
         .otp-inputs input:disabled {
@@ -5760,36 +5803,41 @@ export class ApiGatewayController {
             cursor: not-allowed;
         }
 
-        .otp-timer {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.5);
-            text-align: center;
-            margin-top: 6px;
-        }
-        .otp-timer a {
-            color: var(--secondary);
-            text-decoration: none;
-            display: none;
-        }
-        .otp-timer a:hover {
-            text-decoration: underline;
-        }
-
         .otp-error-message {
             display: none;
-            font-size: 12px;
-            color: var(--error-color) !important;
+            font-size: clamp(11px, 1.1vw, 13px);
+            color: #ff3333;
             text-align: center;
             margin-top: 4px;
             font-weight: 600;
         }
+
         .otp-error-message.show {
             display: block;
+        }
+
+        .otp-timer {
+            font-size: clamp(12px, 1.2vw, 14px);
+            color: rgba(255, 255, 255, 0.4);
+            text-align: center;
+            margin-top: 6px;
+        }
+
+        .otp-timer a {
+            color: #FFB81C;
+            text-decoration: none;
+            display: none;
+            cursor: pointer;
+        }
+
+        .otp-timer a:hover {
+            text-decoration: underline;
         }
 
         .hidden-fields {
             transition: all 0.3s ease;
         }
+
         .hidden-fields.hide {
             display: none !important;
         }
@@ -5800,256 +5848,851 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           RESPONSIVE
+           SCROLLBAR PERSONNALISÉE
            ============================================================ */
-        @media (max-width: 520px) {
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 184, 28, 0.3);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 184, 28, 0.5);
+        }
+
+        /* ============================================================
+           RESPONSIVE - BREAKPOINTS FINES
+           ============================================================ */
+
+        /* --- TRÈS PETITS ÉCRANS (moins de 360px) --- */
+        @media (max-width: 360px) {
             body {
-                padding: 12px;
+                padding: 8px;
                 align-items: flex-start;
-                padding-top: 30px;
+                padding-top: 16px;
             }
+
             .container {
-                padding: var(--padding-card-mobile);
-                border-radius: 14px;
+                padding: 16px 12px 16px;
+                border-radius: 12px;
                 max-width: 100%;
             }
+
             .logo img {
-                width: 75px;
-                margin-bottom: 8px;
+                width: 50px;
             }
+
             .logo h1 {
-                font-size: var(--font-size-title-mobile);
-            }
-            .logo {
-                margin-bottom: 22px;
-            }
-            .header h2 {
-                font-size: var(--font-size-h2-mobile);
-            }
-            .header p {
-                font-size: 13px;
-            }
-            .header {
-                margin-bottom: 18px;
-            }
-            .form-group {
-                margin-bottom: 14px;
-            }
-            .form-group input {
-                padding: 11px 14px;
-                font-size: 14px;
-            }
-            .phone-wrapper input {
-                padding: 11px 12px 11px 8px !important;
-                font-size: 14px;
-                height: 44px;
-            }
-            .country-select {
-                height: 44px;
-                min-width: 50px;
-                padding: 0 6px 0 10px;
-            }
-            .country-select select {
-                font-size: 14px;
-                min-width: 30px;
-                padding-right: 18px;
-            }
-            .btn {
-                padding: 13px;
-                font-size: 15px;
-                height: 46px;
-                border-radius: var(--radius-btn);
-            }
-            .stores-section {
-                padding: 14px 12px;
-                margin-top: 18px;
-                border-radius: 14px;
-            }
-            .store-link {
-                padding: 8px 14px;
-                font-size: 12px;
-                border-radius: var(--radius-btn);
-            }
-            .footer {
-                font-size: 11px;
-                padding: 8px 12px;
-                margin-top: 14px;
-                border-radius: var(--radius-input);
-            }
-            .form-links {
-                margin-top: 14px;
-            }
-            .form-links a {
-                font-size: 13px;
-            }
-            .otp-inputs input {
-                width: 40px;
-                height: 48px;
                 font-size: 20px;
             }
+
+            .header h2 {
+                font-size: 16px;
+            }
+
+            .header p {
+                font-size: 12px;
+                max-width: 100%;
+            }
+
+            .form-group input {
+                padding: 8px 10px;
+                font-size: 13px;
+                height: 38px;
+            }
+
+            .phone-wrapper {
+                height: 38px;
+            }
+
+            .phone-wrapper input {
+                font-size: 13px;
+                padding: 8px 8px 8px 4px !important;
+            }
+
+            .country-select {
+                min-width: 30px;
+                padding: 0 3px 0 6px;
+            }
+
+            .country-select select {
+                font-size: 12px;
+                min-width: 20px;
+                padding-right: 12px;
+                max-width: 50px;
+            }
+
+            .btn {
+                height: 40px;
+                font-size: 13px;
+                padding: 10px;
+            }
+
+            .store-link {
+                padding: 6px 10px;
+                font-size: 11px;
+                min-width: 90px;
+            }
+
+            .store-link .small {
+                font-size: 7px;
+            }
+
+            .otp-inputs input {
+                width: 30px;
+                height: 38px;
+                font-size: 16px;
+            }
+
             .otp-inputs {
-                gap: 8px;
+                gap: 4px;
+            }
+
+            .footer {
+                font-size: 10px;
+                padding: 6px 8px;
+            }
+
+            .form-links a {
+                font-size: 12px;
+            }
+
+            .stores-section {
+                padding: 10px 8px;
             }
         }
 
-        @media (max-width: 380px) {
+        /* --- PETITS ÉCRANS (361px - 480px) --- */
+        @media (min-width: 361px) and (max-width: 480px) {
             body {
-                padding: 8px;
-                padding-top: 20px;
+                padding: 12px;
+                align-items: flex-start;
+                padding-top: 24px;
             }
+
             .container {
-                padding: 18px 14px 18px;
-                border-radius: 12px;
+                padding: 20px 16px 20px;
+                border-radius: 14px;
+                max-width: 100%;
             }
+
             .logo img {
                 width: 60px;
             }
+
             .logo h1 {
                 font-size: 22px;
             }
+
             .header h2 {
                 font-size: 18px;
             }
+
             .header p {
-                font-size: 12px;
+                font-size: 13px;
             }
+
             .form-group input {
                 padding: 10px 12px;
-                font-size: 13px;
-            }
-            .phone-wrapper input {
-                padding: 10px 10px 10px 6px !important;
-                font-size: 13px;
-                height: 40px;
-            }
-            .country-select {
-                height: 40px;
-                min-width: 40px;
-                padding: 0 4px 0 8px;
-            }
-            .country-select select {
-                font-size: 13px;
-                min-width: 25px;
-                padding-right: 16px;
-            }
-            .btn {
-                padding: 11px;
                 font-size: 14px;
                 height: 42px;
-                border-radius: var(--radius-btn);
             }
+
+            .phone-wrapper {
+                height: 42px;
+            }
+
+            .phone-wrapper input {
+                font-size: 14px;
+                padding: 10px 10px 10px 6px !important;
+            }
+
+            .country-select {
+                min-width: 35px;
+                padding: 0 4px 0 8px;
+            }
+
+            .country-select select {
+                font-size: 13px;
+                min-width: 22px;
+                padding-right: 14px;
+                max-width: 60px;
+            }
+
+            .btn {
+                height: 44px;
+                font-size: 14px;
+                padding: 11px;
+            }
+
             .store-link {
-                padding: 6px 12px;
+                padding: 8px 12px;
                 font-size: 11px;
-                border-radius: var(--radius-btn);
+                min-width: 100px;
             }
-            .store-link .small {
-                font-size: 8px;
-            }
+
             .otp-inputs input {
                 width: 34px;
                 height: 42px;
                 font-size: 18px;
             }
+
             .otp-inputs {
                 gap: 6px;
             }
-        }
 
-        @media (min-width: 521px) and (max-width: 768px) {
-            .container {
-                max-width: 420px;
-                padding: 34px 24px 28px;
-                border-radius: 14px;
+            .footer {
+                font-size: 10px;
+                padding: 8px 10px;
             }
-            .logo img {
-                width: 90px;
-            }
-            .logo h1 {
-                font-size: 30px;
+
+            .form-links a {
+                font-size: 12px;
             }
         }
 
-        @media (min-width: 769px) {
+        /* --- MOYENS ÉCRANS (481px - 768px) --- */
+        @media (min-width: 481px) and (max-width: 768px) {
+            body {
+                padding: 20px;
+            }
+
             .container {
-                max-width: 480px;
-                padding: 42px 32px 34px;
+                max-width: 440px;
+                padding: 30px 24px 28px;
                 border-radius: 16px;
             }
+
             .logo img {
-                width: 110px;
+                width: 80px;
             }
+
             .logo h1 {
-                font-size: 36px;
+                font-size: 28px;
             }
+
             .header h2 {
-                font-size: 24px;
+                font-size: 20px;
             }
-            .btn {
-                height: 54px;
-                font-size: 17px;
-                border-radius: var(--radius-btn);
+
+            .header p {
+                font-size: 14px;
             }
-            .store-link {
-                padding: 12px 24px;
+
+            .form-group input {
+                padding: 12px 14px;
                 font-size: 15px;
-                border-radius: var(--radius-btn);
+                height: 46px;
+            }
+
+            .phone-wrapper {
+                height: 46px;
+            }
+
+            .phone-wrapper input {
+                font-size: 15px;
+                padding: 12px 12px 12px 8px !important;
+            }
+
+            .country-select {
+                min-width: 42px;
+                padding: 0 6px 0 10px;
+            }
+
+            .country-select select {
+                font-size: 14px;
+                min-width: 25px;
+                padding-right: 16px;
+                max-width: 65px;
+            }
+
+            .btn {
+                height: 48px;
+                font-size: 15px;
+                padding: 12px;
+            }
+
+            .store-link {
+                padding: 10px 16px;
+                font-size: 13px;
+                min-width: 120px;
+            }
+
+            .otp-inputs input {
+                width: 40px;
+                height: 48px;
+                font-size: 20px;
+            }
+
+            .otp-inputs {
+                gap: 8px;
+            }
+
+            .footer {
+                font-size: 11px;
+                padding: 8px 12px;
             }
         }
 
-        @media (min-width: 1200px) {
+        /* --- TABLETTES (769px - 1024px) --- */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            body {
+                padding: 30px;
+            }
+
+            .container {
+                max-width: 480px;
+                padding: 36px 30px 32px;
+                border-radius: 18px;
+            }
+
+            .logo img {
+                width: 100px;
+            }
+
+            .logo h1 {
+                font-size: 34px;
+            }
+
+            .header h2 {
+                font-size: 22px;
+            }
+
+            .header p {
+                font-size: 15px;
+            }
+
+            .form-group input {
+                padding: 13px 16px;
+                font-size: 15px;
+                height: 50px;
+            }
+
+            .phone-wrapper {
+                height: 50px;
+            }
+
+            .phone-wrapper input {
+                font-size: 15px;
+                padding: 13px 14px 13px 10px !important;
+            }
+
+            .country-select {
+                min-width: 48px;
+                padding: 0 8px 0 12px;
+            }
+
+            .country-select select {
+                font-size: 15px;
+                min-width: 28px;
+                padding-right: 18px;
+                max-width: 70px;
+            }
+
+            .btn {
+                height: 52px;
+                font-size: 16px;
+                padding: 14px;
+            }
+
+            .store-link {
+                padding: 10px 20px;
+                font-size: 14px;
+                min-width: 140px;
+            }
+
+            .otp-inputs input {
+                width: 44px;
+                height: 52px;
+                font-size: 22px;
+            }
+
+            .otp-inputs {
+                gap: 10px;
+            }
+        }
+
+        /* --- PETITS ORDINATEURS (1025px - 1366px) --- */
+        @media (min-width: 1025px) and (max-width: 1366px) {
             body {
                 padding: 40px;
             }
+
             .container {
-                max-width: 520px;
-                padding: 48px 40px 38px;
+                max-width: 500px;
+                padding: 40px 34px 34px;
                 border-radius: 18px;
             }
+
             .logo img {
-                width: 120px;
+                width: 110px;
             }
+
             .logo h1 {
-                font-size: 40px;
+                font-size: 36px;
             }
+
             .header h2 {
-                font-size: 26px;
+                font-size: 24px;
             }
+
             .header p {
                 font-size: 16px;
             }
+
             .form-group input {
                 padding: 14px 18px;
                 font-size: 16px;
-                border-radius: var(--radius-input);
+                height: 52px;
             }
+
+            .phone-wrapper {
+                height: 52px;
+            }
+
             .phone-wrapper input {
-                padding: 14px 14px 14px 10px !important;
                 font-size: 16px;
-                height: 52px;
+                padding: 14px 14px 14px 10px !important;
             }
+
             .country-select {
-                height: 52px;
-                min-width: 70px;
-                padding: 0 12px 0 16px;
+                min-width: 52px;
+                padding: 0 10px 0 14px;
             }
+
             .country-select select {
                 font-size: 16px;
-                min-width: 40px;
+                min-width: 30px;
+                padding-right: 20px;
+                max-width: 75px;
             }
+
             .btn {
+                height: 54px;
+                font-size: 17px;
                 padding: 16px;
-                font-size: 18px;
-                height: 58px;
-                border-radius: var(--radius-btn);
             }
+
+            .store-link {
+                padding: 12px 24px;
+                font-size: 15px;
+                min-width: 160px;
+            }
+
             .otp-inputs input {
-                width: 54px;
-                height: 62px;
-                font-size: 28px;
+                width: 48px;
+                height: 56px;
+                font-size: 24px;
             }
+
             .otp-inputs {
                 gap: 12px;
+            }
+        }
+
+        /* --- GRANDS ÉCRANS (1367px - 1920px) --- */
+        @media (min-width: 1367px) and (max-width: 1920px) {
+            body {
+                padding: 50px;
+            }
+
+            .container {
+                max-width: 520px;
+                padding: 44px 38px 38px;
+                border-radius: 20px;
+            }
+
+            .logo img {
+                width: 120px;
+            }
+
+            .logo h1 {
+                font-size: 40px;
+            }
+
+            .header h2 {
+                font-size: 26px;
+            }
+
+            .header p {
+                font-size: 17px;
+            }
+
+            .form-group input {
+                padding: 15px 20px;
+                font-size: 17px;
+                height: 56px;
+            }
+
+            .phone-wrapper {
+                height: 56px;
+            }
+
+            .phone-wrapper input {
+                font-size: 17px;
+                padding: 15px 16px 15px 12px !important;
+            }
+
+            .country-select {
+                min-width: 56px;
+                padding: 0 12px 0 16px;
+            }
+
+            .country-select select {
+                font-size: 17px;
+                min-width: 32px;
+                padding-right: 22px;
+                max-width: 80px;
+            }
+
+            .btn {
+                height: 58px;
+                font-size: 18px;
+                padding: 18px;
+            }
+
+            .store-link {
+                padding: 14px 28px;
+                font-size: 16px;
+                min-width: 180px;
+            }
+
+            .store-link .small {
+                font-size: 10px;
+            }
+
+            .otp-inputs input {
+                width: 52px;
+                height: 60px;
+                font-size: 26px;
+            }
+
+            .otp-inputs {
+                gap: 14px;
+            }
+        }
+
+        /* --- ÉCRANS GÉANTS (1921px et plus) --- */
+        @media (min-width: 1921px) {
+            body {
+                padding: 60px;
+                background: radial-gradient(ellipse at center, #0a0a00 0%, #000000 80%);
+            }
+
+            .container {
+                max-width: 600px;
+                padding: 52px 46px 44px;
+                border-radius: 24px;
+                box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9), 0 0 120px rgba(255, 184, 28, 0.06);
+            }
+
+            .logo img {
+                width: 140px;
+            }
+
+            .logo h1 {
+                font-size: 48px;
+            }
+
+            .logo {
+                margin-bottom: 36px;
+            }
+
+            .header h2 {
+                font-size: 30px;
+            }
+
+            .header p {
+                font-size: 19px;
+            }
+
+            .header {
+                margin-bottom: 30px;
+            }
+
+            .form-group {
+                margin-bottom: 22px;
+            }
+
+            .form-group label {
+                font-size: 17px;
+            }
+
+            .form-group input {
+                padding: 18px 24px;
+                font-size: 19px;
+                height: 64px;
+                border-radius: 14px;
+            }
+
+            .phone-wrapper {
+                height: 64px;
+                border-radius: 14px;
+            }
+
+            .phone-wrapper input {
+                font-size: 19px;
+                padding: 18px 18px 18px 14px !important;
+            }
+
+            .country-select {
+                min-width: 65px;
+                padding: 0 14px 0 20px;
+            }
+
+            .country-select select {
+                font-size: 19px;
+                min-width: 38px;
+                padding-right: 26px;
+                max-width: 90px;
+            }
+
+            .btn {
+                height: 66px;
+                font-size: 20px;
+                padding: 20px;
+                border-radius: 14px;
+                margin-top: 8px;
+            }
+
+            .spinner {
+                width: 28px;
+                height: 28px;
+                border-width: 4px;
+            }
+
+            .stores-section {
+                margin-top: 32px;
+                padding: 22px 24px;
+                border-radius: 18px;
+            }
+
+            .store-link {
+                padding: 16px 36px;
+                font-size: 18px;
+                min-width: 200px;
+                border-radius: 14px;
+                gap: 12px;
+            }
+
+            .store-link .small {
+                font-size: 12px;
+            }
+
+            .form-links {
+                margin-top: 24px;
+            }
+
+            .form-links a {
+                font-size: 17px;
+            }
+
+            .footer {
+                margin-top: 26px;
+                padding: 14px 20px;
+                font-size: 15px;
+                border-radius: 14px;
+            }
+
+            .otp-inputs input {
+                width: 64px;
+                height: 72px;
+                font-size: 32px;
+                border-radius: 14px;
+            }
+
+            .otp-inputs {
+                gap: 16px;
+            }
+
+            .otp-error-message {
+                font-size: 15px;
+            }
+
+            .otp-timer {
+                font-size: 16px;
+            }
+        }
+
+        /* ============================================================
+           ORIENTATION PAYSAGE - AJUSTEMENTS
+           ============================================================ */
+        @media (max-height: 600px) and (orientation: landscape) {
+            body {
+                padding: 10px;
+                align-items: flex-start;
+                padding-top: 12px;
+            }
+
+            .container {
+                padding: 14px 16px 14px;
+                border-radius: 12px;
+                max-width: 85vw;
+            }
+
+            .logo {
+                margin-bottom: 10px;
+                flex-direction: row;
+                gap: 12px;
+                justify-content: center;
+            }
+
+            .logo img {
+                width: 40px;
+                margin-bottom: 0;
+            }
+
+            .logo h1 {
+                font-size: 18px;
+            }
+
+            .header {
+                margin-bottom: 10px;
+            }
+
+            .header h2 {
+                font-size: 16px;
+            }
+
+            .header p {
+                font-size: 11px;
+                max-width: 100%;
+            }
+
+            .form-group {
+                margin-bottom: 8px;
+            }
+
+            .form-group label {
+                font-size: 11px;
+                margin-bottom: 2px;
+            }
+
+            .form-group input {
+                padding: 6px 10px;
+                font-size: 12px;
+                height: 32px;
+            }
+
+            .phone-wrapper {
+                height: 32px;
+            }
+
+            .phone-wrapper input {
+                font-size: 12px;
+                padding: 6px 8px 6px 4px !important;
+            }
+
+            .country-select {
+                min-width: 28px;
+                padding: 0 3px 0 6px;
+                height: 32px;
+            }
+
+            .country-select select {
+                font-size: 11px;
+                min-width: 18px;
+                padding-right: 12px;
+                max-width: 45px;
+            }
+
+            .btn {
+                height: 34px;
+                font-size: 12px;
+                padding: 8px;
+                margin-top: 2px;
+            }
+
+            .stores-section {
+                display: none;
+            }
+
+            .footer {
+                margin-top: 8px;
+                padding: 4px 8px;
+                font-size: 9px;
+            }
+
+            .form-links {
+                margin-top: 8px;
+            }
+
+            .form-links a {
+                font-size: 11px;
+            }
+
+            .otp-inputs input {
+                width: 28px;
+                height: 34px;
+                font-size: 14px;
+            }
+
+            .otp-inputs {
+                gap: 4px;
+            }
+
+            .hidden-fields.hide {
+                display: none !important;
+            }
+
+            .otp-container {
+                margin-top: 4px;
+            }
+
+            .otp-error-message {
+                font-size: 10px;
+            }
+
+            .otp-timer {
+                font-size: 10px;
+            }
+        }
+
+        /* ============================================================
+           SUPPORT POUR ÉCRANS À HAUTE DENSITÉ (Retina)
+           ============================================================ */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .container {
+                border: 0.5px solid rgba(255, 184, 28, 0.05);
+            }
+        }
+
+        /* ============================================================
+           PREFERS REDUCED MOTION
+           ============================================================ */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+
+            .btn:hover:not(:disabled) {
+                transform: none !important;
+            }
+
+            .store-link:hover {
+                transform: none !important;
+            }
+        }
+
+        /* ============================================================
+           DARK MODE SUPPORT (déjà en dark)
+           ============================================================ */
+        @media (prefers-color-scheme: light) {
+            body {
+                background: #000000;
             }
         }
     </style>
@@ -6103,7 +6746,7 @@ export class ApiGatewayController {
                 </div>
 
                 <div class="otp-container" id="otpContainer">
-                    <label style="display: block; font-size: 14px; font-weight: 600; color: var(--white); margin-bottom: 8px;">Code OTP *</label>
+                    <label style="display: block; font-size: clamp(13px, 1.4vw, 15px); font-weight: 600; color: #ffffff; margin-bottom: 8px;">Code OTP *</label>
                     <div class="otp-inputs" id="otpInputs">
                         <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="0">
                         <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="1">
@@ -6377,49 +7020,75 @@ export class ApiGatewayController {
             function populateCountrySelect(countries) {
                 if (!countrySelect) return;
                 countrySelect.innerHTML = '';
+                
+                // Rechercher COD en priorité
+                var codCountry = null;
+                var otherCountries = [];
+                
                 countries.forEach(function(country) {
                     if (country.prefix) {
-                        var option = document.createElement('option');
-                        option.value = country.prefix;
-                        option.text = country.code + ' (' + country.prefix + ')';
-                        option.dataset.countryCode = country.countryCode;
-                        option.dataset.name = country.name;
-                        option.dataset.flag = country.flag;
-                        option.dataset.currency = country.default_currency;
-                        countrySelect.appendChild(option);
+                        if (country.countryCode === 'COD' || country.code === 'COD') {
+                            codCountry = country;
+                        } else {
+                            otherCountries.push(country);
+                        }
                     }
                 });
-                if (countrySelect.options.length > 0) {
-                    countrySelect.selectedIndex = 0;
+
+                // Mettre COD en premier
+                if (codCountry) {
+                    var option = document.createElement('option');
+                    option.value = codCountry.prefix;
+                    option.text = '+' + codCountry.prefix;
+                    option.dataset.countryCode = codCountry.countryCode || codCountry.code;
+                    option.dataset.name = codCountry.name;
+                    option.dataset.currency = codCountry.default_currency;
+                    option.selected = true;
+                    countrySelect.appendChild(option);
+                }
+
+                // Ajouter les autres pays
+                otherCountries.forEach(function(country) {
+                    var option = document.createElement('option');
+                    option.value = country.prefix;
+                    option.text = '+' + country.prefix;
+                    option.dataset.countryCode = country.countryCode || country.code;
+                    option.dataset.name = country.name;
+                    option.dataset.currency = country.default_currency;
+                    countrySelect.appendChild(option);
+                });
+
+                if (countrySelect.options.length === 0) {
+                    setDefaultCountries();
                 }
             }
 
             function setDefaultCountries() {
                 if (!countrySelect) return;
                 var defaultCountries = [
-                    { prefix: '243', countryCode: 'CD', code: 'COD', name: 'Congo-Kinshasa' },
-                    { prefix: '229', countryCode: 'BJ', code: 'BEN', name: 'Bénin' }
+                    { prefix: '243', countryCode: 'COD', code: 'COD', name: 'Congo-Kinshasa' },
+                    { prefix: '229', countryCode: 'BEN', code: 'BEN', name: 'Bénin' }
                 ];
                 countrySelect.innerHTML = '';
-                defaultCountries.forEach(function(country) {
+                defaultCountries.forEach(function(country, index) {
                     var option = document.createElement('option');
                     option.value = country.prefix;
-                    option.text = country.code + ' (' + country.prefix + ')';
+                    option.text = '+' + country.prefix;
                     option.dataset.countryCode = country.countryCode;
                     option.dataset.name = country.name;
+                    if (index === 0) {
+                        option.selected = true;
+                    }
                     countrySelect.appendChild(option);
                 });
-                if (countrySelect.options.length > 0) {
-                    countrySelect.selectedIndex = 0;
-                }
             }
 
             function getSelectedCountryCode() {
                 if (countrySelect && countrySelect.selectedIndex >= 0) {
                     var option = countrySelect.options[countrySelect.selectedIndex];
-                    return option ? option.dataset.countryCode : 'CD';
+                    return option ? option.dataset.countryCode : 'COD';
                 }
-                return 'CD';
+                return 'COD';
             }
 
             function getSelectedPrefix() {
@@ -6471,20 +7140,15 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // TIMER OTP - SANS AFFICHAGE DES SECONDES
+            // TIMER OTP
             // ============================================================
             function startOtpTimer() {
-                // Ne rien afficher dans le timer
                 otpTimer.style.display = 'none';
                 resendOtpLink.style.display = 'none';
                 
                 clearInterval(otpTimerInterval);
-                otpTimerInterval = setInterval(function() {
-                    // Timer silencieux - pas d'affichage
-                    // Le bouton "Renvoyer" s'affiche après 60 secondes
-                }, 1000);
+                otpTimerInterval = setInterval(function() {}, 1000);
                 
-                // Afficher "Renvoyer" après 60 secondes
                 setTimeout(function() {
                     clearInterval(otpTimerInterval);
                     resendOtpLink.style.display = 'inline';
@@ -6670,7 +7334,18 @@ export class ApiGatewayController {
                     
                     fullNameInput.value = '';
                     if (countrySelect && countrySelect.options.length > 0) {
-                        countrySelect.selectedIndex = 0;
+                        // Garder COD sélectionné
+                        var codFound = false;
+                        for (var i = 0; i < countrySelect.options.length; i++) {
+                            if (countrySelect.options[i].dataset.countryCode === 'COD') {
+                                countrySelect.selectedIndex = i;
+                                codFound = true;
+                                break;
+                            }
+                        }
+                        if (!codFound) {
+                            countrySelect.selectedIndex = 0;
+                        }
                     }
                     phoneInput.value = '';
                     passwordInput.value = '';
@@ -6774,7 +7449,7 @@ export class ApiGatewayController {
                         params.set('data_role', userData.role || '');
                         params.set('data_status', userData.status || '');
                         params.set('data_kycStatus', userData.kycStatus || '');
-                        params.set('data_countryCode', userData.countryCode || 'CD');
+                        params.set('data_countryCode', userData.countryCode || 'COD');
                         if (userData.wallets) {
                             params.set('wallets', JSON.stringify(userData.wallets));
                         }
@@ -6807,7 +7482,7 @@ export class ApiGatewayController {
                         redirectUrl.searchParams.set('data_role', userData.role || '');
                         redirectUrl.searchParams.set('data_status', userData.status || '');
                         redirectUrl.searchParams.set('data_kycStatus', userData.kycStatus || '');
-                        redirectUrl.searchParams.set('data_countryCode', userData.countryCode || 'CD');
+                        redirectUrl.searchParams.set('data_countryCode', userData.countryCode || 'COD');
                         if (userData.wallets) {
                             redirectUrl.searchParams.set('wallets', JSON.stringify(userData.wallets));
                         }
@@ -7118,7 +7793,8 @@ export class ApiGatewayController {
         })();
     </script>
 </body>
-</html>`);
+</html>
+`);
 
     } catch (error) {
       console.error('[OAuth] Error:', error);

@@ -225,5 +225,15 @@
     "wallet.deposit_request_success": "Su solicitud de pago de la ganancia por recomendación de {{amount}} {{currency}} ha sido registrada. Referencia: {{reference}}",
     "wallet.deposit_transfer_success": "Transferencia de {{amount}} {{currency}} completada con éxito de {{payer}} a {{beneficiary}}. Referencia: {{reference}}",
     "wallet.deposit_cancelled_description": "Solicitud de pago de la ganancia por recomendación de {{amount}} {{currency}} cancelada por el usuario",
-    "wallet.deposit_cancelled": "La solicitud de depósito ha sido cancelada con éxito."
+    "wallet.deposit_cancelled": "La solicitud de depósito ha sido cancelada con éxito.",
+    "wallet.transaction_not_found": "Transacción no encontrada",
+    "wallet.transfer_failed": "La transferencia falló",
+    "wallet.payment_failed": "El pago falló",
+    "wallet.deposit_request_failed": "La solicitud de depósito falló",
+    "wallet.deposit_confirm_failed": "La confirmación del depósito falló",
+    "wallet.deposit_cancel_failed": "La cancelación del depósito falló",
+    "wallet.balance_transactions_error": "Error al recuperar las transacciones",
+    "wallet.admin_send_from_wallet_required": "La cartera de origen es requerida para el envío admin",
+    "wallet.admin_send_to_phone_required": "El teléfono del destinatario es requerido para el envío admin",
+    "wallet.from_wallet_required": "La cartera de origen es requerida"
 }
