@@ -1964,8 +1964,6 @@ export class UserServiceService {
     };
   }
 
-  // apps/wallet-service/src/wallet-service.service.ts
-
   async getAdminDashboard(
     adminId: string,
     filters?: {
@@ -2106,9 +2104,9 @@ export class UserServiceService {
         dateFilter.lte = endDate;
       }
 
-      // 7️⃣ Construction du filtre des transactions - AVEC FILTRE BRANCH ET EXCLUSION CASH
+      // 7️⃣ Construction du filtre des transactions
+      // ✅ UNIQUEMENT LES TRANSACTIONS RÉUSSIES + EXCLUSION CASH
       const transactionWhere: any = {
-        // ✅ EXCLURE LES TRANSACTIONS DE CAISSE
         status: 'SUCCESS',
         type: {
           notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
@@ -2159,9 +2157,7 @@ export class UserServiceService {
       ] = await Promise.all([
         this.prisma.user.count({ where: userWhere }),
         this.prisma.wallet.aggregate({
-          where: {
-            user: userWhere
-          },
+          where: { user: userWhere },
           _sum: { balance: true }
         }),
         this.prisma.transaction.count({ where: transactionWhere }),
@@ -2172,6 +2168,7 @@ export class UserServiceService {
         this.prisma.transaction.count({
           where: { ...transactionWhere, type: 'PAYMENT' },
         }),
+        // ✅ FAILED et PENDING comptés séparément (hors volume)
         this.prisma.transaction.count({
           where: { ...transactionWhere, status: 'FAILED' },
         }),
@@ -2208,7 +2205,6 @@ export class UserServiceService {
       });
 
       // ========== 4. CASH PAR CURRENCY ==========
-      // ✅ EXCLURE CASH_IN, CASH_OUT, CASH_TRANSFER des transactions CASH
       const cashWhere = {
         ...transactionWhere,
         paymentMethod: 'CASH',
@@ -2226,19 +2222,13 @@ export class UserServiceService {
 
       const cashCreditRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
-        where: {
-          ...cashWhere,
-          movement: 'CREDIT'
-        },
+        where: { ...cashWhere, movement: 'CREDIT' },
         _sum: { amount: true },
       });
 
       const cashDebitRaw = await this.prisma.transaction.groupBy({
         by: ['currency'],
-        where: {
-          ...cashWhere,
-          movement: 'DEBIT'
-        },
+        where: { ...cashWhere, movement: 'DEBIT' },
         _sum: { amount: true },
       });
 
