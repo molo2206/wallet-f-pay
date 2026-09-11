@@ -1160,7 +1160,6 @@ export class UserServiceService {
       },
     };
   }
-
   // apps/user-service/src/user-service.service.ts
 
   async updateUser(
@@ -2110,6 +2109,7 @@ export class UserServiceService {
       // 7️⃣ Construction du filtre des transactions - AVEC FILTRE BRANCH ET EXCLUSION CASH
       const transactionWhere: any = {
         // ✅ EXCLURE LES TRANSACTIONS DE CAISSE
+        status: 'SUCCESS',
         type: {
           notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
         }
