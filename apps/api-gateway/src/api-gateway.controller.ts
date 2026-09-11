@@ -4796,6 +4796,7 @@ export class ApiGatewayController {
         if (!existingToken) {
           await this.prisma.oauthaccesstoken.create({
             data: {
+              id: crypto.randomUUID(),  // ← AJOUTER CECI
               token: access_token,
               clientId: body.clientId || 'oauth-link',
               userId: fpayUserId,
@@ -7873,6 +7874,7 @@ export class ApiGatewayController {
         // ✅ ENREGISTRER LE TOKEN DANS LA BASE DE DONNÉES
         await this.prisma.oauthaccesstoken.create({
           data: {
+            id: crypto.randomUUID(),  // ← AJOUTER CECI
             token: accessToken,
             clientId: 'api-gateway',
             userId: userId || 'unknown',
@@ -8015,6 +8017,7 @@ export class ApiGatewayController {
           if (!existingToken) {
             await this.prisma.oauthaccesstoken.create({
               data: {
+                id: crypto.randomUUID(),  // ← AJOUTER CECI
                 token: data.accessToken,
                 clientId: clientId || 'oauth-callback',
                 userId: data.data?.id || query.user_id,
