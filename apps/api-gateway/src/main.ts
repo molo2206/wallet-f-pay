@@ -12,6 +12,7 @@ async function bootstrap() {
     'https://f-pay-eight.vercel.app',
     'http://localhost:3000',
     'http://localhost:4200',
+    'https://admin.f-pay.app'
   ];
 
   app.enableCors({
