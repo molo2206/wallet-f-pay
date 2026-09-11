@@ -2646,7 +2646,7 @@ export class WalletServiceService {
     // ========== CALCUL DES FRAIS ==========
     const fees = await this.getNetworkProviderFees(provider);
     const feeAmount = (amount * fees.payoutFee) / 100;
-    const totalDebit = amount + feeAmount; // ✅ Montant total à débiter (montant + frais)
+    const totalDebit = amount; // ✅ Montant total à débiter (montant)
     const netAmount = Math.round((amount - feeAmount) * 100) / 100;
 
     console.log('[WalletService] Cashout calcul:', {
