@@ -3208,14 +3208,11 @@ export class WalletServiceService {
           });
 
           if (receiverCountry) {
-            const feeConfigs = await tx.fee_config.findMany({
+            const feeConfigs = await (tx as any).fee_config.findMany({
               where: {
                 countryId: receiverCountry.id,
                 isActive: true,
-                paymentMethod: 'MOBILE_MONEY' as any,
-              },
-              orderBy: {
-                minAmount: 'asc',
+                paymentMethod: 'MOBILE_MONEY',
               },
             });
 
@@ -9338,16 +9335,17 @@ export class WalletServiceService {
 
           if (receiverCountry) {
             try {
-              const feeConfigs = await tx.fee_config.findMany({
+              const feeConfigs = await (tx as any).fee_config.findMany({
                 where: {
                   countryId: receiverCountry.id,
                   isActive: true,
-                  paymentMethod: 'MOBILE_MONEY' as any,
+                  paymentMethod: 'MOBILE_MONEY',
                 },
                 orderBy: {
                   minAmount: 'asc',
                 },
               });
+
               console.log('[AdminSend] 📊 Fee configs trouvées:', feeConfigs?.length || 0);
 
               if (feeConfigs && feeConfigs.length > 0) {
