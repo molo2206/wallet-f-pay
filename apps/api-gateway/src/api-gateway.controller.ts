@@ -5237,8 +5237,6 @@ export class ApiGatewayController {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>F-Pay • Connexion</title>
-    <!-- Toastify CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <style>
         /* ============================================================
            RESET & BASE
@@ -5717,30 +5715,219 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           TOASTIFY
+           MODALE MODERNE (remplace Toastify)
            ============================================================ */
-        .toastify {
-            border-radius: clamp(8px, 1.2vw, 12px) !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3) !important;
-            font-size: clamp(13px, 1.3vw, 15px) !important;
-            padding: clamp(10px, 1.2vw, 16px) clamp(14px, 1.8vw, 22px) !important;
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            padding: 20px;
         }
 
-        .toastify.error {
-            background: #1a1a1a !important;
-            color: #ff4444 !important;
-            border: 1px solid #ff4444 !important;
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
         }
 
-        .toastify.success {
-            background: #FFB81C !important;
-            color: #000000 !important;
+        .modal-box {
+            background: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%);
+            border: 1px solid rgba(255, 184, 28, 0.15);
+            border-radius: 20px;
+            padding: 36px 32px 28px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow:
+                0 30px 90px rgba(0, 0, 0, 0.9),
+                0 0 60px rgba(255, 184, 28, 0.08);
+            transform: scale(0.85) translateY(30px);
+            opacity: 0;
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        opacity 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
 
-        .toastify .toast-close {
-            color: inherit !important;
-            opacity: 0.7 !important;
+        .modal-overlay.active .modal-box {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+
+        .modal-overlay.closing .modal-box {
+            transform: scale(0.9) translateY(20px);
+            opacity: 0;
+        }
+
+        .modal-box::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #FFB81C, transparent);
+            opacity: 0.7;
+        }
+
+        .modal-icon {
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 22px;
+            font-size: 38px;
+            font-weight: 700;
+            line-height: 1;
+            animation: modalPopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes modalPopIn {
+            0% { transform: scale(0); }
+            70% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+
+        .modal-icon.success {
+            background: rgba(255, 184, 28, 0.12);
+            color: #FFB81C;
+            box-shadow: 0 0 50px rgba(255, 184, 28, 0.25);
+        }
+
+        .modal-icon.error {
+            background: rgba(255, 68, 68, 0.12);
+            color: #ff4444;
+            box-shadow: 0 0 50px rgba(255, 68, 68, 0.2);
+        }
+
+        .modal-icon.info {
+            background: rgba(255, 184, 28, 0.08);
+            color: #FFB81C;
+            box-shadow: 0 0 50px rgba(255, 184, 28, 0.15);
+        }
+
+        .modal-icon.warning {
+            background: rgba(255, 184, 28, 0.1);
+            color: #FFB81C;
+        }
+
+        .modal-icon.loading {
+            background: rgba(255, 184, 28, 0.08);
+            position: relative;
+        }
+
+        .modal-icon.loading::after {
+            content: '';
+            position: absolute;
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 184, 28, 0.15);
+            border-top-color: #FFB81C;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 10px;
+            letter-spacing: -0.3px;
+            line-height: 1.3;
+        }
+
+        .modal-message {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.65);
+            line-height: 1.6;
+            margin-bottom: 26px;
+            padding: 0 4px;
+        }
+
+        .modal-message strong {
+            color: #FFB81C;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .modal-btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-family: inherit;
+            min-width: 130px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .modal-btn-primary {
+            background: #FFB81C;
+            color: #000000;
+            box-shadow: 0 6px 24px rgba(255, 184, 28, 0.3);
+        }
+
+        .modal-btn-primary:hover {
+            background: #e6a500;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 32px rgba(255, 184, 28, 0.45);
+        }
+
+        .modal-btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .modal-btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            line-height: 1;
+            padding: 0;
+            font-family: inherit;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            transform: rotate(90deg);
         }
 
         /* ============================================================
@@ -5964,6 +6151,36 @@ export class ApiGatewayController {
 
             .stores-section {
                 padding: 10px 8px;
+            }
+
+            .modal-box {
+                padding: 30px 22px 22px;
+                border-radius: 16px;
+            }
+
+            .modal-icon {
+                width: 64px;
+                height: 64px;
+                font-size: 30px;
+            }
+
+            .modal-icon.loading::after {
+                width: 64px;
+                height: 64px;
+            }
+
+            .modal-title {
+                font-size: 19px;
+            }
+
+            .modal-message {
+                font-size: 14px;
+            }
+
+            .modal-btn {
+                padding: 11px 22px;
+                font-size: 14px;
+                min-width: 110px;
             }
         }
 
@@ -6764,7 +6981,6 @@ export class ApiGatewayController {
                 </button>
             </form>
 
-            <!-- ✅ Un seul lien : Créer un compte (plus de "Mot de passe oublié") -->
             <div class="form-links">
                 <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
             </div>
@@ -6794,8 +7010,6 @@ export class ApiGatewayController {
             <a href="#">Politique de confidentialité</a>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 
     <script>
         (function() {
@@ -6859,6 +7073,162 @@ export class ApiGatewayController {
             var tempRegisterData = null;
             var otpTimerInterval = null;
             var countriesData = [];
+
+            // ============================================================
+            // SYSTÈME DE MODALE MODERNE
+            // ============================================================
+            var modalTimeout = null;
+            var currentModal = null;
+
+            function showModal(options) {
+                var type = options.type || 'info';
+                var title = options.title || '';
+                var message = options.message || '';
+                var duration = options.duration !== undefined ? options.duration : 4000;
+                var showClose = options.showClose !== false;
+                var closable = options.closable !== false;
+                var onClose = options.onClose || null;
+
+                closeModal(true);
+
+                var icons = {
+                    success: '✓',
+                    error: '✕',
+                    info: 'ℹ',
+                    warning: '⚠',
+                    loading: ''
+                };
+
+                var defaultTitles = {
+                    success: 'Succès',
+                    error: 'Erreur',
+                    info: 'Information',
+                    warning: 'Attention',
+                    loading: 'Chargement...'
+                };
+
+                var overlay = document.createElement('div');
+                overlay.className = 'modal-overlay';
+
+                var iconHtml = type === 'loading'
+                    ? '<div class="modal-icon loading"></div>'
+                    : '<div class="modal-icon ' + type + '">' + icons[type] + '</div>';
+
+                var closeBtn = showClose
+                    ? '<button class="modal-close" data-modal-close>✕</button>'
+                    : '';
+
+                var actionsHtml = '';
+                if (options.actions && options.actions.length > 0) {
+                    actionsHtml = '<div class="modal-actions">';
+                    options.actions.forEach(function(action, idx) {
+                        actionsHtml += '<button class="modal-btn modal-btn-' +
+                            (action.style || 'primary') +
+                            '" data-action-idx="' + idx + '">' +
+                            action.label +
+                            '</button>';
+                    });
+                    actionsHtml += '</div>';
+                }
+
+                overlay.innerHTML =
+                    '<div class="modal-box">' +
+                        closeBtn +
+                        iconHtml +
+                        '<div class="modal-title">' + (title || defaultTitles[type]) + '</div>' +
+                        '<div class="modal-message">' + message + '</div>' +
+                        actionsHtml +
+                    '</div>';
+
+                document.body.appendChild(overlay);
+                currentModal = overlay;
+
+                requestAnimationFrame(function() {
+                    overlay.classList.add('active');
+                });
+
+                if (closable) {
+                    var closeEl = overlay.querySelector('[data-modal-close]');
+                    if (closeEl) {
+                        closeEl.addEventListener('click', function() {
+                            closeModal(false, onClose);
+                        });
+                    }
+
+                    overlay.addEventListener('click', function(e) {
+                        if (e.target === overlay) {
+                            closeModal(false, onClose);
+                        }
+                    });
+
+                    var escHandler = function(e) {
+                        if (e.key === 'Escape' && currentModal === overlay) {
+                            closeModal(false, onClose);
+                            document.removeEventListener('keydown', escHandler);
+                        }
+                    };
+                    document.addEventListener('keydown', escHandler);
+                }
+
+                overlay.querySelectorAll('[data-action-idx]').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        var idx = parseInt(this.getAttribute('data-action-idx'), 10);
+                        var action = (options.actions || [])[idx];
+                        if (action && typeof action.onClick === 'function') {
+                            action.onClick();
+                        } else {
+                            closeModal(false, onClose);
+                        }
+                    });
+                });
+
+                if (type !== 'loading' && duration > 0) {
+                    modalTimeout = setTimeout(function() {
+                        closeModal(false, onClose);
+                    }, duration);
+                }
+
+                return overlay;
+            }
+
+            function closeModal(instant, callback) {
+                clearTimeout(modalTimeout);
+                var overlay = currentModal || document.querySelector('.modal-overlay');
+                if (!overlay) {
+                    if (typeof callback === 'function') callback();
+                    return;
+                }
+
+                overlay.classList.add('closing');
+                overlay.classList.remove('active');
+
+                var removeDelay = instant ? 0 : 300;
+
+                setTimeout(function() {
+                    if (overlay.parentNode) overlay.remove();
+                    if (currentModal === overlay) currentModal = null;
+                    if (typeof callback === 'function') callback();
+                }, removeDelay);
+            }
+
+            // Fonction showToast (compatibilité) → utilise la modale
+            function showToast(message, type) {
+                var titles = {
+                    success: 'Succès',
+                    error: 'Erreur',
+                    info: 'Information',
+                    warning: 'Attention'
+                };
+
+                showModal({
+                    type: type || 'info',
+                    title: titles[type] || 'Information',
+                    message: message,
+                    duration: type === 'error' ? 5000 : 3500,
+                    showClose: true,
+                    closable: true
+                });
+            }
 
             // ============================================================
             // GESTION DES INPUTS OTP
@@ -7087,47 +7457,6 @@ export class ApiGatewayController {
                     return countrySelect.value;
                 }
                 return '243';
-            }
-
-            // ============================================================
-            // TOAST
-            // ============================================================
-            function showToast(message, type) {
-                var backgroundColor = '#1a1a1a';
-                var icon = '';
-                var textColor = '#ff4444';
-                
-                if (type === 'error') {
-                    backgroundColor = '#1a1a1a';
-                    icon = '';
-                    textColor = '#ff4444';
-                } else if (type === 'success') {
-                    backgroundColor = '#FFB81C';
-                    icon = '';
-                    textColor = '#000000';
-                } else if (type === 'info') {
-                    backgroundColor = '#1a1a00';
-                    icon = '';
-                    textColor = '#FFB81C';
-                }
-
-                Toastify({
-                    text: icon + message,
-                    duration: 4000,
-                    gravity: 'top',
-                    position: 'right',
-                    style: {
-                        background: backgroundColor,
-                        borderRadius: '10px',
-                        boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-                        padding: '12px 18px',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        color: textColor,
-                        border: type === 'error' ? '1px solid #ff4444' : 'none'
-                    },
-                    className: type
-                }).showToast();
             }
 
             // ============================================================
@@ -7408,10 +7737,38 @@ export class ApiGatewayController {
                 cleanUrl();
                 console.log('[OAuth] Tokens stockes:', userTokens);
                 console.log('[OAuth] User data:', userData);
-                
-                setTimeout(function() {
-                    handleRedirect();
-                }, 800);
+
+                showModal({
+                    type: 'success',
+                    title: '🎉 Connexion réussie !',
+                    message:
+                        'Bienvenue <strong>' + (userData.full_name || 'Utilisateur') + '</strong><br>' +
+                        '<span style="font-size:13px;opacity:0.5">Redirection dans <span id="countdown">3</span>s...</span>',
+                    duration: 0,
+                    showClose: false,
+                    closable: false,
+                    actions: [
+                        {
+                            label: 'Continuer maintenant',
+                            style: 'primary',
+                            onClick: function() {
+                                closeModal(true);
+                                handleRedirect();
+                            }
+                        }
+                    ]
+                });
+
+                var count = 3;
+                var countdownEl = document.getElementById('countdown');
+                var interval = setInterval(function() {
+                    count--;
+                    if (countdownEl) countdownEl.textContent = count;
+                    if (count <= 0) {
+                        clearInterval(interval);
+                        handleRedirect();
+                    }
+                }, 1000);
             }
 
             window.handleRedirect = function() {
