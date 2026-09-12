@@ -5260,9 +5260,6 @@ export class ApiGatewayController {
             background: radial-gradient(ellipse at center bottom, #1a1a00 0%, #000000 70%);
         }
 
-        /* ============================================================
-           CONTAINER PRINCIPAL - FLUID
-           ============================================================ */
         .container {
             width: 100%;
             max-width: min(520px, 94vw);
@@ -5287,9 +5284,6 @@ export class ApiGatewayController {
             pointer-events: none;
         }
 
-        /* ============================================================
-           LOGO - ADAPTATIF
-           ============================================================ */
         .logo {
             text-align: center;
             margin-bottom: clamp(18px, 3.5vw, 32px);
@@ -5321,9 +5315,6 @@ export class ApiGatewayController {
         .logo h1 .f { color: #ffffff; }
         .logo h1 .pay { color: #FFB81C; }
 
-        /* ============================================================
-           HEADER - ADAPTATIF
-           ============================================================ */
         .header {
             margin-bottom: clamp(16px, 2.5vw, 26px);
             position: relative;
@@ -5347,9 +5338,6 @@ export class ApiGatewayController {
             max-width: 90%;
         }
 
-        /* ============================================================
-           FORMULAIRE - ADAPTATIF
-           ============================================================ */
         .form-group {
             margin-bottom: clamp(12px, 2vw, 18px);
             position: relative;
@@ -5394,9 +5382,6 @@ export class ApiGatewayController {
             cursor: not-allowed;
         }
 
-        /* ============================================================
-           ÉTATS DES CHAMPS
-           ============================================================ */
         .form-group.error input,
         .form-group.error .phone-wrapper {
             border-color: #ff3333 !important;
@@ -5431,9 +5416,6 @@ export class ApiGatewayController {
             display: block;
         }
 
-        /* ============================================================
-           WRAPPER TÉLÉPHONE - ADAPTATIF
-           ============================================================ */
         .phone-wrapper {
             display: flex;
             align-items: center;
@@ -5516,9 +5498,6 @@ export class ApiGatewayController {
             box-shadow: none !important;
         }
 
-        /* ============================================================
-           BOUTON PRINCIPAL - ADAPTATIF
-           ============================================================ */
         .btn {
             width: 100%;
             padding: clamp(12px, 1.6vw, 18px);
@@ -5582,9 +5561,6 @@ export class ApiGatewayController {
             to { transform: rotate(360deg); }
         }
 
-        /* ============================================================
-           STORES (Boutons de téléchargement) - ADAPTATIF
-           ============================================================ */
         .stores-section {
             margin-top: clamp(18px, 3vw, 28px);
             padding: clamp(14px, 2vw, 20px) clamp(12px, 1.8vw, 20px);
@@ -5649,9 +5625,6 @@ export class ApiGatewayController {
             letter-spacing: 0.3px;
         }
 
-        /* ============================================================
-           LIENS - ADAPTATIF
-           ============================================================ */
         .form-links {
             text-align: center;
             margin-top: clamp(14px, 2vw, 20px);
@@ -5682,9 +5655,6 @@ export class ApiGatewayController {
             text-decoration: underline;
         }
 
-        /* ============================================================
-           FOOTER - ADAPTATIF
-           ============================================================ */
         .footer {
             text-align: center;
             margin-top: clamp(14px, 2vw, 22px);
@@ -5931,6 +5901,54 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
+           TOGGLE VISIBILITÉ MOT DE PASSE (injecté en JS)
+           ============================================================ */
+        .form-group.password-with-toggle {
+            position: relative;
+        }
+
+        .form-group.password-with-toggle input {
+            padding-right: clamp(42px, 5vw, 54px) !important;
+        }
+
+        .toggle-password-btn {
+            position: absolute;
+            right: clamp(8px, 1vw, 14px);
+            top: calc(50% + 10px);
+            transform: translateY(-50%);
+            width: clamp(28px, 3vw, 34px);
+            height: clamp(28px, 3vw, 34px);
+            border: none;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.4);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease;
+            padding: 0;
+            border-radius: 50%;
+            -webkit-tap-highlight-color: transparent;
+            z-index: 2;
+        }
+
+        .toggle-password-btn:hover,
+        .toggle-password-btn:focus {
+            color: #FFB81C;
+            outline: none;
+        }
+
+        .toggle-password-btn.active {
+            color: #FFB81C;
+        }
+
+        .toggle-password-btn .eye-icon {
+            width: clamp(18px, 2vw, 22px);
+            height: clamp(18px, 2vw, 22px);
+            display: block;
+        }
+
+        /* ============================================================
            OTP - ADAPTATIF
            ============================================================ */
         .otp-container {
@@ -6030,9 +6048,6 @@ export class ApiGatewayController {
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* ============================================================
-           SCROLLBAR PERSONNALISÉE
-           ============================================================ */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -6056,857 +6071,203 @@ export class ApiGatewayController {
            RESPONSIVE - BREAKPOINTS FINES
            ============================================================ */
 
-        /* --- TRÈS PETITS ÉCRANS (moins de 360px) --- */
         @media (max-width: 360px) {
-            body {
-                padding: 8px;
-                align-items: flex-start;
-                padding-top: 16px;
-            }
-
-            .container {
-                padding: 16px 12px 16px;
-                border-radius: 12px;
-                max-width: 100%;
-            }
-
-            .logo img {
-                width: 50px;
-            }
-
-            .logo h1 {
-                font-size: 20px;
-            }
-
-            .header h2 {
-                font-size: 16px;
-            }
-
-            .header p {
-                font-size: 12px;
-                max-width: 100%;
-            }
-
-            .form-group input {
-                padding: 8px 10px;
-                font-size: 13px;
-                height: 38px;
-            }
-
-            .phone-wrapper {
-                height: 38px;
-            }
-
-            .phone-wrapper input {
-                font-size: 13px;
-                padding: 8px 8px 8px 4px !important;
-            }
-
-            .country-select {
-                min-width: 28px;
-                padding: 0 3px 0 6px;
-            }
-
-            .country-select select {
-                font-size: 12px;
-                min-width: 20px;
-                padding-right: 12px;
-                max-width: 45px;
-            }
-
-            .btn {
-                height: 40px;
-                font-size: 13px;
-                padding: 10px;
-            }
-
-            .store-link {
-                padding: 6px 10px;
-                font-size: 11px;
-                min-width: 90px;
-            }
-
-            .store-link .small {
-                font-size: 7px;
-            }
-
-            .otp-inputs input {
-                width: 30px;
-                height: 38px;
-                font-size: 16px;
-            }
-
-            .otp-inputs {
-                gap: 4px;
-            }
-
-            .footer {
-                font-size: 10px;
-                padding: 6px 8px;
-            }
-
-            .form-links a {
-                font-size: 12px;
-            }
-
-            .stores-section {
-                padding: 10px 8px;
-            }
-
-            .modal-box {
-                padding: 30px 22px 22px;
-                border-radius: 16px;
-            }
-
-            .modal-icon {
-                width: 64px;
-                height: 64px;
-                font-size: 30px;
-            }
-
-            .modal-icon.loading::after {
-                width: 64px;
-                height: 64px;
-            }
-
-            .modal-title {
-                font-size: 19px;
-            }
-
-            .modal-message {
-                font-size: 14px;
-            }
-
-            .modal-btn {
-                padding: 11px 22px;
-                font-size: 14px;
-                min-width: 110px;
-            }
+            body { padding: 8px; align-items: flex-start; padding-top: 16px; }
+            .container { padding: 16px 12px 16px; border-radius: 12px; max-width: 100%; }
+            .logo img { width: 50px; }
+            .logo h1 { font-size: 20px; }
+            .header h2 { font-size: 16px; }
+            .header p { font-size: 12px; max-width: 100%; }
+            .form-group input { padding: 8px 10px; font-size: 13px; height: 38px; }
+            .phone-wrapper { height: 38px; }
+            .phone-wrapper input { font-size: 13px; padding: 8px 8px 8px 4px !important; }
+            .country-select { min-width: 28px; padding: 0 3px 0 6px; }
+            .country-select select { font-size: 12px; min-width: 20px; padding-right: 12px; max-width: 45px; }
+            .btn { height: 40px; font-size: 13px; padding: 10px; }
+            .store-link { padding: 6px 10px; font-size: 11px; min-width: 90px; }
+            .store-link .small { font-size: 7px; }
+            .otp-inputs input { width: 30px; height: 38px; font-size: 16px; }
+            .otp-inputs { gap: 4px; }
+            .footer { font-size: 10px; padding: 6px 8px; }
+            .form-links a { font-size: 12px; }
+            .stores-section { padding: 10px 8px; }
+            .modal-box { padding: 30px 22px 22px; border-radius: 16px; }
+            .modal-icon { width: 64px; height: 64px; font-size: 30px; }
+            .modal-icon.loading::after { width: 64px; height: 64px; }
+            .modal-title { font-size: 19px; }
+            .modal-message { font-size: 14px; }
+            .modal-btn { padding: 11px 22px; font-size: 14px; min-width: 110px; }
         }
 
-        /* --- PETITS ÉCRANS (361px - 480px) --- */
         @media (min-width: 361px) and (max-width: 480px) {
-            body {
-                padding: 12px;
-                align-items: flex-start;
-                padding-top: 24px;
-            }
-
-            .container {
-                padding: 20px 16px 20px;
-                border-radius: 14px;
-                max-width: 100%;
-            }
-
-            .logo img {
-                width: 60px;
-            }
-
-            .logo h1 {
-                font-size: 22px;
-            }
-
-            .header h2 {
-                font-size: 18px;
-            }
-
-            .header p {
-                font-size: 13px;
-            }
-
-            .form-group input {
-                padding: 10px 12px;
-                font-size: 14px;
-                height: 42px;
-            }
-
-            .phone-wrapper {
-                height: 42px;
-            }
-
-            .phone-wrapper input {
-                font-size: 14px;
-                padding: 10px 10px 10px 6px !important;
-            }
-
-            .country-select {
-                min-width: 32px;
-                padding: 0 4px 0 8px;
-            }
-
-            .country-select select {
-                font-size: 13px;
-                min-width: 22px;
-                padding-right: 14px;
-                max-width: 55px;
-            }
-
-            .btn {
-                height: 44px;
-                font-size: 14px;
-                padding: 11px;
-            }
-
-            .store-link {
-                padding: 8px 12px;
-                font-size: 11px;
-                min-width: 100px;
-            }
-
-            .otp-inputs input {
-                width: 34px;
-                height: 42px;
-                font-size: 18px;
-            }
-
-            .otp-inputs {
-                gap: 6px;
-            }
-
-            .footer {
-                font-size: 10px;
-                padding: 8px 10px;
-            }
-
-            .form-links a {
-                font-size: 12px;
-            }
+            body { padding: 12px; align-items: flex-start; padding-top: 24px; }
+            .container { padding: 20px 16px 20px; border-radius: 14px; max-width: 100%; }
+            .logo img { width: 60px; }
+            .logo h1 { font-size: 22px; }
+            .header h2 { font-size: 18px; }
+            .header p { font-size: 13px; }
+            .form-group input { padding: 10px 12px; font-size: 14px; height: 42px; }
+            .phone-wrapper { height: 42px; }
+            .phone-wrapper input { font-size: 14px; padding: 10px 10px 10px 6px !important; }
+            .country-select { min-width: 32px; padding: 0 4px 0 8px; }
+            .country-select select { font-size: 13px; min-width: 22px; padding-right: 14px; max-width: 55px; }
+            .btn { height: 44px; font-size: 14px; padding: 11px; }
+            .store-link { padding: 8px 12px; font-size: 11px; min-width: 100px; }
+            .otp-inputs input { width: 34px; height: 42px; font-size: 18px; }
+            .otp-inputs { gap: 6px; }
+            .footer { font-size: 10px; padding: 8px 10px; }
+            .form-links a { font-size: 12px; }
         }
 
-        /* --- MOYENS ÉCRANS (481px - 768px) --- */
         @media (min-width: 481px) and (max-width: 768px) {
-            body {
-                padding: 20px;
-            }
-
-            .container {
-                max-width: 440px;
-                padding: 30px 24px 28px;
-                border-radius: 16px;
-            }
-
-            .logo img {
-                width: 80px;
-            }
-
-            .logo h1 {
-                font-size: 28px;
-            }
-
-            .header h2 {
-                font-size: 20px;
-            }
-
-            .header p {
-                font-size: 14px;
-            }
-
-            .form-group input {
-                padding: 12px 14px;
-                font-size: 15px;
-                height: 46px;
-            }
-
-            .phone-wrapper {
-                height: 46px;
-            }
-
-            .phone-wrapper input {
-                font-size: 15px;
-                padding: 12px 12px 12px 8px !important;
-            }
-
-            .country-select {
-                min-width: 38px;
-                padding: 0 6px 0 10px;
-            }
-
-            .country-select select {
-                font-size: 14px;
-                min-width: 24px;
-                padding-right: 16px;
-                max-width: 60px;
-            }
-
-            .btn {
-                height: 48px;
-                font-size: 15px;
-                padding: 12px;
-            }
-
-            .store-link {
-                padding: 10px 16px;
-                font-size: 13px;
-                min-width: 120px;
-            }
-
-            .otp-inputs input {
-                width: 40px;
-                height: 48px;
-                font-size: 20px;
-            }
-
-            .otp-inputs {
-                gap: 8px;
-            }
-
-            .footer {
-                font-size: 11px;
-                padding: 8px 12px;
-            }
+            body { padding: 20px; }
+            .container { max-width: 440px; padding: 30px 24px 28px; border-radius: 16px; }
+            .logo img { width: 80px; }
+            .logo h1 { font-size: 28px; }
+            .header h2 { font-size: 20px; }
+            .header p { font-size: 14px; }
+            .form-group input { padding: 12px 14px; font-size: 15px; height: 46px; }
+            .phone-wrapper { height: 46px; }
+            .phone-wrapper input { font-size: 15px; padding: 12px 12px 12px 8px !important; }
+            .country-select { min-width: 38px; padding: 0 6px 0 10px; }
+            .country-select select { font-size: 14px; min-width: 24px; padding-right: 16px; max-width: 60px; }
+            .btn { height: 48px; font-size: 15px; padding: 12px; }
+            .store-link { padding: 10px 16px; font-size: 13px; min-width: 120px; }
+            .otp-inputs input { width: 40px; height: 48px; font-size: 20px; }
+            .otp-inputs { gap: 8px; }
+            .footer { font-size: 11px; padding: 8px 12px; }
         }
 
-        /* --- TABLETTES (769px - 1024px) --- */
         @media (min-width: 769px) and (max-width: 1024px) {
-            body {
-                padding: 30px;
-            }
-
-            .container {
-                max-width: 480px;
-                padding: 36px 30px 32px;
-                border-radius: 18px;
-            }
-
-            .logo img {
-                width: 100px;
-            }
-
-            .logo h1 {
-                font-size: 34px;
-            }
-
-            .header h2 {
-                font-size: 22px;
-            }
-
-            .header p {
-                font-size: 15px;
-            }
-
-            .form-group input {
-                padding: 13px 16px;
-                font-size: 15px;
-                height: 50px;
-            }
-
-            .phone-wrapper {
-                height: 50px;
-            }
-
-            .phone-wrapper input {
-                font-size: 15px;
-                padding: 13px 14px 13px 10px !important;
-            }
-
-            .country-select {
-                min-width: 42px;
-                padding: 0 8px 0 12px;
-            }
-
-            .country-select select {
-                font-size: 15px;
-                min-width: 26px;
-                padding-right: 18px;
-                max-width: 65px;
-            }
-
-            .btn {
-                height: 52px;
-                font-size: 16px;
-                padding: 14px;
-            }
-
-            .store-link {
-                padding: 10px 20px;
-                font-size: 14px;
-                min-width: 140px;
-            }
-
-            .otp-inputs input {
-                width: 44px;
-                height: 52px;
-                font-size: 22px;
-            }
-
-            .otp-inputs {
-                gap: 10px;
-            }
+            body { padding: 30px; }
+            .container { max-width: 480px; padding: 36px 30px 32px; border-radius: 18px; }
+            .logo img { width: 100px; }
+            .logo h1 { font-size: 34px; }
+            .header h2 { font-size: 22px; }
+            .header p { font-size: 15px; }
+            .form-group input { padding: 13px 16px; font-size: 15px; height: 50px; }
+            .phone-wrapper { height: 50px; }
+            .phone-wrapper input { font-size: 15px; padding: 13px 14px 13px 10px !important; }
+            .country-select { min-width: 42px; padding: 0 8px 0 12px; }
+            .country-select select { font-size: 15px; min-width: 26px; padding-right: 18px; max-width: 65px; }
+            .btn { height: 52px; font-size: 16px; padding: 14px; }
+            .store-link { padding: 10px 20px; font-size: 14px; min-width: 140px; }
+            .otp-inputs input { width: 44px; height: 52px; font-size: 22px; }
+            .otp-inputs { gap: 10px; }
         }
 
-        /* --- PETITS ORDINATEURS (1025px - 1366px) --- */
         @media (min-width: 1025px) and (max-width: 1366px) {
-            body {
-                padding: 40px;
-            }
-
-            .container {
-                max-width: 500px;
-                padding: 40px 34px 34px;
-                border-radius: 18px;
-            }
-
-            .logo img {
-                width: 110px;
-            }
-
-            .logo h1 {
-                font-size: 36px;
-            }
-
-            .header h2 {
-                font-size: 24px;
-            }
-
-            .header p {
-                font-size: 16px;
-            }
-
-            .form-group input {
-                padding: 14px 18px;
-                font-size: 16px;
-                height: 52px;
-            }
-
-            .phone-wrapper {
-                height: 52px;
-            }
-
-            .phone-wrapper input {
-                font-size: 16px;
-                padding: 14px 14px 14px 10px !important;
-            }
-
-            .country-select {
-                min-width: 46px;
-                padding: 0 10px 0 14px;
-            }
-
-            .country-select select {
-                font-size: 16px;
-                min-width: 28px;
-                padding-right: 20px;
-                max-width: 70px;
-            }
-
-            .btn {
-                height: 54px;
-                font-size: 17px;
-                padding: 16px;
-            }
-
-            .store-link {
-                padding: 12px 24px;
-                font-size: 15px;
-                min-width: 160px;
-            }
-
-            .otp-inputs input {
-                width: 48px;
-                height: 56px;
-                font-size: 24px;
-            }
-
-            .otp-inputs {
-                gap: 12px;
-            }
+            body { padding: 40px; }
+            .container { max-width: 500px; padding: 40px 34px 34px; border-radius: 18px; }
+            .logo img { width: 110px; }
+            .logo h1 { font-size: 36px; }
+            .header h2 { font-size: 24px; }
+            .header p { font-size: 16px; }
+            .form-group input { padding: 14px 18px; font-size: 16px; height: 52px; }
+            .phone-wrapper { height: 52px; }
+            .phone-wrapper input { font-size: 16px; padding: 14px 14px 14px 10px !important; }
+            .country-select { min-width: 46px; padding: 0 10px 0 14px; }
+            .country-select select { font-size: 16px; min-width: 28px; padding-right: 20px; max-width: 70px; }
+            .btn { height: 54px; font-size: 17px; padding: 16px; }
+            .store-link { padding: 12px 24px; font-size: 15px; min-width: 160px; }
+            .otp-inputs input { width: 48px; height: 56px; font-size: 24px; }
+            .otp-inputs { gap: 12px; }
         }
 
-        /* --- GRANDS ÉCRANS (1367px - 1920px) --- */
         @media (min-width: 1367px) and (max-width: 1920px) {
-            body {
-                padding: 50px;
-            }
-
-            .container {
-                max-width: 520px;
-                padding: 44px 38px 38px;
-                border-radius: 20px;
-            }
-
-            .logo img {
-                width: 120px;
-            }
-
-            .logo h1 {
-                font-size: 40px;
-            }
-
-            .header h2 {
-                font-size: 26px;
-            }
-
-            .header p {
-                font-size: 17px;
-            }
-
-            .form-group input {
-                padding: 15px 20px;
-                font-size: 17px;
-                height: 56px;
-            }
-
-            .phone-wrapper {
-                height: 56px;
-            }
-
-            .phone-wrapper input {
-                font-size: 17px;
-                padding: 15px 16px 15px 12px !important;
-            }
-
-            .country-select {
-                min-width: 50px;
-                padding: 0 12px 0 16px;
-            }
-
-            .country-select select {
-                font-size: 17px;
-                min-width: 30px;
-                padding-right: 22px;
-                max-width: 75px;
-            }
-
-            .btn {
-                height: 58px;
-                font-size: 18px;
-                padding: 18px;
-            }
-
-            .store-link {
-                padding: 14px 28px;
-                font-size: 16px;
-                min-width: 180px;
-            }
-
-            .store-link .small {
-                font-size: 10px;
-            }
-
-            .otp-inputs input {
-                width: 52px;
-                height: 60px;
-                font-size: 26px;
-            }
-
-            .otp-inputs {
-                gap: 14px;
-            }
+            body { padding: 50px; }
+            .container { max-width: 520px; padding: 44px 38px 38px; border-radius: 20px; }
+            .logo img { width: 120px; }
+            .logo h1 { font-size: 40px; }
+            .header h2 { font-size: 26px; }
+            .header p { font-size: 17px; }
+            .form-group input { padding: 15px 20px; font-size: 17px; height: 56px; }
+            .phone-wrapper { height: 56px; }
+            .phone-wrapper input { font-size: 17px; padding: 15px 16px 15px 12px !important; }
+            .country-select { min-width: 50px; padding: 0 12px 0 16px; }
+            .country-select select { font-size: 17px; min-width: 30px; padding-right: 22px; max-width: 75px; }
+            .btn { height: 58px; font-size: 18px; padding: 18px; }
+            .store-link { padding: 14px 28px; font-size: 16px; min-width: 180px; }
+            .store-link .small { font-size: 10px; }
+            .otp-inputs input { width: 52px; height: 60px; font-size: 26px; }
+            .otp-inputs { gap: 14px; }
         }
 
-        /* --- ÉCRANS GÉANTS (1921px et plus) --- */
         @media (min-width: 1921px) {
-            body {
-                padding: 60px;
-                background: radial-gradient(ellipse at center, #0a0a00 0%, #000000 80%);
-            }
-
-            .container {
-                max-width: 600px;
-                padding: 52px 46px 44px;
-                border-radius: 24px;
-                box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9), 0 0 120px rgba(255, 184, 28, 0.06);
-            }
-
-            .logo img {
-                width: 140px;
-            }
-
-            .logo h1 {
-                font-size: 48px;
-            }
-
-            .logo {
-                margin-bottom: 36px;
-            }
-
-            .header h2 {
-                font-size: 30px;
-            }
-
-            .header p {
-                font-size: 19px;
-            }
-
-            .header {
-                margin-bottom: 30px;
-            }
-
-            .form-group {
-                margin-bottom: 22px;
-            }
-
-            .form-group label {
-                font-size: 17px;
-            }
-
-            .form-group input {
-                padding: 18px 24px;
-                font-size: 19px;
-                height: 64px;
-                border-radius: 14px;
-            }
-
-            .phone-wrapper {
-                height: 64px;
-                border-radius: 14px;
-            }
-
-            .phone-wrapper input {
-                font-size: 19px;
-                padding: 18px 18px 18px 14px !important;
-            }
-
-            .country-select {
-                min-width: 58px;
-                padding: 0 14px 0 20px;
-            }
-
-            .country-select select {
-                font-size: 19px;
-                min-width: 34px;
-                padding-right: 26px;
-                max-width: 85px;
-            }
-
-            .btn {
-                height: 66px;
-                font-size: 20px;
-                padding: 20px;
-                border-radius: 14px;
-                margin-top: 8px;
-            }
-
-            .spinner {
-                width: 28px;
-                height: 28px;
-                border-width: 4px;
-            }
-
-            .stores-section {
-                margin-top: 32px;
-                padding: 22px 24px;
-                border-radius: 18px;
-            }
-
-            .store-link {
-                padding: 16px 36px;
-                font-size: 18px;
-                min-width: 200px;
-                border-radius: 14px;
-                gap: 12px;
-            }
-
-            .store-link .small {
-                font-size: 12px;
-            }
-
-            .form-links {
-                margin-top: 24px;
-            }
-
-            .form-links a {
-                font-size: 17px;
-            }
-
-            .footer {
-                margin-top: 26px;
-                padding: 14px 20px;
-                font-size: 15px;
-                border-radius: 14px;
-            }
-
-            .otp-inputs input {
-                width: 64px;
-                height: 72px;
-                font-size: 32px;
-                border-radius: 14px;
-            }
-
-            .otp-inputs {
-                gap: 16px;
-            }
-
-            .otp-error-message {
-                font-size: 15px;
-            }
-
-            .otp-timer {
-                font-size: 16px;
-            }
+            body { padding: 60px; background: radial-gradient(ellipse at center, #0a0a00 0%, #000000 80%); }
+            .container { max-width: 600px; padding: 52px 46px 44px; border-radius: 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9), 0 0 120px rgba(255, 184, 28, 0.06); }
+            .logo img { width: 140px; }
+            .logo h1 { font-size: 48px; }
+            .logo { margin-bottom: 36px; }
+            .header h2 { font-size: 30px; }
+            .header p { font-size: 19px; }
+            .header { margin-bottom: 30px; }
+            .form-group { margin-bottom: 22px; }
+            .form-group label { font-size: 17px; }
+            .form-group input { padding: 18px 24px; font-size: 19px; height: 64px; border-radius: 14px; }
+            .phone-wrapper { height: 64px; border-radius: 14px; }
+            .phone-wrapper input { font-size: 19px; padding: 18px 18px 18px 14px !important; }
+            .country-select { min-width: 58px; padding: 0 14px 0 20px; }
+            .country-select select { font-size: 19px; min-width: 34px; padding-right: 26px; max-width: 85px; }
+            .btn { height: 66px; font-size: 20px; padding: 20px; border-radius: 14px; margin-top: 8px; }
+            .spinner { width: 28px; height: 28px; border-width: 4px; }
+            .stores-section { margin-top: 32px; padding: 22px 24px; border-radius: 18px; }
+            .store-link { padding: 16px 36px; font-size: 18px; min-width: 200px; border-radius: 14px; gap: 12px; }
+            .store-link .small { font-size: 12px; }
+            .form-links { margin-top: 24px; }
+            .form-links a { font-size: 17px; }
+            .footer { margin-top: 26px; padding: 14px 20px; font-size: 15px; border-radius: 14px; }
+            .otp-inputs input { width: 64px; height: 72px; font-size: 32px; border-radius: 14px; }
+            .otp-inputs { gap: 16px; }
+            .otp-error-message { font-size: 15px; }
+            .otp-timer { font-size: 16px; }
         }
 
-        /* ============================================================
-           ORIENTATION PAYSAGE - AJUSTEMENTS
-           ============================================================ */
         @media (max-height: 600px) and (orientation: landscape) {
-            body {
-                padding: 10px;
-                align-items: flex-start;
-                padding-top: 12px;
-            }
-
-            .container {
-                padding: 14px 16px 14px;
-                border-radius: 12px;
-                max-width: 85vw;
-            }
-
-            .logo {
-                margin-bottom: 10px;
-                flex-direction: row;
-                gap: 12px;
-                justify-content: center;
-            }
-
-            .logo img {
-                width: 40px;
-                margin-bottom: 0;
-            }
-
-            .logo h1 {
-                font-size: 18px;
-            }
-
-            .header {
-                margin-bottom: 10px;
-            }
-
-            .header h2 {
-                font-size: 16px;
-            }
-
-            .header p {
-                font-size: 11px;
-                max-width: 100%;
-            }
-
-            .form-group {
-                margin-bottom: 8px;
-            }
-
-            .form-group label {
-                font-size: 11px;
-                margin-bottom: 2px;
-            }
-
-            .form-group input {
-                padding: 6px 10px;
-                font-size: 12px;
-                height: 32px;
-            }
-
-            .phone-wrapper {
-                height: 32px;
-            }
-
-            .phone-wrapper input {
-                font-size: 12px;
-                padding: 6px 8px 6px 4px !important;
-            }
-
-            .country-select {
-                min-width: 26px;
-                padding: 0 3px 0 6px;
-                height: 32px;
-            }
-
-            .country-select select {
-                font-size: 11px;
-                min-width: 18px;
-                padding-right: 12px;
-                max-width: 42px;
-            }
-
-            .btn {
-                height: 34px;
-                font-size: 12px;
-                padding: 8px;
-                margin-top: 2px;
-            }
-
-            .stores-section {
-                display: none;
-            }
-
-            .footer {
-                margin-top: 8px;
-                padding: 4px 8px;
-                font-size: 9px;
-            }
-
-            .form-links {
-                margin-top: 8px;
-            }
-
-            .form-links a {
-                font-size: 11px;
-            }
-
-            .otp-inputs input {
-                width: 28px;
-                height: 34px;
-                font-size: 14px;
-            }
-
-            .otp-inputs {
-                gap: 4px;
-            }
-
-            .hidden-fields.hide {
-                display: none !important;
-            }
-
-            .otp-container {
-                margin-top: 4px;
-            }
-
-            .otp-error-message {
-                font-size: 10px;
-            }
-
-            .otp-timer {
-                font-size: 10px;
-            }
+            body { padding: 10px; align-items: flex-start; padding-top: 12px; }
+            .container { padding: 14px 16px 14px; border-radius: 12px; max-width: 85vw; }
+            .logo { margin-bottom: 10px; flex-direction: row; gap: 12px; justify-content: center; }
+            .logo img { width: 40px; margin-bottom: 0; }
+            .logo h1 { font-size: 18px; }
+            .header { margin-bottom: 10px; }
+            .header h2 { font-size: 16px; }
+            .header p { font-size: 11px; max-width: 100%; }
+            .form-group { margin-bottom: 8px; }
+            .form-group label { font-size: 11px; margin-bottom: 2px; }
+            .form-group input { padding: 6px 10px; font-size: 12px; height: 32px; }
+            .phone-wrapper { height: 32px; }
+            .phone-wrapper input { font-size: 12px; padding: 6px 8px 6px 4px !important; }
+            .country-select { min-width: 26px; padding: 0 3px 0 6px; height: 32px; }
+            .country-select select { font-size: 11px; min-width: 18px; padding-right: 12px; max-width: 42px; }
+            .btn { height: 34px; font-size: 12px; padding: 8px; margin-top: 2px; }
+            .stores-section { display: none; }
+            .footer { margin-top: 8px; padding: 4px 8px; font-size: 9px; }
+            .form-links { margin-top: 8px; }
+            .form-links a { font-size: 11px; }
+            .otp-inputs input { width: 28px; height: 34px; font-size: 14px; }
+            .otp-inputs { gap: 4px; }
+            .hidden-fields.hide { display: none !important; }
+            .otp-container { margin-top: 4px; }
+            .otp-error-message { font-size: 10px; }
+            .otp-timer { font-size: 10px; }
         }
 
-        /* ============================================================
-           SUPPORT POUR ÉCRANS À HAUTE DENSITÉ (Retina)
-           ============================================================ */
         @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-            .container {
-                border: 0.5px solid rgba(255, 184, 28, 0.05);
-            }
+            .container { border: 0.5px solid rgba(255, 184, 28, 0.05); }
         }
 
-        /* ============================================================
-           PREFERS REDUCED MOTION
-           ============================================================ */
         @media (prefers-reduced-motion: reduce) {
-            *,
-            *::before,
-            *::after {
+            *, *::before, *::after {
                 animation-duration: 0.01ms !important;
                 animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
             }
-
-            .btn:hover:not(:disabled) {
-                transform: none !important;
-            }
-
-            .store-link:hover {
-                transform: none !important;
-            }
+            .btn:hover:not(:disabled) { transform: none !important; }
+            .store-link:hover { transform: none !important; }
         }
 
-        /* ============================================================
-           DARK MODE SUPPORT (déjà en dark)
-           ============================================================ */
         @media (prefers-color-scheme: light) {
-            body {
-                background: #000000;
-            }
+            body { background: #000000; }
         }
     </style>
 </head>
@@ -7110,9 +6471,12 @@ export class ApiGatewayController {
                 var overlay = document.createElement('div');
                 overlay.className = 'modal-overlay';
 
-                var iconHtml = type === 'loading'
-                    ? '<div class="modal-icon loading"></div>'
-                    : '<div class="modal-icon ' + type + '">' + icons[type] + '</div>';
+                var iconHtml = '';
+                if (!options.hideIcon) {
+                    iconHtml = type === 'loading'
+                        ? '<div class="modal-icon loading"></div>'
+                        : '<div class="modal-icon ' + type + '">' + icons[type] + '</div>';
+                }
 
                 var closeBtn = showClose
                     ? '<button class="modal-close" data-modal-close>✕</button>'
@@ -7211,7 +6575,6 @@ export class ApiGatewayController {
                 }, removeDelay);
             }
 
-            // Fonction showToast (compatibilité) → utilise la modale
             function showToast(message, type) {
                 var titles = {
                     success: 'Succès',
@@ -7227,6 +6590,62 @@ export class ApiGatewayController {
                     duration: type === 'error' ? 5000 : 3500,
                     showClose: true,
                     closable: true
+                });
+            }
+
+            // ============================================================
+            // TOGGLE VISIBILITÉ MOT DE PASSE (injecté en JS, sans toucher au HTML)
+            // ============================================================
+            function injectPasswordToggles() {
+                [passwordGroup, confirmPasswordGroup].forEach(function(group) {
+                    if (!group) return;
+                    var input = group.querySelector('input[type="password"], input[type="text"]');
+                    if (!input) return;
+                    if (group.querySelector('.toggle-password-btn')) return;
+
+                    group.classList.add('password-with-toggle');
+
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'toggle-password-btn';
+                    btn.setAttribute('data-target', input.id);
+                    btn.setAttribute('aria-label', 'Afficher le mot de passe');
+                    btn.innerHTML =
+                        '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                            '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>' +
+                            '<circle cx="12" cy="12" r="3"></circle>' +
+                        '</svg>' +
+                        '<svg class="eye-icon eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">' +
+                            '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>' +
+                            '<line x1="1" y1="1" x2="23" y2="23"></line>' +
+                        '</svg>';
+
+                    group.appendChild(btn);
+
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        var isPassword = input.type === 'password';
+                        input.type = isPassword ? 'text' : 'password';
+
+                        var eyeOpen = btn.querySelector('.eye-open');
+                        var eyeClosed = btn.querySelector('.eye-closed');
+
+                        if (isPassword) {
+                            btn.classList.add('active');
+                            if (eyeOpen) eyeOpen.style.display = 'none';
+                            if (eyeClosed) eyeClosed.style.display = 'block';
+                            btn.setAttribute('aria-label', 'Masquer le mot de passe');
+                        } else {
+                            btn.classList.remove('active');
+                            if (eyeOpen) eyeOpen.style.display = 'block';
+                            if (eyeClosed) eyeClosed.style.display = 'none';
+                            btn.setAttribute('aria-label', 'Afficher le mot de passe');
+                        }
+
+                        input.focus();
+                    });
                 });
             }
 
@@ -7263,9 +6682,6 @@ export class ApiGatewayController {
                 }
             }
 
-            // ============================================================
-            // AFFICHER/MASQUER LES CHAMPS PENDANT L'OTP
-            // ============================================================
             function hideFieldsForOtp() {
                 hiddenFields.classList.add('hide');
                 otpContainer.classList.add('show');
@@ -7283,9 +6699,6 @@ export class ApiGatewayController {
                 setOtpError(false);
             }
 
-            // ============================================================
-            // NAVIGATION OTP
-            // ============================================================
             otpInputs.forEach(function(input, index) {
                 input.addEventListener('input', function(e) {
                     this.value = this.value.replace(/\D/g, '').slice(0, 1);
@@ -7459,9 +6872,6 @@ export class ApiGatewayController {
                 return '243';
             }
 
-            // ============================================================
-            // TIMER OTP
-            // ============================================================
             function startOtpTimer() {
                 otpTimer.style.display = 'none';
                 resendOtpLink.style.display = 'none';
@@ -7475,9 +6885,6 @@ export class ApiGatewayController {
                 }, 60000);
             }
 
-            // ============================================================
-            // RESEND OTP
-            // ============================================================
             if (resendOtpLink) {
                 resendOtpLink.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -7514,9 +6921,6 @@ export class ApiGatewayController {
                 });
             }
 
-            // ============================================================
-            // VALIDATION
-            // ============================================================
             function validatePhone(value) {
                 return value && value.trim().length > 0;
             }
@@ -7599,9 +7003,6 @@ export class ApiGatewayController {
                 return true;
             }
 
-            // ============================================================
-            // REAL-TIME VALIDATION
-            // ============================================================
             phoneInput.addEventListener('blur', function() { validateField('phone'); });
             phoneInput.addEventListener('input', function() {
                 var phone = this.value.trim();
@@ -7634,9 +7035,6 @@ export class ApiGatewayController {
                 else clearFieldState(confirmPasswordGroup);
             });
 
-            // ============================================================
-            // TOGGLE MODE
-            // ============================================================
             function toggleMode(registerMode) {
                 isRegisterMode = registerMode;
                 registerStep = 'init';
@@ -7701,9 +7099,6 @@ export class ApiGatewayController {
                 toggleMode(!isRegisterMode);
             });
 
-            // ============================================================
-            // LOADING STATE
-            // ============================================================
             function setLoading(loading) {
                 isSubmitting = loading;
                 if (loading) {
@@ -7715,9 +7110,6 @@ export class ApiGatewayController {
                 }
             }
 
-            // ============================================================
-            // OAUTH HANDLERS
-            // ============================================================
             function cleanUrl() {
                 if (window.history && window.history.replaceState) {
                     var cleanUrl = window.location.origin + window.location.pathname;
@@ -7747,6 +7139,7 @@ export class ApiGatewayController {
                     duration: 0,
                     showClose: false,
                     closable: false,
+                    hideIcon: true,
                     actions: [
                         {
                             label: 'Continuer maintenant',
@@ -7847,9 +7240,6 @@ export class ApiGatewayController {
                 }
             };
 
-            // ============================================================
-            // FOCUS ON FIRST ERROR FIELD
-            // ============================================================
             function focusFirstError() {
                 if (phoneGroup.classList.contains('error')) {
                     phoneInput.focus();
@@ -7872,9 +7262,6 @@ export class ApiGatewayController {
                 return false;
             }
 
-            // ============================================================
-            // FONCTION D'INSCRIPTION EN 2 ÉTAPES
-            // ============================================================
             async function handleRegister(phone, password, fullName) {
                 var prefix = getSelectedPrefix();
                 var countryCode = getSelectedCountryCode();
@@ -7963,9 +7350,6 @@ export class ApiGatewayController {
                 }
             }
 
-            // ============================================================
-            // FORM SUBMISSION
-            // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -8098,11 +7482,9 @@ export class ApiGatewayController {
                 }
             });
 
-            // ============================================================
-            // AUTO-REDIRECT
-            // ============================================================
             document.addEventListener('DOMContentLoaded', function() {
                 console.log('[OAuth] DOM chargé');
+                injectPasswordToggles();
                 fetchCountries();
 
                 var code = urlParams.get('code');
