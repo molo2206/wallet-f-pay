@@ -5360,9 +5360,7 @@ export class ApiGatewayController {
             height: clamp(42px, 5.5vw, 56px);
         }
 
-        .form-group input::placeholder {
-            color: rgba(255, 255, 255, 0.3);
-        }
+        .form-group input::placeholder { color: rgba(255, 255, 255, 0.3); }
 
         .form-group input:focus {
             outline: none;
@@ -5371,10 +5369,7 @@ export class ApiGatewayController {
             box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
         }
 
-        .form-group input:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
+        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
         .form-group.error input,
         .form-group.error .phone-wrapper {
@@ -5406,9 +5401,7 @@ export class ApiGatewayController {
             font-weight: 500;
         }
 
-        .form-group.error .error-message {
-            display: block;
-        }
+        .form-group.error .error-message { display: block; }
 
         .phone-wrapper {
             display: flex;
@@ -5482,10 +5475,7 @@ export class ApiGatewayController {
             font-size: clamp(14px, 1.5vw, 17px);
         }
 
-        .phone-wrapper input::placeholder {
-            color: rgba(255, 255, 255, 0.3) !important;
-        }
-
+        .phone-wrapper input::placeholder { color: rgba(255, 255, 255, 0.3) !important; }
         .phone-wrapper input:focus { box-shadow: none !important; }
 
         .btn {
@@ -5660,7 +5650,52 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           MODALE MODERNE
+           MESSAGE INLINE (messages locaux)
+           ============================================================ */
+        .inline-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 99998;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+            max-width: 90vw;
+            text-align: center;
+            font-family: inherit;
+        }
+
+        .inline-message.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .inline-message.error {
+            background: #1a1a1a;
+            color: #ff4444;
+            border: 1px solid #ff4444;
+        }
+
+        .inline-message.success {
+            background: #FFB81C;
+            color: #000000;
+        }
+
+        .inline-message.info {
+            background: #1a1a1a;
+            color: #FFB81C;
+            border: 1px solid rgba(255, 184, 28, 0.3);
+        }
+
+        /* ============================================================
+           MODALE MODERNE (messages backend uniquement)
            ============================================================ */
         .modal-overlay {
             position: fixed;
@@ -5718,67 +5753,32 @@ export class ApiGatewayController {
             opacity: 0.7;
         }
 
-        .modal-icon {
-            width: 78px;
-            height: 78px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 22px;
-            animation: modalPopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .modal-icon svg {
-            width: 40px;
-            height: 40px;
-            stroke-width: 2.5;
-        }
-
-        @keyframes modalPopIn {
-            0% { transform: scale(0); }
-            70% { transform: scale(1.15); }
-            100% { transform: scale(1); }
-        }
-
-        .modal-icon.success {
-            background: rgba(255, 184, 28, 0.12);
-            color: #FFB81C;
-            box-shadow: 0 0 50px rgba(255, 184, 28, 0.25);
-        }
-
-        .modal-icon.error {
-            background: rgba(255, 68, 68, 0.12);
-            color: #ff4444;
-            box-shadow: 0 0 50px rgba(255, 68, 68, 0.2);
-        }
-
-        .modal-icon.info {
-            background: rgba(255, 184, 28, 0.08);
-            color: #FFB81C;
-            box-shadow: 0 0 50px rgba(255, 184, 28, 0.15);
-        }
-
-        .modal-icon.warning {
-            background: rgba(255, 184, 28, 0.1);
-            color: #FFB81C;
-            box-shadow: 0 0 50px rgba(255, 184, 28, 0.18);
-        }
-
-        .modal-icon.loading {
-            background: rgba(255, 184, 28, 0.08);
+        /* Barre de progression (loading) */
+        .modal-progress {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0 auto 24px;
             position: relative;
         }
 
-        .modal-icon.loading::after {
+        .modal-progress::after {
             content: '';
             position: absolute;
-            width: 78px;
-            height: 78px;
-            border-radius: 50%;
-            border: 3px solid rgba(255, 184, 28, 0.15);
-            border-top-color: #FFB81C;
-            animation: spin 0.8s linear infinite;
+            top: 0;
+            left: -40%;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, #FFB81C, transparent);
+            animation: progressSlide 1.2s ease-in-out infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes progressSlide {
+            0% { left: -40%; }
+            100% { left: 100%; }
         }
 
         .modal-title {
@@ -5799,6 +5799,7 @@ export class ApiGatewayController {
         }
 
         .modal-message strong { color: #FFB81C; }
+        .modal-message:last-child { margin-bottom: 0; }
 
         .modal-actions {
             display: flex;
@@ -5834,17 +5835,6 @@ export class ApiGatewayController {
 
         .modal-btn-primary:active { transform: scale(0.98); }
 
-        .modal-btn-secondary {
-            background: rgba(255, 255, 255, 0.06);
-            color: rgba(255, 255, 255, 0.75);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .modal-btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.12);
-            color: #ffffff;
-        }
-
         .modal-close {
             position: absolute;
             top: 16px;
@@ -5863,18 +5853,23 @@ export class ApiGatewayController {
             line-height: 1;
             padding: 0;
             font-family: inherit;
-        }
-
-        .modal-close svg {
-            width: 16px;
-            height: 16px;
-            stroke-width: 2.5;
+            font-size: 18px;
+            font-weight: 400;
         }
 
         .modal-close:hover {
             background: rgba(255, 255, 255, 0.12);
             color: #ffffff;
             transform: rotate(90deg);
+        }
+
+        /* Modal de progression : pas de clic, pas de fermeture */
+        .modal-overlay.progress-modal {
+            cursor: wait;
+        }
+
+        .modal-overlay.progress-modal .modal-box {
+            pointer-events: none;
         }
 
         /* ============================================================
@@ -6036,9 +6031,6 @@ export class ApiGatewayController {
             .form-links a { font-size: 12px; }
             .stores-section { padding: 10px 8px; }
             .modal-box { padding: 30px 22px 22px; border-radius: 16px; }
-            .modal-icon { width: 64px; height: 64px; }
-            .modal-icon svg { width: 32px; height: 32px; }
-            .modal-icon.loading::after { width: 64px; height: 64px; }
             .modal-title { font-size: 19px; }
             .modal-message { font-size: 14px; }
             .modal-btn { padding: 11px 22px; font-size: 14px; min-width: 110px; }
@@ -6375,18 +6367,34 @@ export class ApiGatewayController {
             var countriesData = [];
 
             // ============================================================
-            // ICÔNES SVG (vraies icônes, style Lucide/Feather)
+            // MESSAGE INLINE (messages locaux)
             // ============================================================
-            var SVG_ICONS = {
-                success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
-                error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
-                info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
-                warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
-                close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
-            };
+            var inlineTimeout = null;
+
+            function showInlineMessage(message, type) {
+                var existing = document.querySelector('.inline-message');
+                if (existing) existing.remove();
+                clearTimeout(inlineTimeout);
+
+                var el = document.createElement('div');
+                el.className = 'inline-message ' + (type || 'info');
+                el.textContent = message;
+                document.body.appendChild(el);
+
+                requestAnimationFrame(function() {
+                    el.classList.add('show');
+                });
+
+                inlineTimeout = setTimeout(function() {
+                    el.classList.remove('show');
+                    setTimeout(function() {
+                        if (el.parentNode) el.remove();
+                    }, 300);
+                }, 3000);
+            }
 
             // ============================================================
-            // SYSTÈME DE MODALE MODERNE
+            // MODALE MODERNE (sans icônes)
             // ============================================================
             var modalTimeout = null;
             var currentModal = null;
@@ -6407,23 +6415,19 @@ export class ApiGatewayController {
                     error: 'Erreur',
                     info: 'Information',
                     warning: 'Attention',
-                    loading: 'Chargement...'
+                    loading: 'Veuillez patienter'
                 };
 
                 var overlay = document.createElement('div');
                 overlay.className = 'modal-overlay';
 
-                var iconHtml = '';
-                if (!options.hideIcon) {
-                    if (type === 'loading') {
-                        iconHtml = '<div class="modal-icon loading"></div>';
-                    } else {
-                        iconHtml = '<div class="modal-icon ' + type + '">' + (SVG_ICONS[type] || SVG_ICONS.info) + '</div>';
-                    }
-                }
-
                 var closeBtn = showClose
-                    ? '<button class="modal-close" data-modal-close aria-label="Fermer">' + SVG_ICONS.close + '</button>'
+                    ? '<button class="modal-close" data-modal-close aria-label="Fermer">×</button>'
+                    : '';
+
+                // Barre de progression animée pour le type "loading"
+                var progressHtml = type === 'loading'
+                    ? '<div class="modal-progress"></div>'
                     : '';
 
                 var actionsHtml = '';
@@ -6442,7 +6446,7 @@ export class ApiGatewayController {
                 overlay.innerHTML =
                     '<div class="modal-box">' +
                         closeBtn +
-                        iconHtml +
+                        progressHtml +
                         '<div class="modal-title">' + (title || defaultTitles[type]) + '</div>' +
                         '<div class="modal-message">' + message + '</div>' +
                         actionsHtml +
@@ -6501,7 +6505,7 @@ export class ApiGatewayController {
 
             function closeModal(instant, callback) {
                 clearTimeout(modalTimeout);
-                var overlay = currentModal || document.querySelector('.modal-overlay');
+                var overlay = currentModal || document.querySelector('.modal-overlay:not(.progress-modal)');
                 if (!overlay) {
                     if (typeof callback === 'function') callback();
                     return;
@@ -6519,26 +6523,73 @@ export class ApiGatewayController {
                 }, removeDelay);
             }
 
-            function showToast(message, type) {
-                var titles = {
-                    success: 'Succès',
-                    error: 'Erreur',
-                    info: 'Information',
-                    warning: 'Attention'
-                };
+            // ============================================================
+            // MODAL DE PROGRESSION (opération en cours)
+            // ============================================================
+            var progressModal = null;
 
-                showModal({
-                    type: type || 'info',
-                    title: titles[type] || 'Information',
-                    message: message,
-                    duration: type === 'error' ? 5000 : 3500,
-                    showClose: true,
-                    closable: true
+            function showProgressModal(message) {
+                closeProgressModal();
+
+                var overlay = document.createElement('div');
+                overlay.className = 'modal-overlay progress-modal';
+                overlay.innerHTML =
+                    '<div class="modal-box">' +
+                        '<div class="modal-progress"></div>' +
+                        '<div class="modal-title">Veuillez patienter</div>' +
+                        '<div class="modal-message">' + (message || 'Opération en cours...') + '</div>' +
+                    '</div>';
+
+                document.body.appendChild(overlay);
+                progressModal = overlay;
+
+                requestAnimationFrame(function() {
+                    overlay.classList.add('active');
                 });
             }
 
+            function closeProgressModal() {
+                var overlay = progressModal || document.querySelector('.modal-overlay.progress-modal');
+                if (!overlay) return;
+
+                overlay.classList.add('closing');
+                overlay.classList.remove('active');
+
+                setTimeout(function() {
+                    if (overlay.parentNode) overlay.remove();
+                    if (progressModal === overlay) progressModal = null;
+                }, 300);
+            }
+
             // ============================================================
-            // TOGGLE VISIBILITÉ MOT DE PASSE (injecté en JS)
+            // showToast : MODAL si backend, INLINE sinon
+            // ============================================================
+            function showToast(message, type, options) {
+                options = options || {};
+
+                if (options.fromBackend) {
+                    var titles = {
+                        success: 'Succès',
+                        error: 'Erreur',
+                        info: 'Information',
+                        warning: 'Attention'
+                    };
+
+                    showModal({
+                        type: type || 'info',
+                        title: options.title || titles[type] || 'Information',
+                        message: message,
+                        duration: type === 'error' ? 6000 : 4000,
+                        showClose: true,
+                        closable: true
+                    });
+                } else {
+                    showInlineMessage(message, type);
+                }
+            }
+
+            // ============================================================
+            // TOGGLE VISIBILITÉ MOT DE PASSE
             // ============================================================
             var EYE_OPEN_SVG = '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
                 '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>' +
@@ -6723,7 +6774,6 @@ export class ApiGatewayController {
                     }
 
                     var result = await response.json();
-                    console.log('[Countries] Données reçues:', result);
 
                     if (result.data && result.data.length > 0) {
                         countriesData = result.data;
@@ -6828,12 +6878,16 @@ export class ApiGatewayController {
                 }, 60000);
             }
 
+            // ============================================================
+            // RESEND OTP
+            // ============================================================
             if (resendOtpLink) {
                 resendOtpLink.addEventListener('click', function(e) {
                     e.preventDefault();
                     
                     if (isSubmitting) {
-                        showToast('Une opération est déjà en cours', 'info');
+                        showProgressModal('Une opération est déjà en cours...');
+                        setTimeout(closeProgressModal, 1500);
                         return;
                     }
                     
@@ -6844,13 +6898,14 @@ export class ApiGatewayController {
                         return;
                     }
                     
-                    showToast('Envoi nouveau OTP...', 'info');
+                    showProgressModal('Envoi du nouveau code OTP...');
                     
                     handleRegister(
                         phoneInput.value.trim(),
                         passwordInput.value.trim(),
                         fullNameInput.value.trim()
                     ).then(function(result) {
+                        closeProgressModal();
                         if (result.step === 'verify') {
                             showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
@@ -6858,16 +6913,12 @@ export class ApiGatewayController {
                             setOtpError(false);
                         }
                     }).catch(function(error) {
+                        closeProgressModal();
                         console.error('[Resend OTP] Erreur:', error);
-                        showToast(error.message || 'Erreur lors du renvoi du code', 'error');
+                        showToast(error.message || 'Erreur lors du renvoi du code', 'error', { fromBackend: true });
                     });
                 });
             }
-
-            function validatePhone(value) { return value && value.trim().length > 0; }
-            function validatePassword(value) { return value && value.trim().length >= 8; }
-            function validateFullName(value) { return value && value.trim().length > 0; }
-            function validateConfirmPassword(password, confirm) { return password === confirm; }
 
             function validateOtp() {
                 var code = getOtpCode();
@@ -7059,8 +7110,6 @@ export class ApiGatewayController {
                 };
 
                 cleanUrl();
-                console.log('[OAuth] Tokens stockes:', userTokens);
-                console.log('[OAuth] User data:', userData);
 
                 showModal({
                     type: 'success',
@@ -7071,7 +7120,6 @@ export class ApiGatewayController {
                     duration: 0,
                     showClose: false,
                     closable: false,
-                    hideIcon: true,
                     actions: [
                         {
                             label: 'Continuer maintenant',
@@ -7097,9 +7145,6 @@ export class ApiGatewayController {
             }
 
             window.handleRedirect = function() {
-                console.log('[OAuth] Redirection vers:', REDIRECT_URI);
-                console.log('[OAuth] Tokens:', userTokens);
-
                 if (REDIRECT_URI.startsWith('fpay://')) {
                     var params = new URLSearchParams();
                     
@@ -7128,7 +7173,6 @@ export class ApiGatewayController {
                     }
 
                     var finalUrl = REDIRECT_URI + '?' + params.toString();
-                    console.log('[OAuth] Redirection mobile:', finalUrl);
                     window.location.href = finalUrl;
                     return;
                 }
@@ -7160,7 +7204,6 @@ export class ApiGatewayController {
                         }
                     }
 
-                    console.log('[OAuth] Redirection web:', redirectUrl.toString());
                     window.location.href = redirectUrl.toString();
                 } catch (error) {
                     console.error('[OAuth] Erreur redirection:', error);
@@ -7198,8 +7241,6 @@ export class ApiGatewayController {
                         deviceInfo: 'OAuth Web'
                     };
 
-                    console.log('[Register] Étape 1 - Envoi sans OTP:', JSON.stringify(registerData, null, 2));
-
                     var response = await fetch(API_BASE_URL + '/auth/register', {
                         method: 'POST',
                         headers: { 
@@ -7210,8 +7251,6 @@ export class ApiGatewayController {
                     });
 
                     var result = await response.json();
-
-                    console.log('[Register] Étape 1 - Réponse:', result);
 
                     if (!response.ok) {
                         throw new Error(result.message || 'Erreur lors de envoi');
@@ -7240,8 +7279,6 @@ export class ApiGatewayController {
                         otpCode: otpCode
                     };
 
-                    console.log('[Register] Étape 2 - Envoi avec OTP:', JSON.stringify(registerDataWithOtp, null, 2));
-
                     var response = await fetch(API_BASE_URL + '/auth/register', {
                         method: 'POST',
                         headers: { 
@@ -7252,8 +7289,6 @@ export class ApiGatewayController {
                     });
 
                     var result = await response.json();
-
-                    console.log('[Register] Étape 2 - Réponse:', result);
 
                     if (!response.ok) {
                         throw new Error(result.message || 'Code OTP invalide ou expiré');
@@ -7270,11 +7305,19 @@ export class ApiGatewayController {
                 }
             }
 
+            // ============================================================
+            // FORM SUBMISSION
+            // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
-                if (isSubmitting) return;
+                if (isSubmitting) {
+                    showProgressModal('Une opération est déjà en cours...');
+                    setTimeout(closeProgressModal, 1500);
+                    return;
+                }
 
+                // Étape OTP (register)
                 if (isRegisterMode && registerStep === 'verify') {
                     var otpValid = validateOtp();
                     if (!otpValid) {
@@ -7283,6 +7326,7 @@ export class ApiGatewayController {
                     }
                     
                     setLoading(true);
+                    showProgressModal('Vérification du code OTP...');
                     try {
                         var result = await handleRegister(
                             phoneInput.value.trim(),
@@ -7312,17 +7356,20 @@ export class ApiGatewayController {
                                 throw new Error(loginData.message || 'Erreur de connexion après inscription');
                             }
 
+                            closeProgressModal();
                             showSuccess(loginData);
                             setLoading(false);
                         }
                     } catch (error) {
+                        closeProgressModal();
                         console.error('[Register] Erreur:', error);
-                        showToast(error.message || 'Code OTP invalide', 'error');
+                        showToast(error.message || 'Code OTP invalide', 'error', { fromBackend: true });
                         setLoading(false);
                     }
                     return;
                 }
 
+                // Validation locale
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -7351,7 +7398,11 @@ export class ApiGatewayController {
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
+                        showProgressModal('Création de votre compte...');
+                        
                         var result = await handleRegister(phone, password, fullName);
+                        
+                        closeProgressModal();
                         
                         if (result.step === 'verify') {
                             hideFieldsForOtp();
@@ -7371,6 +7422,9 @@ export class ApiGatewayController {
                         }
                     }
 
+                    // Connexion
+                    showProgressModal('Connexion en cours...');
+
                     var prefix = getSelectedPrefix();
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
@@ -7388,6 +7442,8 @@ export class ApiGatewayController {
 
                     var data = await response.json();
 
+                    closeProgressModal();
+
                     if (!response.ok) {
                         throw new Error(data.message || 'Identifiants invalides');
                     }
@@ -7396,14 +7452,14 @@ export class ApiGatewayController {
                     setLoading(false);
 
                 } catch (error) {
+                    closeProgressModal();
                     console.error('[OAuth] Erreur détaillée:', error);
-                    showToast(error.message || 'Une erreur est survenue', 'error');
+                    showToast(error.message || 'Une erreur est survenue', 'error', { fromBackend: true });
                     setLoading(false);
                 }
             });
 
             document.addEventListener('DOMContentLoaded', function() {
-                console.log('[OAuth] DOM chargé');
                 injectPasswordToggles();
                 fetchCountries();
 
@@ -7427,7 +7483,6 @@ export class ApiGatewayController {
                             status: 'ACTIVE'
                         }
                     });
-                    console.log('[OAuth] Déjà connecté');
                 }
             });
 
