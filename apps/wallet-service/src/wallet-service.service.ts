@@ -2838,6 +2838,7 @@ export class WalletServiceService {
               movement: 'DEBIT',
               currency: wallet.currency,
               external_reference: externalReference,
+              paymentMethod: 'MOBILE_MONEY',
             },
           });
 
