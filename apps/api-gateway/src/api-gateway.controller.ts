@@ -6425,7 +6425,6 @@ export class ApiGatewayController {
                     ? '<button class="modal-close" data-modal-close aria-label="Fermer">×</button>'
                     : '';
 
-                // Barre de progression animée pour le type "loading"
                 var progressHtml = type === 'loading'
                     ? '<div class="modal-progress"></div>'
                     : '';
@@ -7111,27 +7110,7 @@ export class ApiGatewayController {
 
                 cleanUrl();
 
-                // showModal({
-                //     type: 'success',
-                //     title: 'Connexion réussie !',
-                //     message:
-                //         'Bienvenue <strong>' + (userData.full_name || 'Utilisateur') + '</strong><br>' +
-                //         '<span style="font-size:13px;opacity:0.5">Redirection dans <span id="countdown">3</span>s...</span>',
-                //     duration: 0,
-                //     showClose: false,
-                //     closable: false,
-                //     actions: [
-                //         {
-                //             label: 'Continuer maintenant',
-                //             style: 'primary',
-                //             onClick: function() {
-                //                 closeModal(true);
-                //                 handleRedirect();
-                //             }
-                //         }
-                //     ]
-                // });
-
+                
                 var count = 3;
                 var countdownEl = document.getElementById('countdown');
                 var interval = setInterval(function() {
@@ -7385,7 +7364,6 @@ export class ApiGatewayController {
 
                 if (!allValid) {
                     focusFirstError();
-                    showToast('Veuillez remplir tous les champs obligatoires', 'error');
                     return;
                 }
 
