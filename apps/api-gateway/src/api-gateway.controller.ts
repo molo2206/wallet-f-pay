@@ -5227,10 +5227,6 @@ export class ApiGatewayController {
         return res.set('Content-Type', 'text/html').send(html);
       }
 
-      // ============================================================
-      // 6️⃣ FALLBACK HTML (si le fichier n'existe pas)
-      // ============================================================
-
       return res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -5399,6 +5395,7 @@ export class ApiGatewayController {
             color: #ff3333;
             margin-top: 4px;
             font-weight: 500;
+            line-height: 1.4;
         }
 
         .form-group.error .error-message { display: block; }
@@ -5649,9 +5646,7 @@ export class ApiGatewayController {
             text-decoration: underline;
         }
 
-        /* ============================================================
-           MESSAGE INLINE (messages locaux)
-           ============================================================ */
+        /* MESSAGE INLINE */
         .inline-message {
             position: fixed;
             top: 20px;
@@ -5694,9 +5689,7 @@ export class ApiGatewayController {
             border: 1px solid rgba(255, 184, 28, 0.3);
         }
 
-        /* ============================================================
-           MODALE MODERNE (messages backend uniquement)
-           ============================================================ */
+        /* MODALE */
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -5753,7 +5746,6 @@ export class ApiGatewayController {
             opacity: 0.7;
         }
 
-        /* Barre de progression (loading) */
         .modal-progress {
             width: 100%;
             height: 4px;
@@ -5863,18 +5855,10 @@ export class ApiGatewayController {
             transform: rotate(90deg);
         }
 
-        /* Modal de progression : pas de clic, pas de fermeture */
-        .modal-overlay.progress-modal {
-            cursor: wait;
-        }
+        .modal-overlay.progress-modal { cursor: wait; }
+        .modal-overlay.progress-modal .modal-box { pointer-events: none; }
 
-        .modal-overlay.progress-modal .modal-box {
-            pointer-events: none;
-        }
-
-        /* ============================================================
-           TOGGLE VISIBILITÉ MOT DE PASSE
-           ============================================================ */
+        /* TOGGLE MOT DE PASSE */
         .form-group.password-with-toggle { position: relative; }
 
         .form-group.password-with-toggle input {
@@ -5916,9 +5900,7 @@ export class ApiGatewayController {
             display: block;
         }
 
-        /* ============================================================
-           OTP
-           ============================================================ */
+        /* OTP */
         .otp-container {
             display: none;
             margin-top: 8px;
@@ -6007,9 +5989,6 @@ export class ApiGatewayController {
         ::-webkit-scrollbar-thumb { background: rgba(255, 184, 28, 0.3); border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255, 184, 28, 0.5); }
 
-        /* ============================================================
-           RESPONSIVE
-           ============================================================ */
         @media (max-width: 360px) {
             body { padding: 8px; align-items: flex-start; padding-top: 16px; }
             .container { padding: 16px 12px 16px; border-radius: 12px; max-width: 100%; }
@@ -6245,8 +6224,8 @@ export class ApiGatewayController {
 
                     <div class="form-group" id="passwordGroup">
                         <label>Mot de passe *</label>
-                        <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
-                        <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
+                        <input type="password" id="password" placeholder="8+ car., maj., min., chiffre, spécial" autocomplete="new-password">
+                        <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
                     </div>
 
                     <div class="form-group" id="confirmPasswordGroup" style="display:none;">
@@ -6366,9 +6345,27 @@ export class ApiGatewayController {
             var otpTimerInterval = null;
             var countriesData = [];
 
-            // ============================================================
-            // MESSAGE INLINE (messages locaux)
-            // ============================================================
+            // VALIDATION MOT DE PASSE FORT (sans backtick pour éviter l'erreur)
+            var PASSWORD_SPECIAL_REGEX = /[!@#$%^&*()_+\\-=\\[\\]{};':"\\\\|,.<>\\/?~]/;
+
+            function isPasswordStrong(password) {
+                return password.length >= 8 &&
+                       /[A-Z]/.test(password) &&
+                       /[a-z]/.test(password) &&
+                       /[0-9]/.test(password) &&
+                       PASSWORD_SPECIAL_REGEX.test(password);
+            }
+
+            function getPasswordErrorMessage(password) {
+                if (!password) return 'Le mot de passe est requis';
+                if (password.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères';
+                if (!/[A-Z]/.test(password)) return 'Le mot de passe doit contenir au moins une majuscule';
+                if (!/[a-z]/.test(password)) return 'Le mot de passe doit contenir au moins une minuscule';
+                if (!/[0-9]/.test(password)) return 'Le mot de passe doit contenir au moins un chiffre';
+                if (!PASSWORD_SPECIAL_REGEX.test(password)) return 'Le mot de passe doit contenir au moins un caractère spécial';
+                return '';
+            }
+
             var inlineTimeout = null;
 
             function showInlineMessage(message, type) {
@@ -6393,9 +6390,6 @@ export class ApiGatewayController {
                 }, 3000);
             }
 
-            // ============================================================
-            // MODALE MODERNE (sans icônes)
-            // ============================================================
             var modalTimeout = null;
             var currentModal = null;
 
@@ -6522,9 +6516,6 @@ export class ApiGatewayController {
                 }, removeDelay);
             }
 
-            // ============================================================
-            // MODAL DE PROGRESSION (opération en cours)
-            // ============================================================
             var progressModal = null;
 
             function showProgressModal(message) {
@@ -6560,9 +6551,6 @@ export class ApiGatewayController {
                 }, 300);
             }
 
-            // ============================================================
-            // showToast : MODAL si backend, INLINE sinon
-            // ============================================================
             function showToast(message, type, options) {
                 options = options || {};
 
@@ -6587,18 +6575,9 @@ export class ApiGatewayController {
                 }
             }
 
-            // ============================================================
-            // TOGGLE VISIBILITÉ MOT DE PASSE
-            // ============================================================
-            var EYE_OPEN_SVG = '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-                '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>' +
-                '<circle cx="12" cy="12" r="3"></circle>' +
-            '</svg>';
+            var EYE_OPEN_SVG = '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
 
-            var EYE_CLOSED_SVG = '<svg class="eye-icon eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">' +
-                '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>' +
-                '<line x1="1" y1="1" x2="23" y2="23"></line>' +
-            '</svg>';
+            var EYE_CLOSED_SVG = '<svg class="eye-icon eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
             function injectPasswordToggles() {
                 [passwordGroup, confirmPasswordGroup].forEach(function(group) {
@@ -6645,9 +6624,6 @@ export class ApiGatewayController {
                 });
             }
 
-            // ============================================================
-            // GESTION DES INPUTS OTP
-            // ============================================================
             function getOtpCode() {
                 var code = '';
                 otpInputs.forEach(function(input) {
@@ -6697,7 +6673,7 @@ export class ApiGatewayController {
 
             otpInputs.forEach(function(input, index) {
                 input.addEventListener('input', function(e) {
-                    this.value = this.value.replace(/\D/g, '').slice(0, 1);
+                    this.value = this.value.replace(/\\D/g, '').slice(0, 1);
                     
                     if (this.value) {
                         this.classList.remove('error');
@@ -6743,7 +6719,7 @@ export class ApiGatewayController {
                 input.addEventListener('paste', function(e) {
                     e.preventDefault();
                     var pasteData = (e.clipboardData || window.clipboardData).getData('text');
-                    pasteData = pasteData.replace(/\D/g, '').slice(0, 6);
+                    pasteData = pasteData.replace(/\\D/g, '').slice(0, 6);
                     
                     for (var i = 0; i < pasteData.length && i < otpInputs.length; i++) {
                         otpInputs[i].value = pasteData[i] || '';
@@ -6877,9 +6853,6 @@ export class ApiGatewayController {
                 }, 60000);
             }
 
-            // ============================================================
-            // RESEND OTP
-            // ============================================================
             if (resendOtpLink) {
                 resendOtpLink.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -6956,8 +6929,8 @@ export class ApiGatewayController {
                 }
                 if (field === 'password') {
                     var password = passwordInput.value.trim();
-                    if (!password || password.length < 8) {
-                        setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis (8 caractères minimum)');
+                    if (!isPasswordStrong(password)) {
+                        setFieldError(passwordGroup, passwordError, getPasswordErrorMessage(password));
                         return false;
                     }
                     setFieldSuccess(passwordGroup);
@@ -6995,7 +6968,7 @@ export class ApiGatewayController {
             passwordInput.addEventListener('blur', function() { validateField('password'); });
             passwordInput.addEventListener('input', function() {
                 var password = this.value.trim();
-                if (password && password.length >= 8) setFieldSuccess(passwordGroup);
+                if (isPasswordStrong(password)) setFieldSuccess(passwordGroup);
                 else clearFieldState(passwordGroup);
                 if (isRegisterMode && confirmPasswordGroup.style.display !== 'none') {
                     validateField('confirmPassword');
@@ -7100,26 +7073,22 @@ export class ApiGatewayController {
             }
 
             function showSuccess(data) {
-    userData = data.data;
-    userTokens = {
-        accessToken: data.accessToken || (data.data && data.data.accessToken),
-        refreshToken: data.refreshToken || (data.data && data.data.refreshToken),
-        userId: data.data && data.data.id,
-        code: data.code || urlParams.get('code')
-    };
+                userData = data.data;
+                userTokens = {
+                    accessToken: data.accessToken || (data.data && data.data.accessToken),
+                    refreshToken: data.refreshToken || (data.data && data.data.refreshToken),
+                    userId: data.data && data.data.id,
+                    code: data.code || urlParams.get('code')
+                };
 
-    cleanUrl();
+                cleanUrl();
 
-    // ✅ Modal reste affiché jusqu'à la redirection effective
-    showProgressModal('Connexion réussie ! Redirection...');
+                showProgressModal('Connexion réussie ! Redirection...');
 
-    // Petite pause pour laisser le modal s'afficher, puis redirection
-    setTimeout(function() {
-        handleRedirect();
-        // On ne ferme PAS le modal ici :
-        // la redirection va recharger la page et le modal disparaîtra naturellement
-    }, 600);
-}
+                setTimeout(function() {
+                    handleRedirect();
+                }, 600);
+            }
 
             window.handleRedirect = function() {
                 if (REDIRECT_URI.startsWith('fpay://')) {
@@ -7282,9 +7251,6 @@ export class ApiGatewayController {
                 }
             }
 
-            // ============================================================
-            // FORM SUBMISSION
-            // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
@@ -7294,7 +7260,6 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // Étape OTP (register)
                 if (isRegisterMode && registerStep === 'verify') {
                     var otpValid = validateOtp();
                     if (!otpValid) {
@@ -7346,7 +7311,6 @@ export class ApiGatewayController {
                     return;
                 }
 
-                // Validation locale
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -7398,7 +7362,6 @@ export class ApiGatewayController {
                         }
                     }
 
-                    // Connexion
                     showProgressModal('Connexion en cours...');
 
                     var prefix = getSelectedPrefix();
@@ -7465,8 +7428,7 @@ export class ApiGatewayController {
         })();
     </script>
 </body>
-</html>
-`);
+</html>`);
 
     } catch (error) {
       console.error('[OAuth] Error:', error);
