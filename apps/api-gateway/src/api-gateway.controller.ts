@@ -5238,15 +5238,9 @@ export class ApiGatewayController {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>F-Pay • Connexion</title>
     <style>
-        /* ============================================================
-           RESET & BASE
-           ============================================================ */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
-        html {
-            font-size: 16px;
-            -webkit-text-size-adjust: 100%;
-        }
+        html { font-size: 16px; -webkit-text-size-adjust: 100%; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
@@ -5465,9 +5459,7 @@ export class ApiGatewayController {
             max-width: clamp(45px, 7vw, 75px);
         }
 
-        .country-select select:focus {
-            outline: none;
-        }
+        .country-select select:focus { outline: none; }
 
         .country-select select option {
             background: #1a1a1a;
@@ -5494,9 +5486,7 @@ export class ApiGatewayController {
             color: rgba(255, 255, 255, 0.3) !important;
         }
 
-        .phone-wrapper input:focus {
-            box-shadow: none !important;
-        }
+        .phone-wrapper input:focus { box-shadow: none !important; }
 
         .btn {
             width: 100%;
@@ -5527,9 +5517,7 @@ export class ApiGatewayController {
             background: #e6a500;
         }
 
-        .btn:active:not(:disabled) {
-            transform: scale(0.98);
-        }
+        .btn:active:not(:disabled) { transform: scale(0.98); }
 
         .btn:disabled {
             opacity: 0.6;
@@ -5549,17 +5537,10 @@ export class ApiGatewayController {
             flex-shrink: 0;
         }
 
-        .btn.loading .spinner {
-            display: inline-block;
-        }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-text { display: inline; }
 
-        .btn.loading .btn-text {
-            display: inline;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .stores-section {
             margin-top: clamp(18px, 3vw, 28px);
@@ -5607,9 +5588,7 @@ export class ApiGatewayController {
             color: #000000;
         }
 
-        .store-link:active {
-            transform: scale(0.97);
-        }
+        .store-link:active { transform: scale(0.97); }
 
         .store-link span {
             display: flex;
@@ -5642,18 +5621,14 @@ export class ApiGatewayController {
             padding: 4px 0;
         }
 
-        .form-links a:hover {
-            color: #FFB81C;
-        }
+        .form-links a:hover { color: #FFB81C; }
 
         .form-links .register-link {
             color: #FFB81C;
             font-weight: 500;
         }
 
-        .form-links .register-link:hover {
-            text-decoration: underline;
-        }
+        .form-links .register-link:hover { text-decoration: underline; }
 
         .footer {
             text-align: center;
@@ -5685,7 +5660,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           MODALE MODERNE (remplace Toastify)
+           MODALE MODERNE
            ============================================================ */
         .modal-overlay {
             position: fixed;
@@ -5703,10 +5678,7 @@ export class ApiGatewayController {
             padding: 20px;
         }
 
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
 
         .modal-box {
             background: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%);
@@ -5754,10 +5726,13 @@ export class ApiGatewayController {
             align-items: center;
             justify-content: center;
             margin: 0 auto 22px;
-            font-size: 38px;
-            font-weight: 700;
-            line-height: 1;
             animation: modalPopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .modal-icon svg {
+            width: 40px;
+            height: 40px;
+            stroke-width: 2.5;
         }
 
         @keyframes modalPopIn {
@@ -5787,6 +5762,7 @@ export class ApiGatewayController {
         .modal-icon.warning {
             background: rgba(255, 184, 28, 0.1);
             color: #FFB81C;
+            box-shadow: 0 0 50px rgba(255, 184, 28, 0.18);
         }
 
         .modal-icon.loading {
@@ -5822,9 +5798,7 @@ export class ApiGatewayController {
             padding: 0 4px;
         }
 
-        .modal-message strong {
-            color: #FFB81C;
-        }
+        .modal-message strong { color: #FFB81C; }
 
         .modal-actions {
             display: flex;
@@ -5858,9 +5832,7 @@ export class ApiGatewayController {
             box-shadow: 0 10px 32px rgba(255, 184, 28, 0.45);
         }
 
-        .modal-btn-primary:active {
-            transform: scale(0.98);
-        }
+        .modal-btn-primary:active { transform: scale(0.98); }
 
         .modal-btn-secondary {
             background: rgba(255, 255, 255, 0.06);
@@ -5883,7 +5855,6 @@ export class ApiGatewayController {
             border: none;
             background: rgba(255, 255, 255, 0.06);
             color: rgba(255, 255, 255, 0.5);
-            font-size: 16px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -5894,6 +5865,12 @@ export class ApiGatewayController {
             font-family: inherit;
         }
 
+        .modal-close svg {
+            width: 16px;
+            height: 16px;
+            stroke-width: 2.5;
+        }
+
         .modal-close:hover {
             background: rgba(255, 255, 255, 0.12);
             color: #ffffff;
@@ -5901,11 +5878,9 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           TOGGLE VISIBILITÉ MOT DE PASSE (injecté en JS)
+           TOGGLE VISIBILITÉ MOT DE PASSE
            ============================================================ */
-        .form-group.password-with-toggle {
-            position: relative;
-        }
+        .form-group.password-with-toggle { position: relative; }
 
         .form-group.password-with-toggle input {
             padding-right: clamp(42px, 5vw, 54px) !important;
@@ -5938,9 +5913,7 @@ export class ApiGatewayController {
             outline: none;
         }
 
-        .toggle-password-btn.active {
-            color: #FFB81C;
-        }
+        .toggle-password-btn.active { color: #FFB81C; }
 
         .toggle-password-btn .eye-icon {
             width: clamp(18px, 2vw, 22px);
@@ -5949,7 +5922,7 @@ export class ApiGatewayController {
         }
 
         /* ============================================================
-           OTP - ADAPTATIF
+           OTP
            ============================================================ */
         .otp-container {
             display: none;
@@ -5957,9 +5930,7 @@ export class ApiGatewayController {
             animation: fadeIn 0.3s ease;
         }
 
-        .otp-container.show {
-            display: block;
-        }
+        .otp-container.show { display: block; }
 
         .otp-inputs {
             display: flex;
@@ -5999,10 +5970,7 @@ export class ApiGatewayController {
             background: rgba(255, 184, 28, 0.05);
         }
 
-        .otp-inputs input:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+        .otp-inputs input:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .otp-error-message {
             display: none;
@@ -6013,9 +5981,7 @@ export class ApiGatewayController {
             font-weight: 600;
         }
 
-        .otp-error-message.show {
-            display: block;
-        }
+        .otp-error-message.show { display: block; }
 
         .otp-timer {
             font-size: clamp(12px, 1.2vw, 14px);
@@ -6031,46 +5997,24 @@ export class ApiGatewayController {
             cursor: pointer;
         }
 
-        .otp-timer a:hover {
-            text-decoration: underline;
-        }
+        .otp-timer a:hover { text-decoration: underline; }
 
-        .hidden-fields {
-            transition: all 0.3s ease;
-        }
-
-        .hidden-fields.hide {
-            display: none !important;
-        }
+        .hidden-fields { transition: all 0.3s ease; }
+        .hidden-fields.hide { display: none !important; }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 184, 28, 0.3);
-            border-radius: 10px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 184, 28, 0.5);
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 184, 28, 0.3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 184, 28, 0.5); }
 
         /* ============================================================
-           RESPONSIVE - BREAKPOINTS FINES
+           RESPONSIVE
            ============================================================ */
-
         @media (max-width: 360px) {
             body { padding: 8px; align-items: flex-start; padding-top: 16px; }
             .container { padding: 16px 12px 16px; border-radius: 12px; max-width: 100%; }
@@ -6092,7 +6036,8 @@ export class ApiGatewayController {
             .form-links a { font-size: 12px; }
             .stores-section { padding: 10px 8px; }
             .modal-box { padding: 30px 22px 22px; border-radius: 16px; }
-            .modal-icon { width: 64px; height: 64px; font-size: 30px; }
+            .modal-icon { width: 64px; height: 64px; }
+            .modal-icon svg { width: 32px; height: 32px; }
             .modal-icon.loading::after { width: 64px; height: 64px; }
             .modal-title { font-size: 19px; }
             .modal-message { font-size: 14px; }
@@ -6376,9 +6321,6 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
-            // ============================================================
-            // CONFIGURATION
-            // ============================================================
             var API_BASE_URL = window.location.origin;
             var APP_URL = '${appUrl}';
             var FRONTEND_URL = '${frontendUrl}';
@@ -6393,9 +6335,6 @@ export class ApiGatewayController {
             var CLIENT_TOKEN = '${clientToken}';
             var REDIRECT_URI = '${callbackUrl}';
 
-            // ============================================================
-            // DOM REFS
-            // ============================================================
             var form = document.getElementById('loginForm');
             var hiddenFields = document.getElementById('hiddenFields');
             var phoneInput = document.getElementById('phone');
@@ -6436,6 +6375,17 @@ export class ApiGatewayController {
             var countriesData = [];
 
             // ============================================================
+            // ICÔNES SVG (vraies icônes, style Lucide/Feather)
+            // ============================================================
+            var SVG_ICONS = {
+                success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+                error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+                info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>',
+                warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+                close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
+            };
+
+            // ============================================================
             // SYSTÈME DE MODALE MODERNE
             // ============================================================
             var modalTimeout = null;
@@ -6452,14 +6402,6 @@ export class ApiGatewayController {
 
                 closeModal(true);
 
-                var icons = {
-                    success: '✓',
-                    error: '✕',
-                    info: 'ℹ',
-                    warning: '⚠',
-                    loading: ''
-                };
-
                 var defaultTitles = {
                     success: 'Succès',
                     error: 'Erreur',
@@ -6473,13 +6415,15 @@ export class ApiGatewayController {
 
                 var iconHtml = '';
                 if (!options.hideIcon) {
-                    iconHtml = type === 'loading'
-                        ? '<div class="modal-icon loading"></div>'
-                        : '<div class="modal-icon ' + type + '">' + icons[type] + '</div>';
+                    if (type === 'loading') {
+                        iconHtml = '<div class="modal-icon loading"></div>';
+                    } else {
+                        iconHtml = '<div class="modal-icon ' + type + '">' + (SVG_ICONS[type] || SVG_ICONS.info) + '</div>';
+                    }
                 }
 
                 var closeBtn = showClose
-                    ? '<button class="modal-close" data-modal-close>✕</button>'
+                    ? '<button class="modal-close" data-modal-close aria-label="Fermer">' + SVG_ICONS.close + '</button>'
                     : '';
 
                 var actionsHtml = '';
@@ -6594,8 +6538,18 @@ export class ApiGatewayController {
             }
 
             // ============================================================
-            // TOGGLE VISIBILITÉ MOT DE PASSE (injecté en JS, sans toucher au HTML)
+            // TOGGLE VISIBILITÉ MOT DE PASSE (injecté en JS)
             // ============================================================
+            var EYE_OPEN_SVG = '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>' +
+                '<circle cx="12" cy="12" r="3"></circle>' +
+            '</svg>';
+
+            var EYE_CLOSED_SVG = '<svg class="eye-icon eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">' +
+                '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>' +
+                '<line x1="1" y1="1" x2="23" y2="23"></line>' +
+            '</svg>';
+
             function injectPasswordToggles() {
                 [passwordGroup, confirmPasswordGroup].forEach(function(group) {
                     if (!group) return;
@@ -6610,15 +6564,7 @@ export class ApiGatewayController {
                     btn.className = 'toggle-password-btn';
                     btn.setAttribute('data-target', input.id);
                     btn.setAttribute('aria-label', 'Afficher le mot de passe');
-                    btn.innerHTML =
-                        '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-                            '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>' +
-                            '<circle cx="12" cy="12" r="3"></circle>' +
-                        '</svg>' +
-                        '<svg class="eye-icon eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">' +
-                            '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>' +
-                            '<line x1="1" y1="1" x2="23" y2="23"></line>' +
-                        '</svg>';
+                    btn.innerHTML = EYE_OPEN_SVG + EYE_CLOSED_SVG;
 
                     group.appendChild(btn);
 
@@ -6762,9 +6708,6 @@ export class ApiGatewayController {
                 });
             });
 
-            // ============================================================
-            // RÉCUPÉRATION DES PAYS
-            // ============================================================
             async function fetchCountries() {
                 try {
                     var response = await fetch(API_BASE_URL + '/pawapay/countries', {
@@ -6921,21 +6864,10 @@ export class ApiGatewayController {
                 });
             }
 
-            function validatePhone(value) {
-                return value && value.trim().length > 0;
-            }
-
-            function validatePassword(value) {
-                return value && value.trim().length >= 8;
-            }
-
-            function validateFullName(value) {
-                return value && value.trim().length > 0;
-            }
-
-            function validateConfirmPassword(password, confirm) {
-                return password === confirm;
-            }
+            function validatePhone(value) { return value && value.trim().length > 0; }
+            function validatePassword(value) { return value && value.trim().length >= 8; }
+            function validateFullName(value) { return value && value.trim().length > 0; }
+            function validateConfirmPassword(password, confirm) { return password === confirm; }
 
             function validateOtp() {
                 var code = getOtpCode();
@@ -7132,7 +7064,7 @@ export class ApiGatewayController {
 
                 showModal({
                     type: 'success',
-                    title: '🎉 Connexion réussie !',
+                    title: 'Connexion réussie !',
                     message:
                         'Bienvenue <strong>' + (userData.full_name || 'Utilisateur') + '</strong><br>' +
                         '<span style="font-size:13px;opacity:0.5">Redirection dans <span id="countdown">3</span>s...</span>',
@@ -7241,23 +7173,11 @@ export class ApiGatewayController {
             };
 
             function focusFirstError() {
-                if (phoneGroup.classList.contains('error')) {
-                    phoneInput.focus();
-                    return true;
-                }
-                if (passwordGroup.classList.contains('error')) {
-                    passwordInput.focus();
-                    return true;
-                }
+                if (phoneGroup.classList.contains('error')) { phoneInput.focus(); return true; }
+                if (passwordGroup.classList.contains('error')) { passwordInput.focus(); return true; }
                 if (isRegisterMode) {
-                    if (fullNameGroup.classList.contains('error')) {
-                        fullNameInput.focus();
-                        return true;
-                    }
-                    if (confirmPasswordGroup.classList.contains('error')) {
-                        confirmPasswordInput.focus();
-                        return true;
-                    }
+                    if (fullNameGroup.classList.contains('error')) { fullNameInput.focus(); return true; }
+                    if (confirmPasswordGroup.classList.contains('error')) { confirmPasswordInput.focus(); return true; }
                 }
                 return false;
             }
