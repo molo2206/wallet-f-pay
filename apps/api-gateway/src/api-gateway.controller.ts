@@ -7111,26 +7111,26 @@ export class ApiGatewayController {
 
                 cleanUrl();
 
-                showModal({
-                    type: 'success',
-                    title: 'Connexion réussie !',
-                    message:
-                        'Bienvenue <strong>' + (userData.full_name || 'Utilisateur') + '</strong><br>' +
-                        '<span style="font-size:13px;opacity:0.5">Redirection dans <span id="countdown">3</span>s...</span>',
-                    duration: 0,
-                    showClose: false,
-                    closable: false,
-                    actions: [
-                        {
-                            label: 'Continuer maintenant',
-                            style: 'primary',
-                            onClick: function() {
-                                closeModal(true);
-                                handleRedirect();
-                            }
-                        }
-                    ]
-                });
+                // showModal({
+                //     type: 'success',
+                //     title: 'Connexion réussie !',
+                //     message:
+                //         'Bienvenue <strong>' + (userData.full_name || 'Utilisateur') + '</strong><br>' +
+                //         '<span style="font-size:13px;opacity:0.5">Redirection dans <span id="countdown">3</span>s...</span>',
+                //     duration: 0,
+                //     showClose: false,
+                //     closable: false,
+                //     actions: [
+                //         {
+                //             label: 'Continuer maintenant',
+                //             style: 'primary',
+                //             onClick: function() {
+                //                 closeModal(true);
+                //                 handleRedirect();
+                //             }
+                //         }
+                //     ]
+                // });
 
                 var count = 3;
                 var countdownEl = document.getElementById('countdown');
