@@ -7100,28 +7100,26 @@ export class ApiGatewayController {
             }
 
             function showSuccess(data) {
-                userData = data.data;
-                userTokens = {
-                    accessToken: data.accessToken || (data.data && data.data.accessToken),
-                    refreshToken: data.refreshToken || (data.data && data.data.refreshToken),
-                    userId: data.data && data.data.id,
-                    code: data.code || urlParams.get('code')
-                };
+    userData = data.data;
+    userTokens = {
+        accessToken: data.accessToken || (data.data && data.data.accessToken),
+        refreshToken: data.refreshToken || (data.data && data.data.refreshToken),
+        userId: data.data && data.data.id,
+        code: data.code || urlParams.get('code')
+    };
 
-                cleanUrl();
+    cleanUrl();
 
-                
-                var count = 3;
-                var countdownEl = document.getElementById('countdown');
-                var interval = setInterval(function() {
-                    count--;
-                    if (countdownEl) countdownEl.textContent = count;
-                    if (count <= 0) {
-                        clearInterval(interval);
-                        handleRedirect();
-                    }
-                }, 1000);
-            }
+    // ✅ Modal reste affiché jusqu'à la redirection effective
+    showProgressModal('Connexion réussie ! Redirection...');
+
+    // Petite pause pour laisser le modal s'afficher, puis redirection
+    setTimeout(function() {
+        handleRedirect();
+        // On ne ferme PAS le modal ici :
+        // la redirection va recharger la page et le modal disparaîtra naturellement
+    }, 600);
+}
 
             window.handleRedirect = function() {
                 if (REDIRECT_URI.startsWith('fpay://')) {
