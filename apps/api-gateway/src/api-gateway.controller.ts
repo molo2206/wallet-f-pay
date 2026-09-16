@@ -5328,6 +5328,47 @@ export class ApiGatewayController {
             max-width: 90%;
         }
 
+        /* BANDEAU DE MESSAGE API */
+        .api-message {
+            display: none;
+            padding: clamp(10px, 1.4vw, 14px) clamp(12px, 1.6vw, 16px);
+            border-radius: clamp(8px, 1.2vw, 12px);
+            font-size: clamp(12px, 1.3vw, 14px);
+            font-weight: 500;
+            margin-bottom: clamp(12px, 1.8vw, 16px);
+            line-height: 1.5;
+            position: relative;
+            z-index: 1;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            animation: slideDown 0.3s ease;
+        }
+
+        .api-message.show { display: block; }
+
+        .api-message.success {
+            background: rgba(34, 197, 94, 0.12);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .api-message.error {
+            background: rgba(255, 51, 51, 0.12);
+            color: #ff4444;
+            border: 1px solid rgba(255, 51, 51, 0.3);
+        }
+
+        .api-message.info {
+            background: rgba(255, 184, 28, 0.12);
+            color: #FFB81C;
+            border: 1px solid rgba(255, 184, 28, 0.3);
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .form-group {
             margin-bottom: clamp(12px, 2vw, 18px);
             position: relative;
@@ -5986,6 +6027,9 @@ export class ApiGatewayController {
                 <p id="stepMessage">Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte</p>
             </div>
 
+            <!-- BANDEAU MESSAGE API -->
+            <div class="api-message" id="apiMessage"></div>
+
             <form id="loginForm" autocomplete="off" novalidate>
                 <div id="hiddenFields" class="hidden-fields">
                     <div class="form-group" id="fullNameGroup" style="display:none;">
@@ -6116,6 +6160,7 @@ export class ApiGatewayController {
             var otpError = document.getElementById('otpError');
             var otpTimer = document.getElementById('otpTimer');
             var resendOtpLink = document.getElementById('resendOtpLink');
+            var apiMessage = document.getElementById('apiMessage');
 
             var urlParams = new URLSearchParams(window.location.search);
             var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
@@ -6128,8 +6173,37 @@ export class ApiGatewayController {
             var tempRegisterData = null;
             var otpTimerInterval = null;
             var countriesData = [];
+            var apiMessageTimeout = null;
 
+            // ============================================================
+            // AFFICHER LE MESSAGE DE L'API (remplace tous les popups)
+            // ============================================================
+            function showApiMessage(message, type) {
+                if (apiMessageTimeout) {
+                    clearTimeout(apiMessageTimeout);
+                }
+
+                apiMessage.className = 'api-message show ' + (type || 'info');
+                apiMessage.textContent = message;
+
+                // Ne pas masquer automatiquement les messages d'erreur
+                if (type !== 'error') {
+                    apiMessageTimeout = setTimeout(function() {
+                        apiMessage.classList.remove('show');
+                    }, 6000);
+                }
+            }
+
+            function hideApiMessage() {
+                if (apiMessageTimeout) {
+                    clearTimeout(apiMessageTimeout);
+                }
+                apiMessage.classList.remove('show');
+            }
+
+            // ============================================================
             // VALIDATION MOT DE PASSE FORT
+            // ============================================================
             var PASSWORD_SPECIAL_REGEX = /[!@#$%^&*()_+\\-=\\[\\]{};':"\\\\|,.<>\\/?~]/;
 
             function isPasswordStrong(password) {
@@ -6432,32 +6506,30 @@ export class ApiGatewayController {
                 resendOtpLink.addEventListener('click', function(e) {
                     e.preventDefault();
                     
-                    if (isSubmitting) {
-                        return;
-                    }
+                    if (isSubmitting) return;
                     
                     registerStep = 'init';
                     
-                    if (!tempRegisterData) {
-                        return;
-                    }
+                    if (!tempRegisterData) return;
                     
                     setLoading(true);
+                    hideApiMessage();
                     
                     handleRegister(
                         phoneInput.value.trim(),
                         passwordInput.value.trim(),
                         fullNameInput.value.trim()
                     ).then(function(result) {
-                        setLoading(false);
-                        if (result.step === 'verify') {
-                            startOtpTimer();
-                            clearOtpInputs();
-                            setOtpError(false);
+                        if (result.message) {
+                            showApiMessage(result.message, 'success');
                         }
-                    }).catch(function(error) {
+                        startOtpTimer();
+                        clearOtpInputs();
+                        setOtpError(false);
                         setLoading(false);
-                        console.error('[Resend OTP] Erreur:', error);
+                    }).catch(function(error) {
+                        showApiMessage(error.message || 'Erreur lors du renvoi du code', 'error');
+                        setLoading(false);
                     });
                 });
             }
@@ -6565,6 +6637,7 @@ export class ApiGatewayController {
                 registerStep = 'init';
                 tempRegisterData = null;
                 clearInterval(otpTimerInterval);
+                hideApiMessage();
                 showFieldsAfterOtp();
                 
                 if (registerMode) {
@@ -6642,6 +6715,9 @@ export class ApiGatewayController {
                 }
             }
 
+            // ============================================================
+            // SUCCÈS - Le spinner RESTE EN MARCHE jusqu'à la redirection
+            // ============================================================
             function showSuccess(data) {
                 userData = data.data;
                 userTokens = {
@@ -6652,6 +6728,13 @@ export class ApiGatewayController {
                 };
 
                 cleanUrl();
+
+                // Afficher le message de succès de l'API
+                var successMsg = data.message || 'Connexion réussie !';
+                showApiMessage(successMsg, 'success');
+
+                // ⚠️ NE PAS arrêter le spinner - il continue de tourner pendant la redirection
+                // Le spinner ne s'arrêtera que si la redirection échoue
 
                 setTimeout(function() {
                     handleRedirect();
@@ -6721,6 +6804,10 @@ export class ApiGatewayController {
                     window.location.href = redirectUrl.toString();
                 } catch (error) {
                     console.error('[OAuth] Erreur redirection:', error);
+                    // En cas d'erreur de redirection, on affiche un message et on arrête le spinner
+                    showApiMessage('Erreur lors de la redirection', 'error');
+                    setLoading(false);
+                    
                     var fallbackUrl = REDIRECT_URI + '?access_token=' + encodeURIComponent(userTokens.accessToken || '') +
                         '&refresh_token=' + encodeURIComponent(userTokens.refreshToken || '') +
                         '&user_id=' + encodeURIComponent(userTokens.userId || '') +
@@ -6775,7 +6862,7 @@ export class ApiGatewayController {
                     
                     return { 
                         step: 'verify', 
-                        message: 'Un code OTP a été envoyé par SMS',
+                        message: result.message || 'Un code OTP a été envoyé par SMS',
                         data: result 
                     };
                 }
@@ -6813,26 +6900,32 @@ export class ApiGatewayController {
 
                     return { 
                         step: 'done', 
-                        message: 'Compte créé avec succès !',
+                        message: result.message || 'Compte créé avec succès !',
                         data: result 
                     };
                 }
             }
 
+            // ============================================================
+            // SOUMISSION DU FORMULAIRE
+            // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
-                if (isSubmitting) {
-                    return;
-                }
+                if (isSubmitting) return;
+                
+                hideApiMessage();
 
+                // CAS 1 : Vérification OTP
                 if (isRegisterMode && registerStep === 'verify') {
                     var otpValid = validateOtp();
                     if (!otpValid) {
+                        showApiMessage('Veuillez saisir le code OTP complet (6 chiffres)', 'error');
                         return;
                     }
                     
                     setLoading(true);
+                    
                     try {
                         var result = await handleRegister(
                             phoneInput.value.trim(),
@@ -6862,16 +6955,19 @@ export class ApiGatewayController {
                                 throw new Error(loginData.message || 'Erreur de connexion après inscription');
                             }
 
+                            // ✅ showSuccess NE FERME PAS le spinner
+                            // Le spinner continue de tourner pendant la redirection
                             showSuccess(loginData);
-                            setLoading(false);
                         }
                     } catch (error) {
                         console.error('[Register] Erreur:', error);
+                        showApiMessage(error.message || 'Code OTP invalide', 'error');
                         setLoading(false);
                     }
                     return;
                 }
 
+                // CAS 2 : Connexion / Inscription standard
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -6896,6 +6992,7 @@ export class ApiGatewayController {
                 setLoading(true);
 
                 try {
+                    // CAS 2A : Inscription (étape 1)
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
@@ -6906,6 +7003,7 @@ export class ApiGatewayController {
                             clearOtpInputs();
                             setOtpError(false);
                             otpInputs[0].focus();
+                            showApiMessage(result.message || 'Un code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
                             setLoading(false);
                             return;
@@ -6913,11 +7011,11 @@ export class ApiGatewayController {
                         
                         if (result.step === 'done') {
                             showSuccess(result.data);
-                            setLoading(false);
                             return;
                         }
                     }
 
+                    // CAS 2B : Connexion
                     var prefix = getSelectedPrefix();
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
@@ -6939,11 +7037,13 @@ export class ApiGatewayController {
                         throw new Error(data.message || 'Identifiants invalides');
                     }
 
+                    // ✅ showSuccess NE FERME PAS le spinner
+                    // Le spinner continue de tourner pendant la redirection
                     showSuccess(data);
-                    setLoading(false);
 
                 } catch (error) {
                     console.error('[OAuth] Erreur détaillée:', error);
+                    showApiMessage(error.message || 'Une erreur est survenue', 'error');
                     setLoading(false);
                 }
             });
