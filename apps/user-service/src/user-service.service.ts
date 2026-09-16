@@ -2105,11 +2105,15 @@ export class UserServiceService {
       }
 
       // 7️⃣ Construction du filtre des transactions
-      // ✅ UNIQUEMENT LES TRANSACTIONS RÉUSSIES + EXCLUSION CASH
+      // ✅ UNIQUEMENT LES TRANSACTIONS RÉUSSIES + EXCLUSION CASH_IN/OUT/TRANSFER
+      // ✅ ET SEULEMENT MOBILE_MONEY + CASH
       const transactionWhere: any = {
         status: 'SUCCESS',
         type: {
           notIn: ['CASH_IN', 'CASH_OUT', 'CASH_TRANSFER']
+        },
+        paymentMethod: {
+          in: ['MOBILE_MONEY', 'CASH']
         }
       };
 
@@ -2168,22 +2172,38 @@ export class UserServiceService {
         this.prisma.transaction.count({
           where: { ...transactionWhere, type: 'PAYMENT' },
         }),
-        // ✅ FAILED et PENDING comptés séparément (hors volume)
+        // ✅ FAILED et PENDING comptés séparément
         this.prisma.transaction.count({
-          where: { ...transactionWhere, status: 'FAILED' },
+          where: {
+            ...transactionWhere,
+            status: 'FAILED',
+            paymentMethod: { in: ['MOBILE_MONEY', 'CASH'] }
+          },
         }),
         this.prisma.transaction.count({
-          where: { ...transactionWhere, status: 'PENDING' },
+          where: {
+            ...transactionWhere,
+            status: 'PENDING',
+            paymentMethod: { in: ['MOBILE_MONEY', 'CASH'] }
+          },
         }),
         this.prisma.user.count({ where: { ...userWhere, role: 'MERCHANT' } }),
         this.prisma.user.count({ where: { ...userWhere, role: 'ADMIN' } }),
         this.prisma.user.count({ where: { ...userWhere, role: 'SUPER_ADMIN' } }),
         this.prisma.transaction.aggregate({
-          where: { ...transactionWhere, movement: 'CREDIT' },
+          where: {
+            ...transactionWhere,
+            movement: 'CREDIT',
+            paymentMethod: { in: ['MOBILE_MONEY', 'CASH'] }
+          },
           _sum: { amount: true },
         }),
         this.prisma.transaction.aggregate({
-          where: { ...transactionWhere, movement: 'DEBIT' },
+          where: {
+            ...transactionWhere,
+            movement: 'DEBIT',
+            paymentMethod: { in: ['MOBILE_MONEY', 'CASH'] }
+          },
           _sum: { amount: true },
         }),
       ]);
@@ -2410,7 +2430,7 @@ export class UserServiceService {
         _count: { id: true },
       });
 
-      // ========== RÉPONSE ==========
+      // ========== RÉPONSE (STRUCTURE INCHANGÉE) ==========
       return {
         message: 'Dashboard data retrieved successfully',
         data: {
