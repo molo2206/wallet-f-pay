@@ -5231,36 +5231,58 @@ export class ApiGatewayController {
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>F-Pay • Connexion</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+        /* ============================================================
+           VARIABLES COULEURS
+           ============================================================ */
+        :root {
+            --primary: #000000;
+            --primary-light: #1a1a1a;
+            --primary-dark: #0d0d0d;
+            --secondary: #FFB81C;
+            --secondary-dark: #e6a500;
+            --white: #ffffff;
+            --shadow-secondary: rgba(255, 184, 28, 0.3);
+            --radius: 16px;
+            --radius-btn: 10px;
+            --radius-input: 10px;
+            --max-width: 480px;
+            --error-color: #ff3333;
+            --error-bg: rgba(255, 51, 51, 0.12);
+            --success-color: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.12);
+            --info-color: #FFB81C;
+            --info-bg: rgba(255, 184, 28, 0.12);
+        }
 
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             min-height: 100vh;
-            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: clamp(12px, 3vw, 40px);
-            background: #000000;
-            background: radial-gradient(ellipse at center bottom, #1a1a00 0%, #000000 70%);
+            padding: 20px;
+            background: var(--primary);
         }
 
+        /* ============================================================
+           CARTE PRINCIPALE
+           ============================================================ */
         .container {
             width: 100%;
-            max-width: min(520px, 94vw);
-            border-radius: clamp(14px, 2.5vw, 20px);
-            padding: clamp(20px, 4vw, 48px) clamp(16px, 3.5vw, 40px) clamp(20px, 3.5vw, 38px);
-            background: linear-gradient(180deg, #000000 0%, #1a1a1a 40%, #0d0d0d 100%);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 80px rgba(255, 184, 28, 0.05);
+            max-width: var(--max-width);
+            border-radius: var(--radius);
+            padding: 40px 28px 32px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            border: none;
+            background: linear-gradient(180deg, var(--primary) 0%, var(--primary-light) 40%, var(--primary-dark) 100%);
+            background-attachment: fixed;
             position: relative;
             overflow: hidden;
             transition: all 0.3s ease;
-            border: 1px solid rgba(255, 184, 28, 0.06);
         }
 
         .container::before {
@@ -5270,711 +5292,459 @@ export class ApiGatewayController {
             left: -50%;
             width: 200%;
             height: 100%;
-            background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 28, 0.05) 0%, transparent 70%);
+            background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 28, 0.06) 0%, transparent 70%);
             pointer-events: none;
         }
 
-        .logo {
-            text-align: center;
-            margin-bottom: clamp(18px, 3.5vw, 32px);
+        /* ============================================================
+           LOGO
+           ============================================================ */
+        .logo { 
+            text-align: center; 
+            margin-bottom: 28px;
             display: flex;
             flex-direction: column;
             align-items: center;
             position: relative;
             z-index: 1;
         }
-
         .logo img {
-            width: clamp(60px, 12vw, 120px);
+            width: 100px;
             height: auto;
-            max-width: 120px;
-            margin-bottom: clamp(6px, 1vw, 12px);
-            filter: drop-shadow(0 4px 30px rgba(255, 184, 28, 0.25));
-            transition: all 0.3s ease;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 4px 20px rgba(255, 184, 28, 0.3));
         }
-
-        .logo h1 {
-            font-size: clamp(24px, 6vw, 42px);
-            color: #ffffff;
-            letter-spacing: -0.5px;
-            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
-            font-weight: 700;
-            line-height: 1.1;
+        .logo h1 { 
+            font-size: 34px; 
+            color: var(--white); 
+            letter-spacing: -0.5px; 
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
         }
+        .logo h1 .f { color: var(--white); }
+        .logo h1 .pay { color: var(--secondary); }
 
-        .logo h1 .f { color: #ffffff; }
-        .logo h1 .pay { color: #FFB81C; }
-
-        .header {
-            margin-bottom: clamp(16px, 2.5vw, 26px);
+        /* ============================================================
+           HEADER
+           ============================================================ */
+        .header { 
+            margin-bottom: 22px; 
             position: relative;
             z-index: 1;
         }
-
-        .header h2 {
-            font-size: clamp(18px, 4vw, 28px);
-            color: #ffffff;
-            margin-bottom: 4px;
-            font-weight: 700;
+        .header h2 { 
+            font-size: 22px; 
+            color: var(--white); 
+            margin-bottom: 4px; 
+            font-weight: 700; 
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-            line-height: 1.2;
         }
-
-        .header p {
-            color: rgba(255, 255, 255, 0.55);
-            font-size: clamp(13px, 1.8vw, 17px);
-            font-weight: 400;
-            line-height: 1.5;
-            max-width: 90%;
-        }
-
-        .form-group {
-            margin-bottom: clamp(12px, 2vw, 18px);
-            position: relative;
-            z-index: 1;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: clamp(13px, 1.4vw, 15px);
-            font-weight: 600;
-            color: #ffffff;
-            margin-bottom: 4px;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: clamp(10px, 1.4vw, 16px) clamp(12px, 1.6vw, 18px);
-            border: 2px solid rgba(255, 255, 255, 0.12);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            font-size: clamp(14px, 1.5vw, 17px);
-            transition: all 0.25s ease;
-            background: rgba(255, 255, 255, 0.06);
-            color: #ffffff;
-            -webkit-appearance: none;
-            appearance: none;
-            height: clamp(42px, 5.5vw, 56px);
-        }
-
-        .form-group input::placeholder { color: rgba(255, 255, 255, 0.3); }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #FFB81C;
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
-        }
-
-        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .form-group.error input,
-        .form-group.error .phone-wrapper {
-            border-color: #ff3333 !important;
-            background: rgba(255, 51, 51, 0.08) !important;
-        }
-
-        .form-group.error input:focus,
-        .form-group.error .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
-        }
-
-        .form-group.success input,
-        .form-group.success .phone-wrapper {
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.06);
-        }
-
-        .form-group.success input:focus,
-        .form-group.success .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
-        }
-
-        .form-group .error-message {
-            display: none;
-            font-size: clamp(11px, 1.1vw, 13px);
-            color: #ff3333;
-            margin-top: 4px;
-            font-weight: 500;
+        .header p { 
+            color: rgba(255, 255, 255, 0.6); 
+            font-size: 14px; 
+            font-weight: 400; 
             line-height: 1.4;
         }
 
-        .form-group.error .error-message { display: block; }
+        /* ============================================================
+           BANDEAU D'ALERTE (remplace les popups)
+           ============================================================ */
+        .alert {
+            display: none;
+            padding: 12px 16px;
+            border-radius: var(--radius-input);
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+            animation: slideDown 0.3s ease;
+        }
+        .alert.show { display: block; }
+        .alert.error {
+            background: var(--error-bg);
+            color: var(--error-color);
+            border: 1px solid var(--error-color);
+        }
+        .alert.success {
+            background: var(--success-bg);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+        .alert.info {
+            background: var(--info-bg);
+            color: var(--info-color);
+            border: 1px solid var(--info-color);
+        }
 
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============================================================
+           FORMULAIRE
+           ============================================================ */
+        .form-group { 
+            margin-bottom: 16px; 
+            position: relative;
+            z-index: 1;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--white);
+            margin-bottom: 4px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-input);
+            font-size: 15px;
+            transition: all 0.25s ease;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--white);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .form-group input::placeholder { color: rgba(255, 255, 255, 0.35); }
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
+        }
+        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .form-group.error input {
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
+        }
+        .form-group.error input:focus {
+            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
+        }
+        .form-group .error-message {
+            display: none;
+            font-size: 12px;
+            color: var(--error-color) !important;
+            margin-top: 4px;
+            font-weight: 600;
+        }
+        .form-group.error .error-message {
+            display: block;
+        }
+
+        .form-group.success input {
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.08);
+        }
+
+        /* ============================================================
+           WRAPPER TÉLÉPHONE
+           ============================================================ */
         .phone-wrapper {
             display: flex;
             align-items: center;
-            background: rgba(255, 255, 255, 0.06);
-            border: 2px solid rgba(255, 255, 255, 0.12);
-            border-radius: clamp(8px, 1.2vw, 12px);
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-input);
             transition: all 0.25s ease;
             overflow: hidden;
-            height: clamp(42px, 5.5vw, 56px);
         }
-
         .phone-wrapper:focus-within {
-            border-color: #FFB81C;
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            border-color: var(--secondary);
+            background: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
+        }
+        .form-group.error .phone-wrapper {
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
+        }
+        .form-group.success .phone-wrapper {
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.08);
         }
 
         .country-select {
             display: flex;
             align-items: center;
             gap: 4px;
-            padding: 0 clamp(4px, 0.8vw, 10px) 0 clamp(8px, 1.2vw, 16px);
-            border-right: 2px solid rgba(255, 255, 255, 0.08);
+            padding: 0 8px 0 12px;
+            border-right: 2px solid rgba(255, 255, 255, 0.1);
             cursor: pointer;
             background: transparent;
-            min-width: clamp(35px, 5vw, 55px);
-            height: 100%;
+            min-width: 60px;
+            height: 48px;
             flex-shrink: 0;
         }
-
         .country-select select {
             border: none;
             background: transparent;
-            font-size: clamp(14px, 1.5vw, 17px);
-            font-weight: 700;
-            color: #FFB81C;
-            padding: 4px clamp(10px, 1.5vw, 16px) 4px 4px;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--white);
+            padding: 4px 24px 4px 4px;
             cursor: pointer;
             appearance: none;
             -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23FFB81C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
             background-position: right 0 center;
-            padding-right: clamp(14px, 2vw, 20px);
-            min-width: clamp(28px, 3.5vw, 42px);
-            width: auto;
-            max-width: clamp(45px, 7vw, 75px);
+            padding-right: 20px;
+            min-width: 35px;
         }
-
         .country-select select:focus { outline: none; }
-
         .country-select select option {
-            background: #1a1a1a;
-            color: #ffffff;
-            font-size: clamp(13px, 1.3vw, 15px);
-            font-weight: 600;
+            background: var(--primary-light);
+            color: var(--white);
+            font-size: 15px;
             padding: 8px;
         }
 
         .phone-wrapper input {
             border: none !important;
-            padding: clamp(10px, 1.2vw, 14px) clamp(8px, 1vw, 14px) clamp(10px, 1.2vw, 14px) clamp(6px, 0.8vw, 10px) !important;
+            padding: 12px 12px 12px 8px !important;
             background: transparent !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             flex: 1;
             min-width: 0;
-            height: 100%;
-            color: #ffffff !important;
-            font-size: clamp(14px, 1.5vw, 17px);
+            height: 48px;
+            color: var(--white) !important;
+        }
+        .phone-wrapper input::placeholder {
+            color: rgba(255, 255, 255, 0.35) !important;
+        }
+        .phone-wrapper input:focus {
+            box-shadow: none !important;
         }
 
-        .phone-wrapper input::placeholder { color: rgba(255, 255, 255, 0.3) !important; }
-        .phone-wrapper input:focus { box-shadow: none !important; }
-
+        /* ============================================================
+           BOUTON PRINCIPAL
+           ============================================================ */
         .btn {
             width: 100%;
-            padding: clamp(12px, 1.6vw, 18px);
+            padding: 14px;
             border: none;
-            border-radius: clamp(8px, 1.2vw, 12px);
-            font-size: clamp(15px, 1.6vw, 18px);
+            border-radius: var(--radius-btn);
+            font-size: 16px;
             font-weight: 700;
             cursor: pointer;
-            background: #FFB81C;
-            color: #000000;
+            background: var(--secondary);
+            color: var(--primary);
             transition: all 0.3s ease;
-            margin-top: clamp(2px, 0.5vw, 6px);
-            box-shadow: 0 6px 30px rgba(255, 184, 28, 0.3);
+            margin-top: 4px;
+            box-shadow: 0 6px 24px rgba(255, 184, 28, 0.3);
             position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
-            height: clamp(46px, 6vw, 60px);
+            height: 50px;
             z-index: 1;
             -webkit-tap-highlight-color: transparent;
         }
-
-        .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(255, 184, 28, 0.5);
-            background: #e6a500;
+        .btn:hover:not(:disabled) { 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 32px rgba(255, 184, 28, 0.5);
+            background: var(--secondary-dark);
         }
-
-        .btn:active:not(:disabled) { transform: scale(0.98); }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+        .btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+        .btn:disabled { 
+            opacity: 0.6; 
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none; 
         }
 
         .spinner {
             display: none;
-            width: clamp(18px, 2.2vw, 24px);
-            height: clamp(18px, 2.2vw, 24px);
+            width: 22px;
+            height: 22px;
             border: 3px solid rgba(0, 0, 0, 0.2);
-            border-top-color: #000000;
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
             flex-shrink: 0;
         }
-
         .btn.loading .spinner { display: inline-block; }
         .btn.loading .btn-text { display: inline; }
-
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ============================================================
+           STORES
+           ============================================================ */
         .stores-section {
-            margin-top: clamp(18px, 3vw, 28px);
-            padding: clamp(14px, 2vw, 20px) clamp(12px, 1.8vw, 20px);
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            background: rgba(255, 255, 255, 0.03);
+            margin-top: 24px;
+            padding: 18px 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
-            border-radius: clamp(12px, 1.8vw, 16px);
+            border-radius: var(--radius);
             position: relative;
             z-index: 1;
         }
-
         .stores {
             display: flex;
             justify-content: center;
-            gap: clamp(8px, 1.5vw, 16px);
+            gap: 12px;
             flex-wrap: wrap;
         }
-
         .store-link {
             display: inline-flex;
             align-items: center;
-            gap: clamp(6px, 1vw, 10px);
-            background: rgba(255, 255, 255, 0.06);
-            padding: clamp(8px, 1.2vw, 14px) clamp(14px, 2.5vw, 28px);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            color: #ffffff;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 10px 20px;
+            border-radius: var(--radius-btn);
+            color: var(--white);
             text-decoration: none;
             font-weight: 600;
-            font-size: clamp(12px, 1.3vw, 16px);
+            font-size: 14px;
             transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-            -webkit-tap-highlight-color: transparent;
-            flex: 0 1 auto;
-            min-width: clamp(110px, 20vw, 180px);
-            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
-
         .store-link:hover {
             transform: translateY(-2px);
-            background: #FFB81C;
-            border-color: #FFB81C;
-            color: #000000;
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: var(--primary);
         }
-
-        .store-link:active { transform: scale(0.97); }
-
         .store-link span {
             display: flex;
             flex-direction: column;
             line-height: 1.2;
-            text-align: center;
         }
-
         .store-link .small {
-            font-size: clamp(8px, 0.8vw, 10px);
+            font-size: 9px;
             opacity: 0.6;
             font-weight: 400;
             letter-spacing: 0.3px;
         }
 
+        /* ============================================================
+           LIENS
+           ============================================================ */
         .form-links {
-            text-align: center;
-            margin-top: clamp(14px, 2vw, 20px);
-            position: relative;
+            text-align: center; 
+            margin-top: 16px; 
+            position: relative; 
             z-index: 1;
         }
-
         .form-links a {
             color: rgba(255, 255, 255, 0.5);
             text-decoration: none;
-            font-size: clamp(13px, 1.3vw, 15px);
-            font-weight: 400;
+            font-size: 14px;
             transition: 0.2s;
-            display: inline-block;
-            padding: 4px 0;
         }
-
-        .form-links a:hover { color: #FFB81C; }
-
+        .form-links a:hover { color: var(--secondary); }
         .form-links .register-link {
-            color: #FFB81C;
+            color: var(--secondary);
             font-weight: 500;
         }
-
         .form-links .register-link:hover { text-decoration: underline; }
+        .form-links .separator {
+            color: rgba(255, 255, 255, 0.15);
+            margin: 0 10px;
+        }
 
-        .footer {
-            text-align: center;
-            margin-top: clamp(14px, 2vw, 22px);
-            color: rgba(255, 255, 255, 0.2);
-            font-size: clamp(11px, 1.1vw, 13px);
-            font-weight: 400;
-            background: rgba(255, 255, 255, 0.03);
+        /* ============================================================
+           FOOTER
+           ============================================================ */
+        .footer { 
+            text-align: center; 
+            margin-top: 18px; 
+            color: rgba(255, 255, 255, 0.25); 
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.04);
             backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            padding: clamp(8px, 1vw, 12px) clamp(12px, 1.5vw, 18px);
-            border-radius: clamp(8px, 1.2vw, 12px);
+            padding: 10px 16px;
+            border-radius: var(--radius-input);
             position: relative;
             z-index: 1;
-            transition: all 0.3s ease;
-            line-height: 1.6;
         }
-
-        .footer a {
-            color: rgba(255, 255, 255, 0.3);
-            text-decoration: none;
+        .footer a { 
+            color: rgba(255, 255, 255, 0.35); 
+            text-decoration: none; 
             font-weight: 500;
-            transition: 0.2s;
         }
+        .footer a:hover { color: var(--secondary); }
 
-        .footer a:hover {
-            color: #FFB81C;
-            text-decoration: underline;
-        }
-
-        /* MESSAGE INLINE */
-        .inline-message {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-20px);
-            padding: 12px 20px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 600;
-            z-index: 99998;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-            max-width: 90vw;
-            text-align: center;
-            font-family: inherit;
-        }
-
-        .inline-message.show {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .inline-message.error {
-            background: #1a1a1a;
-            color: #ff4444;
-            border: 1px solid #ff4444;
-        }
-
-        .inline-message.success {
-            background: #FFB81C;
-            color: #000000;
-        }
-
-        .inline-message.info {
-            background: #1a1a1a;
-            color: #FFB81C;
-            border: 1px solid rgba(255, 184, 28, 0.3);
-        }
-
-        /* MODALE */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 99999;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-            padding: 20px;
-        }
-
-        .modal-overlay.active { opacity: 1; visibility: visible; }
-
-        .modal-box {
-            background: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%);
-            border: 1px solid rgba(255, 184, 28, 0.15);
-            border-radius: 20px;
-            padding: 36px 32px 28px;
-            max-width: 420px;
-            width: 100%;
-            text-align: center;
-            box-shadow:
-                0 30px 90px rgba(0, 0, 0, 0.9),
-                0 0 60px rgba(255, 184, 28, 0.08);
-            transform: scale(0.85) translateY(30px);
-            opacity: 0;
-            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        opacity 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .modal-overlay.active .modal-box {
-            transform: scale(1) translateY(0);
-            opacity: 1;
-        }
-
-        .modal-overlay.closing .modal-box {
-            transform: scale(0.9) translateY(20px);
-            opacity: 0;
-        }
-
-        .modal-box::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, transparent, #FFB81C, transparent);
-            opacity: 0.7;
-        }
-
-        .modal-progress {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 0 auto 24px;
-            position: relative;
-        }
-
-        .modal-progress::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -40%;
-            width: 40%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, #FFB81C, transparent);
-            animation: progressSlide 1.2s ease-in-out infinite;
-            border-radius: 4px;
-        }
-
-        @keyframes progressSlide {
-            0% { left: -40%; }
-            100% { left: 100%; }
-        }
-
-        .modal-title {
-            font-size: 22px;
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 10px;
-            letter-spacing: -0.3px;
-            line-height: 1.3;
-        }
-
-        .modal-message {
-            font-size: 15px;
-            color: rgba(255, 255, 255, 0.65);
-            line-height: 1.6;
-            margin-bottom: 26px;
-            padding: 0 4px;
-        }
-
-        .modal-message strong { color: #FFB81C; }
-        .modal-message:last-child { margin-bottom: 0; }
-
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .modal-btn {
-            padding: 12px 28px;
-            border: none;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            font-family: inherit;
-            min-width: 130px;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .modal-btn-primary {
-            background: #FFB81C;
-            color: #000000;
-            box-shadow: 0 6px 24px rgba(255, 184, 28, 0.3);
-        }
-
-        .modal-btn-primary:hover {
-            background: #e6a500;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 32px rgba(255, 184, 28, 0.45);
-        }
-
-        .modal-btn-primary:active { transform: scale(0.98); }
-
-        .modal-close {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            border: none;
-            background: rgba(255, 255, 255, 0.06);
-            color: rgba(255, 255, 255, 0.5);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-            line-height: 1;
-            padding: 0;
-            font-family: inherit;
-            font-size: 18px;
-            font-weight: 400;
-        }
-
-        .modal-close:hover {
-            background: rgba(255, 255, 255, 0.12);
-            color: #ffffff;
-            transform: rotate(90deg);
-        }
-
-        .modal-overlay.progress-modal { cursor: wait; }
-        .modal-overlay.progress-modal .modal-box { pointer-events: none; }
-
-        /* TOGGLE MOT DE PASSE */
-        .form-group.password-with-toggle { position: relative; }
-
-        .form-group.password-with-toggle input {
-            padding-right: clamp(42px, 5vw, 54px) !important;
-        }
-
-        .toggle-password-btn {
-            position: absolute;
-            right: clamp(8px, 1vw, 14px);
-            top: calc(50% + 10px);
-            transform: translateY(-50%);
-            width: clamp(28px, 3vw, 34px);
-            height: clamp(28px, 3vw, 34px);
-            border: none;
-            background: transparent;
-            color: rgba(255, 255, 255, 0.4);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s ease;
-            padding: 0;
-            border-radius: 50%;
-            -webkit-tap-highlight-color: transparent;
-            z-index: 2;
-        }
-
-        .toggle-password-btn:hover,
-        .toggle-password-btn:focus {
-            color: #FFB81C;
-            outline: none;
-        }
-
-        .toggle-password-btn.active { color: #FFB81C; }
-
-        .toggle-password-btn .eye-icon {
-            width: clamp(18px, 2vw, 22px);
-            height: clamp(18px, 2vw, 22px);
-            display: block;
-        }
-
-        /* OTP */
+        /* ============================================================
+           OTP
+           ============================================================ */
         .otp-container {
             display: none;
             margin-top: 8px;
             animation: fadeIn 0.3s ease;
         }
-
         .otp-container.show { display: block; }
 
         .otp-inputs {
             display: flex;
-            gap: clamp(6px, 1.2vw, 14px);
+            gap: 10px;
             justify-content: center;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .otp-inputs input {
-            width: clamp(34px, 6vw, 56px);
-            height: clamp(42px, 7vw, 64px);
+            width: 48px;
+            height: 56px;
             text-align: center;
-            font-size: clamp(18px, 3.5vw, 28px);
+            font-size: 24px;
             font-weight: 700;
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            background: rgba(255, 255, 255, 0.05);
-            color: #ffffff;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: var(--radius-input);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--white);
             transition: all 0.25s ease;
-            caret-color: #FFB81C;
+            caret-color: var(--secondary);
         }
 
         .otp-inputs input:focus {
             outline: none;
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.08);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.1);
+            box-shadow: 0 0 0 4px var(--shadow-secondary);
         }
 
         .otp-inputs input.error {
-            border-color: #ff3333 !important;
-            background: rgba(255, 51, 51, 0.08) !important;
+            border-color: var(--error-color) !important;
+            background: var(--error-bg) !important;
         }
 
         .otp-inputs input.filled {
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.05);
+            border-color: var(--secondary);
+            background: rgba(255, 184, 28, 0.06);
         }
 
-        .otp-inputs input:disabled { opacity: 0.5; cursor: not-allowed; }
+        .otp-timer {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: center;
+            margin-top: 6px;
+        }
+        .otp-timer a {
+            color: var(--secondary);
+            text-decoration: none;
+            display: none;
+        }
+        .otp-timer a:hover { text-decoration: underline; }
 
         .otp-error-message {
             display: none;
-            font-size: clamp(11px, 1.1vw, 13px);
-            color: #ff3333;
+            font-size: 12px;
+            color: var(--error-color) !important;
             text-align: center;
             margin-top: 4px;
             font-weight: 600;
         }
-
         .otp-error-message.show { display: block; }
-
-        .otp-timer {
-            font-size: clamp(12px, 1.2vw, 14px);
-            color: rgba(255, 255, 255, 0.4);
-            text-align: center;
-            margin-top: 6px;
-        }
-
-        .otp-timer a {
-            color: #FFB81C;
-            text-decoration: none;
-            display: none;
-            cursor: pointer;
-        }
-
-        .otp-timer a:hover { text-decoration: underline; }
 
         .hidden-fields { transition: all 0.3s ease; }
         .hidden-fields.hide { display: none !important; }
@@ -5984,206 +5754,46 @@ export class ApiGatewayController {
             to { opacity: 1; transform: translateY(0); }
         }
 
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 184, 28, 0.3); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 184, 28, 0.5); }
-
-        @media (max-width: 360px) {
-            body { padding: 8px; align-items: flex-start; padding-top: 16px; }
-            .container { padding: 16px 12px 16px; border-radius: 12px; max-width: 100%; }
-            .logo img { width: 50px; }
-            .logo h1 { font-size: 20px; }
-            .header h2 { font-size: 16px; }
-            .header p { font-size: 12px; max-width: 100%; }
-            .form-group input { padding: 8px 10px; font-size: 13px; height: 38px; }
-            .phone-wrapper { height: 38px; }
-            .phone-wrapper input { font-size: 13px; padding: 8px 8px 8px 4px !important; }
-            .country-select { min-width: 28px; padding: 0 3px 0 6px; }
-            .country-select select { font-size: 12px; min-width: 20px; padding-right: 12px; max-width: 45px; }
-            .btn { height: 40px; font-size: 13px; padding: 10px; }
-            .store-link { padding: 6px 10px; font-size: 11px; min-width: 90px; }
-            .store-link .small { font-size: 7px; }
-            .otp-inputs input { width: 30px; height: 38px; font-size: 16px; }
-            .otp-inputs { gap: 4px; }
-            .footer { font-size: 10px; padding: 6px 8px; }
-            .form-links a { font-size: 12px; }
-            .stores-section { padding: 10px 8px; }
-            .modal-box { padding: 30px 22px 22px; border-radius: 16px; }
-            .modal-title { font-size: 19px; }
-            .modal-message { font-size: 14px; }
-            .modal-btn { padding: 11px 22px; font-size: 14px; min-width: 110px; }
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 520px) {
+            body { padding: 12px; align-items: flex-start; padding-top: 30px; }
+            .container { padding: 28px 18px 24px; border-radius: 14px; max-width: 100%; }
+            .logo img { width: 75px; }
+            .logo h1 { font-size: 26px; }
+            .logo { margin-bottom: 22px; }
+            .header h2 { font-size: 20px; }
+            .header p { font-size: 13px; }
+            .header { margin-bottom: 18px; }
+            .form-group { margin-bottom: 14px; }
+            .form-group input { padding: 11px 14px; font-size: 14px; }
+            .phone-wrapper input { padding: 11px 12px 11px 8px !important; font-size: 14px; height: 44px; }
+            .country-select { height: 44px; min-width: 50px; padding: 0 6px 0 10px; }
+            .country-select select { font-size: 14px; min-width: 30px; padding-right: 18px; }
+            .btn { padding: 13px; font-size: 15px; height: 46px; }
+            .stores-section { padding: 14px 12px; margin-top: 18px; border-radius: 14px; }
+            .store-link { padding: 8px 14px; font-size: 12px; }
+            .footer { font-size: 11px; padding: 8px 12px; }
+            .otp-inputs input { width: 40px; height: 48px; font-size: 20px; }
+            .otp-inputs { gap: 8px; }
         }
 
-        @media (min-width: 361px) and (max-width: 480px) {
-            body { padding: 12px; align-items: flex-start; padding-top: 24px; }
-            .container { padding: 20px 16px 20px; border-radius: 14px; max-width: 100%; }
+        @media (max-width: 380px) {
+            .container { padding: 18px 14px; border-radius: 12px; }
             .logo img { width: 60px; }
             .logo h1 { font-size: 22px; }
             .header h2 { font-size: 18px; }
-            .header p { font-size: 13px; }
-            .form-group input { padding: 10px 12px; font-size: 14px; height: 42px; }
-            .phone-wrapper { height: 42px; }
-            .phone-wrapper input { font-size: 14px; padding: 10px 10px 10px 6px !important; }
-            .country-select { min-width: 32px; padding: 0 4px 0 8px; }
-            .country-select select { font-size: 13px; min-width: 22px; padding-right: 14px; max-width: 55px; }
-            .btn { height: 44px; font-size: 14px; padding: 11px; }
-            .store-link { padding: 8px 12px; font-size: 11px; min-width: 100px; }
             .otp-inputs input { width: 34px; height: 42px; font-size: 18px; }
             .otp-inputs { gap: 6px; }
-            .footer { font-size: 10px; padding: 8px 10px; }
-            .form-links a { font-size: 12px; }
         }
 
-        @media (min-width: 481px) and (max-width: 768px) {
-            body { padding: 20px; }
-            .container { max-width: 440px; padding: 30px 24px 28px; border-radius: 16px; }
-            .logo img { width: 80px; }
-            .logo h1 { font-size: 28px; }
-            .header h2 { font-size: 20px; }
-            .header p { font-size: 14px; }
-            .form-group input { padding: 12px 14px; font-size: 15px; height: 46px; }
-            .phone-wrapper { height: 46px; }
-            .phone-wrapper input { font-size: 15px; padding: 12px 12px 12px 8px !important; }
-            .country-select { min-width: 38px; padding: 0 6px 0 10px; }
-            .country-select select { font-size: 14px; min-width: 24px; padding-right: 16px; max-width: 60px; }
-            .btn { height: 48px; font-size: 15px; padding: 12px; }
-            .store-link { padding: 10px 16px; font-size: 13px; min-width: 120px; }
-            .otp-inputs input { width: 40px; height: 48px; font-size: 20px; }
-            .otp-inputs { gap: 8px; }
-            .footer { font-size: 11px; padding: 8px 12px; }
-        }
-
-        @media (min-width: 769px) and (max-width: 1024px) {
-            body { padding: 30px; }
-            .container { max-width: 480px; padding: 36px 30px 32px; border-radius: 18px; }
-            .logo img { width: 100px; }
-            .logo h1 { font-size: 34px; }
-            .header h2 { font-size: 22px; }
-            .header p { font-size: 15px; }
-            .form-group input { padding: 13px 16px; font-size: 15px; height: 50px; }
-            .phone-wrapper { height: 50px; }
-            .phone-wrapper input { font-size: 15px; padding: 13px 14px 13px 10px !important; }
-            .country-select { min-width: 42px; padding: 0 8px 0 12px; }
-            .country-select select { font-size: 15px; min-width: 26px; padding-right: 18px; max-width: 65px; }
-            .btn { height: 52px; font-size: 16px; padding: 14px; }
-            .store-link { padding: 10px 20px; font-size: 14px; min-width: 140px; }
-            .otp-inputs input { width: 44px; height: 52px; font-size: 22px; }
-            .otp-inputs { gap: 10px; }
-        }
-
-        @media (min-width: 1025px) and (max-width: 1366px) {
-            body { padding: 40px; }
-            .container { max-width: 500px; padding: 40px 34px 34px; border-radius: 18px; }
-            .logo img { width: 110px; }
-            .logo h1 { font-size: 36px; }
-            .header h2 { font-size: 24px; }
-            .header p { font-size: 16px; }
-            .form-group input { padding: 14px 18px; font-size: 16px; height: 52px; }
-            .phone-wrapper { height: 52px; }
-            .phone-wrapper input { font-size: 16px; padding: 14px 14px 14px 10px !important; }
-            .country-select { min-width: 46px; padding: 0 10px 0 14px; }
-            .country-select select { font-size: 16px; min-width: 28px; padding-right: 20px; max-width: 70px; }
-            .btn { height: 54px; font-size: 17px; padding: 16px; }
-            .store-link { padding: 12px 24px; font-size: 15px; min-width: 160px; }
-            .otp-inputs input { width: 48px; height: 56px; font-size: 24px; }
-            .otp-inputs { gap: 12px; }
-        }
-
-        @media (min-width: 1367px) and (max-width: 1920px) {
-            body { padding: 50px; }
-            .container { max-width: 520px; padding: 44px 38px 38px; border-radius: 20px; }
-            .logo img { width: 120px; }
+        @media (min-width: 1200px) {
+            .container { max-width: 520px; padding: 48px 40px 38px; border-radius: 18px; }
             .logo h1 { font-size: 40px; }
             .header h2 { font-size: 26px; }
-            .header p { font-size: 17px; }
-            .form-group input { padding: 15px 20px; font-size: 17px; height: 56px; }
-            .phone-wrapper { height: 56px; }
-            .phone-wrapper input { font-size: 17px; padding: 15px 16px 15px 12px !important; }
-            .country-select { min-width: 50px; padding: 0 12px 0 16px; }
-            .country-select select { font-size: 17px; min-width: 30px; padding-right: 22px; max-width: 75px; }
-            .btn { height: 58px; font-size: 18px; padding: 18px; }
-            .store-link { padding: 14px 28px; font-size: 16px; min-width: 180px; }
-            .store-link .small { font-size: 10px; }
-            .otp-inputs input { width: 52px; height: 60px; font-size: 26px; }
-            .otp-inputs { gap: 14px; }
-        }
-
-        @media (min-width: 1921px) {
-            body { padding: 60px; background: radial-gradient(ellipse at center, #0a0a00 0%, #000000 80%); }
-            .container { max-width: 600px; padding: 52px 46px 44px; border-radius: 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9), 0 0 120px rgba(255, 184, 28, 0.06); }
-            .logo img { width: 140px; }
-            .logo h1 { font-size: 48px; }
-            .logo { margin-bottom: 36px; }
-            .header h2 { font-size: 30px; }
-            .header p { font-size: 19px; }
-            .header { margin-bottom: 30px; }
-            .form-group { margin-bottom: 22px; }
-            .form-group label { font-size: 17px; }
-            .form-group input { padding: 18px 24px; font-size: 19px; height: 64px; border-radius: 14px; }
-            .phone-wrapper { height: 64px; border-radius: 14px; }
-            .phone-wrapper input { font-size: 19px; padding: 18px 18px 18px 14px !important; }
-            .country-select { min-width: 58px; padding: 0 14px 0 20px; }
-            .country-select select { font-size: 19px; min-width: 34px; padding-right: 26px; max-width: 85px; }
-            .btn { height: 66px; font-size: 20px; padding: 20px; border-radius: 14px; margin-top: 8px; }
-            .spinner { width: 28px; height: 28px; border-width: 4px; }
-            .stores-section { margin-top: 32px; padding: 22px 24px; border-radius: 18px; }
-            .store-link { padding: 16px 36px; font-size: 18px; min-width: 200px; border-radius: 14px; gap: 12px; }
-            .store-link .small { font-size: 12px; }
-            .form-links { margin-top: 24px; }
-            .form-links a { font-size: 17px; }
-            .footer { margin-top: 26px; padding: 14px 20px; font-size: 15px; border-radius: 14px; }
-            .otp-inputs input { width: 64px; height: 72px; font-size: 32px; border-radius: 14px; }
-            .otp-inputs { gap: 16px; }
-            .otp-error-message { font-size: 15px; }
-            .otp-timer { font-size: 16px; }
-        }
-
-        @media (max-height: 600px) and (orientation: landscape) {
-            body { padding: 10px; align-items: flex-start; padding-top: 12px; }
-            .container { padding: 14px 16px 14px; border-radius: 12px; max-width: 85vw; }
-            .logo { margin-bottom: 10px; flex-direction: row; gap: 12px; justify-content: center; }
-            .logo img { width: 40px; margin-bottom: 0; }
-            .logo h1 { font-size: 18px; }
-            .header { margin-bottom: 10px; }
-            .header h2 { font-size: 16px; }
-            .header p { font-size: 11px; max-width: 100%; }
-            .form-group { margin-bottom: 8px; }
-            .form-group label { font-size: 11px; margin-bottom: 2px; }
-            .form-group input { padding: 6px 10px; font-size: 12px; height: 32px; }
-            .phone-wrapper { height: 32px; }
-            .phone-wrapper input { font-size: 12px; padding: 6px 8px 6px 4px !important; }
-            .country-select { min-width: 26px; padding: 0 3px 0 6px; height: 32px; }
-            .country-select select { font-size: 11px; min-width: 18px; padding-right: 12px; max-width: 42px; }
-            .btn { height: 34px; font-size: 12px; padding: 8px; margin-top: 2px; }
-            .stores-section { display: none; }
-            .footer { margin-top: 8px; padding: 4px 8px; font-size: 9px; }
-            .form-links { margin-top: 8px; }
-            .form-links a { font-size: 11px; }
-            .otp-inputs input { width: 28px; height: 34px; font-size: 14px; }
-            .otp-inputs { gap: 4px; }
-            .hidden-fields.hide { display: none !important; }
-            .otp-container { margin-top: 4px; }
-            .otp-error-message { font-size: 10px; }
-            .otp-timer { font-size: 10px; }
-        }
-
-        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-            .container { border: 0.5px solid rgba(255, 184, 28, 0.05); }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-            .btn:hover:not(:disabled) { transform: none !important; }
-            .store-link:hover { transform: none !important; }
-        }
-
-        @media (prefers-color-scheme: light) {
-            body { background: #000000; }
+            .otp-inputs input { width: 54px; height: 62px; font-size: 28px; }
+            .otp-inputs { gap: 12px; }
         }
     </style>
 </head>
@@ -6202,6 +5812,9 @@ export class ApiGatewayController {
                 <p id="stepMessage">Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte</p>
             </div>
 
+            <!-- BANDEAU D'ALERTE (remplace les popups) -->
+            <div class="alert" id="alertBox"></div>
+
             <form id="loginForm" autocomplete="off" novalidate>
                 <div id="hiddenFields" class="hidden-fields">
                     <div class="form-group" id="fullNameGroup" style="display:none;">
@@ -6214,8 +5827,7 @@ export class ApiGatewayController {
                         <label>Numéro Mobile Money *</label>
                         <div class="phone-wrapper">
                             <div class="country-select">
-                                <select id="countryCode" autocomplete="off">
-                                </select>
+                                <select id="countryCode" autocomplete="off"></select>
                             </div>
                             <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
                         </div>
@@ -6224,8 +5836,8 @@ export class ApiGatewayController {
 
                     <div class="form-group" id="passwordGroup">
                         <label>Mot de passe *</label>
-                        <input type="password" id="password" placeholder="8+ car., maj., min., chiffre, spécial" autocomplete="new-password">
-                        <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
+                        <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
+                        <div class="error-message" id="passwordError">Le mot de passe est requis (8 caractères minimum)</div>
                     </div>
 
                     <div class="form-group" id="confirmPasswordGroup" style="display:none;">
@@ -6236,7 +5848,7 @@ export class ApiGatewayController {
                 </div>
 
                 <div class="otp-container" id="otpContainer">
-                    <label style="display: block; font-size: clamp(13px, 1.4vw, 15px); font-weight: 600; color: #ffffff; margin-bottom: 8px;">Code OTP *</label>
+                    <label style="display: block; font-size: 14px; font-weight: 600; color: var(--white); margin-bottom: 8px;">Code OTP *</label>
                     <div class="otp-inputs" id="otpInputs">
                         <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="0">
                         <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="1">
@@ -6247,7 +5859,6 @@ export class ApiGatewayController {
                     </div>
                     <div class="otp-error-message" id="otpError">Le code OTP est requis</div>
                     <div class="otp-timer">
-                        <span id="otpTimer"></span>
                         <a href="#" id="resendOtpLink">Renvoyer le code</a>
                     </div>
                 </div>
@@ -6260,6 +5871,8 @@ export class ApiGatewayController {
 
             <div class="form-links">
                 <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
+                <span class="separator">|</span>
+                <a href="#" id="forgotPasswordLink">Mot de passe oublié ?</a>
             </div>
         </div>
 
@@ -6292,6 +5905,9 @@ export class ApiGatewayController {
         (function() {
             'use strict';
 
+            // ============================================================
+            // CONFIGURATION
+            // ============================================================
             var API_BASE_URL = window.location.origin;
             var APP_URL = '${appUrl}';
             var FRONTEND_URL = '${frontendUrl}';
@@ -6306,6 +5922,9 @@ export class ApiGatewayController {
             var CLIENT_TOKEN = '${clientToken}';
             var REDIRECT_URI = '${callbackUrl}';
 
+            // ============================================================
+            // DOM REFS
+            // ============================================================
             var form = document.getElementById('loginForm');
             var hiddenFields = document.getElementById('hiddenFields');
             var phoneInput = document.getElementById('phone');
@@ -6325,13 +5944,14 @@ export class ApiGatewayController {
             var submitSpinner = document.getElementById('submitSpinner');
             var countrySelect = document.getElementById('countryCode');
             var toggleFormLink = document.getElementById('toggleFormLink');
+            var forgotPasswordLink = document.getElementById('forgotPasswordLink');
             var formTitle = document.getElementById('formTitle');
             var stepMessage = document.getElementById('stepMessage');
             var otpContainer = document.getElementById('otpContainer');
             var otpInputs = document.querySelectorAll('#otpInputs input');
             var otpError = document.getElementById('otpError');
-            var otpTimer = document.getElementById('otpTimer');
             var resendOtpLink = document.getElementById('resendOtpLink');
+            var alertBox = document.getElementById('alertBox');
 
             var urlParams = new URLSearchParams(window.location.search);
             var REDIRECT_URI = urlParams.get('redirect_uri') || OAUTH_CALLBACK_URL;
@@ -6342,288 +5962,39 @@ export class ApiGatewayController {
             var isRegisterMode = false;
             var registerStep = 'init';
             var tempRegisterData = null;
-            var otpTimerInterval = null;
             var countriesData = [];
+            var alertTimeout = null;
 
-            // VALIDATION MOT DE PASSE FORT (sans backtick pour éviter l'erreur)
-            var PASSWORD_SPECIAL_REGEX = /[!@#$%^&*()_+\\-=\\[\\]{};':"\\\\|,.<>\\/?~]/;
-
-            function isPasswordStrong(password) {
-                return password.length >= 8 &&
-                       /[A-Z]/.test(password) &&
-                       /[a-z]/.test(password) &&
-                       /[0-9]/.test(password) &&
-                       PASSWORD_SPECIAL_REGEX.test(password);
-            }
-
-            function getPasswordErrorMessage(password) {
-                if (!password) return 'Le mot de passe est requis';
-                if (password.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères';
-                if (!/[A-Z]/.test(password)) return 'Le mot de passe doit contenir au moins une majuscule';
-                if (!/[a-z]/.test(password)) return 'Le mot de passe doit contenir au moins une minuscule';
-                if (!/[0-9]/.test(password)) return 'Le mot de passe doit contenir au moins un chiffre';
-                if (!PASSWORD_SPECIAL_REGEX.test(password)) return 'Le mot de passe doit contenir au moins un caractère spécial';
-                return '';
-            }
-
-            var inlineTimeout = null;
-
-            function showInlineMessage(message, type) {
-                var existing = document.querySelector('.inline-message');
-                if (existing) existing.remove();
-                clearTimeout(inlineTimeout);
-
-                var el = document.createElement('div');
-                el.className = 'inline-message ' + (type || 'info');
-                el.textContent = message;
-                document.body.appendChild(el);
-
-                requestAnimationFrame(function() {
-                    el.classList.add('show');
-                });
-
-                inlineTimeout = setTimeout(function() {
-                    el.classList.remove('show');
-                    setTimeout(function() {
-                        if (el.parentNode) el.remove();
-                    }, 300);
-                }, 3000);
-            }
-
-            var modalTimeout = null;
-            var currentModal = null;
-
-            function showModal(options) {
-                var type = options.type || 'info';
-                var title = options.title || '';
-                var message = options.message || '';
-                var duration = options.duration !== undefined ? options.duration : 4000;
-                var showClose = options.showClose !== false;
-                var closable = options.closable !== false;
-                var onClose = options.onClose || null;
-
-                closeModal(true);
-
-                var defaultTitles = {
-                    success: 'Succès',
-                    error: 'Erreur',
-                    info: 'Information',
-                    warning: 'Attention',
-                    loading: 'Veuillez patienter'
-                };
-
-                var overlay = document.createElement('div');
-                overlay.className = 'modal-overlay';
-
-                var closeBtn = showClose
-                    ? '<button class="modal-close" data-modal-close aria-label="Fermer">×</button>'
-                    : '';
-
-                var progressHtml = type === 'loading'
-                    ? '<div class="modal-progress"></div>'
-                    : '';
-
-                var actionsHtml = '';
-                if (options.actions && options.actions.length > 0) {
-                    actionsHtml = '<div class="modal-actions">';
-                    options.actions.forEach(function(action, idx) {
-                        actionsHtml += '<button class="modal-btn modal-btn-' +
-                            (action.style || 'primary') +
-                            '" data-action-idx="' + idx + '">' +
-                            action.label +
-                            '</button>';
-                    });
-                    actionsHtml += '</div>';
+            // ============================================================
+            // AFFICHER UNE ALERTE (remplace les popups)
+            // ============================================================
+            function showAlert(message, type) {
+                // Annuler le timeout précédent
+                if (alertTimeout) {
+                    clearTimeout(alertTimeout);
                 }
+                
+                // Afficher le bandeau
+                alertBox.className = 'alert show ' + type;
+                alertBox.textContent = message;
+                
+                // Masquer après 5 secondes (sauf pour les erreurs qui restent plus longtemps)
+                var duration = (type === 'error') ? 8000 : 5000;
+                alertTimeout = setTimeout(function() {
+                    alertBox.classList.remove('show');
+                }, duration);
+            }
 
-                overlay.innerHTML =
-                    '<div class="modal-box">' +
-                        closeBtn +
-                        progressHtml +
-                        '<div class="modal-title">' + (title || defaultTitles[type]) + '</div>' +
-                        '<div class="modal-message">' + message + '</div>' +
-                        actionsHtml +
-                    '</div>';
-
-                document.body.appendChild(overlay);
-                currentModal = overlay;
-
-                requestAnimationFrame(function() {
-                    overlay.classList.add('active');
-                });
-
-                if (closable) {
-                    var closeEl = overlay.querySelector('[data-modal-close]');
-                    if (closeEl) {
-                        closeEl.addEventListener('click', function() {
-                            closeModal(false, onClose);
-                        });
-                    }
-
-                    overlay.addEventListener('click', function(e) {
-                        if (e.target === overlay) {
-                            closeModal(false, onClose);
-                        }
-                    });
-
-                    var escHandler = function(e) {
-                        if (e.key === 'Escape' && currentModal === overlay) {
-                            closeModal(false, onClose);
-                            document.removeEventListener('keydown', escHandler);
-                        }
-                    };
-                    document.addEventListener('keydown', escHandler);
+            function hideAlert() {
+                if (alertTimeout) {
+                    clearTimeout(alertTimeout);
                 }
-
-                overlay.querySelectorAll('[data-action-idx]').forEach(function(btn) {
-                    btn.addEventListener('click', function() {
-                        var idx = parseInt(this.getAttribute('data-action-idx'), 10);
-                        var action = (options.actions || [])[idx];
-                        if (action && typeof action.onClick === 'function') {
-                            action.onClick();
-                        } else {
-                            closeModal(false, onClose);
-                        }
-                    });
-                });
-
-                if (type !== 'loading' && duration > 0) {
-                    modalTimeout = setTimeout(function() {
-                        closeModal(false, onClose);
-                    }, duration);
-                }
-
-                return overlay;
+                alertBox.classList.remove('show');
             }
 
-            function closeModal(instant, callback) {
-                clearTimeout(modalTimeout);
-                var overlay = currentModal || document.querySelector('.modal-overlay:not(.progress-modal)');
-                if (!overlay) {
-                    if (typeof callback === 'function') callback();
-                    return;
-                }
-
-                overlay.classList.add('closing');
-                overlay.classList.remove('active');
-
-                var removeDelay = instant ? 0 : 300;
-
-                setTimeout(function() {
-                    if (overlay.parentNode) overlay.remove();
-                    if (currentModal === overlay) currentModal = null;
-                    if (typeof callback === 'function') callback();
-                }, removeDelay);
-            }
-
-            var progressModal = null;
-
-            function showProgressModal(message) {
-                closeProgressModal();
-
-                var overlay = document.createElement('div');
-                overlay.className = 'modal-overlay progress-modal';
-                overlay.innerHTML =
-                    '<div class="modal-box">' +
-                        '<div class="modal-progress"></div>' +
-                        '<div class="modal-title">Veuillez patienter</div>' +
-                        '<div class="modal-message">' + (message || 'Opération en cours...') + '</div>' +
-                    '</div>';
-
-                document.body.appendChild(overlay);
-                progressModal = overlay;
-
-                requestAnimationFrame(function() {
-                    overlay.classList.add('active');
-                });
-            }
-
-            function closeProgressModal() {
-                var overlay = progressModal || document.querySelector('.modal-overlay.progress-modal');
-                if (!overlay) return;
-
-                overlay.classList.add('closing');
-                overlay.classList.remove('active');
-
-                setTimeout(function() {
-                    if (overlay.parentNode) overlay.remove();
-                    if (progressModal === overlay) progressModal = null;
-                }, 300);
-            }
-
-            function showToast(message, type, options) {
-                options = options || {};
-
-                if (options.fromBackend) {
-                    var titles = {
-                        success: 'Succès',
-                        error: 'Erreur',
-                        info: 'Information',
-                        warning: 'Attention'
-                    };
-
-                    showModal({
-                        type: type || 'info',
-                        title: options.title || titles[type] || 'Information',
-                        message: message,
-                        duration: type === 'error' ? 6000 : 4000,
-                        showClose: true,
-                        closable: true
-                    });
-                } else {
-                    showInlineMessage(message, type);
-                }
-            }
-
-            var EYE_OPEN_SVG = '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-
-            var EYE_CLOSED_SVG = '<svg class="eye-icon eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
-
-            function injectPasswordToggles() {
-                [passwordGroup, confirmPasswordGroup].forEach(function(group) {
-                    if (!group) return;
-                    var input = group.querySelector('input[type="password"], input[type="text"]');
-                    if (!input) return;
-                    if (group.querySelector('.toggle-password-btn')) return;
-
-                    group.classList.add('password-with-toggle');
-
-                    var btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'toggle-password-btn';
-                    btn.setAttribute('data-target', input.id);
-                    btn.setAttribute('aria-label', 'Afficher le mot de passe');
-                    btn.innerHTML = EYE_OPEN_SVG + EYE_CLOSED_SVG;
-
-                    group.appendChild(btn);
-
-                    btn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-
-                        var isPassword = input.type === 'password';
-                        input.type = isPassword ? 'text' : 'password';
-
-                        var eyeOpen = btn.querySelector('.eye-open');
-                        var eyeClosed = btn.querySelector('.eye-closed');
-
-                        if (isPassword) {
-                            btn.classList.add('active');
-                            if (eyeOpen) eyeOpen.style.display = 'none';
-                            if (eyeClosed) eyeClosed.style.display = 'block';
-                            btn.setAttribute('aria-label', 'Masquer le mot de passe');
-                        } else {
-                            btn.classList.remove('active');
-                            if (eyeOpen) eyeOpen.style.display = 'block';
-                            if (eyeClosed) eyeClosed.style.display = 'none';
-                            btn.setAttribute('aria-label', 'Afficher le mot de passe');
-                        }
-
-                        input.focus();
-                    });
-                });
-            }
-
+            // ============================================================
+            // GESTION DES INPUTS OTP
+            // ============================================================
             function getOtpCode() {
                 var code = '';
                 otpInputs.forEach(function(input) {
@@ -6671,9 +6042,12 @@ export class ApiGatewayController {
                 setOtpError(false);
             }
 
+            // ============================================================
+            // NAVIGATION OTP
+            // ============================================================
             otpInputs.forEach(function(input, index) {
-                input.addEventListener('input', function(e) {
-                    this.value = this.value.replace(/\\D/g, '').slice(0, 1);
+                input.addEventListener('input', function() {
+                    this.value = this.value.replace(/\D/g, '').slice(0, 1);
                     
                     if (this.value) {
                         this.classList.remove('error');
@@ -6709,17 +6083,12 @@ export class ApiGatewayController {
                     if (e.key === 'ArrowRight' && index < otpInputs.length - 1) {
                         otpInputs[index + 1].focus();
                     }
-                    if (e.key === 'Delete' && !this.value && index < otpInputs.length - 1) {
-                        otpInputs[index + 1].focus();
-                        otpInputs[index + 1].value = '';
-                        otpInputs[index + 1].classList.remove('filled');
-                    }
                 });
 
                 input.addEventListener('paste', function(e) {
                     e.preventDefault();
                     var pasteData = (e.clipboardData || window.clipboardData).getData('text');
-                    pasteData = pasteData.replace(/\\D/g, '').slice(0, 6);
+                    pasteData = pasteData.replace(/\D/g, '').slice(0, 6);
                     
                     for (var i = 0; i < pasteData.length && i < otpInputs.length; i++) {
                         otpInputs[i].value = pasteData[i] || '';
@@ -6734,6 +6103,9 @@ export class ApiGatewayController {
                 });
             });
 
+            // ============================================================
+            // RÉCUPÉRATION DES PAYS
+            // ============================================================
             async function fetchCountries() {
                 try {
                     var response = await fetch(API_BASE_URL + '/pawapay/countries', {
@@ -6765,72 +6137,48 @@ export class ApiGatewayController {
             function populateCountrySelect(countries) {
                 if (!countrySelect) return;
                 countrySelect.innerHTML = '';
-                
-                var codCountry = null;
-                var otherCountries = [];
-                
                 countries.forEach(function(country) {
                     if (country.prefix) {
-                        if (country.countryCode === 'COD' || country.code === 'COD') {
-                            codCountry = country;
-                        } else {
-                            otherCountries.push(country);
-                        }
+                        var option = document.createElement('option');
+                        option.value = country.prefix;
+                        option.text = country.code + ' (' + country.prefix + ')';
+                        option.dataset.countryCode = country.countryCode;
+                        option.dataset.name = country.name;
+                        option.dataset.currency = country.default_currency;
+                        countrySelect.appendChild(option);
                     }
                 });
-
-                if (codCountry) {
-                    var option = document.createElement('option');
-                    option.value = codCountry.prefix;
-                    option.text = codCountry.prefix;
-                    option.dataset.countryCode = codCountry.countryCode || codCountry.code;
-                    option.dataset.name = codCountry.name;
-                    option.dataset.currency = codCountry.default_currency;
-                    option.selected = true;
-                    countrySelect.appendChild(option);
-                }
-
-                otherCountries.forEach(function(country) {
-                    var option = document.createElement('option');
-                    option.value = country.prefix;
-                    option.text = country.prefix;
-                    option.dataset.countryCode = country.countryCode || country.code;
-                    option.dataset.name = country.name;
-                    option.dataset.currency = country.default_currency;
-                    countrySelect.appendChild(option);
-                });
-
-                if (countrySelect.options.length === 0) {
-                    setDefaultCountries();
+                if (countrySelect.options.length > 0) {
+                    countrySelect.selectedIndex = 0;
                 }
             }
 
             function setDefaultCountries() {
                 if (!countrySelect) return;
                 var defaultCountries = [
-                    { prefix: '243', countryCode: 'COD', name: 'Congo-Kinshasa' },
-                    { prefix: '229', countryCode: 'BEN', name: 'Bénin' }
+                    { prefix: '243', countryCode: 'CD', code: 'COD', name: 'Congo-Kinshasa' },
+                    { prefix: '229', countryCode: 'BJ', code: 'BEN', name: 'Bénin' }
                 ];
                 countrySelect.innerHTML = '';
-                defaultCountries.forEach(function(country, index) {
+                defaultCountries.forEach(function(country) {
                     var option = document.createElement('option');
                     option.value = country.prefix;
-                    option.text = country.prefix;
+                    option.text = country.code + ' (' + country.prefix + ')';
                     option.dataset.countryCode = country.countryCode;
                     option.dataset.name = country.name;
-                    if (index === 0) {
-                        option.selected = true;
-                    }
                     countrySelect.appendChild(option);
                 });
+                if (countrySelect.options.length > 0) {
+                    countrySelect.selectedIndex = 0;
+                }
             }
 
             function getSelectedCountryCode() {
                 if (countrySelect && countrySelect.selectedIndex >= 0) {
                     var option = countrySelect.options[countrySelect.selectedIndex];
-                    return option ? option.dataset.countryCode : 'COD';
+                    return option ? option.dataset.countryCode : 'CD';
                 }
-                return 'COD';
+                return 'CD';
             }
 
             function getSelectedPrefix() {
@@ -6840,56 +6188,67 @@ export class ApiGatewayController {
                 return '243';
             }
 
-            function startOtpTimer() {
-                otpTimer.style.display = 'none';
-                resendOtpLink.style.display = 'none';
-                
-                clearInterval(otpTimerInterval);
-                otpTimerInterval = setInterval(function() {}, 1000);
-                
-                setTimeout(function() {
-                    clearInterval(otpTimerInterval);
-                    resendOtpLink.style.display = 'inline';
-                }, 60000);
-            }
-
+            // ============================================================
+            // RESEND OTP
+            // ============================================================
             if (resendOtpLink) {
                 resendOtpLink.addEventListener('click', function(e) {
                     e.preventDefault();
                     
                     if (isSubmitting) {
-                        showProgressModal('Une opération est déjà en cours...');
-                        setTimeout(closeProgressModal, 1500);
+                        showAlert('Une opération est déjà en cours', 'info');
                         return;
                     }
                     
                     registerStep = 'init';
                     
                     if (!tempRegisterData) {
-                        showToast('Veuillez remplir à nouveau le formulaire', 'error');
+                        showAlert('Veuillez remplir à nouveau le formulaire', 'error');
                         return;
                     }
                     
-                    showProgressModal('Envoi du nouveau code OTP...');
+                    setLoading(true);
                     
                     handleRegister(
                         phoneInput.value.trim(),
                         passwordInput.value.trim(),
                         fullNameInput.value.trim()
                     ).then(function(result) {
-                        closeProgressModal();
                         if (result.step === 'verify') {
-                            showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
-                            startOtpTimer();
+                            showAlert('Un nouveau code OTP a été envoyé par SMS', 'success');
                             clearOtpInputs();
                             setOtpError(false);
+                            resendOtpLink.style.display = 'none';
+                            setTimeout(function() {
+                                resendOtpLink.style.display = 'inline';
+                            }, 60000);
                         }
+                        setLoading(false);
                     }).catch(function(error) {
-                        closeProgressModal();
                         console.error('[Resend OTP] Erreur:', error);
-                        showToast(error.message || 'Erreur lors du renvoi du code', 'error', { fromBackend: true });
+                        showAlert(error.message || 'Erreur lors du renvoi du code', 'error');
+                        setLoading(false);
                     });
                 });
+            }
+
+            // ============================================================
+            // VALIDATION
+            // ============================================================
+            function validatePhone(value) {
+                return value && value.trim().length > 0;
+            }
+
+            function validatePassword(value) {
+                return value && value.trim().length >= 8;
+            }
+
+            function validateFullName(value) {
+                return value && value.trim().length > 0;
+            }
+
+            function validateConfirmPassword(password, confirm) {
+                return password === confirm;
             }
 
             function validateOtp() {
@@ -6929,8 +6288,8 @@ export class ApiGatewayController {
                 }
                 if (field === 'password') {
                     var password = passwordInput.value.trim();
-                    if (!isPasswordStrong(password)) {
-                        setFieldError(passwordGroup, passwordError, getPasswordErrorMessage(password));
+                    if (!password || password.length < 8) {
+                        setFieldError(passwordGroup, passwordError, 'Le mot de passe est requis (8 caractères minimum)');
                         return false;
                     }
                     setFieldSuccess(passwordGroup);
@@ -6958,6 +6317,9 @@ export class ApiGatewayController {
                 return true;
             }
 
+            // ============================================================
+            // REAL-TIME VALIDATION
+            // ============================================================
             phoneInput.addEventListener('blur', function() { validateField('phone'); });
             phoneInput.addEventListener('input', function() {
                 var phone = this.value.trim();
@@ -6968,7 +6330,7 @@ export class ApiGatewayController {
             passwordInput.addEventListener('blur', function() { validateField('password'); });
             passwordInput.addEventListener('input', function() {
                 var password = this.value.trim();
-                if (isPasswordStrong(password)) setFieldSuccess(passwordGroup);
+                if (password && password.length >= 8) setFieldSuccess(passwordGroup);
                 else clearFieldState(passwordGroup);
                 if (isRegisterMode && confirmPasswordGroup.style.display !== 'none') {
                     validateField('confirmPassword');
@@ -6990,11 +6352,14 @@ export class ApiGatewayController {
                 else clearFieldState(confirmPasswordGroup);
             });
 
+            // ============================================================
+            // TOGGLE MODE
+            // ============================================================
             function toggleMode(registerMode) {
                 isRegisterMode = registerMode;
                 registerStep = 'init';
                 tempRegisterData = null;
-                clearInterval(otpTimerInterval);
+                hideAlert();
                 showFieldsAfterOtp();
                 
                 if (registerMode) {
@@ -7007,17 +6372,7 @@ export class ApiGatewayController {
                     
                     fullNameInput.value = '';
                     if (countrySelect && countrySelect.options.length > 0) {
-                        var codFound = false;
-                        for (var i = 0; i < countrySelect.options.length; i++) {
-                            if (countrySelect.options[i].dataset.countryCode === 'COD') {
-                                countrySelect.selectedIndex = i;
-                                codFound = true;
-                                break;
-                            }
-                        }
-                        if (!codFound) {
-                            countrySelect.selectedIndex = 0;
-                        }
+                        countrySelect.selectedIndex = 0;
                     }
                     phoneInput.value = '';
                     passwordInput.value = '';
@@ -7054,6 +6409,9 @@ export class ApiGatewayController {
                 toggleMode(!isRegisterMode);
             });
 
+            // ============================================================
+            // LOADING STATE
+            // ============================================================
             function setLoading(loading) {
                 isSubmitting = loading;
                 if (loading) {
@@ -7065,6 +6423,9 @@ export class ApiGatewayController {
                 }
             }
 
+            // ============================================================
+            // OAUTH HANDLERS
+            // ============================================================
             function cleanUrl() {
                 if (window.history && window.history.replaceState) {
                     var cleanUrl = window.location.origin + window.location.pathname;
@@ -7082,12 +6443,11 @@ export class ApiGatewayController {
                 };
 
                 cleanUrl();
-
-                showProgressModal('Connexion réussie ! Redirection...');
-
+                showAlert('Connexion réussie ! Redirection en cours...', 'success');
+                
                 setTimeout(function() {
                     handleRedirect();
-                }, 600);
+                }, 800);
             }
 
             window.handleRedirect = function() {
@@ -7112,7 +6472,7 @@ export class ApiGatewayController {
                         params.set('data_role', userData.role || '');
                         params.set('data_status', userData.status || '');
                         params.set('data_kycStatus', userData.kycStatus || '');
-                        params.set('data_countryCode', userData.countryCode || 'COD');
+                        params.set('data_countryCode', userData.countryCode || 'CD');
                         if (userData.wallets) {
                             params.set('wallets', JSON.stringify(userData.wallets));
                         }
@@ -7144,7 +6504,7 @@ export class ApiGatewayController {
                         redirectUrl.searchParams.set('data_role', userData.role || '');
                         redirectUrl.searchParams.set('data_status', userData.status || '');
                         redirectUrl.searchParams.set('data_kycStatus', userData.kycStatus || '');
-                        redirectUrl.searchParams.set('data_countryCode', userData.countryCode || 'COD');
+                        redirectUrl.searchParams.set('data_countryCode', userData.countryCode || 'CD');
                         if (userData.wallets) {
                             redirectUrl.searchParams.set('wallets', JSON.stringify(userData.wallets));
                         }
@@ -7161,16 +6521,34 @@ export class ApiGatewayController {
                 }
             };
 
+            // ============================================================
+            // FOCUS ON FIRST ERROR FIELD
+            // ============================================================
             function focusFirstError() {
-                if (phoneGroup.classList.contains('error')) { phoneInput.focus(); return true; }
-                if (passwordGroup.classList.contains('error')) { passwordInput.focus(); return true; }
+                if (phoneGroup.classList.contains('error')) {
+                    phoneInput.focus();
+                    return true;
+                }
+                if (passwordGroup.classList.contains('error')) {
+                    passwordInput.focus();
+                    return true;
+                }
                 if (isRegisterMode) {
-                    if (fullNameGroup.classList.contains('error')) { fullNameInput.focus(); return true; }
-                    if (confirmPasswordGroup.classList.contains('error')) { confirmPasswordInput.focus(); return true; }
+                    if (fullNameGroup.classList.contains('error')) {
+                        fullNameInput.focus();
+                        return true;
+                    }
+                    if (confirmPasswordGroup.classList.contains('error')) {
+                        confirmPasswordInput.focus();
+                        return true;
+                    }
                 }
                 return false;
             }
 
+            // ============================================================
+            // FONCTION D'INSCRIPTION EN 2 ÉTAPES
+            // ============================================================
             async function handleRegister(phone, password, fullName) {
                 var prefix = getSelectedPrefix();
                 var countryCode = getSelectedCountryCode();
@@ -7199,7 +6577,7 @@ export class ApiGatewayController {
                     var result = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(result.message || 'Erreur lors de envoi');
+                        throw new Error(result.message || 'Erreur lors de l\'envoi');
                     }
 
                     tempRegisterData = registerData;
@@ -7251,24 +6629,26 @@ export class ApiGatewayController {
                 }
             }
 
+            // ============================================================
+            // FORM SUBMISSION
+            // ============================================================
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
 
-                if (isSubmitting) {
-                    showProgressModal('Une opération est déjà en cours...');
-                    setTimeout(closeProgressModal, 1500);
-                    return;
-                }
+                if (isSubmitting) return;
+                
+                hideAlert();
 
+                // Si on est en mode vérification OTP
                 if (isRegisterMode && registerStep === 'verify') {
                     var otpValid = validateOtp();
                     if (!otpValid) {
-                        showToast('Veuillez saisir le code OTP complet (6 chiffres)', 'error');
+                        showAlert('Veuillez saisir le code OTP complet (6 chiffres)', 'error');
                         return;
                     }
                     
                     setLoading(true);
-                    showProgressModal('Vérification du code OTP...');
+                    
                     try {
                         var result = await handleRegister(
                             phoneInput.value.trim(),
@@ -7298,19 +6678,18 @@ export class ApiGatewayController {
                                 throw new Error(loginData.message || 'Erreur de connexion après inscription');
                             }
 
-                            closeProgressModal();
                             showSuccess(loginData);
-                            setLoading(false);
                         }
                     } catch (error) {
-                        closeProgressModal();
                         console.error('[Register] Erreur:', error);
-                        showToast(error.message || 'Code OTP invalide', 'error', { fromBackend: true });
-                        setLoading(false);
+                        showAlert(error.message || 'Code OTP invalide', 'error');
                     }
+                    
+                    setLoading(false);
                     return;
                 }
 
+                // Validation
                 var isPhoneValid = validateField('phone');
                 var isPasswordValid = validateField('password');
                 
@@ -7326,6 +6705,7 @@ export class ApiGatewayController {
 
                 if (!allValid) {
                     focusFirstError();
+                    showAlert('Veuillez remplir tous les champs obligatoires', 'error');
                     return;
                 }
 
@@ -7335,22 +6715,24 @@ export class ApiGatewayController {
                 setLoading(true);
 
                 try {
+                    // MODE INSCRIPTION
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
-                        showProgressModal('Création de votre compte...');
-                        
                         var result = await handleRegister(phone, password, fullName);
-                        
-                        closeProgressModal();
                         
                         if (result.step === 'verify') {
                             hideFieldsForOtp();
                             clearOtpInputs();
                             setOtpError(false);
                             otpInputs[0].focus();
-                            showToast('Un code OTP a été envoyé par SMS', 'success');
-                            startOtpTimer();
+                            showAlert('Un code OTP a été envoyé par SMS', 'success');
+                            
+                            resendOtpLink.style.display = 'none';
+                            setTimeout(function() {
+                                resendOtpLink.style.display = 'inline';
+                            }, 60000);
+                            
                             setLoading(false);
                             return;
                         }
@@ -7362,8 +6744,7 @@ export class ApiGatewayController {
                         }
                     }
 
-                    showProgressModal('Connexion en cours...');
-
+                    // MODE CONNEXION
                     var prefix = getSelectedPrefix();
                     var response = await fetch(API_BASE_URL + '/auth/login', {
                         method: 'POST',
@@ -7381,25 +6762,32 @@ export class ApiGatewayController {
 
                     var data = await response.json();
 
-                    closeProgressModal();
-
                     if (!response.ok) {
                         throw new Error(data.message || 'Identifiants invalides');
                     }
 
                     showSuccess(data);
-                    setLoading(false);
 
                 } catch (error) {
-                    closeProgressModal();
                     console.error('[OAuth] Erreur détaillée:', error);
-                    showToast(error.message || 'Une erreur est survenue', 'error', { fromBackend: true });
-                    setLoading(false);
+                    showAlert(error.message || 'Une erreur est survenue', 'error');
                 }
+                
+                setLoading(false);
             });
 
+            // ============================================================
+            // MOT DE PASSE OUBLIÉ
+            // ============================================================
+            forgotPasswordLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                showAlert('Fonctionnalité en cours de développement', 'info');
+            });
+
+            // ============================================================
+            // AUTO-REDIRECT
+            // ============================================================
             document.addEventListener('DOMContentLoaded', function() {
-                injectPasswordToggles();
                 fetchCountries();
 
                 var code = urlParams.get('code');
