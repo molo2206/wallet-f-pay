@@ -5646,218 +5646,6 @@ export class ApiGatewayController {
             text-decoration: underline;
         }
 
-        /* MESSAGE INLINE */
-        .inline-message {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-20px);
-            padding: 12px 20px;
-            border-radius: 12px;
-            font-size: 14px;
-            font-weight: 600;
-            z-index: 99998;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-            max-width: 90vw;
-            text-align: center;
-            font-family: inherit;
-        }
-
-        .inline-message.show {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .inline-message.error {
-            background: #1a1a1a;
-            color: #ff4444;
-            border: 1px solid #ff4444;
-        }
-
-        .inline-message.success {
-            background: #FFB81C;
-            color: #000000;
-        }
-
-        .inline-message.info {
-            background: #1a1a1a;
-            color: #FFB81C;
-            border: 1px solid rgba(255, 184, 28, 0.3);
-        }
-
-        /* MODALE */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 99999;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-            padding: 20px;
-        }
-
-        .modal-overlay.active { opacity: 1; visibility: visible; }
-
-        .modal-box {
-            background: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%);
-            border: 1px solid rgba(255, 184, 28, 0.15);
-            border-radius: 20px;
-            padding: 36px 32px 28px;
-            max-width: 420px;
-            width: 100%;
-            text-align: center;
-            box-shadow:
-                0 30px 90px rgba(0, 0, 0, 0.9),
-                0 0 60px rgba(255, 184, 28, 0.08);
-            transform: scale(0.85) translateY(30px);
-            opacity: 0;
-            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-                        opacity 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .modal-overlay.active .modal-box {
-            transform: scale(1) translateY(0);
-            opacity: 1;
-        }
-
-        .modal-overlay.closing .modal-box {
-            transform: scale(0.9) translateY(20px);
-            opacity: 0;
-        }
-
-        .modal-box::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, transparent, #FFB81C, transparent);
-            opacity: 0.7;
-        }
-
-        .modal-progress {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.06);
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 0 auto 24px;
-            position: relative;
-        }
-
-        .modal-progress::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -40%;
-            width: 40%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, #FFB81C, transparent);
-            animation: progressSlide 1.2s ease-in-out infinite;
-            border-radius: 4px;
-        }
-
-        @keyframes progressSlide {
-            0% { left: -40%; }
-            100% { left: 100%; }
-        }
-
-        .modal-title {
-            font-size: 22px;
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 10px;
-            letter-spacing: -0.3px;
-            line-height: 1.3;
-        }
-
-        .modal-message {
-            font-size: 15px;
-            color: rgba(255, 255, 255, 0.65);
-            line-height: 1.6;
-            margin-bottom: 26px;
-            padding: 0 4px;
-        }
-
-        .modal-message strong { color: #FFB81C; }
-        .modal-message:last-child { margin-bottom: 0; }
-
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .modal-btn {
-            padding: 12px 28px;
-            border: none;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            font-family: inherit;
-            min-width: 130px;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .modal-btn-primary {
-            background: #FFB81C;
-            color: #000000;
-            box-shadow: 0 6px 24px rgba(255, 184, 28, 0.3);
-        }
-
-        .modal-btn-primary:hover {
-            background: #e6a500;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 32px rgba(255, 184, 28, 0.45);
-        }
-
-        .modal-btn-primary:active { transform: scale(0.98); }
-
-        .modal-close {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            border: none;
-            background: rgba(255, 255, 255, 0.06);
-            color: rgba(255, 255, 255, 0.5);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-            line-height: 1;
-            padding: 0;
-            font-family: inherit;
-            font-size: 18px;
-            font-weight: 400;
-        }
-
-        .modal-close:hover {
-            background: rgba(255, 255, 255, 0.12);
-            color: #ffffff;
-            transform: rotate(90deg);
-        }
-
-        .modal-overlay.progress-modal { cursor: wait; }
-        .modal-overlay.progress-modal .modal-box { pointer-events: none; }
-
         /* TOGGLE MOT DE PASSE */
         .form-group.password-with-toggle { position: relative; }
 
@@ -6009,10 +5797,6 @@ export class ApiGatewayController {
             .footer { font-size: 10px; padding: 6px 8px; }
             .form-links a { font-size: 12px; }
             .stores-section { padding: 10px 8px; }
-            .modal-box { padding: 30px 22px 22px; border-radius: 16px; }
-            .modal-title { font-size: 19px; }
-            .modal-message { font-size: 14px; }
-            .modal-btn { padding: 11px 22px; font-size: 14px; min-width: 110px; }
         }
 
         @media (min-width: 361px) and (max-width: 480px) {
@@ -6345,7 +6129,7 @@ export class ApiGatewayController {
             var otpTimerInterval = null;
             var countriesData = [];
 
-            // VALIDATION MOT DE PASSE FORT (sans backtick pour éviter l'erreur)
+            // VALIDATION MOT DE PASSE FORT
             var PASSWORD_SPECIAL_REGEX = /[!@#$%^&*()_+\\-=\\[\\]{};':"\\\\|,.<>\\/?~]/;
 
             function isPasswordStrong(password) {
@@ -6364,215 +6148,6 @@ export class ApiGatewayController {
                 if (!/[0-9]/.test(password)) return 'Le mot de passe doit contenir au moins un chiffre';
                 if (!PASSWORD_SPECIAL_REGEX.test(password)) return 'Le mot de passe doit contenir au moins un caractère spécial';
                 return '';
-            }
-
-            var inlineTimeout = null;
-
-            function showInlineMessage(message, type) {
-                var existing = document.querySelector('.inline-message');
-                if (existing) existing.remove();
-                clearTimeout(inlineTimeout);
-
-                var el = document.createElement('div');
-                el.className = 'inline-message ' + (type || 'info');
-                el.textContent = message;
-                document.body.appendChild(el);
-
-                requestAnimationFrame(function() {
-                    el.classList.add('show');
-                });
-
-                inlineTimeout = setTimeout(function() {
-                    el.classList.remove('show');
-                    setTimeout(function() {
-                        if (el.parentNode) el.remove();
-                    }, 300);
-                }, 3000);
-            }
-
-            var modalTimeout = null;
-            var currentModal = null;
-
-            function showModal(options) {
-                var type = options.type || 'info';
-                var title = options.title || '';
-                var message = options.message || '';
-                var duration = options.duration !== undefined ? options.duration : 4000;
-                var showClose = options.showClose !== false;
-                var closable = options.closable !== false;
-                var onClose = options.onClose || null;
-
-                closeModal(true);
-
-                var defaultTitles = {
-                    success: 'Succès',
-                    error: 'Erreur',
-                    info: 'Information',
-                    warning: 'Attention',
-                    loading: 'Veuillez patienter'
-                };
-
-                var overlay = document.createElement('div');
-                overlay.className = 'modal-overlay';
-
-                var closeBtn = showClose
-                    ? '<button class="modal-close" data-modal-close aria-label="Fermer">×</button>'
-                    : '';
-
-                var progressHtml = type === 'loading'
-                    ? '<div class="modal-progress"></div>'
-                    : '';
-
-                var actionsHtml = '';
-                if (options.actions && options.actions.length > 0) {
-                    actionsHtml = '<div class="modal-actions">';
-                    options.actions.forEach(function(action, idx) {
-                        actionsHtml += '<button class="modal-btn modal-btn-' +
-                            (action.style || 'primary') +
-                            '" data-action-idx="' + idx + '">' +
-                            action.label +
-                            '</button>';
-                    });
-                    actionsHtml += '</div>';
-                }
-
-                overlay.innerHTML =
-                    '<div class="modal-box">' +
-                        closeBtn +
-                        progressHtml +
-                        '<div class="modal-title">' + (title || defaultTitles[type]) + '</div>' +
-                        '<div class="modal-message">' + message + '</div>' +
-                        actionsHtml +
-                    '</div>';
-
-                document.body.appendChild(overlay);
-                currentModal = overlay;
-
-                requestAnimationFrame(function() {
-                    overlay.classList.add('active');
-                });
-
-                if (closable) {
-                    var closeEl = overlay.querySelector('[data-modal-close]');
-                    if (closeEl) {
-                        closeEl.addEventListener('click', function() {
-                            closeModal(false, onClose);
-                        });
-                    }
-
-                    overlay.addEventListener('click', function(e) {
-                        if (e.target === overlay) {
-                            closeModal(false, onClose);
-                        }
-                    });
-
-                    var escHandler = function(e) {
-                        if (e.key === 'Escape' && currentModal === overlay) {
-                            closeModal(false, onClose);
-                            document.removeEventListener('keydown', escHandler);
-                        }
-                    };
-                    document.addEventListener('keydown', escHandler);
-                }
-
-                overlay.querySelectorAll('[data-action-idx]').forEach(function(btn) {
-                    btn.addEventListener('click', function() {
-                        var idx = parseInt(this.getAttribute('data-action-idx'), 10);
-                        var action = (options.actions || [])[idx];
-                        if (action && typeof action.onClick === 'function') {
-                            action.onClick();
-                        } else {
-                            closeModal(false, onClose);
-                        }
-                    });
-                });
-
-                if (type !== 'loading' && duration > 0) {
-                    modalTimeout = setTimeout(function() {
-                        closeModal(false, onClose);
-                    }, duration);
-                }
-
-                return overlay;
-            }
-
-            function closeModal(instant, callback) {
-                clearTimeout(modalTimeout);
-                var overlay = currentModal || document.querySelector('.modal-overlay:not(.progress-modal)');
-                if (!overlay) {
-                    if (typeof callback === 'function') callback();
-                    return;
-                }
-
-                overlay.classList.add('closing');
-                overlay.classList.remove('active');
-
-                var removeDelay = instant ? 0 : 300;
-
-                setTimeout(function() {
-                    if (overlay.parentNode) overlay.remove();
-                    if (currentModal === overlay) currentModal = null;
-                    if (typeof callback === 'function') callback();
-                }, removeDelay);
-            }
-
-            var progressModal = null;
-
-            function showProgressModal(message) {
-                closeProgressModal();
-
-                var overlay = document.createElement('div');
-                overlay.className = 'modal-overlay progress-modal';
-                overlay.innerHTML =
-                    '<div class="modal-box">' +
-                        '<div class="modal-progress"></div>' +
-                        '<div class="modal-title">Veuillez patienter</div>' +
-                        '<div class="modal-message">' + (message || 'Opération en cours...') + '</div>' +
-                    '</div>';
-
-                document.body.appendChild(overlay);
-                progressModal = overlay;
-
-                requestAnimationFrame(function() {
-                    overlay.classList.add('active');
-                });
-            }
-
-            function closeProgressModal() {
-                var overlay = progressModal || document.querySelector('.modal-overlay.progress-modal');
-                if (!overlay) return;
-
-                overlay.classList.add('closing');
-                overlay.classList.remove('active');
-
-                setTimeout(function() {
-                    if (overlay.parentNode) overlay.remove();
-                    if (progressModal === overlay) progressModal = null;
-                }, 300);
-            }
-
-            function showToast(message, type, options) {
-                options = options || {};
-
-                if (options.fromBackend) {
-                    var titles = {
-                        success: 'Succès',
-                        error: 'Erreur',
-                        info: 'Information',
-                        warning: 'Attention'
-                    };
-
-                    showModal({
-                        type: type || 'info',
-                        title: options.title || titles[type] || 'Information',
-                        message: message,
-                        duration: type === 'error' ? 6000 : 4000,
-                        showClose: true,
-                        closable: true
-                    });
-                } else {
-                    showInlineMessage(message, type);
-                }
             }
 
             var EYE_OPEN_SVG = '<svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
@@ -6858,36 +6433,31 @@ export class ApiGatewayController {
                     e.preventDefault();
                     
                     if (isSubmitting) {
-                        showProgressModal('Une opération est déjà en cours...');
-                        setTimeout(closeProgressModal, 1500);
                         return;
                     }
                     
                     registerStep = 'init';
                     
                     if (!tempRegisterData) {
-                        showToast('Veuillez remplir à nouveau le formulaire', 'error');
                         return;
                     }
                     
-                    showProgressModal('Envoi du nouveau code OTP...');
+                    setLoading(true);
                     
                     handleRegister(
                         phoneInput.value.trim(),
                         passwordInput.value.trim(),
                         fullNameInput.value.trim()
                     ).then(function(result) {
-                        closeProgressModal();
+                        setLoading(false);
                         if (result.step === 'verify') {
-                            showToast('Un nouveau code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
                             clearOtpInputs();
                             setOtpError(false);
                         }
                     }).catch(function(error) {
-                        closeProgressModal();
+                        setLoading(false);
                         console.error('[Resend OTP] Erreur:', error);
-                        showToast(error.message || 'Erreur lors du renvoi du code', 'error', { fromBackend: true });
                     });
                 });
             }
@@ -7083,8 +6653,6 @@ export class ApiGatewayController {
 
                 cleanUrl();
 
-                showProgressModal('Connexion réussie ! Redirection...');
-
                 setTimeout(function() {
                     handleRedirect();
                 }, 600);
@@ -7255,20 +6823,16 @@ export class ApiGatewayController {
                 e.preventDefault();
 
                 if (isSubmitting) {
-                    showProgressModal('Une opération est déjà en cours...');
-                    setTimeout(closeProgressModal, 1500);
                     return;
                 }
 
                 if (isRegisterMode && registerStep === 'verify') {
                     var otpValid = validateOtp();
                     if (!otpValid) {
-                        showToast('Veuillez saisir le code OTP complet (6 chiffres)', 'error');
                         return;
                     }
                     
                     setLoading(true);
-                    showProgressModal('Vérification du code OTP...');
                     try {
                         var result = await handleRegister(
                             phoneInput.value.trim(),
@@ -7298,14 +6862,11 @@ export class ApiGatewayController {
                                 throw new Error(loginData.message || 'Erreur de connexion après inscription');
                             }
 
-                            closeProgressModal();
                             showSuccess(loginData);
                             setLoading(false);
                         }
                     } catch (error) {
-                        closeProgressModal();
                         console.error('[Register] Erreur:', error);
-                        showToast(error.message || 'Code OTP invalide', 'error', { fromBackend: true });
                         setLoading(false);
                     }
                     return;
@@ -7338,18 +6899,13 @@ export class ApiGatewayController {
                     if (isRegisterMode) {
                         var fullName = fullNameInput.value.trim();
                         
-                        showProgressModal('Création de votre compte...');
-                        
                         var result = await handleRegister(phone, password, fullName);
-                        
-                        closeProgressModal();
                         
                         if (result.step === 'verify') {
                             hideFieldsForOtp();
                             clearOtpInputs();
                             setOtpError(false);
                             otpInputs[0].focus();
-                            showToast('Un code OTP a été envoyé par SMS', 'success');
                             startOtpTimer();
                             setLoading(false);
                             return;
@@ -7361,8 +6917,6 @@ export class ApiGatewayController {
                             return;
                         }
                     }
-
-                    showProgressModal('Connexion en cours...');
 
                     var prefix = getSelectedPrefix();
                     var response = await fetch(API_BASE_URL + '/auth/login', {
@@ -7381,8 +6935,6 @@ export class ApiGatewayController {
 
                     var data = await response.json();
 
-                    closeProgressModal();
-
                     if (!response.ok) {
                         throw new Error(data.message || 'Identifiants invalides');
                     }
@@ -7391,9 +6943,7 @@ export class ApiGatewayController {
                     setLoading(false);
 
                 } catch (error) {
-                    closeProgressModal();
                     console.error('[OAuth] Erreur détaillée:', error);
-                    showToast(error.message || 'Une erreur est survenue', 'error', { fromBackend: true });
                     setLoading(false);
                 }
             });
