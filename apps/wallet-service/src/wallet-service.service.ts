@@ -729,6 +729,7 @@ export class WalletServiceService {
             description: debitDescription,
             movement: 'DEBIT',
             currency: fromWallet.currency,
+            paymentMethod: 'MOBILE_MONEY',
           },
         });
 
@@ -745,6 +746,7 @@ export class WalletServiceService {
             description: creditDescription,
             movement: 'CREDIT',
             currency: toWallet.currency,
+            paymentMethod: 'MOBILE_MONEY',
           },
         });
 
@@ -4470,6 +4472,7 @@ export class WalletServiceService {
       },
     };
   }
+
   private async getExchangeRateViaPivot(
     fromCurrency: string,
     toCurrency: string,
