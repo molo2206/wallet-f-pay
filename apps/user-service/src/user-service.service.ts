@@ -2494,6 +2494,7 @@ export class UserServiceService {
       });
     }
   }
+  
   // ========================= RESOURCES MANAGEMENT =========================
   async createResource(data: CreateResourceDto) {
     try {

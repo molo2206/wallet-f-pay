@@ -9509,10 +9509,11 @@ export class WalletServiceService {
           });
         }
 
-        let targetCurrency: string = receiverWallets[0].currency;
-        let targetWallet: any = receiverWallets[0];
+        let targetCurrency: string;
+        let targetWallet: any;
 
         if (isInternational) {
+          // === INTERNATIONAL : priorité devise du pays destinataire (logique existante) ===
           const receiverCountry = await tx.country_provider.findFirst({
             where: {
               OR: [
@@ -9537,22 +9538,46 @@ export class WalletServiceService {
             preferredCurrency = receiverCountry.country_currency[0].currency_code;
           }
 
-          if (preferredCurrency) {
-            const foundWallet = receiverWallets.find(w => w.currency === preferredCurrency);
-            if (foundWallet) {
-              targetWallet = foundWallet;
-              targetCurrency = preferredCurrency;
-            }
+          let foundWallet = preferredCurrency
+            ? receiverWallets.find(w => w.currency === preferredCurrency)
+            : null;
+
+          // 🔁 Fallback 1 : même devise que le wallet source (au lieu de tomber directement sur [0])
+          if (!foundWallet) {
+            foundWallet = receiverWallets.find(w => w.currency === fromWallet.currency);
           }
 
-          if (!targetWallet || targetWallet.currency !== targetCurrency) {
-            targetWallet = receiverWallets[0];
-            targetCurrency = targetWallet.currency;
-          }
-        } else {
-          targetWallet = receiverWallets[0];
+          // 🔁 Fallback 2 : premier wallet (comportement précédent)
+          targetWallet = foundWallet || receiverWallets[0];
           targetCurrency = targetWallet.currency;
+
+        } else {
+          // === NATIONAL : le wallet destinataire doit matcher la devise du wallet source ===
+          const foundWallet = receiverWallets.find(w => w.currency === fromWallet.currency);
+
+          if (!foundWallet) {
+            throw new RpcException({
+              status: 'error',
+              message: this.i18nService.translate(
+                'wallet.receiver_no_wallet_in_currency',
+                lang,
+                { currency: fromWallet.currency }
+              ) || `Le destinataire n'a pas de portefeuille en ${fromWallet.currency}`,
+              statusCode: 400,
+            });
+          }
+
+          targetWallet = foundWallet;
+          targetCurrency = foundWallet.currency;
         }
+
+        console.log('[AdminSend] 🎯 Wallet cible:', {
+          targetWalletId: targetWallet.id,
+          targetCurrency,
+          fromCurrency: fromWallet.currency,
+          isInternational,
+          receiverWalletsAvailable: receiverWallets.map(w => w.currency),
+        });
 
         // 8. Calculer le taux de change
         let exchangeRate = 1;
