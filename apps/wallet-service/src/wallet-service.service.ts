@@ -4921,13 +4921,13 @@ export class WalletServiceService {
         }
 
         // 7. Vérifier le solde
-        if (fromWallet.balance < debitAmount) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
-            statusCode: 400,
-          });
-        }
+        // if (fromWallet.balance < debitAmount) {
+        //   throw new RpcException({
+        //     status: 'error',
+        //     message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        //     statusCode: 400,
+        //   });
+        // }
 
         // 8. Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
@@ -5608,13 +5608,13 @@ export class WalletServiceService {
         }
 
         // 6. Vérifier le solde
-        if (fromWallet.balance < debitAmount) {
-          throw new RpcException({
-            status: 'error',
-            message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
-            statusCode: 400,
-          });
-        }
+        // if (fromWallet.balance < debitAmount) {
+        //   throw new RpcException({
+        //     status: 'error',
+        //     message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang),
+        //     statusCode: 400,d
+        //   });
+        // }
 
         // 7. Mettre à jour les soldes
         const updatedFrom = await tx.wallet.update({
