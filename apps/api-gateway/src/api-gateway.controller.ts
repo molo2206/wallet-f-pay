@@ -6090,30 +6090,6 @@ export class ApiGatewayController {
                 <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
             </div>
         </div>
-
-        <div class="stores-section">
-            <div class="stores">
-                <a href="https://play.google.com/store/apps/details?id=com.favorGroup.FavorPay&hl=fr" target="_blank" class="store-link">
-                    <span>
-                        <span class="small">TÉLÉCHARGER SUR</span>
-                        Google Play
-                    </span>
-                </a>
-                <a href="#" class="store-link" target="_blank">
-                    <span>
-                        <span class="small">TÉLÉCHARGER SUR</span>
-                        App Store
-                    </span>
-                </a>
-            </div>
-        </div>
-
-        <div class="footer">
-            <span>Connexion sécurisée • </span>
-            <a href="#">Conditions d'utilisation</a>
-            <span> • </span>
-            <a href="#">Politique de confidentialité</a>
-        </div>
     </div>
 
     <script>
