@@ -165,6 +165,70 @@ export class SendFidelityDto {
   countryCode?: string;
 }
 
+// ✅ DTO dédié Paiement Taxi
+export class SendTaxiDto {
+  @IsNotEmpty()
+  @IsString()
+  fromWalletId!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  toWalletId!: string;
+
+  @IsNumber()
+  @Min(0.01)
+  amount!: number;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
+
+  @IsOptional()
+  @IsIn(['MOBILE_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'])
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  lang?: string;
+
+  @IsOptional()
+  @IsString()
+  ipAddress?: string;
+}
+
+export class SendSalaryDto {
+  @IsOptional()
+  @IsString()
+  fromAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  fromWalletId?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  toPhone!: string;
+
+  @IsNumber()
+  @Min(0.01)
+  amount!: number;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  lang?: string;
+
+  @IsOptional()
+  countryCode?: string;
+}
+
 
 // Dans SendParrainageDto
 export class SendParrainageDto {
@@ -174,4 +238,8 @@ export class SendParrainageDto {
   description?: string;
   countryCode?: string;
   paymentMethod?: string;
+}
+
+function IsIn(arg0: string[]): (target: SendTaxiDto, propertyKey: "paymentMethod") => void {
+  throw new Error('Function not implemented.');
 }

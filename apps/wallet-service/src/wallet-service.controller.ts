@@ -7,7 +7,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload, RmqContext, RpcException, Ctx } from '@nestjs/microservices';
 import { WalletServiceService } from './wallet-service.service';
-import { PayDto, SendDto, SendFidelityDto, SendParrainageDto } from './dto/wallet-operation.dto';
+import { PayDto, SendDto, SendFidelityDto, SendParrainageDto, SendSalaryDto, SendTaxiDto } from './dto/wallet-operation.dto';
 import { PawapayService } from './pawapay/pawapay.service';
 import { CreateCountryDto } from './pawapay/dto/create-country.dto';
 import { UpdateCountryDto } from './pawapay/dto/update-country.dto';
@@ -475,6 +475,56 @@ export class WalletServiceController {
     }
   }
 
+  @MessagePattern('taxi_cashout')
+  async taxiCashout(
+    @Payload()
+    data: {
+      userId: string;
+      accountNumber?: string;
+      amount: number;
+      pin: string;
+      lang?: string;
+      ipAddress?: string;
+      walletId?: string;
+      provider?: string;
+      phone?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('[WalletService] taxi_cashout received:', {
+      userId: data.userId,
+      accountNumber: data.accountNumber,
+      amount: data.amount,
+      lang,
+      walletId: data.walletId,
+      provider: data.provider,
+      phone: data.phone,
+    });
+
+    try {
+      return await this.walletService.taxiCashout(   // ✅ Appel taxiCashout
+        data.userId,
+        {
+          accountNumber: data.accountNumber,
+          amount: data.amount,
+          pin: data.pin,
+          walletId: data.walletId,
+          provider: data.provider,
+          phone: data.phone,
+        },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] taxi_cashout error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('send')
   async send(@Payload() data: SendDto & { lang?: string; ipAddress?: string }) {
     const ipAddress = data.ipAddress || '';
@@ -526,6 +576,33 @@ export class WalletServiceController {
     }
   }
 
+
+  @MessagePattern('send_salary')
+  async sendSalary(@Payload() data: SendSalaryDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_salary received:', {
+      from: data.fromWalletId,
+      to: data.toPhone,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
+    try {
+      return await this.walletService.sendSalary(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_salary error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   @MessagePattern('send_parrainage')
   async sendParrainage(@Payload() data: SendParrainageDto & { lang?: string; ipAddress?: string }) {
     const ipAddress = data.ipAddress || '';
@@ -544,6 +621,33 @@ export class WalletServiceController {
       return await this.walletService.sendParrainage(data, data.lang || 'fr', ipAddress);
     } catch (error) {
       console.error('[WalletService] send_parrainage error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('send_taxi')
+  async sendTaxi(@Payload() data: SendTaxiDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_taxi received:', {
+      from: data.fromWalletId,
+      to: data.toWalletId,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      paymentMethod: data.paymentMethod,
+      lang: data.lang,
+      ipAddress: ipAddress,
+    });
+
+    try {
+      return await this.walletService.sendTaxi(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_taxi error:', error);
       const lang = data.lang || 'fr';
       throw new RpcException({
         status: 'error',

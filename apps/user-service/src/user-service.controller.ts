@@ -828,8 +828,6 @@ export class UserServiceController {
     }
   }
 
-  // apps/wallet-service/src/wallet-service.controller.ts
-
   // ================================================================
   // BACKUP MANAGEMENT
   // ================================================================

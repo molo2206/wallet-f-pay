@@ -16,7 +16,7 @@ export class RmqAuthGuard implements CanActivate {
   private readonly logger = new Logger(RmqAuthGuard.name);
 
   canActivate(context: ExecutionContext): boolean {
-    this.logger.log('🔐 RMQ Auth Guard - Starting verification');
+    this.logger.log(' RMQ Auth Guard - Starting verification');
 
     // Récupérer le pattern du message
     const pattern = context.getArgByIndex(0)?.pattern;
@@ -36,7 +36,7 @@ export class RmqAuthGuard implements CanActivate {
 
     const token = data?.token;
     if (!token) {
-      this.logger.error('❌ No token found in message');
+      this.logger.error('No token found in message');
       throw new UnauthorizedException('Token manquant dans le message');
     }
 

@@ -1849,6 +1849,130 @@ export class ApiGatewayController {
     return response;
   }
 
+  @Post('taxi/driver/cashout')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('cashout')
+  async driverCashout(
+    @Request() req: any,
+    @Body() body: {
+      accountNumber?: string;
+      amount: number;
+      pin: string;
+      walletId?: string;
+      provider?: string;
+      phone?: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const apiKeyUser = req.user; // 🔥 API Key owner = CHAUFFEUR
+
+    console.log('[taxi/driver/cashout] 📋 Chauffeur (API Key owner):', {
+      id: apiKeyUser.id,
+      full_name: apiKeyUser.full_name,
+      phone: apiKeyUser.phone,
+      role: apiKeyUser.role,
+      status: apiKeyUser.status,
+    });
+
+    if (!apiKeyUser) {
+      throw new HttpException('Utilisateur API Key non trouvé', HttpStatus.UNAUTHORIZED);
+    }
+    if (!apiKeyUser.phone) {
+      throw new HttpException('API Key user has no phone number', HttpStatus.BAD_REQUEST);
+    }
+    if (apiKeyUser.status === 'BLOCKED') {
+      throw new HttpException('Le compte du chauffeur est bloqué', HttpStatus.FORBIDDEN);
+    }
+
+    if (!body.accountNumber && !body.provider) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.account_or_provider_required', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (body.provider && !body.phone) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.missing_phone_for_payment', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.amount_positive', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (!body.pin || body.pin.length < 4) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_min_length', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (!/^\d+$/.test(body.pin)) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.pin_digits_only', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const payload: any = {
+      userId: apiKeyUser.id,
+      amount: body.amount,
+      pin: body.pin,
+      lang,
+      ipAddress,
+    };
+    if (body.accountNumber) payload.accountNumber = body.accountNumber;
+    if (body.walletId) payload.walletId = body.walletId;
+    if (body.provider) payload.provider = body.provider;
+    if (body.phone) payload.phone = body.phone;
+
+    console.log('[taxi/driver/cashout] 📤 Retrait chauffeur:', {
+      driverId: apiKeyUser.id,
+      driverPhone: apiKeyUser.phone,
+      amount: body.amount,
+      provider: body.provider ?? null,
+      phone: body.phone ?? null,
+      walletId: body.walletId ?? null,
+    });
+
+    const response = await this.sendWalletMessage<{
+      message: string;
+      data: any;
+    }>(
+      'taxi_cashout',
+      payload,
+      this.i18nService.translate('wallet.cashout_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      120000,
+    );
+
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: apiKeyUser.id,
+        action: 'TAXI_DRIVER_CASHOUT',
+        details: JSON.stringify({
+          driverId: apiKeyUser.id,
+          driverPhone: apiKeyUser.phone,
+          amount: body.amount,
+          walletId: body.walletId ?? null,
+          provider: body.provider ?? null,
+          phone: body.phone ?? null,
+          accountNumber: body.accountNumber ?? null,
+          transactionReference: response?.data?.transaction?.reference ?? null,
+          transactionStatus: response?.data?.transaction?.status ?? null,
+        }),
+        ipAddress: ipAddress || null,
+        createdAt: new Date(),
+      },
+    });
+
+    return response;
+  }
+
   @Get('wallet/:walletId')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getWalletById(
@@ -1927,7 +2051,6 @@ export class ApiGatewayController {
     return response;
   }
 
-  // apps/api-gateway/src/api-gateway.controller.ts
 
   @Get('wallet/dashboard/by-currentUser')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
@@ -4210,6 +4333,217 @@ export class ApiGatewayController {
     return response;
   }
 
+  @Post('api/external/salary')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('send')
+  async externalSendSalary(
+    @Request() req: any,
+    @Body() body: {
+      phone: string;         // 🔥 TÉLÉPHONE du DESTINATAIRE (employé)
+      amount: number;
+      description?: string;
+      currency?: string;
+      countryCode?: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const apiKeyUser = req.user; // 🔥 API Key owner = PAYEUR (company)
+
+    console.log('[ExternalSendSalary] 📋 Utilisateur de l\'API Key (PAYEUR):', {
+      id: apiKeyUser.id,
+      full_name: apiKeyUser.full_name,
+      phone: apiKeyUser.phone,
+      merchantCode: apiKeyUser.merchantCode,
+      role: apiKeyUser.role,
+      status: apiKeyUser.status,
+    });
+
+    // ✅ 1. Vérifier que le payeur (API Key owner) a un téléphone
+    if (!apiKeyUser.phone) {
+      throw new HttpException(
+        'API Key user has no phone number',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 2. Vérifier que le phone du destinataire est fourni
+    if (!body.phone || body.phone.trim() === '') {
+      throw new HttpException(
+        'Recipient phone is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 3. Nettoyer le phone
+    const cleanToPhone = body.phone.replace(/[^0-9+]/g, '');
+
+    // ✅ 4. Récupérer le DESTINATAIRE (employé) par son PHONE
+    const recipient = await this.prisma.user.findFirst({
+      where: {
+        phone: {
+          in: [
+            cleanToPhone,
+            body.phone,
+            `+${cleanToPhone.replace(/^\+/, '')}`
+          ]
+        },
+        status: 'ACTIVE',
+        deleted: false,
+      },
+      include: {
+        wallets: {
+          where: { isActive: true },
+        },
+      },
+    });
+
+    if (!recipient) {
+      throw new HttpException(
+        `Recipient with phone ${body.phone} not found`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    // ✅ 5. Récupérer le wallet du DESTINATAIRE
+    const targetCurrency = body.currency || 'USD';
+    let recipientWallet = recipient.wallets.find(w => w.currency === targetCurrency);
+
+    if (!recipientWallet) {
+      recipientWallet = recipient.wallets[0];
+      if (!recipientWallet) {
+        throw new HttpException(
+          `No active wallet found for recipient ${body.phone}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      console.warn(`[ExternalSendSalary] Wallet ${targetCurrency} not found, using ${recipientWallet.currency}`);
+    }
+
+    console.log('[ExternalSendSalary] Wallet du destinataire trouvé:', {
+      walletId: recipientWallet.id,
+      currency: recipientWallet.currency,
+      balance: recipientWallet.balance,
+    });
+
+    // ✅ 6. Vérifier que le payeur n'est pas le destinataire
+    if (apiKeyUser.id === recipient.id) {
+      throw new HttpException(
+        this.i18nService.translate('wallet.cannot_transfer_self', lang),
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 7. Récupérer les wallets du PAYEUR (company)
+    const payerWallets = await this.prisma.wallet.findMany({
+      where: {
+        userId: apiKeyUser.id,
+        isActive: true,
+      },
+    });
+
+    if (!payerWallets || payerWallets.length === 0) {
+      throw new HttpException(
+        `No active wallet found for payer ${apiKeyUser.id}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // ✅ 8. Chercher le wallet du payeur dans la devise demandée
+    let payerWallet = payerWallets.find(w => w.currency === targetCurrency);
+
+    // ✅ 9. Si pas assez de solde ou pas de wallet dans cette devise, chercher un autre wallet avec assez de solde
+    if (payerWallet) {
+      if (payerWallet.balance < body.amount) {
+        console.log(`[ExternalSendSalary] Solde insuffisant en ${targetCurrency} (${payerWallet.balance}), recherche d'un autre wallet...`);
+
+        const otherWallet = payerWallets.find(w =>
+          w.currency !== targetCurrency &&
+          w.balance >= body.amount
+        );
+
+        if (otherWallet) {
+          payerWallet = otherWallet;
+          console.log(`[ExternalSendSalary] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
+        } else {
+          throw new HttpException(
+            `Insufficient balance: ${payerWallet.balance} ${payerWallet.currency}. You have ${payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ')}`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+    } else {
+      // ✅ 10. Si pas de wallet dans la devise demandée, prendre le premier avec assez de solde
+      console.log(`[ExternalSendSalary] Aucun wallet en ${targetCurrency}, recherche d'un autre wallet...`);
+
+      const availableWallet = payerWallets.find(w => w.balance >= body.amount);
+
+      if (availableWallet) {
+        payerWallet = availableWallet;
+        console.log(`[ExternalSendSalary] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
+      } else {
+        const balances = payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ');
+        throw new HttpException(
+          `Insufficient balance in any wallet. Available balances: ${balances}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    console.log('[ExternalSendSalary] Wallet du payeur sélectionné:', {
+      walletId: payerWallet.id,
+      currency: payerWallet.currency,
+      balance: payerWallet.balance,
+    });
+
+    // ✅ 11. Préparer les données pour le service wallet
+    const sendPayload: any = {
+      fromWalletId: payerWallet.id,
+      toPhone: recipient.phone,   // ✅ phone du destinataire trouvé
+      amount: body.amount,
+      description: body.description || `Paiement de salaire vers ${recipient.full_name || recipient.phone}`,
+      countryCode: body.countryCode,
+      lang,
+      ipAddress,
+    };
+
+    console.log('[ExternalSendSalary] 📤 Payload envoyé au service wallet:', sendPayload);
+
+    // ✅ 12. Appeler le service wallet
+    const response = await this.sendWalletMessage(
+      'send_salary',
+      sendPayload,
+      this.i18nService.translate('wallet.transfer_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+
+    // ✅ 13. Log de l'opération
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: apiKeyUser.id,
+        action: 'EXTERNAL_SEND_SALARY',
+        details: JSON.stringify({
+          payerId: apiKeyUser.id,
+          payerPhone: apiKeyUser.phone,
+          recipientId: recipient.id,
+          recipientPhone: recipient.phone,
+          amount: body.amount,
+          currency: body.currency,
+          apiKeyId: apiKeyUser.id,
+          description: body.description,
+          countryCode: body.countryCode,
+          selectedWalletCurrency: payerWallet.currency,
+        }),
+        ipAddress: ipAddress || null,
+        createdAt: new Date(),
+      },
+    });
+
+    return response;
+  }
+
   @Post('api/external/send/parrainage')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('send_parrainage')
@@ -4459,6 +4793,219 @@ export class ApiGatewayController {
         id: crypto.randomUUID(),
         userId: apiKeyUser.id,
         action: 'EXTERNAL_SEND_PARRAINAGE',
+        details: JSON.stringify({
+          payerId: apiKeyUser.id,
+          payerPhone: apiKeyUser.phone,
+          payerWalletId: payerWallet.id,
+          payerWalletCurrency: payerWallet.currency,
+          recipientId: recipientUser.id,
+          recipientPhone: recipientUser.phone,
+          recipientWalletId: recipientWallet.id,
+          recipientWalletCurrency: recipientWallet.currency,
+          amount: body.amount,
+          currency: targetCurrency,
+          description: body.description,
+          countryCode: body.countryCode,
+          paymentMethod: paymentMethod,
+        }),
+        ipAddress: ipAddress || null,
+        createdAt: new Date(),
+      },
+    });
+
+    return response;
+  }
+
+  @Post('api/external/send/taxi')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('send_taxi')
+  async externalSendTaxi(
+    @Request() req: any,
+    @Body() body: {
+      amount: number;
+      description?: string;
+      currency?: string;
+      countryCode?: string;
+      paymentMethod?: string;
+      toApiKey?: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const apiKeyUser = req.user;
+
+    console.log('[ExternalSendTaxi] 📋 Utilisateur de l\'API Key (PAYEUR):', {
+      id: apiKeyUser.id,
+      full_name: apiKeyUser.full_name,
+      phone: apiKeyUser.phone,
+      merchantCode: apiKeyUser.merchantCode,
+      role: apiKeyUser.role,
+      status: apiKeyUser.status,
+    });
+
+    if (!apiKeyUser) {
+      throw new HttpException('Utilisateur API Key non trouvé', HttpStatus.UNAUTHORIZED);
+    }
+
+    if (!apiKeyUser.phone) {
+      throw new HttpException('API Key user has no phone number', HttpStatus.BAD_REQUEST);
+    }
+
+    if (apiKeyUser.role !== 'MERCHANT') {
+      throw new HttpException('Seuls les marchands peuvent payer des courses taxi', HttpStatus.FORBIDDEN);
+    }
+
+    if (apiKeyUser.status === 'BLOCKED') {
+      throw new HttpException('Le compte de l\'expéditeur est bloqué', HttpStatus.FORBIDDEN);
+    }
+
+    const validPaymentMethods = ['MOBILE_MONEY', 'CASH', 'BANK_TRANSFER', 'CARD'];
+    const paymentMethod = body.paymentMethod || 'MOBILE_MONEY';
+
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      throw new HttpException(
+        `paymentMethod invalide. Valeurs acceptées: ${validPaymentMethods.join(', ')}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const targetCurrency = body.currency || 'USD';
+
+    const payerWallets = await this.prisma.wallet.findMany({
+      where: { userId: apiKeyUser.id, isActive: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            full_name: true,
+            phone: true,
+            role: true,
+            status: true,
+            countryCode: true,
+            kycStatus: true,
+            merchantType: true,
+          },
+        },
+      },
+    });
+
+    if (!payerWallets || payerWallets.length === 0) {
+      throw new HttpException(
+        `Aucun wallet actif trouvé pour l'expéditeur`,
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    let payerWallet = payerWallets.find((w) => w.currency === targetCurrency);
+
+    if (!payerWallet) {
+      payerWallet = payerWallets[0];
+      console.warn(`[ExternalSendTaxi] Aucun wallet en ${targetCurrency}, utilisation du wallet en ${payerWallet.currency}`);
+    }
+
+    console.log('[ExternalSendTaxi] Wallet du payeur sélectionné:', {
+      walletId: payerWallet.id,
+      currency: payerWallet.currency,
+      balance: payerWallet.balance,
+      user: payerWallet.user?.full_name,
+    });
+
+    if (payerWallet.balance < body.amount) {
+      throw new HttpException(
+        `Solde insuffisant. Solde actuel: ${payerWallet.balance} ${payerWallet.currency}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!body.toApiKey) {
+      throw new HttpException('L\'API Key du chauffeur est requise', HttpStatus.BAD_REQUEST);
+    }
+
+    const recipientApiKey = await this.prisma.api_key.findFirst({
+      where: { key: body.toApiKey, isActive: true },
+      include: {
+        user: {
+          include: {
+            wallets: { where: { isActive: true } },
+          },
+        },
+      },
+    });
+
+    if (!recipientApiKey) {
+      throw new HttpException('API Key du chauffeur invalide ou inactive', HttpStatus.NOT_FOUND);
+    }
+
+    if (!recipientApiKey.user) {
+      throw new HttpException('Aucun utilisateur associé à l\'API Key du chauffeur', HttpStatus.NOT_FOUND);
+    }
+
+    const recipientUser = recipientApiKey.user;
+
+    if (recipientUser.role !== 'MERCHANT') {
+      throw new HttpException('Seuls les marchands peuvent recevoir des paiements taxi', HttpStatus.FORBIDDEN);
+    }
+
+    if (recipientUser.status === 'BLOCKED') {
+      throw new HttpException('Le compte du chauffeur est bloqué', HttpStatus.FORBIDDEN);
+    }
+
+    let recipientWallet = recipientUser.wallets.find((w) => w.currency === targetCurrency);
+
+    if (!recipientWallet) {
+      recipientWallet = recipientUser.wallets[0];
+      if (!recipientWallet) {
+        throw new HttpException(`Aucun wallet actif trouvé pour le chauffeur`, HttpStatus.NOT_FOUND);
+      }
+      console.warn(`[ExternalSendTaxi] Aucun wallet en ${targetCurrency} pour le chauffeur, utilisation du wallet en ${recipientWallet.currency}`);
+    }
+
+    console.log('[ExternalSendTaxi] Chauffeur via API Key:', {
+      id: recipientUser.id,
+      full_name: recipientUser.full_name,
+      phone: recipientUser.phone,
+      walletId: recipientWallet.id,
+      currency: recipientWallet.currency,
+    });
+
+    if (apiKeyUser.id === recipientUser.id) {
+      throw new HttpException('Vous ne pouvez pas vous payer vous-même', HttpStatus.BAD_REQUEST);
+    }
+
+    const sendPayload: any = {
+      fromWalletId: payerWallet.id,
+      toWalletId: recipientWallet.id,
+      amount: body.amount,
+      description: body.description || `Paiement taxi vers ${recipientUser.full_name || recipientUser.phone}`,
+      countryCode: body.countryCode || recipientUser.countryCode || 'CD',
+      paymentMethod: paymentMethod,
+      lang,
+      ipAddress,
+    };
+
+    console.log('[ExternalSendTaxi] 📤 Payload envoyé au service wallet:', {
+      fromWalletId: sendPayload.fromWalletId,
+      toWalletId: sendPayload.toWalletId,
+      fromUser: apiKeyUser.full_name,
+      toUser: recipientUser.full_name,
+      amount: sendPayload.amount,
+      currency: targetCurrency,
+      paymentMethod: sendPayload.paymentMethod,
+    });
+
+    const response = await this.sendWalletMessage(
+      'send_taxi',
+      sendPayload,
+      this.i18nService.translate('wallet.taxi_payment_failed', lang),
+      HttpStatus.BAD_REQUEST,
+    );
+
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: apiKeyUser.id,
+        action: 'EXTERNAL_SEND_TAXI',
         details: JSON.stringify({
           payerId: apiKeyUser.id,
           payerPhone: apiKeyUser.phone,

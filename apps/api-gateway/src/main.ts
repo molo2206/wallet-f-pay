@@ -13,7 +13,9 @@ async function bootstrap() {
     'http://localhost:3000',
     'http://localhost:4200',
     'https://admin.f-pay.app',
-    'https://favorpay.vercel.app'
+    'https://favorpay.vercel.app',
+    'https://www.favorhelp.com',
+    'https://favorhelp.com'
   ];
 
   app.enableCors({
