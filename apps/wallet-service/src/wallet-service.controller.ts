@@ -479,48 +479,51 @@ export class WalletServiceController {
   async taxiCashout(
     @Payload()
     data: {
-      userId: string;
-      accountNumber?: string;
+      payerUserId: string;
+      driverUserId: string;
       amount: number;
-      pin: string;
+      currency: string;
+      description?: string;
+      countryCode?: string;
+      paymentMethod?: string;
       lang?: string;
       ipAddress?: string;
-      walletId?: string;
-      provider?: string;
-      phone?: string;
     },
   ) {
     const lang = data.lang || 'fr';
     console.log('[WalletService] taxi_cashout received:', {
-      userId: data.userId,
-      accountNumber: data.accountNumber,
+      payerUserId: data.payerUserId,
+      driverUserId: data.driverUserId,
       amount: data.amount,
+      currency: data.currency,
+      paymentMethod: data.paymentMethod,
       lang,
-      walletId: data.walletId,
-      provider: data.provider,
-      phone: data.phone,
     });
 
     try {
-      return await this.walletService.taxiCashout(   // ✅ Appel taxiCashout
-        data.userId,
+      return await this.walletService.taxiCashout(
+        data.payerUserId,
         {
-          accountNumber: data.accountNumber,
+          driverUserId: data.driverUserId,
           amount: data.amount,
-          pin: data.pin,
-          walletId: data.walletId,
-          provider: data.provider,
-          phone: data.phone,
+          currency: data.currency,
+          description: data.description,
+          countryCode: data.countryCode,
+          paymentMethod: data.paymentMethod,
         },
         lang,
         data.ipAddress,
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('[WalletService] taxi_cashout error:', error);
+      // ✅ Le code d'origine (404 introuvable, 403 bloqué…) est conservé au lieu d'un 400 pour tout
+      const inner = typeof error?.getError === 'function' ? error.getError() : null;
       throw new RpcException({
         status: 'error',
-        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
-        statusCode: 400,
+        message:
+          (inner && typeof inner === 'object' && inner.message) ||
+          (error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang)),
+        statusCode: (inner && typeof inner === 'object' && inner.statusCode) || 400,
       });
     }
   }

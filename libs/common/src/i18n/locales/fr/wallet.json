@@ -233,5 +233,12 @@
   "wallet.balance_transactions_error": "Erreur lors de la récupération des transactions",
   "wallet.admin_send_from_wallet_required": "Le wallet source est requis pour l'envoi admin",
   "wallet.admin_send_to_phone_required": "Le téléphone du destinataire est requis pour l'envoi admin",
-  "wallet.from_wallet_required": "Le wallet source est requis"
+  "wallet.from_wallet_required": "Le wallet source est requis",
+  "wallet.invalid_currency": "Devise invalide : {{currency}}",
+  "wallet.cannot_send_to_self": "Vous ne pouvez pas vous envoyer d'argent à vous-même",
+  "wallet.taxi_driver_not_found": "Compte F-Pay du chauffeur introuvable",
+  "wallet.taxi_driver_blocked": "Le compte F-Pay du chauffeur est bloqué",
+  "wallet.taxi_no_wallet_currency": "Aucun wallet {{currency}} à débiter sur ce compte",
+  "wallet.taxi_insufficient_balance": "Solde insuffisant : {{balance}} {{currency}} disponibles pour {{required}} {{currency}}",
+  "wallet.taxi_cashout_success": "{{amount}} {{currency}} envoyés sur le compte F-Pay de {{recipient}}. Réf : {{reference}}."
 }

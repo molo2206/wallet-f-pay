@@ -10,7 +10,16 @@ import * as jwt from 'jsonwebtoken';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
-    constructor(private prisma: PrismaService, private reflector: Reflector) { }
+    private static warned = false;
+
+    constructor(private prisma: PrismaService, private reflector: Reflector) {
+        // ⚠️ Sans JWT_API_KEY_SECRET, les clés sont signées avec le secret par défaut écrit dans le code :
+        //    une clé pourrait être fabriquée. La vérification en base (API_KEY_JWT_REQUIRE_DB) bloque ces clés.
+        if (!process.env.JWT_API_KEY_SECRET && !ApiKeyGuard.warned) {
+            ApiKeyGuard.warned = true;
+            console.warn('[ApiKeyGuard] ⚠️ JWT_API_KEY_SECRET non défini : secret par défaut utilisé. Définissez-le puis régénérez les clés API.');
+        }
+    }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
         const request = context.switchToHttp().getRequest();
@@ -40,12 +49,52 @@ export class ApiKeyGuard implements CanActivate {
         let apiKeyRecord: any = null;
 
         // 1️⃣ Essayer de valider comme JWT
+        // ✅ CORRECTION SÉCURITÉ : seule la vérification de la signature est dans le try/catch.
+        //    Avant, les erreurs « permissions insuffisantes » / « utilisateur introuvable » levées plus bas
+        //    étaient avalées par ce catch : comme isJwt était déjà true, la requête était ACCEPTÉE quand même.
+        let jwtPayload: any = null;
         try {
             const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
-            const payload = jwt.verify(apiKey, secret) as any;
-            userId = payload.sub || payload.userId;
-            permissionsArray = payload.permissions || [];
+            jwtPayload = jwt.verify(apiKey, secret) as any;
+        } catch (err) {
+            // Ce n'est pas un JWT valide (ou expiré), on continue avec la recherche en base
+            console.log('[ApiKeyGuard] ⚠️ JWT invalide, recherche en base...');
+        }
+
+        if (jwtPayload) {
+            userId = jwtPayload.sub || jwtPayload.userId;
+            permissionsArray = jwtPayload.permissions || [];
             isJwt = true;
+
+            // ✅ La clé JWT doit toujours exister en base, active et non expirée :
+            //    une clé désactivée / supprimée / régénérée n'est plus acceptée (révocation).
+            //    API_KEY_JWT_REQUIRE_DB=false : accepte encore les anciennes clés JWT jamais enregistrées en base.
+            const stored = await this.prisma.api_key.findFirst({
+                where: { key: apiKey },
+                select: { id: true, isActive: true, expiresAt: true, permissions: true, userId: true },
+            });
+            const requireDb = String(process.env.API_KEY_JWT_REQUIRE_DB ?? 'true').toLowerCase() !== 'false';
+            if (stored) {
+                if (!stored.isActive || (stored.expiresAt && stored.expiresAt <= new Date())) {
+                    throw new UnauthorizedException('API key revoked or expired');
+                }
+                if (stored.userId && userId && stored.userId !== userId) {
+                    throw new UnauthorizedException('API key does not match its owner');
+                }
+                // Les permissions enregistrées en base font foi (modifiables sans régénérer la clé)
+                try {
+                    const fromDb = typeof stored.permissions === 'string' ? JSON.parse(stored.permissions) : stored.permissions;
+                    if (Array.isArray(fromDb)) permissionsArray = fromDb;
+                } catch {
+                    // permissions illisibles en base : on garde celles du JWT
+                }
+                await this.prisma.api_key
+                    .update({ where: { id: stored.id }, data: { lastUsedAt: new Date() } })
+                    .catch(() => undefined);
+                request.apiKey = stored;
+            } else if (requireDb) {
+                throw new UnauthorizedException('Unknown API key');
+            }
 
             // ✅ Récupérer l'utilisateur complet depuis la base (sans userIdFpay)
             const user = await this.prisma.user.findUnique({
@@ -79,16 +128,30 @@ export class ApiKeyGuard implements CanActivate {
             if (!user) {
                 throw new UnauthorizedException('User not found');
             }
+            // ✅ Compte bloqué : sa clé API ne fonctionne plus
+            if (user.status === 'BLOCKED') {
+                throw new ForbiddenException('Account blocked');
+            }
 
             // ✅ Ajouter l'utilisateur complet à la requête
             request.user = user;
 
-            // ✅ Vérifier les permissions
+            // ✅ Vérifier les permissions (avant la correction, ce refus était avalé et la requête acceptée)
+            //    API_KEY_PERMISSIONS_MODE=enforce : refus 403 ; warn (défaut, transition) : accepté mais journalisé.
             const requiredPermissions = this.reflector.get<string[]>('permissions', context.getHandler());
             if (requiredPermissions && requiredPermissions.length) {
                 const hasPermission = requiredPermissions.some(p => permissionsArray.includes(p));
                 if (!hasPermission) {
-                    throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
+                    const mode = String(process.env.API_KEY_PERMISSIONS_MODE || 'warn').toLowerCase();
+                    if (mode === 'enforce') {
+                        throw new ForbiddenException(`Insufficient permissions. Required: ${requiredPermissions.join(', ')}`);
+                    }
+                    console.warn(
+                        `[ApiKeyGuard] ⚠️ PERMISSION MANQUANTE (mode warn, requête acceptée) : clé « ${jwtPayload.name || '?'} » ` +
+                        `(utilisateur ${user.id}) sur ${request.method} ${request.originalUrl || request.url} — ` +
+                        `requis : ${requiredPermissions.join(', ')} ; accordé : ${permissionsArray.join(', ') || 'aucune'}. ` +
+                        `Ajoutez la permission à la clé puis passez API_KEY_PERMISSIONS_MODE=enforce.`,
+                    );
                 }
             }
 
@@ -101,9 +164,6 @@ export class ApiKeyGuard implements CanActivate {
             });
 
             return true;
-        } catch (err) {
-            // Ce n'est pas un JWT valide, on continue avec la recherche en base
-            console.log('[ApiKeyGuard] ⚠️ JWT invalide, recherche en base...');
         }
 
         // 2️⃣ Si ce n'est pas un JWT, rechercher dans la base
@@ -172,6 +232,9 @@ export class ApiKeyGuard implements CanActivate {
             }
 
             // ✅ Correction: Vérifier que keyRecord.user existe avant de l'utiliser
+            if (keyRecord.user && keyRecord.user.status === 'BLOCKED') {
+                throw new ForbiddenException('Account blocked');
+            }
             if (keyRecord.user) {
                 // ✅ Ajouter l'utilisateur complet à la requête
                 request.user = keyRecord.user;

@@ -235,5 +235,12 @@
     "wallet.balance_transactions_error": "خطأ في استرجاع المعاملات",
     "wallet.admin_send_from_wallet_required": "محفظة المصدر مطلوبة للإرسال من قبل المسؤول",
     "wallet.admin_send_to_phone_required": "هاتف المستلم مطلوب للإرسال من قبل المسؤول",
-    "wallet.from_wallet_required": "محفظة المصدر مطلوبة"
+    "wallet.from_wallet_required": "محفظة المصدر مطلوبة",
+    "wallet.invalid_currency": "عملة غير صالحة: {{currency}}",
+    "wallet.cannot_send_to_self": "لا يمكنك إرسال المال إلى نفسك",
+    "wallet.taxi_driver_not_found": "حساب F-Pay للسائق غير موجود",
+    "wallet.taxi_driver_blocked": "حساب F-Pay للسائق محظور",
+    "wallet.taxi_no_wallet_currency": "لا توجد محفظة بعملة {{currency}} للخصم في هذا الحساب",
+    "wallet.taxi_insufficient_balance": "رصيد غير كافٍ: {{balance}} {{currency}} متاحة مقابل {{required}} {{currency}}",
+    "wallet.taxi_cashout_success": "تم إرسال {{amount}} {{currency}} إلى حساب F-Pay الخاص بـ {{recipient}}. المرجع: {{reference}}."
 }

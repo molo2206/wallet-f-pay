@@ -478,6 +478,18 @@ export class ApiGatewayController {
     return result as T;
   }
 
+  /** Copie des données pour les logs, sans secrets (pin, password, otp, token, clés API) */
+  private maskSecrets(value: any, depth = 0): any {
+    if (value === null || value === undefined || depth > 8) return value;
+    if (Array.isArray(value)) return value.map((v) => this.maskSecrets(v, depth + 1));
+    if (typeof value !== 'object') return value;
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = /pin|password|otp|token|apikey|api_key|secret|authorization/i.test(k) ? '***' : this.maskSecrets(v, depth + 1);
+    }
+    return out;
+  }
+
   private async sendWalletMessage<T>(
     pattern: string,
     data: any,
@@ -486,7 +498,8 @@ export class ApiGatewayController {
     timeoutMs: number = 120000,
   ): Promise<T> {
     this.logger.log(`[sendWalletMessage] 📤 Envoi: ${pattern}`);
-    this.logger.log(`[sendWalletMessage] 📤 Données:`, JSON.stringify(data, null, 2));
+    // ✅ PIN, mots de passe, OTP et clés API ne sont jamais écrits dans les logs
+    this.logger.log(`[sendWalletMessage] 📤 Données:`, JSON.stringify(this.maskSecrets(data), null, 2));
 
     try {
       // ✅ Vérifier la connexion
@@ -520,6 +533,11 @@ export class ApiGatewayController {
             if (error && error.statusCode) {
               errorStatus = error.statusCode;
             }
+            // ✅ Pas de réponse du service wallet dans le délai : 504 (issue inconnue), pas un refus 400
+            if (error?.name === 'TimeoutError') {
+              errorStatus = HttpStatus.GATEWAY_TIMEOUT;
+              errorMessage = `${defaultMessage} (timeout ${Math.round(timeoutMs / 1000)}s)`;
+            }
 
             throw new HttpException(
               {
@@ -534,7 +552,7 @@ export class ApiGatewayController {
       );
 
       this.logger.log(`[sendWalletMessage] ✅ Réponse reçue pour ${pattern}`);
-      this.logger.log(`[sendWalletMessage] 📥 Réponse:`, JSON.stringify(result, null, 2));
+      this.logger.log(`[sendWalletMessage] 📥 Réponse:`, JSON.stringify(this.maskSecrets(result), null, 2));
 
       return result as T;
     } catch (error) {
@@ -1849,93 +1867,121 @@ export class ApiGatewayController {
     return response;
   }
 
+  /**
+   * ✅ Propriétaire d'une clé API (JWT signé, ou clé enregistrée en base) ; null si la clé est invalide,
+   * expirée ou désactivée.
+   */
+  private async apiKeyOwner(rawKey?: string | null): Promise<string | null> {
+    const key = String(rawKey || '').replace(/^Bearer\s+/i, '').trim();
+    if (!key) return null;
+    const stored = await this.prisma.api_key.findFirst({
+      where: { key, isActive: true },
+      select: { userId: true, expiresAt: true },
+    });
+    if (stored && (!stored.expiresAt || stored.expiresAt > new Date())) return stored.userId ?? null;
+    try {
+      const secret = process.env.JWT_API_KEY_SECRET || 'your-secret-key-at-least-32-chars';
+      const payload: any = jwt.verify(key, secret);
+      const requireDb = String(process.env.API_KEY_JWT_REQUIRE_DB ?? 'true').toLowerCase() !== 'false';
+      if (requireDb) return null; // clé signée mais inconnue en base (révoquée ou fabriquée)
+      return payload?.sub || payload?.userId || null;
+    } catch {
+      return null;
+    }
+  }
+
   @Post('taxi/driver/cashout')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('cashout')
   async driverCashout(
     @Request() req: any,
     @Body() body: {
-      accountNumber?: string;
       amount: number;
-      pin: string;
-      walletId?: string;
-      provider?: string;
-      phone?: string;
+      description?: string;
+      currency: string;
+      countryCode?: string;
+      paymentMethod?: string;
+      userId: string; // id F-Pay du CHAUFFEUR (destinataire)
+      toApiKey: string; // clé API du wallet qui sera DÉBITÉ
     },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
     const lang = langHeader || 'fr';
-    const apiKeyUser = req.user; // 🔥 API Key owner = CHAUFFEUR
-
-    console.log('[taxi/driver/cashout] 📋 Chauffeur (API Key owner):', {
-      id: apiKeyUser.id,
-      full_name: apiKeyUser.full_name,
-      phone: apiKeyUser.phone,
-      role: apiKeyUser.role,
-      status: apiKeyUser.status,
-    });
+    const apiKeyUser = req.user; // 🔥 propriétaire de la clé de l'en-tête (compte TAXI)
 
     if (!apiKeyUser) {
       throw new HttpException('Utilisateur API Key non trouvé', HttpStatus.UNAUTHORIZED);
     }
-    if (!apiKeyUser.phone) {
-      throw new HttpException('API Key user has no phone number', HttpStatus.BAD_REQUEST);
-    }
     if (apiKeyUser.status === 'BLOCKED') {
-      throw new HttpException('Le compte du chauffeur est bloqué', HttpStatus.FORBIDDEN);
+      throw new HttpException('Le compte TAXI est bloqué', HttpStatus.FORBIDDEN);
     }
 
-    if (!body.accountNumber && !body.provider) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.account_or_provider_required', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+    // ========== VALIDATIONS ==========
+    if (!body.amount || Number(body.amount) <= 0) {
+      throw new HttpException(this.i18nService.translate('wallet.amount_positive', lang), HttpStatus.BAD_REQUEST);
     }
-    if (body.provider && !body.phone) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.missing_phone_for_payment', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+    // ✅ Devises des wallets F-Pay (enum Prisma wallet_currency)
+    const currency = String(body.currency || '').trim().toUpperCase();
+    const walletCurrencies = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
+    if (!walletCurrencies.includes(currency)) {
+      throw new HttpException(`currency invalide. Valeurs acceptées: ${walletCurrencies.join(', ')}`, HttpStatus.BAD_REQUEST);
     }
-    if (!body.amount || body.amount <= 0) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.amount_positive', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+    if (!body.userId) {
+      throw new HttpException('userId du chauffeur (destinataire) obligatoire', HttpStatus.BAD_REQUEST);
     }
-    if (!body.pin || body.pin.length < 4) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.pin_min_length', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+    if (!body.toApiKey) {
+      throw new HttpException('toApiKey (wallet à débiter) obligatoire', HttpStatus.BAD_REQUEST);
     }
-    if (!/^\d+$/.test(body.pin)) {
+    // ✅ paymentMethod → valeurs de l'enum Prisma transaction_paymentMethod
+    //    (BANK_TRANSFER et CARD étaient acceptés mais n'existent pas en base : Prisma aurait planté)
+    const paymentMethodMap: Record<string, string> = {
+      MOBILE_MONEY: 'MOBILE_MONEY',
+      CASH: 'CASH',
+      BANK_TRANSFER: 'BANK_TRANSFERT',
+      BANK_TRANSFERT: 'BANK_TRANSFERT',
+      CARD: 'CREDIT_DEBIT_CARD',
+      CREDIT_DEBIT_CARD: 'CREDIT_DEBIT_CARD',
+      INTERNAL: 'INTERNAL',
+      EXTERNAL_API: 'EXTERNAL_API',
+    };
+    const paymentMethod = paymentMethodMap[String(body.paymentMethod || 'INTERNAL').trim().toUpperCase()];
+    if (!paymentMethod) {
       throw new HttpException(
-        this.i18nService.translate('wallet.pin_digits_only', lang),
+        `paymentMethod invalide. Valeurs acceptées: ${Object.keys(paymentMethodMap).join(', ')}`,
         HttpStatus.BAD_REQUEST,
       );
     }
 
-    const payload: any = {
-      userId: apiKeyUser.id,
-      amount: body.amount,
-      pin: body.pin,
+    // ✅ toApiKey = clé du wallet DÉBITÉ : signature vérifiée (ou clé trouvée en base, active),
+    //    et elle doit appartenir au compte authentifié (clé de l'en-tête).
+    //    Sinon n'importe quelle clé « cashout » pourrait vider le wallet d'un autre compte.
+    const payerId = await this.apiKeyOwner(body.toApiKey);
+    if (!payerId || payerId !== apiKeyUser.id) {
+      throw new HttpException('toApiKey ne correspond pas au compte authentifié', HttpStatus.FORBIDDEN);
+    }
+    if (body.userId === payerId) {
+      throw new HttpException('Vous ne pouvez pas vous envoyer d\'argent à vous-même', HttpStatus.BAD_REQUEST);
+    }
+
+    const payload = {
+      payerUserId: payerId, // propriétaire de toApiKey : wallet débité
+      driverUserId: body.userId, // chauffeur : wallet crédité
+      amount: Math.round(Number(body.amount) * 100) / 100,
+      currency,
+      description: body.description ? String(body.description).slice(0, 1000) : undefined,
+      countryCode: body.countryCode || 'CD',
+      paymentMethod,
       lang,
       ipAddress,
     };
-    if (body.accountNumber) payload.accountNumber = body.accountNumber;
-    if (body.walletId) payload.walletId = body.walletId;
-    if (body.provider) payload.provider = body.provider;
-    if (body.phone) payload.phone = body.phone;
 
-    console.log('[taxi/driver/cashout] 📤 Retrait chauffeur:', {
-      driverId: apiKeyUser.id,
-      driverPhone: apiKeyUser.phone,
-      amount: body.amount,
-      provider: body.provider ?? null,
-      phone: body.phone ?? null,
-      walletId: body.walletId ?? null,
+    console.log('[taxi/driver/cashout] 📤 Retrait chauffeur → compte F-Pay:', {
+      payer: payload.payerUserId,
+      driver: payload.driverUserId,
+      amount: payload.amount,
+      currency: payload.currency,
+      paymentMethod: payload.paymentMethod,
     });
 
     const response = await this.sendWalletMessage<{
@@ -1946,7 +1992,7 @@ export class ApiGatewayController {
       payload,
       this.i18nService.translate('wallet.cashout_failed', lang),
       HttpStatus.BAD_REQUEST,
-      120000,
+      60000,
     );
 
     await this.prisma.audit_log.create({
@@ -1955,15 +2001,14 @@ export class ApiGatewayController {
         userId: apiKeyUser.id,
         action: 'TAXI_DRIVER_CASHOUT',
         details: JSON.stringify({
-          driverId: apiKeyUser.id,
-          driverPhone: apiKeyUser.phone,
-          amount: body.amount,
-          walletId: body.walletId ?? null,
-          provider: body.provider ?? null,
-          phone: body.phone ?? null,
-          accountNumber: body.accountNumber ?? null,
+          amount: payload.amount,
+          currency: payload.currency,
+          driverId: payload.driverUserId,
+          driverWalletId: response?.data?.driverWallet?.id ?? null,
+          description: payload.description ?? null,
           transactionReference: response?.data?.transaction?.reference ?? null,
           transactionStatus: response?.data?.transaction?.status ?? null,
+          replayed: response?.data?.replayed ?? false,
         }),
         ipAddress: ipAddress || null,
         createdAt: new Date(),

@@ -4194,468 +4194,262 @@ export class WalletServiceService {
     };
   }
 
+  /**
+   * ✅ Wallet d'un utilisateur dans une devise (wallet personnel, pas un wallet de branche) ;
+   * créé s'il n'existe pas, avec son code cash, comme les autres créations de wallet.
+   */
+  private async findOrCreateCurrencyWallet(tx: any, userId: string, currency: wallet_currency) {
+    const existing = await tx.wallet.findFirst({
+      where: { userId, currency, OR: [{ isBranchWallet: false }, { isBranchWallet: null }] },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (existing) return existing;
+    const cashCode = await this.generateUniqueCashCode();
+    return tx.wallet.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId,
+        currency,
+        balance: 0,
+        isActive: true,
+        cashCode,
+      },
+    });
+  }
+
+  /**
+   * ✅ Retrait des gains d'un chauffeur vers SON COMPTE F-PAY, dans la MÊME devise (route taxi/driver/cashout).
+   *   wallet du propriétaire de toApiKey (devise X) → wallet du chauffeur (userId + devise X, créé s'il n'existe pas)
+   * Transfert interne en UNE transaction Prisma (débit conditionnel + crédit + 2 lignes) : tout ou rien.
+   * Anti-doublon : la référence Favor Help (DCO-…) présente dans la description ne crédite jamais deux fois.
+   */
   async taxiCashout(
-    userId: string,
+    payerUserId: string, // propriétaire de toApiKey : wallet débité
     dto: {
-      accountNumber?: string;
+      driverUserId: string; // chauffeur : wallet crédité (identifié par son id + la devise)
       amount: number;
-      pin: string;
-      walletId?: string;
-      provider?: string;
-      phone?: string;
+      currency: string;
+      description?: string;
+      countryCode?: string;
+      paymentMethod?: string;
     },
     lang: string = 'fr',
     ipAddress?: string,
-  ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
-    const { amount, pin, walletId, provider, phone } = dto;
-    console.log('[WalletService] Taxi Cashout request:', {
-      userId,
+  ): Promise<ApiResponse<{ wallet: WalletResponseDto; driverWallet: any; transaction: any; replayed?: boolean }>> {
+    const amount = Math.round(Number(dto.amount) * 100) / 100;
+    const currency = String(dto.currency || '').toUpperCase() as wallet_currency;
+    const paymentMethod = (String(dto.paymentMethod || 'INTERNAL').toUpperCase() || 'INTERNAL') as any;
+    console.log('[WalletService] Taxi Cashout (compte F-Pay) request:', {
+      payerUserId,
+      driverUserId: dto.driverUserId,
       amount,
+      currency,
+      paymentMethod,
       lang,
-      walletId,
-      provider,
-      phone,
     });
 
     // ========== VALIDATIONS ==========
-    if (amount <= 0) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.amount_positive', lang),
-        statusCode: 400,
-      });
+    if (!(amount > 0)) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.amount_positive', lang), statusCode: 400 });
+    }
+    if (!(Object.values(wallet_currency) as string[]).includes(currency)) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.invalid_currency', lang, { currency }), statusCode: 400 });
     }
 
-    if (!provider || !phone) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.missing_phone_or_provider', lang),
-        statusCode: 400,
-      });
-    }
-
-    if (!pin || pin.length < 4) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.pin_min_length', lang),
-        statusCode: 400,
-      });
-    }
-
-    if (!/^\d+$/.test(pin)) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.pin_digits_only', lang),
-        statusCode: 400,
-      });
-    }
-
-    // ---------- 1. Validation préalable (hors transaction) ----------
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId },
-      select: {
-        id: true,
-        full_name: true,
-        phone: true,
-        pin: true,
-        role: true,
-        status: true,
-        failed_pin_attempts: true,
-        countryCode: true,
-      },
+    // ---------- 1. Compte débité (propriétaire de toApiKey) ----------
+    const payer = await this.prisma.user.findFirst({
+      where: { id: payerUserId },
+      select: { id: true, full_name: true, phone: true, status: true, countryCode: true },
     });
-
-    if (!user) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.user_not_found', lang),
-        statusCode: 404,
-      });
+    if (!payer) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.user_not_found', lang), statusCode: 404 });
+    }
+    if (payer.status === user_status.BLOCKED) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('account_blocked_admin', lang), statusCode: 403 });
     }
 
-    if (user.status === user_status.BLOCKED) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('account_blocked_admin', lang),
-        statusCode: 403,
-      });
-    }
-
-    // Vérifier le PIN
-    const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
-    if (user.pin !== hashedPin) {
-      const newAttempts = (user.failed_pin_attempts || 0) + 1;
-      let newStatus: user_status = user.status;
-      let lockedUntil: Date | null = null;
-
-      if (newAttempts >= 10) {
-        lockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-        newStatus = user_status.SUSPENDED;
-      } else if (newAttempts >= 5) {
-        lockedUntil = null;
-        newStatus = user_status.ACTIVE;
-      }
-
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          failed_pin_attempts: newAttempts,
-          status: newStatus,
-          pin_locked_until: lockedUntil,
-        },
-      });
-
-      await logFailedLoginAttempt(
-        this.prisma,
-        user.id,
-        user.phone ?? user.id,
-        ipAddress,
-        undefined,
-        newAttempts,
-        lockedUntil,
-      );
-
-      let errorMessage: string;
-      if (newAttempts >= 10) {
-        errorMessage = this.i18nService.translate('wallet.pin_locked_auto', lang, {
-          minutes: 30,
-        });
-      } else if (newAttempts >= 5) {
-        const remaining = 10 - newAttempts;
-        errorMessage = this.i18nService.translate('wallet.pin_incorrect_warning', lang, {
-          attempts: remaining,
-        });
-      } else {
-        const remaining = 5 - newAttempts;
-        errorMessage = this.i18nService.translate('wallet.pin_incorrect', lang, {
-          attempts: remaining,
-        });
-      }
-
-      throw new RpcException({
-        status: 'error',
-        message: errorMessage,
-        statusCode: 401,
-      });
-    }
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        failed_pin_attempts: 0,
-        pin_locked_until: null,
-        status: user_status.ACTIVE,
-      },
+    // ---------- 2. Chauffeur (destinataire) ----------
+    const driver = await this.prisma.user.findFirst({
+      where: { id: dto.driverUserId },
+      select: { id: true, full_name: true, phone: true, status: true, countryCode: true },
     });
-
-    // Récupérer le wallet du chauffeur
-    let wallet;
-    if (walletId) {
-      wallet = await this.prisma.wallet.findFirst({
-        where: { id: walletId, userId },
-        include: { user: true },
-      });
-      if (!wallet) {
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('wallet.wallet_not_found_or_unauthorized', lang),
-          statusCode: 404,
-        });
-      }
-    } else {
-      wallet = await this.prisma.wallet.findFirst({
-        where: { userId },
-        include: { user: true },
-      });
-      if (!wallet) {
-        throw new RpcException({
-          status: 'error',
-          message: this.i18nService.translate('wallet.wallet_not_found', lang),
-          statusCode: 404,
-        });
-      }
+    if (!driver) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.taxi_driver_not_found', lang), statusCode: 404 });
+    }
+    if (driver.status === user_status.BLOCKED) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.taxi_driver_blocked', lang), statusCode: 403 });
+    }
+    if (driver.id === payer.id) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.cannot_send_to_self', lang), statusCode: 400 });
     }
 
-    if (!wallet.isActive) {
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.wallet_inactive', lang),
-        statusCode: 403,
+    // ---------- 3. Anti-doublon : référence Favor Help (DCO-…) dans la description ----------
+    const ref = String(dto.description || '').match(/\bDCO-[A-Z0-9-]+\b/)?.[0] ?? null;
+    if (ref) {
+      const already = await this.prisma.transaction.findFirst({
+        where: { userId: payer.id, movement: 'DEBIT', status: 'SUCCESS', description: { contains: ref } },
       });
-    }
-
-    // ========== CALCUL DES FRAIS ==========
-    const fees = await this.getNetworkProviderFees(provider);
-    const feeAmount = (amount * fees.payoutFee) / 100;
-    const totalDebit = amount;
-    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
-
-    console.log('[WalletService] Taxi Cashout calcul:', {
-      amount,
-      feeAmount,
-      totalDebit,
-      netAmount,
-      payoutFee: fees.payoutFee,
-    });
-
-    // ✅ Vérifier le solde
-    if (wallet.balance < totalDebit) {
-      const shortfall = (totalDebit - wallet.balance).toFixed(2);
-      throw new RpcException({
-        status: 'error',
-        message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang, {
-          balance: wallet.balance.toFixed(2),
-          currency: wallet.currency || 'CDF',
-          required: totalDebit.toFixed(2),
-          fee: feeAmount.toFixed(2),
-          feePercent: fees.payoutFee,
-          netAmount: netAmount.toFixed(2),
-          shortfall: shortfall,
-        }),
-        statusCode: 400,
-      });
-    }
-
-    // ---------- 2. Appel PawaPay payout ----------
-    let paymentSucceeded = false;
-    let pawaPayErrorMessage: string | null = null;
-    let pawaPayErrorCode: string | null = null;
-    let pawaPayErrorDetails: any = null;
-    let externalReference: string | undefined;
-
-    const amountStr = netAmount.toString();
-    const pawapayData = {
-      amount: amountStr,
-      currency: wallet.currency,
-      provider,
-      phone,
-    };
-
-    console.log('[WalletService] Taxi - Appel PawaPay payout (net):', JSON.stringify(pawapayData, null, 2));
-
-    try {
-      const pawapayResponse = await this.pawapayService.createPayoutSimple(pawapayData);
-      console.log('[WalletService] Taxi - Réponse PawaPay payout:', JSON.stringify(pawapayResponse, null, 2));
-
-      const payoutStatus = pawapayResponse.finalStatus?.data?.status;
-
-      if (payoutStatus === 'COMPLETED') {
-        paymentSucceeded = true;
-        externalReference = pawapayResponse.payout?.payoutId;
-      } else {
-        const failureObj = pawapayResponse.finalStatus?.data?.failureReason;
-        const failureCode = failureObj?.failureCode;
-        const failureMsg = failureObj?.failureMessage;
-
-        pawaPayErrorCode = failureCode;
-        pawaPayErrorMessage = failureMsg || payoutStatus;
-        pawaPayErrorDetails = failureObj;
-
-        console.log('[WalletService] Taxi - PawaPay failure:', {
-          code: failureCode,
-          message: failureMsg,
-          details: failureObj,
+      if (already) {
+        const w = await this.prisma.wallet.findFirst({ where: { id: already.walletId } });
+        const credit = await this.prisma.transaction.findFirst({
+          where: { userId: driver.id, movement: 'CREDIT', status: 'SUCCESS', description: { contains: ref } },
         });
-      }
-    } catch (err: any) {
-      console.error('[WalletService] Taxi - Erreur PawaPay payout - DETAIL:', err);
-
-      if (err?.response?.data) {
-        pawaPayErrorMessage = err.response.data.message || err.response.data.error || err.message;
-        pawaPayErrorCode = err.response.data.code || err.response.data.status || 'UNKNOWN_ERROR';
-        pawaPayErrorDetails = err.response.data;
-      } else if (err?.message) {
-        pawaPayErrorMessage = err.message;
-        pawaPayErrorCode = err?.code || 'TECHNICAL_ERROR';
-      } else {
-        pawaPayErrorMessage = 'Unknown PawaPay error';
-        pawaPayErrorCode = 'UNKNOWN_ERROR';
-      }
-
-      console.error('[WalletService] Taxi - PawaPay error details:', {
-        message: pawaPayErrorMessage,
-        code: pawaPayErrorCode,
-        details: pawaPayErrorDetails,
-      });
-    }
-
-    // ---------- 3. Gestion de l'échec ----------
-    if (!paymentSucceeded) {
-      let failureMessage = this.i18nService.translate('wallet.payout_failed', lang, {
-        reason: pawaPayErrorMessage || 'Unknown error',
-        code: pawaPayErrorCode || 'UNKNOWN',
-      });
-
-      if (pawaPayErrorDetails) {
-        failureMessage = `${failureMessage} - Details: ${JSON.stringify(pawaPayErrorDetails)}`;
-      }
-
-      console.log('[WalletService] Taxi Cashout failure message:', failureMessage);
-
-      let failedTransaction;
-      try {
-        failedTransaction = await this.prisma.$transaction(async (tx) => {
-          return await tx.transaction.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId,
-              walletId: wallet.id,
-              amount: amount,
-              type: 'WITHDRAW',
-              status: 'FAILED',
-              reference: await this.generateTransactionReference('', tx),
-              description: this.i18nService.translate('wallet.failed_description', lang, {
-                reason: failureMessage,
-              }),
-              movement: 'DEBIT',
-              paymentMethod: 'MOBILE_MONEY',
-              currency: wallet.currency,
-            },
-          });
-        });
-        await this.logAudit(
-          user.id,
-          'taxi_cashout_failed',   // ✅ Action dédiée taxi
-          {
-            transaction: failedTransaction,
-            error: failureMessage,
-            pawaPay: {
-              code: pawaPayErrorCode,
-              message: pawaPayErrorMessage,
-              details: pawaPayErrorDetails,
-            },
+        return {
+          message: this.i18nService.translate('wallet.taxi_cashout_success', lang, {
+            amount: Number(already.amount).toFixed(2),
+            currency: already.currency || currency,
+            recipient: driver.full_name || driver.phone || '',
+            reference: already.reference || 'N/A',
+          }),
+          data: {
+            wallet: this.toResponse(w),
+            driverWallet: credit ? { id: credit.walletId, currency: credit.currency, userId: driver.id } : null,
+            transaction: already,
+            replayed: true,
           },
-          ipAddress || null,
-        );
-      } catch (err) {
-        console.error('Erreur lors de la création de la transaction failed:', err);
+        };
       }
-
-      throw new RpcException({
-        status: 'error',
-        message: failureMessage,
-        statusCode: 400,
-        pawaPay: {
-          code: pawaPayErrorCode,
-          message: pawaPayErrorMessage,
-          details: pawaPayErrorDetails,
-        },
-      });
     }
 
-    // ---------- 4. Succès : débiter le wallet et créer la transaction ----------
-    let updatedWallet: any;
-    let transaction: any;
+    // ---------- 4. Wallet débité : celui du propriétaire de toApiKey, dans la MÊME devise ----------
+    const source = await this.prisma.wallet.findFirst({
+      where: { userId: payer.id, currency, OR: [{ isBranchWallet: false }, { isBranchWallet: null }] },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+    if (!source) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.taxi_no_wallet_currency', lang, { currency }), statusCode: 404 });
+    }
+    if (!source.isActive) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.wallet_inactive', lang), statusCode: 403 });
+    }
 
+    // ---------- 5. Transfert (une seule transaction) ----------
+    const description = dto.description || `Gains Favor Taxi ${amount.toFixed(2)} ${currency}`;
+    let result: { source: any; driverWallet: any; debit: any; credit: any };
     try {
-      const result = await this.prisma.$transaction(
+      result = await this.prisma.$transaction(
         async (tx) => {
-          const description =
-            this.i18nService.translate('wallet.transaction_description_withdraw', lang)
-              .replace('{phone}', phone || '') +
-            ` (frais PawaPay ${fees.payoutFee}%: ${feeAmount.toFixed(2)} ${wallet.currency})` +
-            ` - Net reçu: ${netAmount.toFixed(2)} ${wallet.currency}` +
-            ' ' +
-            this.i18nService.translate('wallet.via_pawapay', lang, { provider }) +
-            (externalReference ? ` Ref: ${externalReference}` : '');
-
-          const upd = await tx.wallet.update({
-            where: { id: wallet.id },
-            data: { balance: { decrement: totalDebit }, updatedAt: new Date() },
+          // Débit conditionnel : refusé si le solde ne suffit pas (jamais de solde négatif, même en parallèle)
+          const debited = await tx.wallet.updateMany({
+            where: { id: source.id, isActive: true, balance: { gte: amount } },
+            data: { balance: { decrement: amount }, updatedAt: new Date() },
           });
+          if (debited.count !== 1) {
+            const fresh = await tx.wallet.findFirst({ where: { id: source.id } });
+            throw new RpcException({
+              status: 'error',
+              message: this.i18nService.translate('wallet.taxi_insufficient_balance', lang, {
+                balance: Number(fresh?.balance ?? 0).toFixed(2),
+                required: amount.toFixed(2),
+                currency,
+              }),
+              statusCode: 400,
+            });
+          }
 
-          const reference = await this.generateTransactionReference('', tx);
-          const txRecord = await tx.transaction.create({
+          // ✅ Wallet du chauffeur identifié par son id + la devise (créé s'il n'existe pas)
+          const target = await this.findOrCreateCurrencyWallet(tx, driver.id, currency);
+          if (target.isActive === false) {
+            throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.wallet_inactive', lang), statusCode: 403 });
+          }
+          const driverWallet = await tx.wallet.update({
+            where: { id: target.id },
+            data: { balance: { increment: amount }, updatedAt: new Date() },
+          });
+          const updatedSource = await tx.wallet.findFirst({ where: { id: source.id } });
+
+          // Même schéma que les autres transferts : TRANSFER / DEBIT pour l'émetteur, DEPOSIT / CREDIT pour le receveur
+          const debit = await tx.transaction.create({
             data: {
               id: crypto.randomUUID(),
-              userId,
-              walletId: wallet.id,
-              amount: amount,
-              type: 'WITHDRAW',
+              userId: payer.id,
+              walletId: source.id,
+              amount,
+              type: 'TRANSFER',
               status: 'SUCCESS',
-              reference: reference,
-              description,
+              reference: await this.generateTransactionReference('', tx),
+              description: `${description} → ${driver.full_name || driver.phone || driver.id}`,
               movement: 'DEBIT',
-              currency: wallet.currency,
-              external_reference: externalReference,
-              paymentMethod: 'MOBILE_MONEY',
+              paymentMethod,
+              currency,
             },
           });
-
-          return { wallet: upd, transaction: txRecord };
+          const credit = await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: driver.id,
+              walletId: driverWallet.id,
+              amount,
+              type: 'DEPOSIT',
+              status: 'SUCCESS',
+              reference: await this.generateTransactionReference('', tx),
+              description,
+              movement: 'CREDIT',
+              paymentMethod,
+              currency,
+            },
+          });
+          return { source: updatedSource, driverWallet, debit, credit };
         },
-        { timeout: 60000, maxWait: 60000 },
+        { timeout: 30000, maxWait: 30000 },
       );
-
-      updatedWallet = result.wallet;
-      transaction = result.transaction;
-    } catch (error) {
+    } catch (error: any) {
+      if (error instanceof RpcException) throw error;
       console.error('[WalletService] Taxi Cashout transaction error:', error);
       throw new RpcException({
         status: 'error',
-        message: error.message || this.i18nService.translate('wallet.cashout_failed', lang),
+        message: error?.message || this.i18nService.translate('wallet.cashout_failed', lang),
         statusCode: 500,
       });
     }
 
-    // ---------- 5. Envoyer le SMS de notification ----------
-    if (user.phone) {
-      try {
-        const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
-          full_name: user.full_name || '',
-          amount: amount.toFixed(2),
-          feePercent: fees.payoutFee,
-          currency: wallet.currency || 'CDF',
-          balance: updatedWallet.balance || 0,
-          netAmount: netAmount.toFixed(2),
-          fee: feeAmount.toFixed(2),
-          reference: transaction.reference || 'N/A',
-          phone: phone || '',
-        });
-        const countryCode = user?.countryCode || 'CD';
-        await this.smsService.sendSms(cleanPhone, smsText, countryCode);
-        console.log(`[Taxi Cashout] SMS envoyé à ${cleanPhone} (${countryCode})`);
-      } catch (err) {
-        console.error('[Taxi Cashout] Erreur envoi SMS:', err);
-      }
-    }
-
-    // ---------- 6. Audit et notifications Push ----------
-    await this.logAudit(user.id, 'taxi_cashout', transaction, ipAddress ?? null);
-
+    // ---------- 6. Audit + notifications (comme les autres transferts) ----------
+    await this.logAudit(payer.id, 'taxi_cashout', result.debit, ipAddress ?? null);
     try {
-      await notifyTransaction(
-        this.smsService,
-        this.notificationHelper,
-        this.i18nService,
-        this.shouldSendSms.bind(this),
-        this.shouldSendPush.bind(this),
-        this.getUserLanguage.bind(this),
-        transaction,
-        user,
-        updatedWallet,
-        'cashout',   // ✅ Type de notification inchangé (même template SMS/push)
-      );
+      await Promise.all([
+        notifyTransaction(
+          this.smsService,
+          this.notificationHelper,
+          this.i18nService,
+          this.shouldSendSms.bind(this),
+          this.shouldSendPush.bind(this),
+          this.getUserLanguage.bind(this),
+          result.debit,
+          payer,
+          result.source,
+          'send_sent',
+          { name: driver.full_name ?? undefined, phone: driver.phone ?? undefined },
+        ),
+        notifyTransaction(
+          this.smsService,
+          this.notificationHelper,
+          this.i18nService,
+          this.shouldSendSms.bind(this),
+          this.shouldSendPush.bind(this),
+          this.getUserLanguage.bind(this),
+          result.credit,
+          driver,
+          result.driverWallet,
+          'send_received',
+          { name: payer.full_name ?? undefined, phone: payer.phone ?? undefined },
+        ),
+      ]);
     } catch (err) {
       console.error('[Notifications] taxi_cashout error:', err);
     }
 
     // ---------- 7. Retour ----------
     return {
-      message: this.i18nService.translate('wallet.cashout_success', lang, {
+      message: this.i18nService.translate('wallet.taxi_cashout_success', lang, {
         amount: amount.toFixed(2),
-        currency: wallet.currency || 'CDF',
-        balance: updatedWallet.balance.toFixed(2),
-        reference: transaction.reference || 'N/A',
-        fee: feeAmount.toFixed(2),
-        feePercent: fees.payoutFee,
-        netAmount: netAmount.toFixed(2),
-        phone: phone || 'N/A',
+        currency,
+        recipient: driver.full_name || driver.phone || '',
+        reference: result.debit.reference || 'N/A',
       }),
       data: {
-        wallet: this.toResponse(updatedWallet),
-        transaction,
+        wallet: this.toResponse(result.source), // wallet débité
+        driverWallet: { id: result.driverWallet.id, currency: result.driverWallet.currency, userId: driver.id },
+        transaction: result.debit,
       },
     };
   }

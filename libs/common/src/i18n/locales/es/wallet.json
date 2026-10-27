@@ -235,5 +235,12 @@
     "wallet.balance_transactions_error": "Error al recuperar las transacciones",
     "wallet.admin_send_from_wallet_required": "La cartera de origen es requerida para el envío admin",
     "wallet.admin_send_to_phone_required": "El teléfono del destinatario es requerido para el envío admin",
-    "wallet.from_wallet_required": "La cartera de origen es requerida"
+    "wallet.from_wallet_required": "La cartera de origen es requerida",
+    "wallet.invalid_currency": "Moneda no válida: {{currency}}",
+    "wallet.cannot_send_to_self": "No puede enviarse dinero a sí mismo",
+    "wallet.taxi_driver_not_found": "Cuenta F-Pay del conductor no encontrada",
+    "wallet.taxi_driver_blocked": "La cuenta F-Pay del conductor está bloqueada",
+    "wallet.taxi_no_wallet_currency": "No hay cartera {{currency}} para debitar en esta cuenta",
+    "wallet.taxi_insufficient_balance": "Saldo insuficiente: {{balance}} {{currency}} disponibles para {{required}} {{currency}}",
+    "wallet.taxi_cashout_success": "{{amount}} {{currency}} enviados a la cuenta F-Pay de {{recipient}}. Ref: {{reference}}."
 }

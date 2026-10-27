@@ -232,5 +232,12 @@
   "wallet.balance_transactions_error": "Error retrieving transactions",
   "wallet.admin_send_from_wallet_required": "Source wallet is required for admin send",
   "wallet.admin_send_to_phone_required": "Recipient phone is required for admin send",
-  "wallet.from_wallet_required": "Source wallet is required"
+  "wallet.from_wallet_required": "Source wallet is required",
+  "wallet.invalid_currency": "Invalid currency: {{currency}}",
+  "wallet.cannot_send_to_self": "You cannot send money to yourself",
+  "wallet.taxi_driver_not_found": "Driver F-Pay account not found",
+  "wallet.taxi_driver_blocked": "The driver F-Pay account is blocked",
+  "wallet.taxi_no_wallet_currency": "No {{currency}} wallet to debit on this account",
+  "wallet.taxi_insufficient_balance": "Insufficient balance: {{balance}} {{currency}} available for {{required}} {{currency}}",
+  "wallet.taxi_cashout_success": "{{amount}} {{currency}} sent to the F-Pay account of {{recipient}}. Ref: {{reference}}."
 }

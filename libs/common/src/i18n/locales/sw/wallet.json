@@ -232,5 +232,12 @@
   "wallet.balance_transactions_error": "Hitilafu wakati wa kupata muamala",
   "wallet.admin_send_from_wallet_required": "Pochi ya chanzo inahitajika kwa kutuma admin",
   "wallet.admin_send_to_phone_required": "Simu ya mpokeaji inahitajika kwa kutuma admin",
-  "wallet.from_wallet_required": "Pochi ya chanzo inahitajika"
+  "wallet.from_wallet_required": "Pochi ya chanzo inahitajika",
+  "wallet.invalid_currency": "Sarafu si sahihi: {{currency}}",
+  "wallet.cannot_send_to_self": "Huwezi kujitumia pesa mwenyewe",
+  "wallet.taxi_driver_not_found": "Akaunti ya F-Pay ya dereva haikupatikana",
+  "wallet.taxi_driver_blocked": "Akaunti ya F-Pay ya dereva imezuiwa",
+  "wallet.taxi_no_wallet_currency": "Hakuna pochi ya {{currency}} ya kutoa kwenye akaunti hii",
+  "wallet.taxi_insufficient_balance": "Salio halitoshi: {{balance}} {{currency}} zinapatikana kwa {{required}} {{currency}}",
+  "wallet.taxi_cashout_success": "{{amount}} {{currency}} zimetumwa kwenye akaunti ya F-Pay ya {{recipient}}. Kumbukumbu: {{reference}}."
 }
