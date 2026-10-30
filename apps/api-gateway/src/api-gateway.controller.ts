@@ -1890,6 +1890,140 @@ export class ApiGatewayController {
     }
   }
 
+  /** Permissions enregistrées en base pour une clé API (JSON) — lecture stricte */
+  private async apiKeyPermissions(rawKey?: string | null): Promise<string[]> {
+    const key = String(rawKey || '').replace(/^Bearer\s+/i, '').trim();
+    if (!key) return [];
+    const stored = await this.prisma.api_key.findFirst({
+      where: { key, isActive: true },
+      select: { permissions: true, expiresAt: true },
+    });
+    if (!stored || (stored.expiresAt && stored.expiresAt <= new Date())) return [];
+    try {
+      const list = typeof stored.permissions === 'string' ? JSON.parse(stored.permissions) : stored.permissions;
+      return Array.isArray(list) ? list.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * ✅ Commission d'une course taxi payée en ESPÈCES (appelée par Favor Help quand le chauffeur valide « espèces reçues »).
+   *   wallet F-Pay du CHAUFFEUR (userId + devise) ──débit──▶ wallet du compte TAXI (clé de l'en-tête, même devise)
+   * Le solde du chauffeur peut devenir NÉGATIF (dette). Une seule fois par course (rideId).
+   *
+   * Sécurité : débite le wallet d'un AUTRE utilisateur → la clé doit avoir la permission « taxi_commission »
+   * enregistrée en base, contrôlée ici même si API_KEY_PERMISSIONS_MODE=warn.
+   *
+   * Corps : { amount, currency, userId (id F-Pay du chauffeur), rideId, description?, paymentMethod? (CASH) }
+   */
+  @Post('taxi/driver/commission')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('taxi_commission')
+  async driverCommission(
+    @Request() req: any,
+    @Body() body: {
+      amount: number;
+      currency: string;
+      userId: string; // id F-Pay du CHAUFFEUR (wallet débité)
+      rideId: string; // course Favor Help (anti-doublon)
+      description?: string;
+      paymentMethod?: string;
+    },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const apiKeyUser = req.user; // propriétaire de la clé (compte TAXI) : wallet crédité
+
+    if (!apiKeyUser) {
+      throw new HttpException('Utilisateur API Key non trouvé', HttpStatus.UNAUTHORIZED);
+    }
+    if (apiKeyUser.status === 'BLOCKED') {
+      throw new HttpException('Le compte TAXI est bloqué', HttpStatus.FORBIDDEN);
+    }
+    // ✅ Contrôle strict de la permission (indépendant du mode warn du guard)
+    const perms = await this.apiKeyPermissions(req.headers?.authorization);
+    if (!perms.includes('taxi_commission')) {
+      throw new HttpException('Permission « taxi_commission » requise sur la clé API', HttpStatus.FORBIDDEN);
+    }
+
+    // ========== VALIDATIONS ==========
+    if (!body.amount || Number(body.amount) <= 0) {
+      throw new HttpException(this.i18nService.translate('wallet.amount_positive', lang), HttpStatus.BAD_REQUEST);
+    }
+    const currency = String(body.currency || '').trim().toUpperCase();
+    const walletCurrencies = ['USD', 'EUR', 'CDF', 'XOF', 'XAF', 'KES', 'RWF', 'UGX', 'ZMW', 'SLE'];
+    if (!walletCurrencies.includes(currency)) {
+      throw new HttpException(`currency invalide. Valeurs acceptées: ${walletCurrencies.join(', ')}`, HttpStatus.BAD_REQUEST);
+    }
+    if (!body.userId) {
+      throw new HttpException('userId du chauffeur obligatoire', HttpStatus.BAD_REQUEST);
+    }
+    const rideId = String(body.rideId || '').trim();
+    if (!rideId || rideId.length > 64) {
+      throw new HttpException('rideId obligatoire', HttpStatus.BAD_REQUEST);
+    }
+    if (body.userId === apiKeyUser.id) {
+      throw new HttpException('Vous ne pouvez pas vous débiter vous-même', HttpStatus.BAD_REQUEST);
+    }
+    const paymentMethodMap: Record<string, string> = {
+      CASH: 'CASH',
+      CARD: 'CREDIT_DEBIT_CARD',
+      CREDIT_DEBIT_CARD: 'CREDIT_DEBIT_CARD',
+      INTERNAL: 'INTERNAL',
+    };
+    const paymentMethod = paymentMethodMap[String(body.paymentMethod || 'CASH').trim().toUpperCase()];
+    if (!paymentMethod) {
+      throw new HttpException(
+        `paymentMethod invalide. Valeurs acceptées: ${Object.keys(paymentMethodMap).join(', ')}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const payload = {
+      taxiUserId: apiKeyUser.id,
+      driverUserId: body.userId,
+      amount: Math.round(Number(body.amount) * 100) / 100,
+      currency,
+      rideId,
+      description: body.description ? String(body.description).slice(0, 1000) : undefined,
+      paymentMethod,
+      lang,
+      ipAddress,
+    };
+
+    const response = await this.sendWalletMessage<{ message: string; data: any }>(
+      'taxi_commission',
+      payload,
+      this.i18nService.translate('wallet.taxi_commission_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      60000,
+    );
+
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: apiKeyUser.id,
+        action: 'TAXI_DRIVER_COMMISSION',
+        details: JSON.stringify({
+          amount: payload.amount,
+          currency: payload.currency,
+          driverId: payload.driverUserId,
+          rideId,
+          driverBalance: response?.data?.driverWallet?.balance ?? null,
+          driverDebt: response?.data?.driverDebt ?? null,
+          transactionReference: response?.data?.transaction?.reference ?? null,
+          replayed: response?.data?.replayed ?? false,
+        }),
+        ipAddress: ipAddress || null,
+        createdAt: new Date(),
+      },
+    });
+
+    return response;
+  }
+
   @Post('taxi/driver/cashout')
   @UseGuards(ApiKeyGuard)
   @PermissionsApi_Key('cashout')

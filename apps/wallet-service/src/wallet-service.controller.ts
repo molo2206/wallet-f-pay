@@ -475,6 +475,50 @@ export class WalletServiceController {
     }
   }
 
+  /** ✅ Commission d'une course taxi en espèces : wallet du chauffeur (peut devenir négatif) → compte TAXI */
+  @MessagePattern('taxi_commission')
+  async taxiCommission(
+    @Payload()
+    data: {
+      taxiUserId: string;
+      driverUserId: string;
+      amount: number;
+      currency: string;
+      rideId: string;
+      description?: string;
+      paymentMethod?: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    try {
+      return await this.walletService.taxiCommission(
+        data.taxiUserId,
+        {
+          driverUserId: data.driverUserId,
+          amount: data.amount,
+          currency: data.currency,
+          rideId: data.rideId,
+          description: data.description,
+          paymentMethod: data.paymentMethod,
+        },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error: any) {
+      console.error('[WalletService] taxi_commission error:', error);
+      const inner = typeof error?.getError === 'function' ? error.getError() : null;
+      throw new RpcException({
+        status: 'error',
+        message:
+          (inner && typeof inner === 'object' && inner.message) ||
+          (error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang)),
+        statusCode: (inner && typeof inner === 'object' && inner.statusCode) || 400,
+      });
+    }
+  }
+
   @MessagePattern('taxi_cashout')
   async taxiCashout(
     @Payload()

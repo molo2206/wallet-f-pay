@@ -239,5 +239,8 @@
   "wallet.taxi_driver_blocked": "Akaunti ya F-Pay ya dereva imezuiwa",
   "wallet.taxi_no_wallet_currency": "Hakuna pochi ya {{currency}} ya kutoa kwenye akaunti hii",
   "wallet.taxi_insufficient_balance": "Salio halitoshi: {{balance}} {{currency}} zinapatikana kwa {{required}} {{currency}}",
-  "wallet.taxi_cashout_success": "{{amount}} {{currency}} zimetumwa kwenye akaunti ya F-Pay ya {{recipient}}. Kumbukumbu: {{reference}}."
+  "wallet.taxi_cashout_success": "{{amount}} {{currency}} zimetumwa kwenye akaunti ya F-Pay ya {{recipient}}. Kumbukumbu: {{reference}}.",
+  "wallet.taxi_commission_success": "Kamisheni ya {{amount}} {{currency}} imekatwa kwenye akaunti ya {{driver}}. Kumb: {{reference}}.",
+  "wallet.taxi_commission_failed": "Kukata kamisheni kumeshindikana.",
+  "wallet.taxi_commission_ride_required": "Safari (rideId) inahitajika."
 }

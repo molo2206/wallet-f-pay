@@ -4454,6 +4454,231 @@ export class WalletServiceService {
     };
   }
 
+  /** Commissions taxi en cours (même course) : un seul traitement à la fois dans ce processus */
+  private readonly taxiCommissionLocks = new Map<string, Promise<any>>();
+
+  /**
+   * ✅ Commission d'une course taxi payée en ESPÈCES (route taxi/driver/commission).
+   *   wallet du CHAUFFEUR (userId + devise, créé s'il n'existe pas) ──débit──▶ wallet du compte TAXI (même devise)
+   *
+   *  - Le chauffeur a encaissé le prix en espèces : la commission est prélevée sur son wallet F-Pay.
+   *  - Solde insuffisant : le débit passe quand même, le solde devient NÉGATIF (dette du chauffeur),
+   *    remboursée automatiquement par ses prochains crédits (gains des courses payées dans l'application).
+   *  - Une seule fois par course : external_reference = RCC-<rideId> (réponse identique si on renvoie la demande).
+   *  - Débit + crédit + 2 lignes de transaction dans UNE transaction Prisma : tout ou rien.
+   */
+  async taxiCommission(
+    taxiUserId: string, // propriétaire de la clé API (compte TAXI) : wallet crédité
+    dto: {
+      driverUserId: string; // chauffeur : wallet débité
+      amount: number;
+      currency: string;
+      rideId: string;
+      description?: string;
+      paymentMethod?: string;
+    },
+    lang: string = 'fr',
+    ipAddress?: string,
+  ): Promise<ApiResponse<{ taxiWallet: WalletResponseDto; driverWallet: any; transaction: any; driverDebt: number; replayed?: boolean }>> {
+    const rideId = String(dto.rideId || '').trim();
+    const previous = this.taxiCommissionLocks.get(rideId);
+    const run = (async () => {
+      if (previous) await previous.catch(() => undefined);
+      return this.doTaxiCommission(taxiUserId, { ...dto, rideId }, lang, ipAddress);
+    })();
+    this.taxiCommissionLocks.set(rideId, run);
+    try {
+      return await run;
+    } finally {
+      if (this.taxiCommissionLocks.get(rideId) === run) this.taxiCommissionLocks.delete(rideId);
+    }
+  }
+
+  private async doTaxiCommission(
+    taxiUserId: string,
+    dto: { driverUserId: string; amount: number; currency: string; rideId: string; description?: string; paymentMethod?: string },
+    lang: string,
+    ipAddress?: string,
+  ): Promise<ApiResponse<{ taxiWallet: WalletResponseDto; driverWallet: any; transaction: any; driverDebt: number; replayed?: boolean }>> {
+    const amount = Math.round(Number(dto.amount) * 100) / 100;
+    const currency = String(dto.currency || '').toUpperCase() as wallet_currency;
+    const paymentMethod = (String(dto.paymentMethod || 'CASH').toUpperCase() || 'CASH') as any;
+    const tag = `RCC-${dto.rideId}`;
+    console.log('[WalletService] Taxi Commission (espèces) request:', {
+      taxiUserId,
+      driverUserId: dto.driverUserId,
+      amount,
+      currency,
+      rideId: dto.rideId,
+    });
+
+    // ========== VALIDATIONS ==========
+    if (!(amount > 0)) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.amount_positive', lang), statusCode: 400 });
+    }
+    if (!(Object.values(wallet_currency) as string[]).includes(currency)) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.invalid_currency', lang, { currency }), statusCode: 400 });
+    }
+    if (!dto.rideId) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.taxi_commission_ride_required', lang), statusCode: 400 });
+    }
+
+    // ---------- 1. Compte TAXI (crédité) ----------
+    const taxi = await this.prisma.user.findFirst({
+      where: { id: taxiUserId },
+      select: { id: true, full_name: true, phone: true, status: true },
+    });
+    if (!taxi) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.user_not_found', lang), statusCode: 404 });
+    }
+    if (taxi.status === user_status.BLOCKED) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('account_blocked_admin', lang), statusCode: 403 });
+    }
+
+    // ---------- 2. Chauffeur (débité — même bloqué : la commission reste due) ----------
+    const driver = await this.prisma.user.findFirst({
+      where: { id: dto.driverUserId },
+      select: { id: true, full_name: true, phone: true, status: true },
+    });
+    if (!driver) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.taxi_driver_not_found', lang), statusCode: 404 });
+    }
+    if (driver.id === taxi.id) {
+      throw new RpcException({ status: 'error', message: this.i18nService.translate('wallet.cannot_send_to_self', lang), statusCode: 400 });
+    }
+
+    const replay = async () => {
+      const credit = await this.prisma.transaction.findFirst({
+        where: { userId: taxi.id, movement: 'CREDIT', status: 'SUCCESS', external_reference: tag },
+      });
+      if (!credit) return null;
+      const debit = await this.prisma.transaction.findFirst({
+        where: { userId: driver.id, movement: 'DEBIT', status: 'SUCCESS', external_reference: tag },
+      });
+      const taxiWallet = await this.prisma.wallet.findFirst({ where: { id: credit.walletId } });
+      const driverWallet = debit ? await this.prisma.wallet.findFirst({ where: { id: debit.walletId } }) : null;
+      const balance = Number(driverWallet?.balance ?? 0);
+      return {
+        message: this.i18nService.translate('wallet.taxi_commission_success', lang, {
+          amount: Number(credit.amount).toFixed(2),
+          currency: credit.currency || currency,
+          driver: driver.full_name || driver.phone || '',
+          reference: credit.reference || 'N/A',
+        }),
+        data: {
+          taxiWallet: this.toResponse(taxiWallet),
+          driverWallet: driverWallet
+            ? { id: driverWallet.id, currency: driverWallet.currency, userId: driver.id, balance }
+            : null,
+          transaction: credit,
+          driverDebt: balance < 0 ? Math.round(-balance * 100) / 100 : 0,
+          replayed: true,
+        },
+      };
+    };
+
+    // ---------- 3. Une seule fois par course ----------
+    const already = await replay();
+    if (already) return already;
+
+    // ---------- 4. Transfert (une seule transaction) ----------
+    const description = dto.description || `Commission course taxi (espèces) ${amount.toFixed(2)} ${currency}`;
+    let result: { taxiWallet: any; driverWallet: any; debit: any; credit: any };
+    try {
+      result = await this.prisma.$transaction(
+        async (tx) => {
+          // Dernier contrôle anti-doublon, dans la transaction
+          const dup = await tx.transaction.findFirst({
+            where: { userId: taxi.id, movement: 'CREDIT', status: 'SUCCESS', external_reference: tag },
+            select: { id: true },
+          });
+          if (dup) throw new RpcException({ status: 'replay', message: 'already', statusCode: 409 });
+
+          // ✅ Débit du chauffeur SANS condition de solde : le solde peut devenir négatif (dette)
+          const source = await this.findOrCreateCurrencyWallet(tx, driver.id, currency);
+          const driverWallet = await tx.wallet.update({
+            where: { id: source.id },
+            data: { balance: { decrement: amount }, updatedAt: new Date() },
+          });
+
+          // Crédit du compte TAXI, même devise (wallet créé s'il n'existe pas)
+          const target = await this.findOrCreateCurrencyWallet(tx, taxi.id, currency);
+          const taxiWallet = await tx.wallet.update({
+            where: { id: target.id },
+            data: { balance: { increment: amount }, updatedAt: new Date() },
+          });
+
+          const debit = await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: driver.id,
+              walletId: driverWallet.id,
+              amount,
+              type: 'PAYMENT',
+              status: 'SUCCESS',
+              reference: await this.generateTransactionReference('', tx),
+              description: `${description} → ${taxi.full_name || 'Favor Taxi'}`,
+              movement: 'DEBIT',
+              paymentMethod,
+              currency,
+              external_reference: tag,
+            },
+          });
+          const credit = await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId: taxi.id,
+              walletId: taxiWallet.id,
+              amount,
+              type: 'DEPOSIT',
+              status: 'SUCCESS',
+              reference: await this.generateTransactionReference('', tx),
+              description: `${description} ← ${driver.full_name || driver.phone || driver.id}`,
+              movement: 'CREDIT',
+              paymentMethod,
+              currency,
+              external_reference: tag,
+            },
+          });
+          return { taxiWallet, driverWallet, debit, credit };
+        },
+        { timeout: 30000, maxWait: 30000 },
+      );
+    } catch (error: any) {
+      const inner = typeof error?.getError === 'function' ? error.getError() : null;
+      if (inner && typeof inner === 'object' && inner.status === 'replay') {
+        const again = await replay();
+        if (again) return again;
+      }
+      if (error instanceof RpcException) throw error;
+      console.error('[WalletService] Taxi Commission transaction error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error?.message || this.i18nService.translate('wallet.taxi_commission_failed', lang),
+        statusCode: 500,
+      });
+    }
+
+    // ---------- 5. Audit (pas de SMS F-Pay : Favor Help prévient déjà le chauffeur) ----------
+    await this.logAudit(driver.id, 'taxi_commission', result.debit, ipAddress ?? null);
+
+    const balance = Number(result.driverWallet.balance);
+    return {
+      message: this.i18nService.translate('wallet.taxi_commission_success', lang, {
+        amount: amount.toFixed(2),
+        currency,
+        driver: driver.full_name || driver.phone || '',
+        reference: result.credit.reference || 'N/A',
+      }),
+      data: {
+        taxiWallet: this.toResponse(result.taxiWallet), // wallet crédité
+        driverWallet: { id: result.driverWallet.id, currency: result.driverWallet.currency, userId: driver.id, balance },
+        transaction: result.credit,
+        driverDebt: balance < 0 ? Math.round(-balance * 100) / 100 : 0,
+      },
+    };
+  }
+
   async payWithoutPin(
     dto: PayDto,
     lang: string = 'fr',

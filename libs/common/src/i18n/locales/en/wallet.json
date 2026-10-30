@@ -239,5 +239,8 @@
   "wallet.taxi_driver_blocked": "The driver F-Pay account is blocked",
   "wallet.taxi_no_wallet_currency": "No {{currency}} wallet to debit on this account",
   "wallet.taxi_insufficient_balance": "Insufficient balance: {{balance}} {{currency}} available for {{required}} {{currency}}",
-  "wallet.taxi_cashout_success": "{{amount}} {{currency}} sent to the F-Pay account of {{recipient}}. Ref: {{reference}}."
+  "wallet.taxi_cashout_success": "{{amount}} {{currency}} sent to the F-Pay account of {{recipient}}. Ref: {{reference}}.",
+  "wallet.taxi_commission_success": "Commission of {{amount}} {{currency}} charged to the account of {{driver}}. Ref: {{reference}}.",
+  "wallet.taxi_commission_failed": "Commission charge failed.",
+  "wallet.taxi_commission_ride_required": "The ride (rideId) is required."
 }

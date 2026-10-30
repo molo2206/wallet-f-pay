@@ -223,7 +223,6 @@
   "wallet.deposit_transfer_success": "Transfert de {{amount}} {{currency}} effectué avec succès de {{payer}} vers {{beneficiary}}. Référence: {{reference}}",
   "wallet.deposit_cancelled_description": "Demande de paiement du gain de parrainage de {{amount}} {{currency}} annulée par l'utilisateur",
   "wallet.deposit_cancelled": "La demande de paiement du gain de parrainage a été annulée avec succès.",
-  
   "wallet.transaction_not_found": "Transaction non trouvée",
   "wallet.transfer_failed": "Le transfert a échoué",
   "wallet.payment_failed": "Le paiement a échoué",
@@ -240,5 +239,8 @@
   "wallet.taxi_driver_blocked": "Le compte F-Pay du chauffeur est bloqué",
   "wallet.taxi_no_wallet_currency": "Aucun wallet {{currency}} à débiter sur ce compte",
   "wallet.taxi_insufficient_balance": "Solde insuffisant : {{balance}} {{currency}} disponibles pour {{required}} {{currency}}",
-  "wallet.taxi_cashout_success": "{{amount}} {{currency}} envoyés sur le compte F-Pay de {{recipient}}. Réf : {{reference}}."
+  "wallet.taxi_cashout_success": "{{amount}} {{currency}} envoyés sur le compte F-Pay de {{recipient}}. Réf : {{reference}}.",
+  "wallet.taxi_commission_success": "Commission de {{amount}} {{currency}} prélevée sur le compte de {{driver}}. Réf : {{reference}}.",
+  "wallet.taxi_commission_failed": "Le prélèvement de la commission a échoué.",
+  "wallet.taxi_commission_ride_required": "La course (rideId) est obligatoire."
 }
