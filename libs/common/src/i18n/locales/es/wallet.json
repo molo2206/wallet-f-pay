@@ -245,5 +245,17 @@
   "wallet.taxi_cashout_success": "{{amount}} {{currency}} enviados a la cuenta F-Pay de {{recipient}}. Ref: {{reference}}.",
   "wallet.taxi_commission_success": "Comisión de {{amount}} {{currency}} cobrada a la cuenta de {{driver}}. Ref.: {{reference}}.",
   "wallet.taxi_commission_failed": "El cobro de la comisión ha fallado.",
-  "wallet.taxi_commission_ride_required": "El viaje (rideId) es obligatorio."
+  "wallet.taxi_commission_ride_required": "El viaje (rideId) es obligatorio.",
+  "wallet.external_cashout_otp_sms": "F-Pay: su código de retiro es {{otpCode}}. Retiro de {{amount}} {{currency}} a {{phone}} (recibirá {{netAmount}} {{currency}}) solicitado desde {{partner}}. Válido {{minutes}} min. No lo comparta.",
+  "wallet.external_cashout_otp_sent": "Se ha enviado un código de confirmación por SMS al {{phone}}.",
+  "wallet.external_cashout_otp_invalid": "El código debe contener 6 dígitos.",
+  "wallet.external_cashout_otp_wrong": "Código incorrecto. Le quedan {{attempts}} intento(s).",
+  "wallet.external_cashout_otp_expired": "Código caducado o ya utilizado. Solicite un nuevo código.",
+  "wallet.external_cashout_otp_too_many": "Demasiados intentos. Solicite un nuevo código.",
+  "wallet.external_cashout_otp_wait": "Espere {{seconds}} segundos antes de solicitar un nuevo código.",
+  "wallet.external_cashout_otp_used": "Este retiro ya fue confirmado.",
+  "wallet.external_cashout_request_not_found": "Solicitud de retiro no encontrada o caducada. Vuelva a empezar.",
+  "wallet.external_cashout_request_exists": "Esta solicitud de retiro ya existe.",
+  "wallet.external_cashout_no_phone": "No hay número de teléfono en su cuenta F-Pay para recibir el código.",
+  "wallet.external_cashout_sms_failed": "No se pudo enviar el código por SMS. Inténtelo de nuevo en un momento."
 }

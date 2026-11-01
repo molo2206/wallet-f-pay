@@ -242,5 +242,17 @@
   "wallet.taxi_cashout_success": "{{amount}} {{currency}} zimetumwa kwenye akaunti ya F-Pay ya {{recipient}}. Kumbukumbu: {{reference}}.",
   "wallet.taxi_commission_success": "Kamisheni ya {{amount}} {{currency}} imekatwa kwenye akaunti ya {{driver}}. Kumb: {{reference}}.",
   "wallet.taxi_commission_failed": "Kukata kamisheni kumeshindikana.",
-  "wallet.taxi_commission_ride_required": "Safari (rideId) inahitajika."
+  "wallet.taxi_commission_ride_required": "Safari (rideId) inahitajika.",
+  "wallet.external_cashout_otp_sms": "F-Pay: msimbo wako wa kutoa pesa ni {{otpCode}}. Kutoa {{amount}} {{currency}} kwenda {{phone}} (utapokea {{netAmount}} {{currency}}) kumeombwa kutoka {{partner}}. Halali dakika {{minutes}}. Usimpe mtu yeyote.",
+  "wallet.external_cashout_otp_sent": "Msimbo wa uthibitisho umetumwa kwa SMS kwa {{phone}}.",
+  "wallet.external_cashout_otp_invalid": "Msimbo lazima uwe na tarakimu 6.",
+  "wallet.external_cashout_otp_wrong": "Msimbo si sahihi. Umebakiza majaribio {{attempts}}.",
+  "wallet.external_cashout_otp_expired": "Msimbo umeisha muda au umeshatumika. Omba msimbo mpya.",
+  "wallet.external_cashout_otp_too_many": "Majaribio mengi mno. Omba msimbo mpya.",
+  "wallet.external_cashout_otp_wait": "Subiri sekunde {{seconds}} kabla ya kuomba msimbo mpya.",
+  "wallet.external_cashout_otp_used": "Utoaji huu umeshathibitishwa.",
+  "wallet.external_cashout_request_not_found": "Ombi la kutoa halijapatikana au limeisha muda. Anza tena.",
+  "wallet.external_cashout_request_exists": "Ombi hili la kutoa tayari lipo.",
+  "wallet.external_cashout_no_phone": "Hakuna namba ya simu kwenye akaunti yako ya F-Pay kupokea msimbo.",
+  "wallet.external_cashout_sms_failed": "Imeshindikana kutuma msimbo kwa SMS. Jaribu tena baadaye kidogo."
 }

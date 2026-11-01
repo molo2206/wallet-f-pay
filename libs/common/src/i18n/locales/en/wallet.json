@@ -242,5 +242,17 @@
   "wallet.taxi_cashout_success": "{{amount}} {{currency}} sent to the F-Pay account of {{recipient}}. Ref: {{reference}}.",
   "wallet.taxi_commission_success": "Commission of {{amount}} {{currency}} charged to the account of {{driver}}. Ref: {{reference}}.",
   "wallet.taxi_commission_failed": "Commission charge failed.",
-  "wallet.taxi_commission_ride_required": "The ride (rideId) is required."
+  "wallet.taxi_commission_ride_required": "The ride (rideId) is required.",
+  "wallet.external_cashout_otp_sms": "F-Pay: your withdrawal code is {{otpCode}}. Withdrawal of {{amount}} {{currency}} to {{phone}} (you will receive {{netAmount}} {{currency}}) requested from {{partner}}. Valid {{minutes}} min. Never share it.",
+  "wallet.external_cashout_otp_sent": "A confirmation code has been sent by SMS to {{phone}}.",
+  "wallet.external_cashout_otp_invalid": "The code must contain 6 digits.",
+  "wallet.external_cashout_otp_wrong": "Incorrect code. You have {{attempts}} attempt(s) left.",
+  "wallet.external_cashout_otp_expired": "Code expired or already used. Request a new code.",
+  "wallet.external_cashout_otp_too_many": "Too many attempts. Request a new code.",
+  "wallet.external_cashout_otp_wait": "Wait {{seconds}} seconds before requesting a new code.",
+  "wallet.external_cashout_otp_used": "This withdrawal has already been confirmed.",
+  "wallet.external_cashout_request_not_found": "Withdrawal request not found or expired. Start the withdrawal again.",
+  "wallet.external_cashout_request_exists": "This withdrawal request already exists.",
+  "wallet.external_cashout_no_phone": "No phone number on your F-Pay account to receive the code.",
+  "wallet.external_cashout_sms_failed": "Unable to send the code by SMS. Try again in a moment."
 }

@@ -475,6 +475,74 @@ export class WalletServiceController {
     }
   }
 
+  /** ✅ Retrait partenaire (Favor Help) — étape 1 : demande + envoi de l'OTP par SMS (ou renvoi : resend = true) */
+  @MessagePattern('external_cashout_otp_request')
+  async externalCashoutOtpRequest(
+    @Payload()
+    data: {
+      userId: string;
+      amount?: number;
+      walletId?: string;
+      provider?: string;
+      phone?: string;
+      requestId?: string;
+      resend?: boolean;
+      partnerId?: string;
+      partnerName?: string | null;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    try {
+      return await this.walletService.requestExternalCashoutOtp(
+        data.userId,
+        {
+          amount: data.amount,
+          walletId: data.walletId,
+          provider: data.provider,
+          phone: data.phone,
+          requestId: data.requestId,
+          resend: data.resend,
+          partnerId: data.partnerId,
+          partnerName: data.partnerName,
+        },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  /** ✅ Retrait partenaire (Favor Help) — étape 2 : OTP saisi → retrait (sans PIN) */
+  @MessagePattern('external_cashout_otp_confirm')
+  async externalCashoutOtpConfirm(
+    @Payload() data: { userId: string; requestId: string; otpCode: string; lang?: string; ipAddress?: string },
+  ) {
+    const lang = data.lang || 'fr';
+    try {
+      return await this.walletService.confirmExternalCashoutOtp(
+        data.userId,
+        { requestId: data.requestId, otpCode: data.otpCode },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
   /** ✅ Commission d'une course taxi en espèces : wallet du chauffeur (peut devenir négatif) → compte TAXI */
   @MessagePattern('taxi_commission')
   async taxiCommission(

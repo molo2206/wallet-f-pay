@@ -245,5 +245,17 @@
   "wallet.taxi_cashout_success": "تم إرسال {{amount}} {{currency}} إلى حساب F-Pay الخاص بـ {{recipient}}. المرجع: {{reference}}.",
   "wallet.taxi_commission_success": "تم خصم عمولة {{amount}} {{currency}} من حساب {{driver}}. المرجع: {{reference}}.",
   "wallet.taxi_commission_failed": "فشل خصم العمولة.",
-  "wallet.taxi_commission_ride_required": "الرحلة (rideId) مطلوبة."
+  "wallet.taxi_commission_ride_required": "الرحلة (rideId) مطلوبة.",
+  "wallet.external_cashout_otp_sms": "F-Pay: رمز السحب الخاص بك هو {{otpCode}}. سحب {{amount}} {{currency}} إلى {{phone}} (ستستلم {{netAmount}} {{currency}}) مطلوب من {{partner}}. صالح لمدة {{minutes}} دقيقة. لا تشاركه مع أحد.",
+  "wallet.external_cashout_otp_sent": "تم إرسال رمز التأكيد عبر رسالة نصية إلى {{phone}}.",
+  "wallet.external_cashout_otp_invalid": "يجب أن يتكون الرمز من 6 أرقام.",
+  "wallet.external_cashout_otp_wrong": "رمز غير صحيح. تبقى لديك {{attempts}} محاولة.",
+  "wallet.external_cashout_otp_expired": "انتهت صلاحية الرمز أو تم استخدامه. اطلب رمزاً جديداً.",
+  "wallet.external_cashout_otp_too_many": "محاولات كثيرة جداً. اطلب رمزاً جديداً.",
+  "wallet.external_cashout_otp_wait": "انتظر {{seconds}} ثانية قبل طلب رمز جديد.",
+  "wallet.external_cashout_otp_used": "تم تأكيد عملية السحب هذه بالفعل.",
+  "wallet.external_cashout_request_not_found": "طلب السحب غير موجود أو منتهي الصلاحية. أعد المحاولة.",
+  "wallet.external_cashout_request_exists": "طلب السحب هذا موجود بالفعل.",
+  "wallet.external_cashout_no_phone": "لا يوجد رقم هاتف في حساب F-Pay لاستلام الرمز.",
+  "wallet.external_cashout_sms_failed": "تعذر إرسال الرمز عبر رسالة نصية. حاول مرة أخرى بعد قليل."
 }

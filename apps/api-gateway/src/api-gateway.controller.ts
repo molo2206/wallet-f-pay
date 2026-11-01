@@ -1907,6 +1907,275 @@ export class ApiGatewayController {
     }
   }
 
+  // =====================================================================================
+  // ✅ RETRAIT (cashout) DEPUIS UNE APPLICATION PARTENAIRE (Favor Help) — PROTÉGÉ PAR OTP F-PAY
+  //   wallet F-Pay de l'UTILISATEUR ──payout PawaPay──▶ son numéro Mobile Money
+  //
+  //   1. POST api/external/cashout/request  { access_token, amount, provider, phone, walletId?, userId?, requestId? }
+  //        → contrôles (compte, wallet, solde, frais) + OTP envoyé par SMS au numéro du compte F-Pay. Rien n'est débité.
+  //   2. POST api/external/cashout/confirm  { access_token, requestId, otpCode }
+  //        → OTP vérifié (5 essais, 10 min, usage unique) → retrait classique, SANS PIN.
+  //   +  POST api/external/cashout/resend   { access_token, requestId }  nouvel OTP (1 par minute)
+  //   +  GET  api/external/cashout/status/:requestId   issue du retrait (réponse perdue, coupure réseau)
+  //   +  GET  api/external/cashout/providers?currency=  réseaux Mobile Money + frais
+  //
+  //   Sécurité : clé API du partenaire avec la permission « cashout » enregistrée en base (contrôle strict)
+  //              + token F-Pay de l'utilisateur + OTP envoyé au téléphone du compte F-Pay.
+  //   Portefeuille débité : UNIQUEMENT celui du client (titulaire du token F-Pay). Un walletId d'un autre
+  //   compte est refusé ; le partenaire ne peut jamais débiter son propre wallet ni celui d'un tiers.
+  //   Montant, réseau et numéro sont figés à la demande : l'OTP ne valide que CE retrait.
+  // =====================================================================================
+
+  /** Vérifie le token F-Pay de l'utilisateur (même règle que api/external/pay) et renvoie son id F-Pay */
+  private externalUserFromToken(accessToken?: string | null): string {
+    if (!accessToken) {
+      throw new HttpException('access_token F-Pay de l\'utilisateur obligatoire', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      const jwtSecret = process.env.JWT_SECRET || 'fpay-super-secret-key-2024';
+      const decoded: any = jwt.verify(String(accessToken).replace(/^Bearer\s+/i, ''), jwtSecret);
+      if (!decoded?.id) throw new Error('Token invalide - id manquant');
+      return String(decoded.id);
+    } catch (e: any) {
+      throw new HttpException(e?.message === 'jwt expired' ? 'Token FPay expiré' : 'Token FPay invalide', HttpStatus.UNAUTHORIZED);
+    }
+  }
+
+  /**
+   * Compte F-Pay du CLIENT qui retire : celui du token. Si le partenaire indique le compte lié (userId),
+   * il doit être identique → impossible de retirer sur le portefeuille d'un autre utilisateur.
+   */
+  private externalCashoutOwner(accessToken: string | undefined, expectedUserId?: string | null): string {
+    const userId = this.externalUserFromToken(accessToken);
+    if (expectedUserId && expectedUserId !== userId) {
+      throw new HttpException('Ce token F-Pay appartient à un autre compte', HttpStatus.FORBIDDEN);
+    }
+    return userId;
+  }
+
+  /** Clé API du partenaire : utilisateur + permission « cashout » en base */
+  private async externalCashoutPartner(req: any) {
+    const partner = req.user;
+    if (!partner) throw new HttpException('Utilisateur API Key non trouvé', HttpStatus.UNAUTHORIZED);
+    const perms = await this.apiKeyPermissions(req.headers?.authorization);
+    if (!perms.includes('cashout')) {
+      throw new HttpException('Permission « cashout » requise sur la clé API', HttpStatus.FORBIDDEN);
+    }
+    return partner;
+  }
+
+  private externalRequestId(value?: string | null, required = false): string | null {
+    const id = value ? String(value).trim().slice(0, 64) : '';
+    if (!id) {
+      if (required) throw new HttpException('requestId obligatoire', HttpStatus.BAD_REQUEST);
+      return null;
+    }
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) throw new HttpException('requestId invalide', HttpStatus.BAD_REQUEST);
+    return id;
+  }
+
+  /** Retraits en cours de confirmation (anti double-clic sur le même requestId) */
+  private readonly externalCashoutLocks = new Set<string>();
+
+  /** Dernière issue (réussite / échec) d'un retrait partenaire pour ce requestId */
+  private async externalCashoutTrace(requestId: string, userId?: string | null) {
+    return this.prisma.audit_log.findFirst({
+      where: {
+        ...(userId ? { userId } : {}),
+        action: { in: ['EXTERNAL_CASHOUT', 'EXTERNAL_CASHOUT_FAILED'] },
+        createdAt: { gte: new Date(Date.now() - 30 * 24 * 3600 * 1000) },
+        details: { contains: `"requestId":"${requestId}"` },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Post('api/external/cashout/request')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('cashout')
+  async externalCashoutRequest(
+    @Request() req: any,
+    @Body() body: { access_token: string; amount: number; provider: string; phone: string; walletId?: string; userId?: string; requestId?: string },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const partner = await this.externalCashoutPartner(req);
+    const userId = this.externalCashoutOwner(body?.access_token, body?.userId);
+    if (!body.provider || !body.phone) {
+      throw new HttpException(this.i18nService.translate('wallet.missing_phone_or_provider', lang), HttpStatus.BAD_REQUEST);
+    }
+    if (!body.amount || Number(body.amount) <= 0) {
+      throw new HttpException(this.i18nService.translate('wallet.amount_positive', lang), HttpStatus.BAD_REQUEST);
+    }
+    const requestId = this.externalRequestId(body.requestId);
+    return this.sendWalletMessage<{ message: string; data: any }>(
+      'external_cashout_otp_request',
+      {
+        userId,
+        amount: Math.round(Number(body.amount) * 100) / 100,
+        provider: String(body.provider).trim(),
+        phone: String(body.phone).replace(/[^\d]/g, ''),
+        walletId: body.walletId || undefined,
+        requestId: requestId || undefined,
+        partnerId: partner.id,
+        partnerName: partner.businessName || partner.full_name || null,
+        lang,
+        ipAddress,
+      },
+      this.i18nService.translate('wallet.cashout_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      30000,
+    );
+  }
+
+  @Post('api/external/cashout/resend')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('cashout')
+  async externalCashoutResend(
+    @Request() req: any,
+    @Body() body: { access_token: string; requestId: string; userId?: string },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const partner = await this.externalCashoutPartner(req);
+    const userId = this.externalCashoutOwner(body?.access_token, body?.userId);
+    const requestId = this.externalRequestId(body?.requestId, true)!;
+    return this.sendWalletMessage<{ message: string; data: any }>(
+      'external_cashout_otp_request',
+      { userId, requestId, resend: true, partnerId: partner.id, partnerName: partner.businessName || partner.full_name || null, lang, ipAddress },
+      this.i18nService.translate('wallet.cashout_failed', lang),
+      HttpStatus.BAD_REQUEST,
+      30000,
+    );
+  }
+
+  @Post('api/external/cashout/confirm')
+  @UseGuards(ApiKeyGuard)
+  @PermissionsApi_Key('cashout')
+  async externalCashoutConfirm(
+    @Request() req: any,
+    @Body() body: { access_token: string; requestId: string; otpCode: string; userId?: string },
+    @Ip() ipAddress: string,
+    @Headers('lang') langHeader?: string,
+  ) {
+    const lang = langHeader || 'fr';
+    const partner = await this.externalCashoutPartner(req);
+    const userId = this.externalCashoutOwner(body?.access_token, body?.userId);
+    const requestId = this.externalRequestId(body?.requestId, true)!;
+    const otpCode = String(body?.otpCode || '').trim();
+    if (!/^\d{6}$/.test(otpCode)) {
+      throw new HttpException(this.i18nService.translate('wallet.external_cashout_otp_invalid', lang), HttpStatus.BAD_REQUEST);
+    }
+
+    // Déjà réussi : renvoyer le résultat sans nouveau débit
+    const previous = await this.externalCashoutTrace(requestId, userId);
+    if (previous?.action === 'EXTERNAL_CASHOUT') {
+      let details: any = {};
+      try {
+        details = JSON.parse(previous.details || '{}');
+      } catch {
+        details = {};
+      }
+      return { message: 'Retrait déjà effectué', data: { replayed: true, ...details } };
+    }
+    if (this.externalCashoutLocks.has(requestId)) {
+      throw new HttpException('Ce retrait est déjà en cours de traitement', HttpStatus.CONFLICT);
+    }
+    this.externalCashoutLocks.add(requestId);
+
+    const trace = (action: string, extra: Record<string, any>) =>
+      this.prisma.audit_log
+        .create({
+          data: {
+            id: crypto.randomUUID(),
+            userId,
+            action,
+            details: JSON.stringify({ requestId, partnerId: partner.id, ...extra }),
+            ipAddress: ipAddress || null,
+            createdAt: new Date(),
+          },
+        })
+        .catch(() => undefined);
+
+    try {
+      const response = await this.sendWalletMessage<{ message: string; data: any }>(
+        'external_cashout_otp_confirm',
+        { userId, requestId, otpCode, lang, ipAddress },
+        this.i18nService.translate('wallet.cashout_failed', lang),
+        HttpStatus.BAD_REQUEST,
+        150000,
+      );
+      const tx = response?.data?.transaction ?? {};
+      await trace('EXTERNAL_CASHOUT', {
+        status: 'COMPLETED',
+        transactionId: tx.id ?? null,
+        transactionReference: tx.reference ?? null,
+        amount: tx.amount ?? null,
+        currency: response?.data?.wallet?.currency ?? tx.currency ?? null,
+        balance: response?.data?.wallet?.balance ?? null,
+      });
+      return response;
+    } catch (e: any) {
+      const message = e?.response?.message || e?.message || 'Retrait échoué';
+      // OTP faux / expiré : la demande reste ouverte. OTP accepté puis retrait refusé (PawaPay, solde…) : échec définitif.
+      const otpAccepted = await this.prisma.audit_log.count({
+        where: { userId, action: 'EXTERNAL_CASHOUT_OTP_CONFIRMED', details: { contains: `"requestId":"${requestId}"` } },
+      });
+      if (otpAccepted > 0) {
+        await trace('EXTERNAL_CASHOUT_FAILED', { status: 'FAILED', message: String(message).slice(0, 500) });
+      }
+      throw e;
+    } finally {
+      this.externalCashoutLocks.delete(requestId);
+    }
+  }
+
+  /** Issue d'un retrait partenaire : COMPLETED | FAILED | PROCESSING | PENDING_OTP | NOT_FOUND */
+  @Get('api/external/cashout/status/:requestId')
+  @UseGuards(ApiKeyGuard)
+  async externalCashoutStatus(@Param('requestId') requestId: string, @Query('userId') userId?: string) {
+    const id = this.externalRequestId(requestId, true)!;
+    if (this.externalCashoutLocks.has(id)) return { message: 'OK', data: { requestId: id, status: 'PROCESSING' } };
+    const trace = await this.externalCashoutTrace(id, userId || null);
+    if (!trace) {
+      const pending = await this.prisma.audit_log.findFirst({
+        where: { ...(userId ? { userId } : {}), action: 'EXTERNAL_CASHOUT_OTP', details: { contains: `"requestId":"${id}"` } },
+      });
+      return { message: 'OK', data: { requestId: id, status: pending ? 'PENDING_OTP' : 'NOT_FOUND' } };
+    }
+    let details: any = {};
+    try {
+      details = JSON.parse(trace.details || '{}');
+    } catch {
+      details = {};
+    }
+    return {
+      message: 'OK',
+      data: { requestId: id, status: trace.action === 'EXTERNAL_CASHOUT' ? 'COMPLETED' : 'FAILED', at: trace.createdAt, ...details },
+    };
+  }
+
+  /** Réseaux Mobile Money disponibles pour un retrait + frais (network_provider) */
+  @Get('api/external/cashout/providers')
+  @UseGuards(ApiKeyGuard)
+  async externalCashoutProviders(@Query('currency') currency?: string) {
+    const rows = await this.prisma.network_provider.findMany({ include: { country_provider: true }, orderBy: { name: 'asc' } });
+    const cur = String(currency || '').trim().toUpperCase();
+    const data = rows
+      .filter((r: any) => !cur || String(r.currency || '').toUpperCase().split(/[,\s]+/).includes(cur))
+      .map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        currency: r.currency,
+        payoutFeePercent: r.pourcentage_payout ?? 0,
+        image: r.image ?? null,
+        country: r.country_provider ? { code: r.country_provider.code, name: r.country_provider.name, prefix: r.country_provider.prefix } : null,
+      }));
+    return { message: 'OK', data };
+  }
+
   /**
    * ✅ Commission d'une course taxi payée en ESPÈCES (appelée par Favor Help quand le chauffeur valide « espèces reçues »).
    *   wallet F-Pay du CHAUFFEUR (userId + devise) ──débit──▶ wallet du compte TAXI (clé de l'en-tête, même devise)

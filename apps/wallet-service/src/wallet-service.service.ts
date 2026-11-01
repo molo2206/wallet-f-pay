@@ -2467,8 +2467,11 @@ export class WalletServiceService {
     },
     lang: string = 'fr',
     ipAddress?: string,
+    /** ✅ otpVerified : retrait confirmé par OTP (application partenaire) → pas de PIN demandé */
+    opts: { otpVerified?: boolean } = {},
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
     const { amount, pin, walletId, provider, phone } = dto;
+    const otpVerified = opts?.otpVerified === true;
     console.log('[WalletService] Cashout request:', {
       userId,
       amount,
@@ -2495,7 +2498,7 @@ export class WalletServiceService {
       });
     }
 
-    if (!pin || pin.length < 4) {
+    if (!otpVerified && (!pin || pin.length < 4)) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.pin_min_length', lang),
@@ -2503,7 +2506,7 @@ export class WalletServiceService {
       });
     }
 
-    if (!/^\d+$/.test(pin)) {
+    if (!otpVerified && !/^\d+$/.test(pin)) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.pin_digits_only', lang),
@@ -2542,9 +2545,9 @@ export class WalletServiceService {
       });
     }
 
-    // Vérifier le PIN
-    const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
-    if (user.pin !== hashedPin) {
+    // Vérifier le PIN (sauf retrait déjà confirmé par OTP)
+    const hashedPin = otpVerified ? null : crypto.createHash('sha256').update(pin).digest('hex');
+    if (!otpVerified && user.pin !== hashedPin) {
       const newAttempts = (user.failed_pin_attempts || 0) + 1;
       let newStatus: user_status = user.status;
       let lockedUntil: Date | null = null;
@@ -2600,14 +2603,16 @@ export class WalletServiceService {
       });
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        failed_pin_attempts: 0,
-        pin_locked_until: null,
-        status: user_status.ACTIVE,
-      },
-    });
+    if (!otpVerified) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          failed_pin_attempts: 0,
+          pin_locked_until: null,
+          status: user_status.ACTIVE,
+        },
+      });
+    }
 
     // Récupérer le wallet
     let wallet;
@@ -2920,6 +2925,310 @@ export class WalletServiceService {
         transaction,
       },
     };
+  }
+
+  // =====================================================================================
+  // ✅ RETRAIT DEPUIS UNE APPLICATION PARTENAIRE (Favor Help) PROTÉGÉ PAR OTP (sans PIN)
+  //
+  //   1. requestExternalCashoutOtp : vérifie le compte, le wallet, le solde et les frais, puis envoie un OTP
+  //      (6 chiffres, 10 min) par SMS au numéro du compte F-Pay. Le montant, le réseau et le numéro sont FIGÉS
+  //      avec la demande (requestId) : l'OTP ne valide que ce retrait-là.
+  //   2. confirmExternalCashoutOtp : vérifie l'OTP (5 essais max, usage unique), puis exécute le retrait
+  //      classique (frais du réseau, PawaPay, débit, historique, SMS, notifications) — sans PIN.
+  //
+  //   Stockage : table otp (email = « cashout:<requestId> », code haché SHA-256) + audit_log
+  //   (EXTERNAL_CASHOUT_OTP = détail de la demande, EXTERNAL_CASHOUT_OTP_FAILED = mauvais code).
+  // =====================================================================================
+  private readonly EXTERNAL_CASHOUT_OTP_MINUTES = Number(process.env.EXTERNAL_CASHOUT_OTP_MINUTES || 10);
+  private readonly EXTERNAL_CASHOUT_OTP_MAX_ATTEMPTS = Number(process.env.EXTERNAL_CASHOUT_OTP_MAX_ATTEMPTS || 5);
+  private readonly EXTERNAL_CASHOUT_OTP_RESEND_SECONDS = Number(process.env.EXTERNAL_CASHOUT_OTP_RESEND_SECONDS || 60);
+
+  private otpHash(code: string): string {
+    return crypto.createHash('sha256').update(`external-cashout:${String(code).trim()}`).digest('hex');
+  }
+
+  private maskPhone(phone?: string | null): string {
+    const p = String(phone || '').replace(/[^\d]/g, '');
+    if (p.length < 6) return '***';
+    return `${p.slice(0, 3)}****${p.slice(-3)}`;
+  }
+
+  private rpcError(message: string, statusCode = 400, extra: Record<string, any> = {}) {
+    return new RpcException({ status: 'error', message, statusCode, ...extra });
+  }
+
+  /** Détail figé d'une demande de retrait partenaire (dernière trace EXTERNAL_CASHOUT_OTP) */
+  private async externalCashoutRequestDetails(requestId: string, userId: string): Promise<any | null> {
+    const row = await this.prisma.audit_log.findFirst({
+      where: {
+        userId,
+        action: 'EXTERNAL_CASHOUT_OTP',
+        details: { contains: `"requestId":"${requestId}"` },
+        createdAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!row?.details) return null;
+    try {
+      return JSON.parse(row.details);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Crée l'OTP (l'ancien OTP de la même demande est annulé) et l'envoie par SMS au compte F-Pay */
+  private async sendExternalCashoutOtp(
+    user: { id: string; phone: string | null; full_name: string | null; countryCode: string | null },
+    details: { requestId: string; amount: number; netAmount: number; fee: number; currency: string; provider: string; phone: string; partnerName?: string | null },
+    lang: string,
+  ): Promise<{ expiresAt: Date }> {
+    if (!user.phone) {
+      throw this.rpcError(this.i18nService.translate('wallet.external_cashout_no_phone', lang), 400);
+    }
+    const code = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = new Date(Date.now() + this.EXTERNAL_CASHOUT_OTP_MINUTES * 60 * 1000);
+    const key = `cashout:${details.requestId}`;
+
+    await this.prisma.otp.updateMany({ where: { email: key, isUsed: false }, data: { isUsed: true } });
+    await this.prisma.otp.create({
+      data: { id: crypto.randomUUID(), email: key, userId: user.id, otpCode: this.otpHash(code), isUsed: false, expiresAt },
+    });
+
+    const sms = this.i18nService.translate('wallet.external_cashout_otp_sms', lang, {
+      otpCode: code,
+      amount: details.amount.toFixed(2),
+      currency: details.currency,
+      netAmount: details.netAmount.toFixed(2),
+      phone: details.phone,
+      minutes: this.EXTERNAL_CASHOUT_OTP_MINUTES,
+      partner: details.partnerName || 'Favor Help',
+    });
+    const sent = await this.smsService
+      .sendSms(user.phone.replace(/[^0-9+]/g, ''), sms, user.countryCode || 'CD')
+      .catch((e: any) => {
+        console.error('[ExternalCashoutOtp] Envoi SMS impossible:', e?.message);
+        return false;
+      });
+    if (sent === false) {
+      throw this.rpcError(this.i18nService.translate('wallet.external_cashout_sms_failed', lang), 502);
+    }
+    return { expiresAt };
+  }
+
+  /**
+   * Étape 1 — demande de retrait : contrôles + envoi de l'OTP. Rien n'est débité.
+   * `requestId` existant + `resend` = renvoi d'un nouvel OTP pour la MÊME demande (délai minimum entre deux envois).
+   */
+  async requestExternalCashoutOtp(
+    userId: string,
+    dto: {
+      amount?: number;
+      walletId?: string;
+      provider?: string;
+      phone?: string;
+      requestId?: string;
+      resend?: boolean;
+      partnerId?: string;
+      partnerName?: string | null;
+    },
+    lang: string = 'fr',
+    ipAddress?: string,
+  ): Promise<ApiResponse<any>> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId },
+      select: { id: true, full_name: true, phone: true, status: true, countryCode: true },
+    });
+    if (!user) throw this.rpcError(this.i18nService.translate('wallet.user_not_found', lang), 404);
+    if (user.status === user_status.BLOCKED) {
+      throw this.rpcError(this.i18nService.translate('account_blocked_admin', lang), 403);
+    }
+
+    // ---------- Renvoi d'un OTP pour une demande existante ----------
+    if (dto.resend) {
+      const requestId = String(dto.requestId || '');
+      const details = requestId ? await this.externalCashoutRequestDetails(requestId, userId) : null;
+      if (!details) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_request_not_found', lang), 404);
+      const last = await this.prisma.otp.findFirst({ where: { email: `cashout:${requestId}`, userId }, orderBy: { createdAt: 'desc' } });
+      if (last && Date.now() - new Date(last.createdAt).getTime() < this.EXTERNAL_CASHOUT_OTP_RESEND_SECONDS * 1000) {
+        throw this.rpcError(
+          this.i18nService.translate('wallet.external_cashout_otp_wait', lang, { seconds: this.EXTERNAL_CASHOUT_OTP_RESEND_SECONDS }),
+          429,
+        );
+      }
+      if (await this.externalCashoutDone(requestId, userId)) {
+        throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_used', lang), 409);
+      }
+      const { expiresAt } = await this.sendExternalCashoutOtp(user, { ...details, partnerName: dto.partnerName }, lang);
+      await this.logAudit(userId, 'EXTERNAL_CASHOUT_OTP_RESENT', { requestId }, ipAddress ?? null);
+      return {
+        message: this.i18nService.translate('wallet.external_cashout_otp_sent', lang, { phone: this.maskPhone(user.phone) }),
+        data: { ...this.publicCashoutRequest(details), expiresAt, sentTo: this.maskPhone(user.phone) },
+      };
+    }
+
+    // ---------- Nouvelle demande ----------
+    const amount = Math.round(Number(dto.amount) * 100) / 100;
+    if (!amount || amount <= 0) throw this.rpcError(this.i18nService.translate('wallet.amount_positive', lang), 400);
+    if (!dto.provider || !dto.phone) throw this.rpcError(this.i18nService.translate('wallet.missing_phone_or_provider', lang), 400);
+
+    // Portefeuille du CLIENT uniquement (titulaire du token F-Pay) : un walletId d'un autre compte est refusé
+    const wallet = dto.walletId
+      ? await this.prisma.wallet.findFirst({ where: { id: dto.walletId, userId } })
+      : await this.prisma.wallet.findFirst({ where: { userId } });
+    if (!wallet) {
+      throw this.rpcError(
+        this.i18nService.translate(dto.walletId ? 'wallet.wallet_not_found_or_unauthorized' : 'wallet.wallet_not_found', lang),
+        404,
+      );
+    }
+    if (!wallet.isActive) throw this.rpcError(this.i18nService.translate('wallet.wallet_inactive', lang), 403);
+
+    const fees = await this.getNetworkProviderFees(dto.provider);
+    const fee = Math.round(((amount * fees.payoutFee) / 100) * 100) / 100;
+    const netAmount = Math.round((amount - fee) * 100) / 100;
+    if (wallet.balance < amount) {
+      throw this.rpcError(
+        this.i18nService.translate('wallet.insufficient_wallet_balance', lang, {
+          balance: wallet.balance.toFixed(2),
+          currency: wallet.currency || 'CDF',
+          required: amount.toFixed(2),
+          fee: fee.toFixed(2),
+          feePercent: fees.payoutFee,
+          netAmount: netAmount.toFixed(2),
+          shortfall: (amount - wallet.balance).toFixed(2),
+        }),
+        400,
+      );
+    }
+
+    const requestId = dto.requestId && /^[A-Za-z0-9_-]{8,64}$/.test(dto.requestId) ? dto.requestId : crypto.randomUUID();
+    if (await this.externalCashoutRequestDetails(requestId, userId)) {
+      throw this.rpcError(this.i18nService.translate('wallet.external_cashout_request_exists', lang), 409);
+    }
+    const details = {
+      requestId,
+      amount,
+      fee,
+      feePercent: fees.payoutFee,
+      netAmount,
+      currency: wallet.currency || 'CDF',
+      walletId: wallet.id,
+      provider: String(dto.provider).trim(),
+      phone: String(dto.phone).replace(/[^\d]/g, ''),
+      partnerId: dto.partnerId ?? null,
+    };
+    // La demande est enregistrée AVANT l'envoi du SMS (le code reçu correspond toujours à une demande existante)
+    await this.logAudit(userId, 'EXTERNAL_CASHOUT_OTP', details, ipAddress ?? null);
+    const { expiresAt } = await this.sendExternalCashoutOtp(user, { ...details, partnerName: dto.partnerName }, lang);
+
+    return {
+      message: this.i18nService.translate('wallet.external_cashout_otp_sent', lang, { phone: this.maskPhone(user.phone) }),
+      data: { ...this.publicCashoutRequest(details), expiresAt, sentTo: this.maskPhone(user.phone) },
+    };
+  }
+
+  private publicCashoutRequest(d: any) {
+    return {
+      requestId: d.requestId,
+      amount: d.amount,
+      fee: d.fee,
+      feePercent: d.feePercent,
+      netAmount: d.netAmount,
+      currency: d.currency,
+      walletId: d.walletId,
+      provider: d.provider,
+      phone: d.phone,
+      expiresInSeconds: this.EXTERNAL_CASHOUT_OTP_MINUTES * 60,
+    };
+  }
+
+  /** Le retrait de cette demande a-t-il déjà été exécuté ? */
+  private async externalCashoutDone(requestId: string, userId: string): Promise<boolean> {
+    const n = await this.prisma.audit_log.count({
+      where: { userId, action: 'EXTERNAL_CASHOUT_OTP_CONFIRMED', details: { contains: `"requestId":"${requestId}"` } },
+    });
+    return n > 0;
+  }
+
+  /** Étape 2 — l'utilisateur saisit l'OTP reçu : vérification puis retrait (sans PIN) */
+  async confirmExternalCashoutOtp(
+    userId: string,
+    dto: { requestId: string; otpCode: string },
+    lang: string = 'fr',
+    ipAddress?: string,
+  ): Promise<ApiResponse<any>> {
+    const requestId = String(dto.requestId || '').trim();
+    const code = String(dto.otpCode || '').trim();
+    if (!/^\d{6}$/.test(code)) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_invalid', lang), 400);
+
+    const details = requestId ? await this.externalCashoutRequestDetails(requestId, userId) : null;
+    if (!details) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_request_not_found', lang), 404);
+    if (await this.externalCashoutDone(requestId, userId)) {
+      throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_used', lang), 409);
+    }
+
+    const otp = await this.prisma.otp.findFirst({
+      where: { email: `cashout:${requestId}`, userId, isUsed: false },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!otp) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_expired', lang), 400);
+    if (otp.expiresAt && new Date() > otp.expiresAt) {
+      await this.prisma.otp.updateMany({ where: { id: otp.id, isUsed: false }, data: { isUsed: true } });
+      throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_expired', lang), 400);
+    }
+
+    // Essais ratés sur CET OTP (depuis sa création)
+    const failures = await this.prisma.audit_log.count({
+      where: {
+        userId,
+        action: 'EXTERNAL_CASHOUT_OTP_FAILED',
+        details: { contains: `"otpId":"${otp.id}"` },
+      },
+    });
+    if (failures >= this.EXTERNAL_CASHOUT_OTP_MAX_ATTEMPTS) {
+      await this.prisma.otp.updateMany({ where: { id: otp.id, isUsed: false }, data: { isUsed: true } });
+      throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_too_many', lang), 429);
+    }
+
+    const expected = Buffer.from(otp.otpCode, 'utf8');
+    const given = Buffer.from(this.otpHash(code), 'utf8');
+    const ok = expected.length === given.length && crypto.timingSafeEqual(expected, given);
+    if (!ok) {
+      await this.logAudit(userId, 'EXTERNAL_CASHOUT_OTP_FAILED', { requestId, otpId: otp.id }, ipAddress ?? null);
+      const remaining = Math.max(0, this.EXTERNAL_CASHOUT_OTP_MAX_ATTEMPTS - failures - 1);
+      if (remaining === 0) {
+        await this.prisma.otp.updateMany({ where: { id: otp.id, isUsed: false }, data: { isUsed: true } });
+        throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_too_many', lang), 429);
+      }
+      throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_wrong', lang, { attempts: remaining }), 401, {
+        attemptsLeft: remaining,
+      });
+    }
+
+    // Usage unique : un seul appel peut « consommer » l'OTP (double clic, deux appareils…)
+    const consumed = await this.prisma.otp.updateMany({ where: { id: otp.id, isUsed: false }, data: { isUsed: true } });
+    if (consumed.count !== 1) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_used', lang), 409);
+    await this.logAudit(userId, 'EXTERNAL_CASHOUT_OTP_CONFIRMED', { requestId, otpId: otp.id }, ipAddress ?? null);
+
+    // Le wallet figé à la demande doit toujours appartenir au client (sécurité supplémentaire)
+    const ownWallet = await this.prisma.wallet.findFirst({ where: { id: details.walletId, userId } });
+    if (!ownWallet) throw this.rpcError(this.i18nService.translate('wallet.wallet_not_found_or_unauthorized', lang), 403);
+
+    // Retrait classique (frais, PawaPay, débit, transaction, SMS, notifications) — OTP vérifié = pas de PIN
+    const result = await this.cashout(
+      userId,
+      {
+        amount: Number(details.amount),
+        pin: '',
+        walletId: details.walletId,
+        provider: details.provider,
+        phone: details.phone,
+      },
+      lang,
+      ipAddress,
+      { otpVerified: true },
+    );
+    return { ...result, data: { ...(result as any).data, requestId } };
   }
 
   async send(
