@@ -2900,7 +2900,7 @@ export class WalletServiceService {
           phone: phone || '',
         });
         const countryCode = user?.countryCode || 'CD';
-        await this.smsService.sendSms(cleanPhone, smsText, countryCode);
+        await this.smsService.sendSms(cleanPhone, feeOnTop ? this.smsPlain(smsText) : smsText, countryCode);
         console.log(`[Cashout] SMS envoyé à ${cleanPhone} (${countryCode})`);
       } catch (err) {
         console.error('[Cashout] Erreur envoi SMS:', err);
@@ -3005,9 +3005,28 @@ export class WalletServiceService {
     }
   }
 
+  /** OTP envoyés pour une demande de retrait (du plus récent au plus ancien) */
+  private async externalCashoutOtpIds(requestId: string, userId: string): Promise<string[]> {
+    const rows = await this.prisma.audit_log.findMany({
+      where: { userId, action: 'EXTERNAL_CASHOUT_OTP_SENT', details: { contains: `"requestId":"${requestId}"` } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    const ids: string[] = [];
+    for (const row of rows) {
+      try {
+        const id = JSON.parse(row.details || '{}')?.otpId;
+        if (id) ids.push(String(id));
+      } catch {
+        /* ignoré */
+      }
+    }
+    return ids;
+  }
+
   /** Crée l'OTP (l'ancien OTP de la même demande est annulé) et l'envoie par SMS au compte F-Pay */
   private async sendExternalCashoutOtp(
-    user: { id: string; phone: string | null; full_name: string | null; countryCode: string | null },
+    user: { id: string; phone: string | null; email?: string | null; full_name: string | null; countryCode: string | null },
     details: { requestId: string; amount: number; netAmount: number; fee: number; currency: string; provider: string; phone: string; partnerName?: string | null },
     lang: string,
   ): Promise<{ expiresAt: Date }> {
@@ -3016,11 +3035,32 @@ export class WalletServiceService {
     }
     const code = crypto.randomInt(1000, 10000).toString();
     const expiresAt = new Date(Date.now() + this.EXTERNAL_CASHOUT_OTP_MINUTES * 60 * 1000);
-    const key = `cashout:${details.requestId}`;
-
-    await this.prisma.otp.updateMany({ where: { email: key, isUsed: false }, data: { isUsed: true } });
+    // ✅ Colonne `email` = téléphone du compte (sinon son e-mail), comme les autres OTP F-Pay.
+    //    Le lien OTP ↔ demande de retrait est gardé dans audit_log (EXTERNAL_CASHOUT_OTP_SENT).
+    const previous = await this.externalCashoutOtpIds(details.requestId, user.id);
+    if (previous.length) {
+      await this.prisma.otp.updateMany({ where: { id: { in: previous }, isUsed: false }, data: { isUsed: true } });
+    }
+    const otpId = crypto.randomUUID();
     await this.prisma.otp.create({
-      data: { id: crypto.randomUUID(), email: key, userId: user.id, otpCode: this.otpHash(code), isUsed: false, expiresAt },
+      data: {
+        id: otpId,
+        email: user.phone.replace(/[^\d]/g, '') || user.email || user.id,
+        userId: user.id,
+        otpCode: code,
+        isUsed: false,
+        expiresAt,
+      },
+    });
+    await this.prisma.audit_log.create({
+      data: {
+        id: crypto.randomUUID(),
+        userId: user.id,
+        action: 'EXTERNAL_CASHOUT_OTP_SENT',
+        details: JSON.stringify({ requestId: details.requestId, otpId }),
+        ipAddress: null,
+        createdAt: new Date(),
+      },
     });
 
     const sms = this.i18nService.translate('wallet.external_cashout_otp_sms', lang, {
@@ -3034,7 +3074,7 @@ export class WalletServiceService {
       partner: details.partnerName || 'Favor Help',
     });
     const sent = await this.smsService
-      .sendSms(user.phone.replace(/[^0-9+]/g, ''), sms, user.countryCode || 'CD')
+      .sendSms(user.phone.replace(/[^0-9+]/g, ''), this.smsPlain(sms), user.countryCode || 'CD')
       .catch((e: any) => {
         console.error('[ExternalCashoutOtp] Envoi SMS impossible:', e?.message);
         return false;
@@ -3066,7 +3106,7 @@ export class WalletServiceService {
   ): Promise<ApiResponse<any>> {
     const user = await this.prisma.user.findFirst({
       where: { id: userId },
-      select: { id: true, full_name: true, phone: true, status: true, countryCode: true },
+      select: { id: true, full_name: true, phone: true, email: true, status: true, countryCode: true },
     });
     if (!user) throw this.rpcError(this.i18nService.translate('wallet.user_not_found', lang), 404);
     if (user.status === user_status.BLOCKED) {
@@ -3078,7 +3118,10 @@ export class WalletServiceService {
       const requestId = String(dto.requestId || '');
       const details = requestId ? await this.externalCashoutRequestDetails(requestId, userId) : null;
       if (!details) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_request_not_found', lang), 404);
-      const last = await this.prisma.otp.findFirst({ where: { email: `cashout:${requestId}`, userId }, orderBy: { createdAt: 'desc' } });
+      const sentIds = await this.externalCashoutOtpIds(requestId, userId);
+      const last = sentIds.length
+        ? await this.prisma.otp.findFirst({ where: { id: { in: sentIds }, userId }, orderBy: { createdAt: 'desc' } })
+        : null;
       if (last && Date.now() - new Date(last.createdAt).getTime() < this.EXTERNAL_CASHOUT_OTP_RESEND_SECONDS * 1000) {
         throw this.rpcError(
           this.i18nService.translate('wallet.external_cashout_otp_wait', lang, { seconds: this.EXTERNAL_CASHOUT_OTP_RESEND_SECONDS }),
@@ -3160,6 +3203,14 @@ export class WalletServiceService {
     };
   }
 
+  /**
+   * Texte SMS sans accents : la passerelle SMS (datacoding 0) ne livre pas les caractères accentués,
+   * comme les autres SMS F-Pay (« effectue avec succes »).
+   */
+  private smsPlain(text: string): string {
+    return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
   /** Montant lisible dans un SMS : 5000 → "5 000", 4850.5 → "4 850,50" */
   private smsAmount(value: any): string {
     const n = Math.round(Number(value || 0) * 100) / 100;
@@ -3209,8 +3260,14 @@ export class WalletServiceService {
       throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_used', lang), 409);
     }
 
+    // Dernier OTP envoyé pour CETTE demande (les anciens codes avec email « cashout:<requestId> » restent valables)
+    const otpIds = await this.externalCashoutOtpIds(requestId, userId);
     const otp = await this.prisma.otp.findFirst({
-      where: { email: `cashout:${requestId}`, userId, isUsed: false },
+      where: {
+        userId,
+        isUsed: false,
+        OR: [...(otpIds.length ? [{ id: { in: otpIds } }] : []), { email: `cashout:${requestId}` }],
+      },
       orderBy: { createdAt: 'desc' },
     });
     if (!otp) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_expired', lang), 400);
@@ -3232,9 +3289,13 @@ export class WalletServiceService {
       throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_too_many', lang), 429);
     }
 
-    const expected = Buffer.from(otp.otpCode, 'utf8');
-    const given = Buffer.from(this.otpHash(code), 'utf8');
-    const ok = expected.length === given.length && crypto.timingSafeEqual(expected, given);
+    // OTP enregistré en clair (comme les autres OTP F-Pay) ; les anciens codes hachés restent acceptés
+    const same = (a: string, b: string) => {
+      const x = Buffer.from(String(a), 'utf8');
+      const y = Buffer.from(String(b), 'utf8');
+      return x.length === y.length && crypto.timingSafeEqual(x, y);
+    };
+    const ok = same(otp.otpCode, code) || same(otp.otpCode, this.otpHash(code));
     if (!ok) {
       await this.logAudit(userId, 'EXTERNAL_CASHOUT_OTP_FAILED', { requestId, otpId: otp.id }, ipAddress ?? null);
       const remaining = Math.max(0, this.EXTERNAL_CASHOUT_OTP_MAX_ATTEMPTS - failures - 1);
