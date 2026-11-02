@@ -6252,865 +6252,595 @@ export class ApiGatewayController {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>F-Pay • Connexion</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --gold: #FDB515;
+            --gold-light: #FFCB45;
+            --gold-deep: #C88A06;
+            --ink: #111111;
+            --bg: #050505;
+            --card: #1b1b1d;
+            --field: #2a2a2d;
+            --field-hover: #303034;
+            --line: rgba(255, 255, 255, 0.07);
+            --text: #ffffff;
+            --muted: rgba(255, 255, 255, 0.62);
+            --faint: rgba(255, 255, 255, 0.40);
+            --ok: #34d17a;
+            --err: #ff5b5b;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         html { font-size: 16px; -webkit-text-size-adjust: 100%; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
             min-height: 100vh;
             min-height: 100dvh;
+            color: var(--text);
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(120% 60% at 50% 115%, rgba(253, 181, 21, 0.38) 0%, rgba(160, 110, 8, 0.16) 40%, transparent 70%),
+                linear-gradient(180deg, #000000 0%, #050505 55%, #120d02 100%);
+            background-attachment: fixed;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: clamp(12px, 3vw, 40px);
-            background: #000000;
-            background: radial-gradient(ellipse at center bottom, #1a1a00 0%, #000000 70%);
+            padding: clamp(0px, 3vw, 40px);
+            -webkit-font-smoothing: antialiased;
         }
 
-        .container {
+        .page {
             width: 100%;
-            max-width: min(520px, 94vw);
-            border-radius: clamp(14px, 2.5vw, 20px);
-            padding: clamp(20px, 4vw, 48px) clamp(16px, 3.5vw, 40px) clamp(20px, 3.5vw, 38px);
-            background: linear-gradient(180deg, #000000 0%, #1a1a1a 40%, #0d0d0d 100%);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 80px rgba(255, 184, 28, 0.05);
-            position: relative;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            border: 1px solid rgba(255, 184, 28, 0.06);
-        }
-
-        .container::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 100%;
-            background: radial-gradient(ellipse at 50% 0%, rgba(255, 184, 28, 0.05) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .logo {
-            text-align: center;
-            margin-bottom: clamp(18px, 3.5vw, 32px);
-            display: flex;
-            flex-direction: column;
+            max-width: 1120px;
+            display: grid;
+            grid-template-columns: 1fr;
             align-items: center;
+            gap: 56px;
+        }
+
+        @media (min-width: 960px) {
+            .page { grid-template-columns: 1fr 440px; }
+        }
+
+        /* ===================== Présentation (ordinateur) ===================== */
+        .showcase { display: none; }
+
+        @media (min-width: 960px) {
+            .showcase { display: block; animation: fadeUp 0.6s ease both; }
+        }
+
+        .brand-row { display: flex; align-items: center; gap: 14px; }
+
+        .brand-mark {
+            width: 58px;
+            height: 58px;
+            border-radius: 16px;
+            background: var(--gold);
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            flex: 0 0 auto;
+        }
+
+        .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+
+        .brand-name { font-size: 30px; font-weight: 900; letter-spacing: -0.8px; color: var(--gold); line-height: 1; }
+        .brand-tag { margin-top: 6px; font-size: 14px; color: var(--muted); }
+
+        .showcase h3 {
+            margin-top: 44px;
+            font-size: clamp(36px, 3.8vw, 50px);
+            line-height: 1.08;
+            font-weight: 900;
+            letter-spacing: -1.6px;
+            max-width: 560px;
+        }
+
+        .showcase h3 span { color: var(--gold); }
+
+        .showcase p.lead { margin-top: 18px; font-size: 17px; line-height: 1.6; color: var(--muted); max-width: 500px; }
+
+        .actions { display: flex; gap: 22px; margin-top: 40px; }
+
+        .action { width: 92px; text-align: center; }
+
+        .action .circle {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+        }
+
+        .action:first-child .circle { background: var(--gold); color: var(--ink); border-color: var(--gold); }
+        .action .circle svg { width: 24px; height: 24px; }
+        .action span { display: block; margin-top: 10px; font-size: 13px; font-weight: 600; color: rgba(255, 255, 255, 0.85); }
+
+        .proof { display: flex; gap: 28px; margin-top: 46px; padding-top: 26px; border-top: 1px solid var(--line); max-width: 520px; }
+        .proof div { flex: 1 1 0; }
+        .proof div b { display: block; font-size: 18px; font-weight: 800; color: var(--text); white-space: nowrap; }
+        .proof div span { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+
+        /* ===================== Carte (style application) ===================== */
+        .container {
             position: relative;
-            z-index: 1;
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto;
+            min-height: 100dvh;
+            background: var(--card);
+            overflow: hidden;
+            animation: fadeUp 0.5s ease both;
         }
 
-        .logo img {
-            width: clamp(60px, 12vw, 120px);
-            height: auto;
-            max-width: 120px;
-            margin-bottom: clamp(6px, 1vw, 12px);
-            filter: drop-shadow(0 4px 30px rgba(255, 184, 28, 0.25));
-            transition: all 0.3s ease;
+        @media (min-width: 520px) {
+            .container { min-height: 0; border-radius: 34px; border: 1px solid rgba(255, 255, 255, 0.08); }
         }
 
-        .logo h1 {
-            font-size: clamp(24px, 6vw, 42px);
-            color: #ffffff;
-            letter-spacing: -0.5px;
-            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
-            font-weight: 700;
-            line-height: 1.1;
-        }
-
-        .logo h1 .f { color: #ffffff; }
-        .logo h1 .pay { color: #FFB81C; }
-
-        .header {
-            margin-bottom: clamp(16px, 2.5vw, 26px);
-            position: relative;
-            z-index: 1;
-        }
-
-        .header h2 {
-            font-size: clamp(18px, 4vw, 28px);
-            color: #ffffff;
-            margin-bottom: 4px;
-            font-weight: 700;
-            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-            line-height: 1.2;
-        }
-
-        .header p {
-            color: rgba(255, 255, 255, 0.55);
-            font-size: clamp(13px, 1.8vw, 17px);
-            font-weight: 400;
-            line-height: 1.5;
-            max-width: 90%;
-        }
-
-        /* BANDEAU DE MESSAGE API */
-        .api-message {
-            display: none;
-            padding: clamp(10px, 1.4vw, 14px) clamp(12px, 1.6vw, 16px);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            font-size: clamp(12px, 1.3vw, 14px);
-            font-weight: 500;
-            margin-bottom: clamp(12px, 1.8vw, 16px);
-            line-height: 1.5;
-            position: relative;
-            z-index: 1;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            animation: slideDown 0.3s ease;
-        }
-
-        .api-message.show { display: block; }
-
-        .api-message.success {
-            background: rgba(34, 197, 94, 0.12);
-            color: #22c55e;
-            border: 1px solid rgba(34, 197, 94, 0.3);
-        }
-
-        .api-message.error {
-            background: rgba(255, 51, 51, 0.12);
-            color: #ff4444;
-            border: 1px solid rgba(255, 51, 51, 0.3);
-        }
-
-        .api-message.info {
-            background: rgba(255, 184, 28, 0.12);
-            color: #FFB81C;
-            border: 1px solid rgba(255, 184, 28, 0.3);
-        }
-
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .form-group {
-            margin-bottom: clamp(12px, 2vw, 18px);
+        /* Bandeau doré façon application */
+        .hero {
             position: relative;
-            z-index: 1;
+            padding: 22px 22px 54px;
+            text-align: center;
+            background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 30%, var(--gold-deep) 62%, #4a3405 84%, var(--card) 100%);
+            overflow: hidden;
         }
+
+        .hero .waves { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+        .hero-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
+
+        .logo { display: flex; align-items: center; gap: 10px; }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            object-fit: cover;
+            background: var(--ink);
+        }
+
+        .logo h1 { font-size: 19px; font-weight: 900; letter-spacing: -0.4px; color: var(--ink); }
+        .logo h1 .f { color: var(--ink); }
+        .logo h1 .pay { color: var(--ink); }
+
+        .secure {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--ink);
+            background: rgba(255, 255, 255, 0.28);
+        }
+
+        .secure svg { width: 13px; height: 13px; }
+
+        .hero-center { position: relative; z-index: 1; margin-top: 30px; }
+
+        .hero-center small { display: block; font-size: 14px; font-weight: 600; color: rgba(17, 17, 17, 0.75); }
+
+        .hero-center .big { margin-top: 8px; font-size: clamp(30px, 8vw, 36px); font-weight: 900; letter-spacing: -1px; color: #fff; line-height: 1.1; }
+
+        .hero-pill {
+            display: inline-block;
+            margin-top: 18px;
+            padding: 10px 22px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.28);
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .dots { position: relative; z-index: 1; display: flex; justify-content: center; gap: 6px; margin-top: 22px; }
+        .dots i { width: 8px; height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.35); }
+        .dots i:first-child { width: 22px; background: var(--gold); }
+
+        /* Montant demandé : remplace le texte d'accueil */
+        .pay-summary { display: none; }
+        .pay-summary.show { display: block; }
+        .pay-summary.show + .hero-default { display: none; }
+
+        /* ===================== Formulaire ===================== */
+        .body { padding: 6px 22px 26px; }
+
+        .header { margin-bottom: 20px; }
+        .header h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; }
+        .header p { margin-top: 6px; font-size: 14px; line-height: 1.55; color: var(--muted); }
+
+        .api-message {
+            display: none;
+            padding: 13px 14px 13px 42px;
+            border-radius: 16px;
+            font-size: 13.5px;
+            font-weight: 500;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            position: relative;
+            overflow-wrap: break-word;
+            animation: slideDown 0.25s ease;
+        }
+
+        .api-message::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            width: 17px;
+            height: 17px;
+            margin-top: -8.5px;
+            background: currentColor;
+            -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z'/%3E%3C/svg%3E") center / contain no-repeat;
+        }
+
+        .api-message.show { display: block; }
+        .api-message.success { background: rgba(52, 209, 122, 0.12); color: #5ee39a; }
+        .api-message.error { background: rgba(255, 91, 91, 0.12); color: #ff8080; }
+        .api-message.info { background: rgba(253, 181, 21, 0.12); color: var(--gold-light); }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group { margin-bottom: 18px; position: relative; }
 
         .form-group label {
             display: block;
-            font-size: clamp(13px, 1.4vw, 15px);
-            font-weight: 600;
-            color: #ffffff;
-            margin-bottom: 4px;
+            margin-bottom: 9px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #fff;
         }
+
+        .form-group label .req { color: var(--err); margin-left: 3px; }
 
         .form-group input {
             width: 100%;
-            padding: clamp(10px, 1.4vw, 16px) clamp(12px, 1.6vw, 18px);
-            border: 2px solid rgba(255, 255, 255, 0.12);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            font-size: clamp(14px, 1.5vw, 17px);
-            transition: all 0.25s ease;
-            background: rgba(255, 255, 255, 0.06);
-            color: #ffffff;
-            -webkit-appearance: none;
-            appearance: none;
-            height: clamp(42px, 5.5vw, 56px);
-        }
-
-        .form-group input::placeholder { color: rgba(255, 255, 255, 0.3); }
-
-        .form-group input:focus {
+            height: 56px;
+            padding: 0 18px;
+            font-family: inherit;
+            font-size: 15px;
+            color: var(--text);
+            background: var(--field);
+            border: 1.5px solid transparent;
+            border-radius: 16px;
             outline: none;
-            border-color: #FFB81C;
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            transition: border-color 0.2s ease, background 0.2s ease;
         }
 
-        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+        .form-group input::placeholder { color: var(--faint); }
+        .form-group input:hover { background: var(--field-hover); }
+        .form-group input:focus { border-color: var(--gold); background: var(--field); }
+        .form-group input:disabled { opacity: 0.55; cursor: not-allowed; }
 
-        .form-group.error input,
-        .form-group.error .phone-wrapper {
-            border-color: #ff3333 !important;
-            background: rgba(255, 51, 51, 0.08) !important;
-        }
+        .form-group.error input { border-color: var(--err); }
+        .form-group.success input { border-color: rgba(52, 209, 122, 0.6); }
 
-        .form-group.error input:focus,
-        .form-group.error .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(255, 51, 51, 0.15) !important;
-        }
+        .form-group .error-message { display: none; margin-top: 8px; font-size: 12.5px; line-height: 1.45; color: #ff8080; }
+        .form-group.error .error-message { display: block; animation: slideDown 0.2s ease; }
 
-        .form-group.success input,
-        .form-group.success .phone-wrapper {
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.06);
-        }
-
-        .form-group.success input:focus,
-        .form-group.success .phone-wrapper:focus-within {
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
-        }
-
-        .form-group .error-message {
-            display: none;
-            font-size: clamp(11px, 1.1vw, 13px);
-            color: #ff3333;
-            margin-top: 4px;
-            font-weight: 500;
-            line-height: 1.4;
-        }
-
-        .form-group.error .error-message { display: block; }
-
-        .phone-wrapper {
-            display: flex;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.06);
-            border: 2px solid rgba(255, 255, 255, 0.12);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            transition: all 0.25s ease;
-            overflow: hidden;
-            height: clamp(42px, 5.5vw, 56px);
-        }
-
-        .phone-wrapper:focus-within {
-            border-color: #FFB81C;
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
-        }
+        /* Indicatif + numéro : deux blocs comme dans l'application */
+        .phone-wrapper { display: flex; gap: 10px; height: 56px; }
 
         .country-select {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 0 clamp(4px, 0.8vw, 10px) 0 clamp(8px, 1.2vw, 16px);
-            border-right: 2px solid rgba(255, 255, 255, 0.08);
-            cursor: pointer;
-            background: transparent;
-            min-width: clamp(35px, 5vw, 55px);
-            height: 100%;
-            flex-shrink: 0;
+            position: relative;
+            flex: 0 0 auto;
+            width: 118px;
+            background: var(--field);
+            border: 1.5px solid transparent;
+            border-radius: 16px;
+            transition: border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .country-select:hover { background: var(--field-hover); }
+        .country-select:focus-within { border-color: var(--gold); }
+
+        .country-select::after {
+            content: '';
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            width: 7px;
+            height: 7px;
+            margin-top: -5px;
+            border-right: 2px solid var(--muted);
+            border-bottom: 2px solid var(--muted);
+            transform: rotate(45deg);
+            pointer-events: none;
         }
 
         .country-select select {
-            border: none;
-            background: transparent;
-            font-size: clamp(14px, 1.5vw, 17px);
+            width: 100%;
+            height: 100%;
+            padding: 0 32px 0 16px;
+            font-family: inherit;
+            font-size: 15px;
             font-weight: 700;
-            color: #FFB81C;
-            padding: 4px clamp(10px, 1.5vw, 16px) 4px 4px;
-            cursor: pointer;
+            color: var(--text);
+            background: transparent;
+            border: none;
+            outline: none;
             appearance: none;
             -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23FFB81C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0 center;
-            padding-right: clamp(14px, 2vw, 20px);
-            min-width: clamp(28px, 3.5vw, 42px);
-            width: auto;
-            max-width: clamp(45px, 7vw, 75px);
+            cursor: pointer;
+            text-overflow: ellipsis;
         }
 
-        .country-select select:focus { outline: none; }
+        .country-select select option { background: #2a2a2d; color: #fff; }
 
-        .country-select select option {
-            background: #1a1a1a;
-            color: #ffffff;
-            font-size: clamp(13px, 1.3vw, 15px);
-            font-weight: 600;
-            padding: 8px;
+        .phone-wrapper input { flex: 1 1 auto; min-width: 0; height: 100%; }
+
+        .form-group.error .country-select { border-color: var(--err); }
+
+        /* Afficher / masquer le mot de passe */
+        .form-group.password-with-toggle input { padding-right: 54px; }
+
+        .toggle-password-btn {
+            position: absolute;
+            right: 8px;
+            top: 36px;
+            width: 42px;
+            height: 42px;
+            display: grid;
+            place-items: center;
+            border: none;
+            border-radius: 12px;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
         }
 
-        .phone-wrapper input {
-            border: none !important;
-            padding: clamp(10px, 1.2vw, 14px) clamp(8px, 1vw, 14px) clamp(10px, 1.2vw, 14px) clamp(6px, 0.8vw, 10px) !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            flex: 1;
-            min-width: 0;
-            height: 100%;
-            color: #ffffff !important;
-            font-size: clamp(14px, 1.5vw, 17px);
-        }
+        .toggle-password-btn:hover { color: #fff; }
+        .toggle-password-btn:focus { outline: none; }
+        .toggle-password-btn:focus-visible { outline: 2px solid var(--gold); }
+        .toggle-password-btn.active { color: var(--gold); }
+        .toggle-password-btn .eye-icon { width: 20px; height: 20px; }
 
-        .phone-wrapper input::placeholder { color: rgba(255, 255, 255, 0.3) !important; }
-        .phone-wrapper input:focus { box-shadow: none !important; }
-
+        /* Bouton principal : pilule dorée */
         .btn {
             width: 100%;
-            padding: clamp(12px, 1.6vw, 18px);
-            border: none;
-            border-radius: clamp(8px, 1.2vw, 12px);
-            font-size: clamp(15px, 1.6vw, 18px);
-            font-weight: 700;
-            cursor: pointer;
-            background: #FFB81C;
-            color: #000000;
-            transition: all 0.3s ease;
-            margin-top: clamp(2px, 0.5vw, 6px);
-            box-shadow: 0 6px 30px rgba(255, 184, 28, 0.3);
-            position: relative;
-            display: flex;
+            height: 58px;
+            margin-top: 10px;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
-            height: clamp(46px, 6vw, 60px);
-            z-index: 1;
-            -webkit-tap-highlight-color: transparent;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--ink);
+            background: var(--gold);
+            border: none;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
         }
 
-        .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(255, 184, 28, 0.5);
-            background: #e6a500;
-        }
-
-        .btn:active:not(:disabled) { transform: scale(0.98); }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
+        .btn:hover:not(:disabled) { background: var(--gold-light); }
+        .btn:active:not(:disabled) { transform: scale(0.985); }
+        .btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
         .spinner {
             display: none;
-            width: clamp(18px, 2.2vw, 24px);
-            height: clamp(18px, 2.2vw, 24px);
-            border: 3px solid rgba(0, 0, 0, 0.2);
-            border-top-color: #000000;
+            width: 19px;
+            height: 19px;
+            border: 2.5px solid rgba(17, 17, 17, 0.25);
+            border-top-color: var(--ink);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            flex-shrink: 0;
+            animation: spin 0.7s linear infinite;
         }
 
         .btn.loading .spinner { display: inline-block; }
         .btn.loading .btn-text { display: inline; }
-
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .stores-section {
-            margin-top: clamp(18px, 3vw, 28px);
-            padding: clamp(14px, 2vw, 20px) clamp(12px, 1.8vw, 20px);
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: clamp(12px, 1.8vw, 16px);
-            position: relative;
-            z-index: 1;
-        }
-
-        .stores {
-            display: flex;
-            justify-content: center;
-            gap: clamp(8px, 1.5vw, 16px);
-            flex-wrap: wrap;
-        }
-
-        .store-link {
-            display: inline-flex;
-            align-items: center;
-            gap: clamp(6px, 1vw, 10px);
-            background: rgba(255, 255, 255, 0.06);
-            padding: clamp(8px, 1.2vw, 14px) clamp(14px, 2.5vw, 28px);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            color: #ffffff;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: clamp(12px, 1.3vw, 16px);
-            transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-            -webkit-tap-highlight-color: transparent;
-            flex: 0 1 auto;
-            min-width: clamp(110px, 20vw, 180px);
-            justify-content: center;
-        }
-
-        .store-link:hover {
-            transform: translateY(-2px);
-            background: #FFB81C;
-            border-color: #FFB81C;
-            color: #000000;
-        }
-
-        .store-link:active { transform: scale(0.97); }
-
-        .store-link span {
-            display: flex;
-            flex-direction: column;
-            line-height: 1.2;
-            text-align: center;
-        }
-
-        .store-link .small {
-            font-size: clamp(8px, 0.8vw, 10px);
-            opacity: 0.6;
-            font-weight: 400;
-            letter-spacing: 0.3px;
-        }
-
-        .form-links {
-            text-align: center;
-            margin-top: clamp(14px, 2vw, 20px);
-            position: relative;
-            z-index: 1;
-        }
-
-        .form-links a {
-            color: rgba(255, 255, 255, 0.5);
-            text-decoration: none;
-            font-size: clamp(13px, 1.3vw, 15px);
-            font-weight: 400;
-            transition: 0.2s;
-            display: inline-block;
-            padding: 4px 0;
-        }
-
-        .form-links a:hover { color: #FFB81C; }
-
-        .form-links .register-link {
-            color: #FFB81C;
-            font-weight: 500;
-        }
-
-        .form-links .register-link:hover { text-decoration: underline; }
-
-        .footer {
-            text-align: center;
-            margin-top: clamp(14px, 2vw, 22px);
-            color: rgba(255, 255, 255, 0.2);
-            font-size: clamp(11px, 1.1vw, 13px);
-            font-weight: 400;
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            padding: clamp(8px, 1vw, 12px) clamp(12px, 1.5vw, 18px);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            position: relative;
-            z-index: 1;
-            transition: all 0.3s ease;
-            line-height: 1.6;
-        }
-
-        .footer a {
-            color: rgba(255, 255, 255, 0.3);
-            text-decoration: none;
-            font-weight: 500;
-            transition: 0.2s;
-        }
-
-        .footer a:hover {
-            color: #FFB81C;
-            text-decoration: underline;
-        }
-
-        /* TOGGLE MOT DE PASSE */
-        .form-group.password-with-toggle { position: relative; }
-
-        .form-group.password-with-toggle input {
-            padding-right: clamp(42px, 5vw, 54px) !important;
-        }
-
-        .toggle-password-btn {
-            position: absolute;
-            right: clamp(8px, 1vw, 14px);
-            top: calc(50% + 10px);
-            transform: translateY(-50%);
-            width: clamp(28px, 3vw, 34px);
-            height: clamp(28px, 3vw, 34px);
-            border: none;
-            background: transparent;
-            color: rgba(255, 255, 255, 0.4);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s ease;
-            padding: 0;
-            border-radius: 50%;
-            -webkit-tap-highlight-color: transparent;
-            z-index: 2;
-        }
-
-        .toggle-password-btn:hover,
-        .toggle-password-btn:focus {
-            color: #FFB81C;
-            outline: none;
-        }
-
-        .toggle-password-btn.active { color: #FFB81C; }
-
-        .toggle-password-btn .eye-icon {
-            width: clamp(18px, 2vw, 22px);
-            height: clamp(18px, 2vw, 22px);
-            display: block;
-        }
-
-        /* OTP */
-        .otp-container {
-            display: none;
-            margin-top: 8px;
-            animation: fadeIn 0.3s ease;
-        }
-
+        /* Code OTP */
+        .otp-container { display: none; animation: slideDown 0.25s ease; }
         .otp-container.show { display: block; }
+        .otp-container > label { display: block; margin-bottom: 12px; font-size: 14px; font-weight: 700; color: #fff; }
 
-        .otp-inputs {
-            display: flex;
-            gap: clamp(6px, 1.2vw, 14px);
-            justify-content: center;
-            margin-bottom: 6px;
-        }
+        .otp-inputs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; }
 
         .otp-inputs input {
-            width: clamp(34px, 6vw, 56px);
-            height: clamp(42px, 7vw, 64px);
+            width: 100%;
+            height: 58px;
             text-align: center;
-            font-size: clamp(18px, 3.5vw, 28px);
-            font-weight: 700;
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: clamp(8px, 1.2vw, 12px);
-            background: rgba(255, 255, 255, 0.05);
-            color: #ffffff;
-            transition: all 0.25s ease;
-            caret-color: #FFB81C;
-        }
-
-        .otp-inputs input:focus {
+            font-family: inherit;
+            font-size: 24px;
+            font-weight: 800;
+            color: #fff;
+            background: var(--field);
+            border: 1.5px solid transparent;
+            border-radius: 16px;
             outline: none;
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.08);
-            box-shadow: 0 0 0 4px rgba(255, 184, 28, 0.15);
+            caret-color: var(--gold);
+            transition: border-color 0.2s ease, background 0.2s ease;
         }
 
-        .otp-inputs input.error {
-            border-color: #ff3333 !important;
-            background: rgba(255, 51, 51, 0.08) !important;
-        }
-
-        .otp-inputs input.filled {
-            border-color: #FFB81C;
-            background: rgba(255, 184, 28, 0.05);
-        }
-
+        .otp-inputs input:focus { border-color: var(--gold); }
+        .otp-inputs input.filled { background: rgba(253, 181, 21, 0.14); color: var(--gold-light); }
+        .otp-inputs input.error { border-color: var(--err); }
         .otp-inputs input:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .otp-error-message {
-            display: none;
-            font-size: clamp(11px, 1.1vw, 13px);
-            color: #ff3333;
-            text-align: center;
-            margin-top: 4px;
-            font-weight: 600;
-        }
-
+        .otp-error-message { display: none; margin-top: 10px; font-size: 12.5px; color: #ff8080; text-align: center; }
         .otp-error-message.show { display: block; }
 
-        .otp-timer {
-            font-size: clamp(12px, 1.2vw, 14px);
-            color: rgba(255, 255, 255, 0.4);
-            text-align: center;
-            margin-top: 6px;
-        }
-
-        .otp-timer a {
-            color: #FFB81C;
-            text-decoration: none;
-            display: none;
-            cursor: pointer;
-        }
-
+        .otp-timer { display: flex; justify-content: center; gap: 10px; margin: 16px 0 4px; font-size: 13.5px; color: var(--muted); }
+        .otp-timer a { color: var(--gold); font-weight: 700; text-decoration: none; }
         .otp-timer a:hover { text-decoration: underline; }
 
-        .hidden-fields { transition: all 0.3s ease; }
         .hidden-fields.hide { display: none !important; }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .form-links { margin-top: 20px; text-align: center; font-size: 14px; }
+        .form-links a { color: var(--gold); font-weight: 700; text-decoration: none; }
+        .form-links a:hover { text-decoration: underline; }
 
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255, 184, 28, 0.3); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 184, 28, 0.5); }
+        .legal { margin-top: 18px; text-align: center; font-size: 12.5px; line-height: 1.5; color: var(--faint); }
 
-        @media (max-width: 360px) {
-            body { padding: 8px; align-items: flex-start; padding-top: 16px; }
-            .container { padding: 16px 12px 16px; border-radius: 12px; max-width: 100%; }
-            .logo img { width: 50px; }
-            .logo h1 { font-size: 20px; }
-            .header h2 { font-size: 16px; }
-            .header p { font-size: 12px; max-width: 100%; }
-            .form-group input { padding: 8px 10px; font-size: 13px; height: 38px; }
-            .phone-wrapper { height: 38px; }
-            .phone-wrapper input { font-size: 13px; padding: 8px 8px 8px 4px !important; }
-            .country-select { min-width: 28px; padding: 0 3px 0 6px; }
-            .country-select select { font-size: 12px; min-width: 20px; padding-right: 12px; max-width: 45px; }
-            .btn { height: 40px; font-size: 13px; padding: 10px; }
-            .store-link { padding: 6px 10px; font-size: 11px; min-width: 90px; }
-            .store-link .small { font-size: 7px; }
-            .otp-inputs input { width: 30px; height: 38px; font-size: 16px; }
-            .otp-inputs { gap: 4px; }
-            .footer { font-size: 10px; padding: 6px 8px; }
-            .form-links a { font-size: 12px; }
-            .stores-section { padding: 10px 8px; }
-        }
-
-        @media (min-width: 361px) and (max-width: 480px) {
-            body { padding: 12px; align-items: flex-start; padding-top: 24px; }
-            .container { padding: 20px 16px 20px; border-radius: 14px; max-width: 100%; }
-            .logo img { width: 60px; }
-            .logo h1 { font-size: 22px; }
-            .header h2 { font-size: 18px; }
-            .header p { font-size: 13px; }
-            .form-group input { padding: 10px 12px; font-size: 14px; height: 42px; }
-            .phone-wrapper { height: 42px; }
-            .phone-wrapper input { font-size: 14px; padding: 10px 10px 10px 6px !important; }
-            .country-select { min-width: 32px; padding: 0 4px 0 8px; }
-            .country-select select { font-size: 13px; min-width: 22px; padding-right: 14px; max-width: 55px; }
-            .btn { height: 44px; font-size: 14px; padding: 11px; }
-            .store-link { padding: 8px 12px; font-size: 11px; min-width: 100px; }
-            .otp-inputs input { width: 34px; height: 42px; font-size: 18px; }
+        @media (max-width: 380px) {
+            .hero, .body { padding-left: 16px; padding-right: 16px; }
+            .country-select { width: 104px; }
             .otp-inputs { gap: 6px; }
-            .footer { font-size: 10px; padding: 8px 10px; }
-            .form-links a { font-size: 12px; }
-        }
-
-        @media (min-width: 481px) and (max-width: 768px) {
-            body { padding: 20px; }
-            .container { max-width: 440px; padding: 30px 24px 28px; border-radius: 16px; }
-            .logo img { width: 80px; }
-            .logo h1 { font-size: 28px; }
-            .header h2 { font-size: 20px; }
-            .header p { font-size: 14px; }
-            .form-group input { padding: 12px 14px; font-size: 15px; height: 46px; }
-            .phone-wrapper { height: 46px; }
-            .phone-wrapper input { font-size: 15px; padding: 12px 12px 12px 8px !important; }
-            .country-select { min-width: 38px; padding: 0 6px 0 10px; }
-            .country-select select { font-size: 14px; min-width: 24px; padding-right: 16px; max-width: 60px; }
-            .btn { height: 48px; font-size: 15px; padding: 12px; }
-            .store-link { padding: 10px 16px; font-size: 13px; min-width: 120px; }
-            .otp-inputs input { width: 40px; height: 48px; font-size: 20px; }
-            .otp-inputs { gap: 8px; }
-            .footer { font-size: 11px; padding: 8px 12px; }
-        }
-
-        @media (min-width: 769px) and (max-width: 1024px) {
-            body { padding: 30px; }
-            .container { max-width: 480px; padding: 36px 30px 32px; border-radius: 18px; }
-            .logo img { width: 100px; }
-            .logo h1 { font-size: 34px; }
-            .header h2 { font-size: 22px; }
-            .header p { font-size: 15px; }
-            .form-group input { padding: 13px 16px; font-size: 15px; height: 50px; }
-            .phone-wrapper { height: 50px; }
-            .phone-wrapper input { font-size: 15px; padding: 13px 14px 13px 10px !important; }
-            .country-select { min-width: 42px; padding: 0 8px 0 12px; }
-            .country-select select { font-size: 15px; min-width: 26px; padding-right: 18px; max-width: 65px; }
-            .btn { height: 52px; font-size: 16px; padding: 14px; }
-            .store-link { padding: 10px 20px; font-size: 14px; min-width: 140px; }
-            .otp-inputs input { width: 44px; height: 52px; font-size: 22px; }
-            .otp-inputs { gap: 10px; }
-        }
-
-        @media (min-width: 1025px) and (max-width: 1366px) {
-            body { padding: 40px; }
-            .container { max-width: 500px; padding: 40px 34px 34px; border-radius: 18px; }
-            .logo img { width: 110px; }
-            .logo h1 { font-size: 36px; }
-            .header h2 { font-size: 24px; }
-            .header p { font-size: 16px; }
-            .form-group input { padding: 14px 18px; font-size: 16px; height: 52px; }
-            .phone-wrapper { height: 52px; }
-            .phone-wrapper input { font-size: 16px; padding: 14px 14px 14px 10px !important; }
-            .country-select { min-width: 46px; padding: 0 10px 0 14px; }
-            .country-select select { font-size: 16px; min-width: 28px; padding-right: 20px; max-width: 70px; }
-            .btn { height: 54px; font-size: 17px; padding: 16px; }
-            .store-link { padding: 12px 24px; font-size: 15px; min-width: 160px; }
-            .otp-inputs input { width: 48px; height: 56px; font-size: 24px; }
-            .otp-inputs { gap: 12px; }
-        }
-
-        @media (min-width: 1367px) and (max-width: 1920px) {
-            body { padding: 50px; }
-            .container { max-width: 520px; padding: 44px 38px 38px; border-radius: 20px; }
-            .logo img { width: 120px; }
-            .logo h1 { font-size: 40px; }
-            .header h2 { font-size: 26px; }
-            .header p { font-size: 17px; }
-            .form-group input { padding: 15px 20px; font-size: 17px; height: 56px; }
-            .phone-wrapper { height: 56px; }
-            .phone-wrapper input { font-size: 17px; padding: 15px 16px 15px 12px !important; }
-            .country-select { min-width: 50px; padding: 0 12px 0 16px; }
-            .country-select select { font-size: 17px; min-width: 30px; padding-right: 22px; max-width: 75px; }
-            .btn { height: 58px; font-size: 18px; padding: 18px; }
-            .store-link { padding: 14px 28px; font-size: 16px; min-width: 180px; }
-            .store-link .small { font-size: 10px; }
-            .otp-inputs input { width: 52px; height: 60px; font-size: 26px; }
-            .otp-inputs { gap: 14px; }
-        }
-
-        @media (min-width: 1921px) {
-            body { padding: 60px; background: radial-gradient(ellipse at center, #0a0a00 0%, #000000 80%); }
-            .container { max-width: 600px; padding: 52px 46px 44px; border-radius: 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9), 0 0 120px rgba(255, 184, 28, 0.06); }
-            .logo img { width: 140px; }
-            .logo h1 { font-size: 48px; }
-            .logo { margin-bottom: 36px; }
-            .header h2 { font-size: 30px; }
-            .header p { font-size: 19px; }
-            .header { margin-bottom: 30px; }
-            .form-group { margin-bottom: 22px; }
-            .form-group label { font-size: 17px; }
-            .form-group input { padding: 18px 24px; font-size: 19px; height: 64px; border-radius: 14px; }
-            .phone-wrapper { height: 64px; border-radius: 14px; }
-            .phone-wrapper input { font-size: 19px; padding: 18px 18px 18px 14px !important; }
-            .country-select { min-width: 58px; padding: 0 14px 0 20px; }
-            .country-select select { font-size: 19px; min-width: 34px; padding-right: 26px; max-width: 85px; }
-            .btn { height: 66px; font-size: 20px; padding: 20px; border-radius: 14px; margin-top: 8px; }
-            .spinner { width: 28px; height: 28px; border-width: 4px; }
-            .stores-section { margin-top: 32px; padding: 22px 24px; border-radius: 18px; }
-            .store-link { padding: 16px 36px; font-size: 18px; min-width: 200px; border-radius: 14px; gap: 12px; }
-            .store-link .small { font-size: 12px; }
-            .form-links { margin-top: 24px; }
-            .form-links a { font-size: 17px; }
-            .footer { margin-top: 26px; padding: 14px 20px; font-size: 15px; border-radius: 14px; }
-            .otp-inputs input { width: 64px; height: 72px; font-size: 32px; border-radius: 14px; }
-            .otp-inputs { gap: 16px; }
-            .otp-error-message { font-size: 15px; }
-            .otp-timer { font-size: 16px; }
-        }
-
-        @media (max-height: 600px) and (orientation: landscape) {
-            body { padding: 10px; align-items: flex-start; padding-top: 12px; }
-            .container { padding: 14px 16px 14px; border-radius: 12px; max-width: 85vw; }
-            .logo { margin-bottom: 10px; flex-direction: row; gap: 12px; justify-content: center; }
-            .logo img { width: 40px; margin-bottom: 0; }
-            .logo h1 { font-size: 18px; }
-            .header { margin-bottom: 10px; }
-            .header h2 { font-size: 16px; }
-            .header p { font-size: 11px; max-width: 100%; }
-            .form-group { margin-bottom: 8px; }
-            .form-group label { font-size: 11px; margin-bottom: 2px; }
-            .form-group input { padding: 6px 10px; font-size: 12px; height: 32px; }
-            .phone-wrapper { height: 32px; }
-            .phone-wrapper input { font-size: 12px; padding: 6px 8px 6px 4px !important; }
-            .country-select { min-width: 26px; padding: 0 3px 0 6px; height: 32px; }
-            .country-select select { font-size: 11px; min-width: 18px; padding-right: 12px; max-width: 42px; }
-            .btn { height: 34px; font-size: 12px; padding: 8px; margin-top: 2px; }
-            .stores-section { display: none; }
-            .footer { margin-top: 8px; padding: 4px 8px; font-size: 9px; }
-            .form-links { margin-top: 8px; }
-            .form-links a { font-size: 11px; }
-            .otp-inputs input { width: 28px; height: 34px; font-size: 14px; }
-            .otp-inputs { gap: 4px; }
-            .hidden-fields.hide { display: none !important; }
-            .otp-container { margin-top: 4px; }
-            .otp-error-message { font-size: 10px; }
-            .otp-timer { font-size: 10px; }
-        }
-
-        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-            .container { border: 0.5px solid rgba(255, 184, 28, 0.05); }
+            .otp-inputs input { height: 52px; font-size: 21px; }
+            .secure span { display: none; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-            .btn:hover:not(:disabled) { transform: none !important; }
-            .store-link:hover { transform: none !important; }
-        }
-
-        @media (prefers-color-scheme: light) {
-            body { background: #000000; }
+            *, *::before, *::after { animation: none !important; transition: none !important; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">
-            <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw" 
-                 alt="Fpay Logo" 
-                 onerror="this.style.display='none'">
-            <h1><span class="f">F</span><span class="pay">Pay</span></h1>
-        </div>
-
-        <div id="loginState">
-            <div class="header">
-                <h2 id="formTitle">Se connecter</h2>
-                <p id="stepMessage">Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte</p>
+    <div class="page">
+        <section class="showcase" aria-hidden="true">
+            <div class="brand-row">
+                <div class="brand-mark">
+                    <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw" alt="" onerror="this.style.display='none'">
+                </div>
+                <div>
+                    <div class="brand-name">Favor Pay</div>
+                    <div class="brand-tag">L'argent qui voyage à la vitesse de la vie</div>
+                </div>
             </div>
 
-            <!-- BANDEAU MESSAGE API -->
-            <div class="api-message" id="apiMessage"></div>
+            <h3>Envoyez, recevez et retirez <span>où que vous soyez.</span></h3>
+            <p class="lead">Connectez votre compte Favor Pay pour payer en toute sécurité. Vos identifiants restent chez Favor Pay et chaque connexion est confirmée par un code SMS.</p>
 
-            <form id="loginForm" autocomplete="off" novalidate>
-                <div id="hiddenFields" class="hidden-fields">
-                    <div class="form-group" id="fullNameGroup" style="display:none;">
-                        <label>Nom complet *</label>
-                        <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
-                        <div class="error-message" id="fullNameError">Le nom complet est requis</div>
+        </section>
+
+        <div class="container">
+            <div class="hero">
+                <svg class="waves" viewBox="0 0 440 300" preserveAspectRatio="none" aria-hidden="true">
+                    <path d="M-20 120 C 90 60, 180 170, 300 110 S 470 60, 470 60 L 470 -20 L -20 -20 Z" fill="rgba(255,255,255,0.10)"/>
+                    <path d="M-20 175 C 110 120, 210 225, 330 160 S 470 120, 470 120 L 470 -20 L -20 -20 Z" fill="rgba(255,255,255,0.06)"/>
+                    <path d="M-20 70 C 80 30, 160 110, 260 70 S 470 20, 470 20" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1.2"/>
+                </svg>
+
+                <div class="hero-top">
+                    <div class="logo">
+                        <img src="https://play-lh.googleusercontent.com/b525C8KU_lWYmhEo83L7trLz3EN0FXn-PHUOYgW2J0024naumWBqT986dWxIgW6KrdioT3A2Lu_d4M2zPgFR4Q=w240-h480-rw"
+                             alt="Favor Pay"
+                             onerror="this.style.display='none'">
+                        <h1><span class="f">Favor </span><span class="pay">Pay</span></h1>
+                    </div>
+                    <span class="secure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Sécurisé</span></span>
+                </div>
+
+                <div class="hero-center">
+                    <!-- Montant transmis par l'application partenaire (sinon : texte d'accueil) -->
+                    <div class="pay-summary" id="paySummary">
+                        <small id="paySummaryCurrency">Paiement demandé</small>
+                        <div class="big" id="paySummaryAmount"></div>
+                        <div class="hero-pill" id="paySummaryDesc">Paiement Favor Pay</div>
+                    </div>
+                    <div class="hero-default">
+                        <small>Bienvenue sur</small>
+                        <div class="big">Favor Pay</div>
+                        <div class="hero-pill">Connexion à votre portefeuille</div>
+                    </div>
+                </div>
+
+                <div class="dots"><i></i><i></i></div>
+            </div>
+
+            <div class="body">
+                <div id="loginState">
+                    <div class="header">
+                        <h2 id="formTitle">Se connecter</h2>
+                        <p id="stepMessage">Veuillez saisir le numéro de téléphone et le mot de passe associé à votre compte</p>
                     </div>
 
-                    <div class="form-group" id="phoneGroup">
-                        <label>Numéro Mobile Money *</label>
-                        <div class="phone-wrapper">
-                            <div class="country-select">
-                                <select id="countryCode" autocomplete="off">
-                                </select>
+                    <!-- BANDEAU MESSAGE API -->
+                    <div class="api-message" id="apiMessage"></div>
+
+                    <form id="loginForm" autocomplete="off" novalidate>
+                        <div id="hiddenFields" class="hidden-fields">
+                            <div class="form-group" id="fullNameGroup" style="display:none;">
+                                <label for="fullName">Nom complet<span class="req">*</span></label>
+                                <input type="text" id="fullName" placeholder="Votre nom complet" autocomplete="off">
+                                <div class="error-message" id="fullNameError">Le nom complet est requis</div>
                             </div>
-                            <input type="tel" id="phone" placeholder="97 376 0641" autocomplete="off">
+
+                            <div class="form-group" id="phoneGroup">
+                                <label for="phone">Numéro Mobile Money<span class="req">*</span></label>
+                                <div class="phone-wrapper">
+                                    <div class="country-select">
+                                        <select id="countryCode" autocomplete="off" aria-label="Indicatif du pays">
+                                        </select>
+                                    </div>
+                                    <input type="tel" id="phone" placeholder="Numéro de téléphone" autocomplete="off" inputmode="tel">
+                                </div>
+                                <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
+                            </div>
+
+                            <div class="form-group" id="passwordGroup">
+                                <label for="password">Mot de passe<span class="req">*</span></label>
+                                <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
+                                <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
+                            </div>
+
+                            <div class="form-group" id="confirmPasswordGroup" style="display:none;">
+                                <label for="confirmPassword">Confirmer le mot de passe<span class="req">*</span></label>
+                                <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe" autocomplete="new-password">
+                                <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
+                            </div>
                         </div>
-                        <div class="error-message" id="phoneError">Le numéro de téléphone est requis</div>
-                    </div>
 
-                    <div class="form-group" id="passwordGroup">
-                        <label>Mot de passe *</label>
-                        <input type="password" id="password" placeholder="8+ car., maj., min., chiffre, spécial" autocomplete="new-password">
-                        <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
-                    </div>
+                        <div class="otp-container" id="otpContainer">
+                            <label>Code de vérification<span class="req" style="color:#ff5b5b;margin-left:3px;">*</span></label>
+                            <div class="otp-inputs" id="otpInputs">
+                                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="0" aria-label="Chiffre 1">
+                                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="1" aria-label="Chiffre 2">
+                                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="2" aria-label="Chiffre 3">
+                                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="3" aria-label="Chiffre 4">
+                                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="4" aria-label="Chiffre 5">
+                                <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="5" aria-label="Chiffre 6">
+                            </div>
+                            <div class="otp-error-message" id="otpError">Le code OTP est requis</div>
+                            <div class="otp-timer">
+                                <span id="otpTimer"></span>
+                                <a href="#" id="resendOtpLink">Renvoyer le code</a>
+                            </div>
+                        </div>
 
-                    <div class="form-group" id="confirmPasswordGroup" style="display:none;">
-                        <label>Confirmer le mot de passe *</label>
-                        <input type="password" id="confirmPassword" placeholder="Confirmez votre mot de passe" autocomplete="new-password">
-                        <div class="error-message" id="confirmPasswordError">Les mots de passe ne correspondent pas</div>
-                    </div>
-                </div>
+                        <button type="submit" class="btn" id="submitBtn">
+                            <span class="spinner" id="submitSpinner"></span>
+                            <span class="btn-text" id="btnText">Se connecter</span>
+                        </button>
+                    </form>
 
-                <div class="otp-container" id="otpContainer">
-                    <label style="display: block; font-size: clamp(13px, 1.4vw, 15px); font-weight: 600; color: #ffffff; margin-bottom: 8px;">Code OTP *</label>
-                    <div class="otp-inputs" id="otpInputs">
-                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="0">
-                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="1">
-                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="2">
-                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="3">
-                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="4">
-                        <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" data-index="5">
-                    </div>
-                    <div class="otp-error-message" id="otpError">Le code OTP est requis</div>
-                    <div class="otp-timer">
-                        <span id="otpTimer"></span>
-                        <a href="#" id="resendOtpLink">Renvoyer le code</a>
+                    <div class="form-links">
+                        <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
                     </div>
                 </div>
 
-                <button type="submit" class="btn" id="submitBtn">
-                    <span class="spinner" id="submitSpinner"></span>
-                    <span class="btn-text" id="btnText">Se connecter</span>
-                </button>
-            </form>
-
-            <div class="form-links">
-                <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
+                <p class="legal">Connexion sécurisée par Favor Pay · Ne partagez jamais votre code</p>
             </div>
         </div>
     </div>
-
     <script>
         (function() {
             'use strict';
@@ -8070,6 +7800,21 @@ export class ApiGatewayController {
                 }
             });
 
+        })();
+    </script>
+    <script>
+        (function () {
+            var amount = ${JSON.stringify(amount).replace(/</g, '\\u003c')};
+            var currency = ${JSON.stringify(currency).replace(/</g, '\\u003c')};
+            var description = ${JSON.stringify(description).replace(/</g, '\\u003c')};
+            var n = Number(amount);
+            if (amount && isFinite(n) && n > 0) {
+                var box = document.getElementById('paySummary');
+                document.getElementById('paySummaryAmount').textContent =
+                    n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + (currency || '');
+                if (description) document.getElementById('paySummaryDesc').textContent = description;
+                box.classList.add('show');
+            }
         })();
     </script>
 </body>
