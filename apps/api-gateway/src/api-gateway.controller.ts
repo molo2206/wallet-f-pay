@@ -6700,6 +6700,7 @@ export class ApiGatewayController {
 
         /* ===================== Mot de passe oublié ===================== */
         .forgot-row { margin-top: 10px; text-align: right; }
+        .form-group.error .forgot-row + .error-message { margin-top: 4px; }
         .forgot-row a, .back-link { color: var(--gold); font-size: 13.5px; font-weight: 700; text-decoration: none; }
         .forgot-row a:hover { text-decoration: underline; }
         .hidden-fields.hide .forgot-row { display: none; }
@@ -6927,8 +6928,8 @@ export class ApiGatewayController {
                             <div class="form-group" id="passwordGroup">
                                 <label for="password">Mot de passe<span class="req">*</span></label>
                                 <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
-                                <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
                                 <div class="forgot-row" id="forgotRow"><a href="#" id="forgotLink">Mot de passe oublié ?</a></div>
+                                <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
                             </div>
 
                             <div class="form-group" id="confirmPasswordGroup" style="display:none;">
@@ -7009,8 +7010,17 @@ export class ApiGatewayController {
                                     <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="Chiffre 5">
                                     <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="Chiffre 6">
                                 </div>
-                                <div class="error-message" id="fpCodeError">Le code contient 6 chiffres</div>
+                                <div class="error-message" id="fpCodeError">Saisissez les 6 chiffres du code</div>
                             </div>
+
+                            <div class="otp-timer">
+                                <span id="fpTimer"></span>
+                                <a href="#" id="fpResend" style="display:none;">Renvoyer le code</a>
+                            </div>
+                        </div>
+
+                        <!-- Étape 3 : nouveau mot de passe -->
+                        <div id="forgotStep3" style="display:none;">
 
                             <div class="form-group password-with-toggle" id="fpPassGroup">
                                 <label for="fpPass">Nouveau mot de passe<span class="req">*</span></label>
@@ -7032,11 +7042,6 @@ export class ApiGatewayController {
                                 <label for="fpConfirm">Confirmer le mot de passe<span class="req">*</span></label>
                                 <input type="password" id="fpConfirm" placeholder="Confirmez le mot de passe" autocomplete="new-password">
                                 <div class="error-message" id="fpConfirmError">Les mots de passe ne correspondent pas</div>
-                            </div>
-
-                            <div class="otp-timer">
-                                <span id="fpTimer"></span>
-                                <a href="#" id="fpResend" style="display:none;">Renvoyer le code</a>
                             </div>
                         </div>
 
@@ -8043,6 +8048,8 @@ export class ApiGatewayController {
             var lead = document.getElementById('forgotMessage');
             var step1 = document.getElementById('forgotStep1');
             var step2 = document.getElementById('forgotStep2');
+            var step3 = document.getElementById('forgotStep3');
+            var verifiedCode = '';
             var country = document.getElementById('fpCountry');
             var phone = document.getElementById('fpPhone');
             var boxes = Array.prototype.slice.call(document.querySelectorAll('#fpCodeBoxes input'));
@@ -8142,22 +8149,27 @@ export class ApiGatewayController {
                 country.value = mainCountry.value;
             }
 
+            var STEPS = {
+                1: { btn: 'Recevoir le code', title: 'Mot de passe oublié', lead: 'Saisissez le numéro de votre compte. Nous vous enverrons un code par SMS pour choisir un nouveau mot de passe.' },
+                2: { btn: 'Vérifier le code', title: 'Code de vérification', lead: 'Saisissez le code à 6 chiffres reçu par SMS.' },
+                3: { btn: 'Changer le mot de passe', title: 'Nouveau mot de passe', lead: 'Choisissez un nouveau mot de passe pour votre compte.' }
+            };
+
             function goStep(n) {
                 step = n;
                 step1.style.display = n === 1 ? 'block' : 'none';
                 step2.style.display = n === 2 ? 'block' : 'none';
-                btnText.textContent = n === 1 ? 'Recevoir le code' : 'Changer le mot de passe';
-                title.textContent = n === 1 ? 'Mot de passe oublié' : 'Nouveau mot de passe';
-                lead.textContent = n === 1
-                    ? 'Saisissez le numéro de votre compte. Nous vous enverrons un code par SMS pour choisir un nouveau mot de passe.'
-                    : 'Saisissez le code reçu par SMS puis choisissez votre nouveau mot de passe.';
+                step3.style.display = n === 3 ? 'block' : 'none';
+                btnText.textContent = STEPS[n].btn;
+                title.textContent = STEPS[n].title;
+                lead.textContent = STEPS[n].lead;
             }
 
             function open(e) {
                 if (e) e.preventDefault();
                 syncCountries();
                 phone.value = mainPhone ? mainPhone.value.trim() : '';
-                clearBoxes(); pass.value = ''; confirmPass.value = '';
+                clearBoxes(); pass.value = ''; confirmPass.value = ''; verifiedCode = '';
                 ['fpPhoneGroup', 'fpCodeGroup', 'fpPassGroup', 'fpConfirmGroup'].forEach(function (id) { fieldError(id, false); });
                 checkRules();
                 hide();
@@ -8218,15 +8230,38 @@ export class ApiGatewayController {
                     .then(function () { loading(false); });
             }
 
-            function resetPassword() {
+            // Étape 2 : vérifier le code (sans le consommer) avant de choisir le mot de passe
+            function verifyCode() {
                 var c = codeValue();
-                var okCode = c.length === 6;
+                if (c.length !== 6) {
+                    fieldError('fpCodeGroup', true);
+                    (boxes.filter(function (x) { return !x.value; })[0] || boxes[0]).focus();
+                    return;
+                }
+                loading(true); hide();
+                post('/auth/verify-otp', { identifier: identifier, code: c })
+                    .then(function () {
+                        verifiedCode = c;
+                        if (timer) clearInterval(timer);
+                        goStep(3);
+                        setTimeout(function () { pass.focus(); }, 50);
+                    })
+                    .catch(function (err) {
+                        show(err.message || 'Code incorrect ou expiré.', 'error');
+                        boxes.forEach(function (x) { x.classList.add('error'); });
+                        setTimeout(function () { clearBoxes(); boxes.forEach(function (x) { x.classList.remove('error'); }); boxes[0].focus(); }, 900);
+                    })
+                    .then(function () { loading(false); });
+            }
+
+            // Étape 3 : nouveau mot de passe
+            function resetPassword() {
+                var c = verifiedCode;
                 var okPass = checkRules();
                 var okConfirm = pass.value && pass.value === confirmPass.value;
-                fieldError('fpCodeGroup', !okCode);
                 fieldError('fpPassGroup', !okPass);
                 fieldError('fpConfirmGroup', !okConfirm);
-                if (!okCode) { (boxes.filter(function (x) { return !x.value; })[0] || boxes[0]).focus(); return; }
+                if (!c) { goStep(2); return; }
                 if (!okPass) { pass.focus(); return; }
                 if (!okConfirm) { confirmPass.focus(); return; }
                 loading(true); hide();
@@ -8239,16 +8274,24 @@ export class ApiGatewayController {
                             main.textContent = 'Mot de passe modifié. Connectez-vous avec votre nouveau mot de passe.';
                         }
                     })
-                    .catch(function (err) { show(err.message, 'error'); })
+                    .catch(function (err) {
+                        show(err.message, 'error');
+                        // Code expiré entre-temps : retour à la saisie du code
+                        if (/code|otp/i.test(err.message || '')) { verifiedCode = ''; clearBoxes(); goStep(2); }
+                    })
                     .then(function () { loading(false); });
             }
 
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
                 if (busy) return;
-                if (step === 1) sendCode(false); else resetPassword();
+                if (step === 1) sendCode(false);
+                else if (step === 2) verifyCode();
+                else resetPassword();
             });
 
+            // mousedown sans perte du focus : la validation du champ mot de passe ne décale pas le lien avant le clic
+            forgotLink.addEventListener('mousedown', function (e) { e.preventDefault(); });
             forgotLink.addEventListener('click', open);
             back.addEventListener('click', close);
             resend.addEventListener('click', function (e) { e.preventDefault(); if (!busy) sendCode(true); });
@@ -8263,7 +8306,7 @@ export class ApiGatewayController {
                 var next = Math.min(start + digits.length, boxes.length - 1);
                 boxes[next].focus();
                 fieldError('fpCodeGroup', false);
-                if (codeValue().length === 6 && pass.value === '') pass.focus();
+                if (codeValue().length === 6 && !busy) verifyCode();
             }
             boxes.forEach(function (box, i) {
                 box.addEventListener('input', function () {

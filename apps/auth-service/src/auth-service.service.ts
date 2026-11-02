@@ -1803,12 +1803,15 @@ export class AuthServiceService {
         this.i18nService.translate('user_not_found', lang),
       );
 
+    // ✅ Le code doit appartenir à CE compte (avant : n'importe quel code valide acceptait la réinitialisation)
     const otpEntry = await this.prisma.otp.findFirst({
       where: {
+        userId: user.id,
         otpCode: code.toString(),
         isUsed: false,
         expiresAt: { gt: new Date() },
       },
+      orderBy: { createdAt: 'desc' },
     });
     if (!otpEntry)
       throw new BadRequestException(
