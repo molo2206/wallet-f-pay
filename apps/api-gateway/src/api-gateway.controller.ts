@@ -6698,6 +6698,51 @@ export class ApiGatewayController {
 
         .hidden-fields.hide { display: none !important; }
 
+        /* ===================== Mot de passe oublié ===================== */
+        .forgot-row { margin-top: 10px; text-align: right; }
+        .forgot-row a, .back-link { color: var(--gold); font-size: 13.5px; font-weight: 700; text-decoration: none; }
+        .forgot-row a:hover { text-decoration: underline; }
+        .hidden-fields.hide .forgot-row { display: none; }
+
+        .forgot-state { display: none; animation: slideDown 0.25s ease; }
+        .forgot-state.show { display: block; }
+        .forgot-mode #loginState { display: none; }
+
+        .back-link { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 16px; color: var(--muted); }
+        .back-link:hover { color: #fff; }
+        .back-link svg { width: 18px; height: 18px; }
+
+        .sent-to {
+            margin-bottom: 18px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            font-size: 13.5px;
+            line-height: 1.5;
+            color: var(--muted);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .sent-to b { color: #fff; }
+
+        #fpCodeBoxes input { height: 58px; padding: 0; text-align: center; font-size: 24px; font-weight: 800; border-radius: 16px; }
+        #fpCodeGroup.error #fpCodeBoxes input { border-color: var(--err); }
+        @media (max-width: 380px) { #fpCodeBoxes input { height: 50px; font-size: 20px; border-radius: 13px; } }
+        @media (max-width: 339px) { #fpCodeBoxes input { height: 44px; font-size: 18px; border-radius: 11px; } }
+
+        .pass-rules { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+        .pass-rules li {
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--faint);
+            background: rgba(255, 255, 255, 0.05);
+            transition: color 0.2s ease, background 0.2s ease;
+        }
+
+        .pass-rules li.ok { color: #5ee39a; background: rgba(52, 209, 122, 0.12); }
+
         .form-links { margin-top: 20px; text-align: center; font-size: 14px; }
         .form-links a { color: var(--gold); font-weight: 700; text-decoration: none; }
         .form-links a:hover { text-decoration: underline; }
@@ -6883,6 +6928,7 @@ export class ApiGatewayController {
                                 <label for="password">Mot de passe<span class="req">*</span></label>
                                 <input type="password" id="password" placeholder="Votre mot de passe" autocomplete="new-password">
                                 <div class="error-message" id="passwordError">Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial</div>
+                                <div class="forgot-row" id="forgotRow"><a href="#" id="forgotLink">Mot de passe oublié ?</a></div>
                             </div>
 
                             <div class="form-group" id="confirmPasswordGroup" style="display:none;">
@@ -6918,6 +6964,87 @@ export class ApiGatewayController {
                     <div class="form-links">
                         <a href="#" id="toggleFormLink" class="register-link">Créer un compte</a>
                     </div>
+                </div>
+
+                <!-- ===================== MOT DE PASSE OUBLIÉ ===================== -->
+                <div id="forgotState" class="forgot-state">
+                    <a href="#" class="back-link" id="forgotBack">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                        Retour à la connexion
+                    </a>
+
+                    <div class="header">
+                        <h2 id="forgotTitle">Mot de passe oublié</h2>
+                        <p id="forgotMessage">Saisissez le numéro de votre compte. Nous vous enverrons un code par SMS pour choisir un nouveau mot de passe.</p>
+                    </div>
+
+                    <div class="api-message" id="forgotApiMessage"></div>
+
+                    <form id="forgotForm" autocomplete="off" novalidate>
+                        <!-- Étape 1 : numéro -->
+                        <div id="forgotStep1">
+                            <div class="form-group" id="fpPhoneGroup">
+                                <label for="fpPhone">Numéro du compte<span class="req">*</span></label>
+                                <div class="phone-wrapper">
+                                    <div class="country-select">
+                                        <select id="fpCountry" aria-label="Indicatif du pays"></select>
+                                    </div>
+                                    <input type="tel" id="fpPhone" placeholder="Numéro de téléphone" autocomplete="off" inputmode="tel">
+                                </div>
+                                <div class="error-message" id="fpPhoneError">Saisissez un numéro de téléphone valide</div>
+                            </div>
+                        </div>
+
+                        <!-- Étape 2 : code + nouveau mot de passe -->
+                        <div id="forgotStep2" style="display:none;">
+                            <div class="sent-to" id="fpSentTo"></div>
+
+                            <div class="form-group" id="fpCodeGroup">
+                                <label>Code reçu par SMS<span class="req">*</span></label>
+                                <div class="otp-inputs" id="fpCodeBoxes">
+                                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code" aria-label="Chiffre 1">
+                                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="Chiffre 2">
+                                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="Chiffre 3">
+                                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="Chiffre 4">
+                                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="Chiffre 5">
+                                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" aria-label="Chiffre 6">
+                                </div>
+                                <div class="error-message" id="fpCodeError">Le code contient 6 chiffres</div>
+                            </div>
+
+                            <div class="form-group password-with-toggle" id="fpPassGroup">
+                                <label for="fpPass">Nouveau mot de passe<span class="req">*</span></label>
+                                <input type="password" id="fpPass" placeholder="Nouveau mot de passe" autocomplete="new-password">
+                                <button type="button" class="toggle-password-btn" data-target="fpPass" aria-label="Afficher le mot de passe">
+                                    <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                                <ul class="pass-rules" id="fpRules">
+                                    <li data-rule="len">8 caractères minimum</li>
+                                    <li data-rule="up">Une majuscule</li>
+                                    <li data-rule="low">Une minuscule</li>
+                                    <li data-rule="num">Un chiffre</li>
+                                    <li data-rule="spe">Un caractère spécial</li>
+                                </ul>
+                                <div class="error-message" id="fpPassError">Le mot de passe ne respecte pas toutes les règles</div>
+                            </div>
+
+                            <div class="form-group" id="fpConfirmGroup">
+                                <label for="fpConfirm">Confirmer le mot de passe<span class="req">*</span></label>
+                                <input type="password" id="fpConfirm" placeholder="Confirmez le mot de passe" autocomplete="new-password">
+                                <div class="error-message" id="fpConfirmError">Les mots de passe ne correspondent pas</div>
+                            </div>
+
+                            <div class="otp-timer">
+                                <span id="fpTimer"></span>
+                                <a href="#" id="fpResend" style="display:none;">Renvoyer le code</a>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn" id="fpSubmit">
+                            <span class="spinner"></span>
+                            <span class="btn-text" id="fpBtnText">Recevoir le code</span>
+                        </button>
+                    </form>
                 </div>
 
                 <p class="legal">Connexion sécurisée par Favor Pay · Ne partagez jamais votre code</p>
@@ -7898,6 +8025,295 @@ export class ApiGatewayController {
                 if (description) document.getElementById('paySummaryDesc').textContent = description;
                 box.classList.add('show');
             }
+        })();
+    </script>
+    <script>
+        (function () {
+            'use strict';
+            var API = window.location.origin;
+            var card = document.querySelector('.body');
+            var loginState = document.getElementById('loginState');
+            var forgotState = document.getElementById('forgotState');
+            var forgotLink = document.getElementById('forgotLink');
+            var forgotRow = document.getElementById('forgotRow');
+            var back = document.getElementById('forgotBack');
+            var form = document.getElementById('forgotForm');
+            var msg = document.getElementById('forgotApiMessage');
+            var title = document.getElementById('forgotTitle');
+            var lead = document.getElementById('forgotMessage');
+            var step1 = document.getElementById('forgotStep1');
+            var step2 = document.getElementById('forgotStep2');
+            var country = document.getElementById('fpCountry');
+            var phone = document.getElementById('fpPhone');
+            var boxes = Array.prototype.slice.call(document.querySelectorAll('#fpCodeBoxes input'));
+            var pass = document.getElementById('fpPass');
+            var confirmPass = document.getElementById('fpConfirm');
+            var rules = document.getElementById('fpRules');
+            var submit = document.getElementById('fpSubmit');
+            var btnText = document.getElementById('fpBtnText');
+            var sentTo = document.getElementById('fpSentTo');
+            var timerEl = document.getElementById('fpTimer');
+            var resend = document.getElementById('fpResend');
+            var mainCountry = document.getElementById('countryCode');
+            var mainPhone = document.getElementById('phone');
+            var mainPass = document.getElementById('password');
+            var confirmGroup = document.getElementById('confirmPasswordGroup');
+            var toggleFormLink = document.getElementById('toggleFormLink');
+
+            var step = 1;
+            var identifier = '';
+            var busy = false;
+            var timer = null;
+            var msgTimer = null;
+
+            function lang() {
+                var l = (navigator.language || 'fr').slice(0, 2).toLowerCase();
+                return ['fr', 'en', 'sw', 'ar', 'es'].indexOf(l) >= 0 ? l : 'fr';
+            }
+
+            function show(text, type) {
+                if (msgTimer) clearTimeout(msgTimer);
+                msg.className = 'api-message show ' + (type || 'info');
+                msg.textContent = text;
+                if (type !== 'error') msgTimer = setTimeout(function () { msg.classList.remove('show'); }, 7000);
+            }
+
+            function hide() { msg.classList.remove('show'); }
+
+            function fieldError(id, on) {
+                var g = document.getElementById(id);
+                if (!g) return;
+                if (on) g.classList.add('error'); else g.classList.remove('error');
+            }
+
+            function loading(on) {
+                busy = on;
+                submit.disabled = on;
+                if (on) submit.classList.add('loading'); else submit.classList.remove('loading');
+            }
+
+            function errorText(data, fallback) {
+                if (!data) return fallback;
+                var m = data.message;
+                if (m && typeof m === 'object' && m.message) m = m.message;
+                if (Array.isArray(m)) m = m.join(', ');
+                return (typeof m === 'string' && m) ? m : fallback;
+            }
+
+            function post(path, body) {
+                return fetch(API + path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'lang': lang() },
+                    body: JSON.stringify(body)
+                }).then(function (res) {
+                    return res.json().catch(function () { return {}; }).then(function (data) {
+                        if (!res.ok) throw new Error(errorText(data, 'Une erreur est survenue. Réessayez.'));
+                        return data;
+                    });
+                });
+            }
+
+            function masked(num) {
+                var d = String(num).replace(/[^0-9]/g, '');
+                return d.length > 6 ? '+' + d.slice(0, 3) + ' ••• ••• ' + d.slice(-3) : '+' + d;
+            }
+
+            function startTimer(seconds) {
+                if (timer) clearInterval(timer);
+                var left = seconds;
+                resend.style.display = 'none';
+                timerEl.style.display = 'inline';
+                timerEl.textContent = 'Renvoyer le code dans ' + left + ' s';
+                timer = setInterval(function () {
+                    left -= 1;
+                    if (left <= 0) {
+                        clearInterval(timer);
+                        timerEl.style.display = 'none';
+                        resend.style.display = 'inline';
+                    } else {
+                        timerEl.textContent = 'Renvoyer le code dans ' + left + ' s';
+                    }
+                }, 1000);
+            }
+
+            function syncCountries() {
+                if (!mainCountry) return;
+                country.innerHTML = mainCountry.innerHTML;
+                country.value = mainCountry.value;
+            }
+
+            function goStep(n) {
+                step = n;
+                step1.style.display = n === 1 ? 'block' : 'none';
+                step2.style.display = n === 2 ? 'block' : 'none';
+                btnText.textContent = n === 1 ? 'Recevoir le code' : 'Changer le mot de passe';
+                title.textContent = n === 1 ? 'Mot de passe oublié' : 'Nouveau mot de passe';
+                lead.textContent = n === 1
+                    ? 'Saisissez le numéro de votre compte. Nous vous enverrons un code par SMS pour choisir un nouveau mot de passe.'
+                    : 'Saisissez le code reçu par SMS puis choisissez votre nouveau mot de passe.';
+            }
+
+            function open(e) {
+                if (e) e.preventDefault();
+                syncCountries();
+                phone.value = mainPhone ? mainPhone.value.trim() : '';
+                clearBoxes(); pass.value = ''; confirmPass.value = '';
+                ['fpPhoneGroup', 'fpCodeGroup', 'fpPassGroup', 'fpConfirmGroup'].forEach(function (id) { fieldError(id, false); });
+                checkRules();
+                hide();
+                goStep(1);
+                card.classList.add('forgot-mode');
+                forgotState.classList.add('show');
+                setTimeout(function () { (phone.value ? submit : phone).focus(); }, 50);
+            }
+
+            function close(e, done) {
+                if (e) e.preventDefault();
+                if (timer) clearInterval(timer);
+                card.classList.remove('forgot-mode');
+                forgotState.classList.remove('show');
+                if (done && mainPhone) {
+                    mainPhone.value = phone.value.trim();
+                    if (mainCountry) mainCountry.value = country.value;
+                    if (mainPass) { mainPass.value = ''; mainPass.focus(); }
+                }
+            }
+
+            var checks = {
+                len: function (v) { return v.length >= 8; },
+                up: function (v) { return /[A-Z]/.test(v); },
+                low: function (v) { return /[a-z]/.test(v); },
+                num: function (v) { return /[0-9]/.test(v); },
+                spe: function (v) { return /[^A-Za-z0-9]/.test(v); }
+            };
+
+            function checkRules() {
+                var v = pass.value, all = true;
+                Array.prototype.forEach.call(rules.querySelectorAll('li'), function (li) {
+                    var ok = checks[li.getAttribute('data-rule')](v);
+                    if (ok) li.classList.add('ok'); else li.classList.remove('ok');
+                    if (!ok) all = false;
+                });
+                return all;
+            }
+
+            function sendCode(isResend) {
+                var digits = phone.value.replace(/[^0-9]/g, '');
+                var prefix = String(country.value || '243').replace(/[^0-9]/g, '');
+                if (digits.indexOf('0') === 0) digits = digits.slice(1);
+                if (digits.length < 6) { fieldError('fpPhoneGroup', true); phone.focus(); return; }
+                fieldError('fpPhoneGroup', false);
+                identifier = digits.indexOf(prefix) === 0 && digits.length > 9 ? digits : prefix + digits;
+                loading(true); hide();
+                post('/auth/send-reset-otp', { identifier: identifier })
+                    .then(function (data) {
+                        sentTo.innerHTML = 'Code envoyé par SMS au <b>' + masked(identifier) + '</b>. Il est valable 5 minutes.';
+                        show(errorText(data, isResend ? 'Nouveau code envoyé.' : 'Code envoyé par SMS.'), 'success');
+                        goStep(2);
+                        startTimer(60);
+                        clearBoxes();
+                        setTimeout(function () { boxes[0].focus(); }, 50);
+                    })
+                    .catch(function (err) { show(err.message, 'error'); })
+                    .then(function () { loading(false); });
+            }
+
+            function resetPassword() {
+                var c = codeValue();
+                var okCode = c.length === 6;
+                var okPass = checkRules();
+                var okConfirm = pass.value && pass.value === confirmPass.value;
+                fieldError('fpCodeGroup', !okCode);
+                fieldError('fpPassGroup', !okPass);
+                fieldError('fpConfirmGroup', !okConfirm);
+                if (!okCode) { (boxes.filter(function (x) { return !x.value; })[0] || boxes[0]).focus(); return; }
+                if (!okPass) { pass.focus(); return; }
+                if (!okConfirm) { confirmPass.focus(); return; }
+                loading(true); hide();
+                post('/auth/reset-password', { identifier: identifier, code: c, password: pass.value })
+                    .then(function () {
+                        close(null, true);
+                        var main = document.getElementById('apiMessage');
+                        if (main) {
+                            main.className = 'api-message show success';
+                            main.textContent = 'Mot de passe modifié. Connectez-vous avec votre nouveau mot de passe.';
+                        }
+                    })
+                    .catch(function (err) { show(err.message, 'error'); })
+                    .then(function () { loading(false); });
+            }
+
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (busy) return;
+                if (step === 1) sendCode(false); else resetPassword();
+            });
+
+            forgotLink.addEventListener('click', open);
+            back.addEventListener('click', close);
+            resend.addEventListener('click', function (e) { e.preventDefault(); if (!busy) sendCode(true); });
+            // Cases du code : un chiffre par case, retour arrière, flèches, collage du code complet
+            function codeValue() { return boxes.map(function (x) { return x.value; }).join(''); }
+            function clearBoxes() { boxes.forEach(function (x) { x.value = ''; x.classList.remove('filled'); }); }
+            function fillFrom(start, digits) {
+                for (var k = 0; k < digits.length && start + k < boxes.length; k++) {
+                    boxes[start + k].value = digits[k];
+                    boxes[start + k].classList.add('filled');
+                }
+                var next = Math.min(start + digits.length, boxes.length - 1);
+                boxes[next].focus();
+                fieldError('fpCodeGroup', false);
+                if (codeValue().length === 6 && pass.value === '') pass.focus();
+            }
+            boxes.forEach(function (box, i) {
+                box.addEventListener('input', function () {
+                    var d = box.value.replace(/[^0-9]/g, '');
+                    if (!d) { box.value = ''; box.classList.remove('filled'); return; }
+                    box.value = '';
+                    fillFrom(i, d.split(''));
+                });
+                box.addEventListener('keydown', function (e) {
+                    if (e.key === 'Backspace' && !box.value && i > 0) {
+                        boxes[i - 1].value = '';
+                        boxes[i - 1].classList.remove('filled');
+                        boxes[i - 1].focus();
+                        e.preventDefault();
+                    } else if (e.key === 'ArrowLeft' && i > 0) {
+                        boxes[i - 1].focus();
+                    } else if (e.key === 'ArrowRight' && i < boxes.length - 1) {
+                        boxes[i + 1].focus();
+                    }
+                });
+                box.addEventListener('paste', function (e) {
+                    var text = (e.clipboardData || window.clipboardData).getData('text') || '';
+                    var d = text.replace(/[^0-9]/g, '').slice(0, 6);
+                    if (!d) return;
+                    e.preventDefault();
+                    fillFrom(i, d.split(''));
+                });
+                box.addEventListener('focus', function () { box.select(); });
+            });
+            pass.addEventListener('input', function () { checkRules(); fieldError('fpPassGroup', false); });
+            confirmPass.addEventListener('input', function () { fieldError('fpConfirmGroup', false); });
+            phone.addEventListener('input', function () { fieldError('fpPhoneGroup', false); });
+
+            // Afficher / masquer le nouveau mot de passe
+            Array.prototype.forEach.call(forgotState.querySelectorAll('.toggle-password-btn'), function (btn) {
+                btn.addEventListener('click', function () {
+                    var input = document.getElementById(btn.getAttribute('data-target'));
+                    var visible = input.type === 'text';
+                    input.type = visible ? 'password' : 'text';
+                    confirmPass.type = input.type;
+                    if (visible) btn.classList.remove('active'); else btn.classList.add('active');
+                });
+            });
+
+            // Pas de lien « oublié » en mode création de compte
+            function syncLink() {
+                forgotRow.style.display = confirmGroup && confirmGroup.style.display !== 'none' ? 'none' : 'block';
+            }
+            if (toggleFormLink) toggleFormLink.addEventListener('click', function () { setTimeout(syncLink, 0); });
+            syncLink();
         })();
     </script>
 </body>
