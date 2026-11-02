@@ -6750,6 +6750,120 @@ export class ApiGatewayController {
 
         .legal { margin-top: 18px; text-align: center; font-size: 12.5px; line-height: 1.5; color: var(--faint); }
 
+        /* ===================== Sélecteur de pays personnalisé ===================== */
+        .country-select.cs-ready::after { display: none; }
+        .country-select.cs-ready select {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            opacity: 0; pointer-events: none;
+        }
+
+        .cs-trigger {
+            width: 100%; height: 100%;
+            display: flex; align-items: center; gap: 8px;
+            padding: 0 12px 0 12px;
+            font-family: inherit; font-size: 15px; font-weight: 700; color: var(--text);
+            background: transparent; border: none; border-radius: 16px;
+            cursor: pointer; text-align: left;
+        }
+
+        .cs-trigger:focus { outline: none; }
+        .country-select:has(.cs-trigger:focus-visible) { border-color: var(--gold); }
+        .cs-trigger .cs-code { flex: 1 1 auto; white-space: nowrap; }
+        .cs-trigger .cs-chev { width: 16px; height: 16px; color: var(--muted); transition: transform 0.2s ease; flex: 0 0 auto; }
+        .country-select.cs-open { border-color: var(--gold); }
+        .country-select.cs-open .cs-chev { transform: rotate(180deg); color: var(--gold); }
+
+        .cs-flag {
+            width: 26px; height: 18px; flex: 0 0 auto;
+            border-radius: 4px; object-fit: cover;
+            background: rgba(255, 255, 255, 0.1);
+            display: inline-grid; place-items: center;
+            font-size: 9px; font-weight: 800; color: var(--muted); letter-spacing: 0.3px;
+            overflow: hidden;
+        }
+
+        /* Fond (téléphones / tablettes) */
+        .cs-overlay {
+            position: fixed; inset: 0; z-index: 9998;
+            background: rgba(0, 0, 0, 0.62);
+            opacity: 0; transition: opacity 0.2s ease;
+        }
+        .cs-overlay.show { opacity: 1; }
+
+        .cs-panel {
+            position: fixed; z-index: 9999;
+            display: flex; flex-direction: column;
+            background: #222225;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+
+        /* Ordinateur : liste sous le champ */
+        .cs-panel.cs-drop {
+            width: 320px; max-height: 360px;
+            border-radius: 18px;
+            opacity: 0; transform: translateY(-6px);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        .cs-panel.cs-drop.show { opacity: 1; transform: translateY(0); }
+
+        /* Téléphones et tablettes : feuille qui monte du bas de l'écran */
+        .cs-panel.cs-sheet {
+            left: 50%; bottom: 0;
+            width: 100%; max-width: 560px;
+            max-height: min(78vh, 640px);
+            border-radius: 26px 26px 0 0;
+            border-bottom: none;
+            padding-bottom: env(safe-area-inset-bottom);
+            transform: translate(-50%, 100%);
+            transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .cs-panel.cs-sheet.show { transform: translate(-50%, 0); }
+
+        .cs-handle { width: 42px; height: 5px; margin: 10px auto 2px; border-radius: 5px; background: rgba(255, 255, 255, 0.22); }
+        .cs-drop .cs-handle { display: none; }
+
+        .cs-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px 6px; }
+        .cs-head b { font-size: 17px; font-weight: 800; }
+        .cs-drop .cs-head { display: none; }
+
+        .cs-close {
+            width: 34px; height: 34px; display: grid; place-items: center;
+            border: none; border-radius: 50%; cursor: pointer;
+            color: var(--muted); background: rgba(255, 255, 255, 0.08);
+        }
+        .cs-close svg { width: 16px; height: 16px; }
+
+        .cs-search { position: relative; padding: 10px 14px; }
+        .cs-search svg { position: absolute; left: 28px; top: 50%; width: 17px; height: 17px; margin-top: -8.5px; color: var(--faint); pointer-events: none; }
+        .cs-search input {
+            width: 100%; height: 46px; padding: 0 14px 0 42px;
+            font-family: inherit; font-size: 15px; color: var(--text);
+            background: #2d2d31; border: 1.5px solid transparent; border-radius: 14px; outline: none;
+        }
+        .cs-search input:focus { border-color: var(--gold); }
+        .cs-search input::placeholder { color: var(--faint); }
+
+        .cs-list { list-style: none; overflow-y: auto; padding: 4px 8px 12px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+        .cs-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 12px; border-radius: 13px;
+            cursor: pointer; user-select: none;
+        }
+        .cs-item:hover, .cs-item.cs-active { background: rgba(255, 255, 255, 0.06); }
+        .cs-item.cs-selected { background: rgba(253, 181, 21, 0.12); }
+        .cs-item .cs-name { flex: 1 1 auto; font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cs-item .cs-pre { font-size: 14px; font-weight: 700; color: var(--muted); }
+        .cs-item.cs-selected .cs-pre { color: var(--gold); }
+        .cs-item .cs-check { width: 18px; height: 18px; color: var(--gold); visibility: hidden; flex: 0 0 auto; }
+        .cs-item.cs-selected .cs-check { visibility: visible; }
+        .cs-empty { padding: 26px 12px; text-align: center; font-size: 14px; color: var(--faint); }
+
+        .cs-list::-webkit-scrollbar { width: 6px; }
+        .cs-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 6px; }
+
         /* ===================== RESPONSIVE (tous les écrans) ===================== */
 
         /* Téléphones : carte plein écran, zones sûres (encoche, barre du bas) */
@@ -8147,6 +8261,7 @@ export class ApiGatewayController {
                 if (!mainCountry) return;
                 country.innerHTML = mainCountry.innerHTML;
                 country.value = mainCountry.value;
+                if (window.csRefreshAll) window.csRefreshAll();
             }
 
             var STEPS = {
@@ -8187,6 +8302,7 @@ export class ApiGatewayController {
                 if (done && mainPhone) {
                     mainPhone.value = phone.value.trim();
                     if (mainCountry) mainCountry.value = country.value;
+                    if (window.csRefreshAll) window.csRefreshAll();
                     if (mainPass) { mainPass.value = ''; mainPass.focus(); }
                 }
             }
@@ -8357,6 +8473,238 @@ export class ApiGatewayController {
             }
             if (toggleFormLink) toggleFormLink.addEventListener('click', function () { setTimeout(syncLink, 0); });
             syncLink();
+        })();
+    </script>
+    <script>
+        // ============================================================
+        // Sélecteur de pays personnalisé (le <select> d'origine reste la source de la valeur)
+        //  - ordinateur : liste sous le champ ; téléphones / tablettes : feuille qui monte du bas
+        // ============================================================
+        (function () {
+            'use strict';
+            var ISO2 = {
+                COD: 'cd', COG: 'cg', BEN: 'bj', CMR: 'cm', CIV: 'ci', GAB: 'ga', GHA: 'gh', KEN: 'ke', MWI: 'mw',
+                MOZ: 'mz', NGA: 'ng', RWA: 'rw', SEN: 'sn', SLE: 'sl', TZA: 'tz', UGA: 'ug', ZMB: 'zm', BFA: 'bf',
+                ETH: 'et', LSO: 'ls', ZWE: 'zw', MLI: 'ml', NER: 'ne', TGO: 'tg', GIN: 'gn', BDI: 'bi', AGO: 'ao',
+                ZAF: 'za', TCD: 'td', CAF: 'cf', MAR: 'ma', DZA: 'dz', TUN: 'tn', EGY: 'eg', FRA: 'fr', BEL: 'be',
+                USA: 'us', CAN: 'ca', GBR: 'gb', CHN: 'cn', IND: 'in', ARE: 'ae', SSD: 'ss', SDN: 'sd', MDG: 'mg'
+            };
+            var CHECK = '<svg class="cs-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+            var CHEV = '<svg class="cs-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+            var SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
+            var CLOSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+            function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+            function iso2(code) {
+                var c = String(code || '').toUpperCase();
+                if (c.length === 2) return c.toLowerCase();
+                return ISO2[c] || '';
+            }
+
+            function flagHtml(code) {
+                var i2 = iso2(code);
+                var label = esc(String(code || '').slice(0, 3).toUpperCase());
+                if (!i2) return '<span class="cs-flag">' + label + '</span>';
+                return '<img class="cs-flag" alt="" loading="lazy" src="https://flagcdn.com/w40/' + i2 + '.png" ' +
+                    'onerror="if(this.parentNode)this.outerHTML=\\'<span class=&quot;cs-flag&quot;>' + label + '</span>\\'">';
+            }
+
+            function optionData(opt) {
+                return {
+                    value: opt.value,
+                    prefix: String(opt.value || opt.text || '').replace(/[^0-9]/g, ''),
+                    code: opt.getAttribute('data-country-code') || '',
+                    name: opt.getAttribute('data-name') || opt.text || ''
+                };
+            }
+
+            function useSheet() {
+                return window.innerWidth < 960 || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+            }
+
+            var openState = null;
+
+            function closePanel() {
+                if (!openState) return;
+                var st = openState;
+                openState = null;
+                st.wrap.classList.remove('cs-open');
+                st.trigger.setAttribute('aria-expanded', 'false');
+                st.panel.classList.remove('show');
+                if (st.overlay) st.overlay.classList.remove('show');
+                document.body.style.overflow = '';
+                setTimeout(function () {
+                    if (st.panel.parentNode) st.panel.parentNode.removeChild(st.panel);
+                    if (st.overlay && st.overlay.parentNode) st.overlay.parentNode.removeChild(st.overlay);
+                }, 280);
+                window.removeEventListener('resize', st.onResize);
+                window.removeEventListener('scroll', st.onScroll, true);
+                document.removeEventListener('keydown', st.onKey);
+                document.removeEventListener('mousedown', st.onOutside);
+                st.trigger.focus();
+            }
+
+            function enhance(select) {
+                var wrap = select.closest('.country-select');
+                if (!wrap || wrap.classList.contains('cs-ready')) return;
+                wrap.classList.add('cs-ready');
+                select.setAttribute('tabindex', '-1');
+                select.setAttribute('aria-hidden', 'true');
+
+                var trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.className = 'cs-trigger';
+                trigger.setAttribute('aria-haspopup', 'listbox');
+                trigger.setAttribute('aria-expanded', 'false');
+                wrap.appendChild(trigger);
+
+                function refresh() {
+                    var opt = select.options[select.selectedIndex];
+                    if (!opt) { trigger.innerHTML = '<span class="cs-code">+243</span>' + CHEV; return; }
+                    var d = optionData(opt);
+                    trigger.innerHTML = flagHtml(d.code) + '<span class="cs-code">+' + esc(d.prefix) + '</span>' + CHEV;
+                    trigger.setAttribute('aria-label', 'Pays : ' + d.name + ' (+' + d.prefix + ')');
+                }
+
+                function choose(value) {
+                    if (select.value !== value) {
+                        select.value = value;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                    refresh();
+                    closePanel();
+                    var phone = wrap.parentNode && wrap.parentNode.querySelector('input[type="tel"]');
+                    if (phone) setTimeout(function () { phone.focus(); }, 60);
+                }
+
+                function open() {
+                    if (openState) { closePanel(); return; }
+                    var sheet = useSheet();
+                    var items = Array.prototype.map.call(select.options, optionData);
+
+                    var panel = document.createElement('div');
+                    panel.className = 'cs-panel ' + (sheet ? 'cs-sheet' : 'cs-drop');
+                    panel.setAttribute('role', 'dialog');
+                    panel.setAttribute('aria-label', 'Choisir le pays');
+                    panel.innerHTML =
+                        '<div class="cs-handle"></div>' +
+                        '<div class="cs-head"><b>Choisir le pays</b><button type="button" class="cs-close" aria-label="Fermer">' + CLOSE + '</button></div>' +
+                        '<div class="cs-search">' + SEARCH + '<input type="text" placeholder="Rechercher un pays ou un indicatif" autocomplete="off"></div>' +
+                        '<ul class="cs-list" role="listbox"></ul>';
+                    var list = panel.querySelector('.cs-list');
+                    var search = panel.querySelector('input');
+                    var active = -1;
+                    var shown = [];
+
+                    function render(q) {
+                        var t = String(q || '').trim().toLowerCase().replace(/^\\+/, '');
+                        shown = items.filter(function (d) {
+                            return !t || d.name.toLowerCase().indexOf(t) >= 0 || d.prefix.indexOf(t) === 0 || d.code.toLowerCase().indexOf(t) === 0;
+                        });
+                        if (!shown.length) { list.innerHTML = '<li class="cs-empty">Aucun pays trouvé</li>'; active = -1; return; }
+                        list.innerHTML = shown.map(function (d, i) {
+                            var sel = d.value === select.value;
+                            return '<li class="cs-item' + (sel ? ' cs-selected' : '') + '" role="option" aria-selected="' + sel + '" data-i="' + i + '">' +
+                                flagHtml(d.code) + '<span class="cs-name">' + esc(d.name) + '</span><span class="cs-pre">+' + esc(d.prefix) + '</span>' + CHECK + '</li>';
+                        }).join('');
+                        active = -1;
+                    }
+
+                    function setActive(i) {
+                        var els = list.querySelectorAll('.cs-item');
+                        if (!els.length) return;
+                        active = (i + els.length) % els.length;
+                        Array.prototype.forEach.call(els, function (el, k) { el.classList.toggle('cs-active', k === active); });
+                        els[active].scrollIntoView({ block: 'nearest' });
+                    }
+
+                    render('');
+                    list.addEventListener('click', function (e) {
+                        var li = e.target.closest('.cs-item');
+                        if (li) choose(shown[Number(li.getAttribute('data-i'))].value);
+                    });
+                    search.addEventListener('input', function () { render(search.value); });
+                    search.addEventListener('keydown', function (e) {
+                        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(active + 1); }
+                        else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(active - 1); }
+                        else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (active >= 0 && shown[active]) choose(shown[active].value);
+                            else if (shown.length === 1) choose(shown[0].value);
+                        }
+                    });
+                    panel.querySelector('.cs-close').addEventListener('click', closePanel);
+
+                    var overlay = null;
+                    if (sheet) {
+                        overlay = document.createElement('div');
+                        overlay.className = 'cs-overlay';
+                        overlay.addEventListener('click', closePanel);
+                        document.body.appendChild(overlay);
+                        document.body.style.overflow = 'hidden';
+                    }
+                    document.body.appendChild(panel);
+
+                    function place() {
+                        if (sheet) return;
+                        var r = wrap.getBoundingClientRect();
+                        var h = Math.min(360, panel.scrollHeight);
+                        var below = window.innerHeight - r.bottom - 12;
+                        var top = below >= Math.min(h, 260) || below >= r.top ? r.bottom + 8 : Math.max(12, r.top - h - 8);
+                        var left = Math.min(r.left, window.innerWidth - 332);
+                        panel.style.top = top + 'px';
+                        panel.style.left = Math.max(12, left) + 'px';
+                        panel.style.maxHeight = Math.max(200, top > r.top ? window.innerHeight - top - 12 : r.top - 20) + 'px';
+                    }
+                    place();
+
+                    var st = {
+                        wrap: wrap, trigger: trigger, panel: panel, overlay: overlay,
+                        onResize: function () { if (useSheet() !== sheet) closePanel(); else place(); },
+                        onScroll: function (e) { if (!sheet && !panel.contains(e.target)) place(); },
+                        onKey: function (e) { if (e.key === 'Escape') closePanel(); },
+                        onOutside: function (e) { if (!sheet && !panel.contains(e.target) && !wrap.contains(e.target)) closePanel(); }
+                    };
+                    openState = st;
+                    wrap.classList.add('cs-open');
+                    trigger.setAttribute('aria-expanded', 'true');
+                    window.addEventListener('resize', st.onResize);
+                    window.addEventListener('scroll', st.onScroll, true);
+                    document.addEventListener('keydown', st.onKey);
+                    document.addEventListener('mousedown', st.onOutside);
+
+                    requestAnimationFrame(function () {
+                        panel.classList.add('show');
+                        if (overlay) overlay.classList.add('show');
+                        var sel = list.querySelector('.cs-selected');
+                        if (sel) sel.scrollIntoView({ block: 'center' });
+                        // Pas de clavier qui s'ouvre tout seul sur téléphone / tablette
+                        if (!sheet) search.focus();
+                    });
+                }
+
+                trigger.addEventListener('click', open);
+                trigger.addEventListener('keydown', function (e) {
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); open(); }
+                });
+                select.addEventListener('change', refresh);
+                // Les pays arrivent après le chargement (API) : on suit les changements du <select>
+                new MutationObserver(refresh).observe(select, { childList: true, subtree: true, attributes: true });
+                select.csRefresh = refresh;
+                refresh();
+            }
+
+            function init() {
+                Array.prototype.forEach.call(document.querySelectorAll('.country-select select'), enhance);
+            }
+
+            // Valeur changée par le code (ex. mot de passe oublié) : rafraîchir l'affichage
+            window.csRefreshAll = function () {
+                Array.prototype.forEach.call(document.querySelectorAll('.country-select select'), function (s) { if (s.csRefresh) s.csRefresh(); });
+            };
+
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
         })();
     </script>
 </body>
