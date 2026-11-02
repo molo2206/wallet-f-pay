@@ -2467,11 +2467,16 @@ export class WalletServiceService {
     },
     lang: string = 'fr',
     ipAddress?: string,
-    /** ✅ otpVerified : retrait confirmé par OTP (application partenaire) → pas de PIN demandé */
-    opts: { otpVerified?: boolean } = {},
+    /**
+     * ✅ otpVerified : retrait confirmé par OTP (application partenaire) → pas de PIN demandé
+     * ✅ feeOnTop    : frais AJOUTÉS au montant (retrait partenaire) → wallet débité de montant + frais,
+     *                  le numéro Mobile Money reçoit exactement le montant demandé
+     */
+    opts: { otpVerified?: boolean; feeOnTop?: boolean } = {},
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
     const { amount, pin, walletId, provider, phone } = dto;
     const otpVerified = opts?.otpVerified === true;
+    const feeOnTop = opts?.feeOnTop === true;
     console.log('[WalletService] Cashout request:', {
       userId,
       amount,
@@ -2652,9 +2657,13 @@ export class WalletServiceService {
 
     // ========== CALCUL DES FRAIS ==========
     const fees = await this.getNetworkProviderFees(provider);
-    const feeAmount = (amount * fees.payoutFee) / 100;
-    const totalDebit = amount; // ✅ Montant total à débiter (montant)
-    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
+    const feeAmount = feeOnTop
+      ? Math.round(((amount * fees.payoutFee) / 100) * 100) / 100
+      : (amount * fees.payoutFee) / 100;
+    // ✅ Classique : débit = montant, reçu = montant - frais
+    // ✅ feeOnTop  : débit = montant + frais, reçu = montant
+    const totalDebit = feeOnTop ? Math.round((amount + feeAmount) * 100) / 100 : amount;
+    const netAmount = feeOnTop ? amount : Math.round((amount - feeAmount) * 100) / 100;
 
     console.log('[WalletService] Cashout calcul:', {
       amount,
@@ -2766,7 +2775,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount,
+              amount: totalDebit,
               type: 'WITHDRAW',
               status: 'FAILED',
               reference: await this.generateTransactionReference('', tx),
@@ -2837,7 +2846,7 @@ export class WalletServiceService {
               id: crypto.randomUUID(),
               userId,
               walletId: wallet.id,
-              amount: amount,
+              amount: totalDebit,
               type: 'WITHDRAW',
               status: 'SUCCESS',
               reference: reference,
@@ -2869,7 +2878,17 @@ export class WalletServiceService {
     if (user.phone) {
       try {
         const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
-        const smsText = this.i18nService.translate('wallet.cashout_sms', lang, {
+        const smsText = feeOnTop
+          ? this.i18nService.translate('wallet.external_cashout_done_sms', lang, {
+              debited: this.smsAmount(totalDebit),
+              fee: this.smsAmount(feeAmount),
+              netAmount: this.smsAmount(netAmount),
+              currency: wallet.currency || 'CDF',
+              phone: phone || '',
+              balance: this.smsAmount(updatedWallet.balance || 0),
+              reference: transaction.reference || 'N/A',
+            })
+          : this.i18nService.translate('wallet.cashout_sms', lang, {
           full_name: user.full_name || '',
           amount: amount.toFixed(2),
           feePercent: fees.payoutFee,
@@ -2900,7 +2919,7 @@ export class WalletServiceService {
         this.shouldSendPush.bind(this),
         this.getUserLanguage.bind(this),
         transaction,
-        user,
+        feeOnTop ? { ...user, phone: null } : user, // retrait partenaire : SMS déjà envoyé ci-dessus (push seulement)
         updatedWallet,
         'cashout',
       );
@@ -2910,7 +2929,17 @@ export class WalletServiceService {
 
     // ---------- 7. Retour ----------
     return {
-      message: this.i18nService.translate('wallet.cashout_success', lang, {
+      message: feeOnTop
+        ? this.i18nService.translate('wallet.external_cashout_success', lang, {
+            debited: this.smsAmount(totalDebit),
+            fee: this.smsAmount(feeAmount),
+            netAmount: this.smsAmount(netAmount),
+            currency: wallet.currency || 'CDF',
+            phone: phone || 'N/A',
+            balance: this.smsAmount(updatedWallet.balance),
+            reference: transaction.reference || 'N/A',
+          })
+        : this.i18nService.translate('wallet.cashout_success', lang, {
         amount: amount.toFixed(2),
         currency: wallet.currency || 'CDF',
         balance: updatedWallet.balance.toFixed(2),
@@ -2931,7 +2960,7 @@ export class WalletServiceService {
   // ✅ RETRAIT DEPUIS UNE APPLICATION PARTENAIRE (Favor Help) PROTÉGÉ PAR OTP (sans PIN)
   //
   //   1. requestExternalCashoutOtp : vérifie le compte, le wallet, le solde et les frais, puis envoie un OTP
-  //      (6 chiffres, 10 min) par SMS au numéro du compte F-Pay. Le montant, le réseau et le numéro sont FIGÉS
+  //      (4 chiffres, 10 min) par SMS au numéro du compte F-Pay. Le montant, le réseau et le numéro sont FIGÉS
   //      avec la demande (requestId) : l'OTP ne valide que ce retrait-là.
   //   2. confirmExternalCashoutOtp : vérifie l'OTP (5 essais max, usage unique), puis exécute le retrait
   //      classique (frais du réseau, PawaPay, débit, historique, SMS, notifications) — sans PIN.
@@ -2985,7 +3014,7 @@ export class WalletServiceService {
     if (!user.phone) {
       throw this.rpcError(this.i18nService.translate('wallet.external_cashout_no_phone', lang), 400);
     }
-    const code = crypto.randomInt(100000, 1000000).toString();
+    const code = crypto.randomInt(1000, 10000).toString();
     const expiresAt = new Date(Date.now() + this.EXTERNAL_CASHOUT_OTP_MINUTES * 60 * 1000);
     const key = `cashout:${details.requestId}`;
 
@@ -2996,9 +3025,10 @@ export class WalletServiceService {
 
     const sms = this.i18nService.translate('wallet.external_cashout_otp_sms', lang, {
       otpCode: code,
-      amount: details.amount.toFixed(2),
+      amount: this.smsAmount(details.totalDebit ?? Number(details.amount) + Number(details.fee || 0)),
+      fee: this.smsAmount(details.fee),
       currency: details.currency,
-      netAmount: details.netAmount.toFixed(2),
+      netAmount: this.smsAmount(details.netAmount),
       phone: details.phone,
       minutes: this.EXTERNAL_CASHOUT_OTP_MINUTES,
       partner: details.partnerName || 'Favor Help',
@@ -3083,19 +3113,21 @@ export class WalletServiceService {
     }
     if (!wallet.isActive) throw this.rpcError(this.i18nService.translate('wallet.wallet_inactive', lang), 403);
 
+    // ✅ Frais du réseau AJOUTÉS : wallet débité de montant + frais, le client reçoit exactement le montant
     const fees = await this.getNetworkProviderFees(dto.provider);
     const fee = Math.round(((amount * fees.payoutFee) / 100) * 100) / 100;
-    const netAmount = Math.round((amount - fee) * 100) / 100;
-    if (wallet.balance < amount) {
+    const totalDebit = Math.round((amount + fee) * 100) / 100;
+    const netAmount = amount;
+    if (wallet.balance < totalDebit) {
       throw this.rpcError(
         this.i18nService.translate('wallet.insufficient_wallet_balance', lang, {
           balance: wallet.balance.toFixed(2),
           currency: wallet.currency || 'CDF',
-          required: amount.toFixed(2),
+          required: totalDebit.toFixed(2),
           fee: fee.toFixed(2),
           feePercent: fees.payoutFee,
           netAmount: netAmount.toFixed(2),
-          shortfall: (amount - wallet.balance).toFixed(2),
+          shortfall: (totalDebit - wallet.balance).toFixed(2),
         }),
         400,
       );
@@ -3110,6 +3142,7 @@ export class WalletServiceService {
       amount,
       fee,
       feePercent: fees.payoutFee,
+      totalDebit,
       netAmount,
       currency: wallet.currency || 'CDF',
       walletId: wallet.id,
@@ -3127,12 +3160,21 @@ export class WalletServiceService {
     };
   }
 
+  /** Montant lisible dans un SMS : 5000 → "5 000", 4850.5 → "4 850,50" */
+  private smsAmount(value: any): string {
+    const n = Math.round(Number(value || 0) * 100) / 100;
+    const [int, dec] = n.toFixed(2).split('.');
+    const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return dec === '00' ? grouped : `${grouped},${dec}`;
+  }
+
   private publicCashoutRequest(d: any) {
     return {
       requestId: d.requestId,
       amount: d.amount,
       fee: d.fee,
       feePercent: d.feePercent,
+      totalDebit: d.totalDebit ?? Math.round((Number(d.amount) + Number(d.fee || 0)) * 100) / 100,
       netAmount: d.netAmount,
       currency: d.currency,
       walletId: d.walletId,
@@ -3159,7 +3201,7 @@ export class WalletServiceService {
   ): Promise<ApiResponse<any>> {
     const requestId = String(dto.requestId || '').trim();
     const code = String(dto.otpCode || '').trim();
-    if (!/^\d{6}$/.test(code)) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_invalid', lang), 400);
+    if (!/^\d{4}$/.test(code)) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_otp_invalid', lang), 400);
 
     const details = requestId ? await this.externalCashoutRequestDetails(requestId, userId) : null;
     if (!details) throw this.rpcError(this.i18nService.translate('wallet.external_cashout_request_not_found', lang), 404);
@@ -3226,7 +3268,8 @@ export class WalletServiceService {
       },
       lang,
       ipAddress,
-      { otpVerified: true },
+      // Demandes faites avant cette version (sans totalDebit) : ancien calcul, frais déduits du montant
+      { otpVerified: true, feeOnTop: details.totalDebit != null },
     );
     return { ...result, data: { ...(result as any).data, requestId } };
   }

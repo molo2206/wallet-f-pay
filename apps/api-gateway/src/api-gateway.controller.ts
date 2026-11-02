@@ -1920,7 +1920,7 @@ export class ApiGatewayController {
   //   +  GET  api/external/cashout/providers?currency=  réseaux Mobile Money + frais
   //
   //   Sécurité : clé API du partenaire avec la permission « cashout » enregistrée en base (contrôle strict)
-  //              + token F-Pay de l'utilisateur + OTP envoyé au téléphone du compte F-Pay.
+  //              + compte lié (userId) ou token F-Pay de l'utilisateur + OTP envoyé au téléphone du compte F-Pay.
   //   Portefeuille débité : UNIQUEMENT celui du client (titulaire du token F-Pay). Un walletId d'un autre
   //   compte est refusé ; le partenaire ne peut jamais débiter son propre wallet ni celui d'un tiers.
   //   Montant, réseau et numéro sont figés à la demande : l'OTP ne valide que CE retrait.
@@ -1942,10 +1942,17 @@ export class ApiGatewayController {
   }
 
   /**
-   * Compte F-Pay du CLIENT qui retire : celui du token. Si le partenaire indique le compte lié (userId),
-   * il doit être identique → impossible de retirer sur le portefeuille d'un autre utilisateur.
+   * Compte F-Pay du CLIENT qui retire.
+   *  - Compte déjà lié chez le partenaire (Favor Help) : pas de token, userId = id F-Pay lié.
+   *    Protégé par la clé API (permission « cashout ») + OTP envoyé au téléphone de CE compte.
+   *  - Avec token : le userId éventuel doit être identique au titulaire du token.
    */
   private externalCashoutOwner(accessToken: string | undefined, expectedUserId?: string | null): string {
+    if (!accessToken) {
+      const linkedId = String(expectedUserId || '').trim();
+      if (!linkedId) throw new HttpException('userId F-Pay (compte lié) obligatoire', HttpStatus.BAD_REQUEST);
+      return linkedId;
+    }
     const userId = this.externalUserFromToken(accessToken);
     if (expectedUserId && expectedUserId !== userId) {
       throw new HttpException('Ce token F-Pay appartient à un autre compte', HttpStatus.FORBIDDEN);
@@ -1995,7 +2002,7 @@ export class ApiGatewayController {
   @PermissionsApi_Key('cashout')
   async externalCashoutRequest(
     @Request() req: any,
-    @Body() body: { access_token: string; amount: number; provider: string; phone: string; walletId?: string; userId?: string; requestId?: string },
+    @Body() body: { access_token?: string; amount: number; provider: string; phone: string; walletId?: string; userId?: string; requestId?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2034,7 +2041,7 @@ export class ApiGatewayController {
   @PermissionsApi_Key('cashout')
   async externalCashoutResend(
     @Request() req: any,
-    @Body() body: { access_token: string; requestId: string; userId?: string },
+    @Body() body: { access_token?: string; requestId: string; userId?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2056,7 +2063,7 @@ export class ApiGatewayController {
   @PermissionsApi_Key('cashout')
   async externalCashoutConfirm(
     @Request() req: any,
-    @Body() body: { access_token: string; requestId: string; otpCode: string; userId?: string },
+    @Body() body: { access_token?: string; requestId: string; otpCode: string; userId?: string },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
   ) {
@@ -2065,7 +2072,7 @@ export class ApiGatewayController {
     const userId = this.externalCashoutOwner(body?.access_token, body?.userId);
     const requestId = this.externalRequestId(body?.requestId, true)!;
     const otpCode = String(body?.otpCode || '').trim();
-    if (!/^\d{6}$/.test(otpCode)) {
+    if (!/^\d{4}$/.test(otpCode)) {
       throw new HttpException(this.i18nService.translate('wallet.external_cashout_otp_invalid', lang), HttpStatus.BAD_REQUEST);
     }
 
