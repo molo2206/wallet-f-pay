@@ -2130,7 +2130,9 @@ export class ApiGatewayController {
       const otpAccepted = await this.prisma.audit_log.count({
         where: { userId, action: 'EXTERNAL_CASHOUT_OTP_CONFIRMED', details: { contains: `"requestId":"${requestId}"` } },
       });
-      if (otpAccepted > 0) {
+      // ✅ Timeout (504) : le retrait peut encore aboutir côté wallet-service → pas marqué échoué
+      const timedOut = (e?.getStatus?.() ?? e?.status) === HttpStatus.GATEWAY_TIMEOUT;
+      if (otpAccepted > 0 && !timedOut) {
         await trace('EXTERNAL_CASHOUT_FAILED', { status: 'FAILED', message: String(message).slice(0, 500) });
       }
       throw e;
@@ -4694,8 +4696,23 @@ export class ApiGatewayController {
     // ✅ 6. Chercher le wallet du payeur dans la devise demandée
     let payerWallet = payerWallets.find(w => w.currency === targetCurrency);
 
+    // ✅ Compte FIDÉLITÉ : le paiement passe TOUJOURS, même avec un solde à 0 ou négatif
+    //    (le wallet est débité et peut devenir négatif). Comptes concernés : FPAY_OVERDRAFT_PAYER_IDS (.env).
+    const overdraftPayers = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const allowOverdraft = overdraftPayers.includes(apiKeyUser.id);
+    if (allowOverdraft) {
+      payerWallet = payerWallet ?? payerWallets[0];
+      console.log(`[ExternalSend] 🎁 Compte autorisé en négatif (${apiKeyUser.id}) : wallet ${payerWallet.currency}, solde ${payerWallet.balance}`);
+    }
+
     // ✅ 7. Si pas assez de solde ou pas de wallet dans cette devise, chercher un autre wallet avec assez de solde
-    if (payerWallet) {
+    if (allowOverdraft) {
+      // pas de contrôle de solde : le wallet sera débité même s'il devient négatif
+      payerWallet = payerWallet ?? payerWallets[0];
+    } else if (payerWallet) {
       if (payerWallet.balance < body.amount) {
         console.log(`[ExternalSend] Solde insuffisant en ${targetCurrency} (${payerWallet.balance}), recherche d'un autre wallet...`);
 

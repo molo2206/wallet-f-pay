@@ -2735,7 +2735,16 @@ export class WalletServiceService {
     } catch (err: any) {
       console.error('[WalletService] Erreur PawaPay payout - DETAIL:', err);
 
-      if (err?.response?.data) {
+      // ✅ Raison exacte renvoyée par PawaPay (createPayoutSimple la place dans RpcException.details)
+      const rpcError: any = typeof err?.getError === 'function' ? err.getError() : null;
+      if (rpcError?.details && typeof rpcError.details === 'object') {
+        console.error('[WalletService] PawaPay refus :', JSON.stringify(rpcError.details));
+      }
+      if (rpcError?.details?.failureReason) {
+        pawaPayErrorMessage = rpcError.details.failureReason.failureMessage || rpcError.message;
+        pawaPayErrorCode = rpcError.details.failureReason.failureCode || rpcError.details.status || 'REJECTED';
+        pawaPayErrorDetails = rpcError.details;
+      } else if (err?.response?.data) {
         pawaPayErrorMessage = err.response.data.message || err.response.data.error || err.message;
         pawaPayErrorCode = err.response.data.code || err.response.data.status || 'UNKNOWN_ERROR';
         pawaPayErrorDetails = err.response.data;
@@ -2756,17 +2765,10 @@ export class WalletServiceService {
 
     // ---------- 3. Gestion de l'échec ----------
     if (!paymentSucceeded) {
-      let failureMessage = this.i18nService.translate('wallet.payout_failed', lang, {
-        reason: pawaPayErrorMessage || 'Unknown error',
-        code: pawaPayErrorCode || 'UNKNOWN',
-      });
-
-      if (pawaPayErrorDetails) {
-        failureMessage = `${failureMessage} - Details: ${JSON.stringify(pawaPayErrorDetails)}`;
-      }
-
-      console.log('[WalletService] Cashout failure message:', failureMessage);
-
+      // ✅ La transaction échouée est créée d'abord : sa référence remplit {{reference}} du message
+      const technicalReason =
+        `${pawaPayErrorMessage || 'Unknown error'} (${pawaPayErrorCode || 'UNKNOWN'})` +
+        (pawaPayErrorDetails ? ` - Details: ${JSON.stringify(pawaPayErrorDetails)}` : '');
       let failedTransaction;
       try {
         failedTransaction = await this.prisma.$transaction(async (tx) => {
@@ -2780,7 +2782,7 @@ export class WalletServiceService {
               status: 'FAILED',
               reference: await this.generateTransactionReference('', tx),
               description: this.i18nService.translate('wallet.failed_description', lang, {
-                reason: failureMessage,
+                reason: technicalReason,
               }),
               movement: 'DEBIT',
               paymentMethod: 'MOBILE_MONEY',
@@ -2793,7 +2795,7 @@ export class WalletServiceService {
           'cashout_failed',
           {
             transaction: failedTransaction,
-            error: failureMessage,
+            error: technicalReason,
             pawaPay: {
               code: pawaPayErrorCode,
               message: pawaPayErrorMessage,
@@ -2805,6 +2807,13 @@ export class WalletServiceService {
       } catch (err) {
         console.error('Erreur lors de la création de la transaction failed:', err);
       }
+
+      const failureMessage = this.i18nService.translate('wallet.payout_failed', lang, {
+        reason: pawaPayErrorMessage || 'Unknown error',
+        code: pawaPayErrorCode || 'UNKNOWN',
+        reference: failedTransaction?.reference || 'N/A',
+      });
+      console.log('[WalletService] Cashout failure message:', failureMessage, '|', technicalReason);
 
       throw new RpcException({
         status: 'error',
@@ -3027,7 +3036,7 @@ export class WalletServiceService {
   /** Crée l'OTP (l'ancien OTP de la même demande est annulé) et l'envoie par SMS au compte F-Pay */
   private async sendExternalCashoutOtp(
     user: { id: string; phone: string | null; email?: string | null; full_name: string | null; countryCode: string | null },
-    details: { requestId: string; amount: number; netAmount: number; fee: number; currency: string; provider: string; phone: string; partnerName?: string | null },
+    details: { requestId: string; amount: number; netAmount: number; fee: number; totalDebit?: number; currency: string; provider: string; phone: string; partnerName?: string | null },
     lang: string,
   ): Promise<{ expiresAt: Date }> {
     if (!user.phone) {
