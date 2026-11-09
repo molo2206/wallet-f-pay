@@ -16,10 +16,14 @@ import { LoginUserDto } from './dto/login-user.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { AccountInfo } from './dto/account.dto';
 import { RmqAuthGuard } from './utility/guards/rmq-auth.guard';
+import { WorkSchedulesService } from './work-schedules/work-schedules.service';
 
 @Controller()
 export class AuthServiceController {
-  constructor(private readonly authService: AuthServiceService) { }
+  constructor(
+    private readonly authService: AuthServiceService,
+    private readonly workSchedules: WorkSchedulesService,
+  ) { }
 
   @MessagePattern('login_user')
   async login(@Payload() data: LoginUserDto & { ipAddress?: string }) {
@@ -256,13 +260,27 @@ export class AuthServiceController {
 
   @MessagePattern('validate_session')
   async validateSession(
-    @Payload() data: { userId: string; sessionToken: string },
+    @Payload() data: { userId: string; sessionToken: string; lang?: string },
   ) {
-    const valid = await this.authService.validateSession(
-      data.userId,
-      data.sessionToken,
-    );
-    return { valid };
+    // ✅ Correctif : l'ancien code renvoyait { valid: { valid } } (objet toujours « vrai ») → toute session était acceptée.
+    // SESSION_STRICT=false rétablit l'ancien comportement (secours) ; les horaires de travail restent appliqués.
+    const strict = String(process.env.SESSION_STRICT ?? 'true').toLowerCase() !== 'false';
+    const result = await this.authService.validateSession(data.userId, data.sessionToken);
+    const valid = strict ? result?.valid === true : true;
+    if (!valid) return { valid: false, reason: 'SESSION_INVALID' };
+
+    const decision = await this.workSchedules.evaluate(data.userId);
+    if (!decision.allowed) {
+      const lang = data.lang || 'fr';
+      await this.workSchedules.forceLogout(data.userId, decision, lang);
+      return {
+        valid: false,
+        reason: 'OUTSIDE_WORK_HOURS',
+        message: this.workSchedules.denialMessage(decision, lang),
+        nextStartAt: decision.nextStartAt,
+      };
+    }
+    return { valid: true, reason: null, workEndsAt: decision.endsAt };
   }
 
   @MessagePattern('list_all_sessions')

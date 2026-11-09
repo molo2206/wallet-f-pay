@@ -62,6 +62,7 @@ import { ExchangeRateDto } from 'apps/wallet-service/src/dto/currency-convert.dt
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { PermissionsApi_Key } from './permissions/decorator';
 import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
+import { AdminApprovalService } from './controls/admin-approval.service';
 import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { UploadedFile, UploadedFiles } from '@nestjs/common';
 import * as crypto from 'crypto';
@@ -207,7 +208,11 @@ export class ApiGatewayController {
   private fpayCache: Map<string, any> = new Map();
 
 
-  constructor(private readonly i18nService: I18nService, private readonly prisma: PrismaService) { // ✅ injection
+  constructor(
+    private readonly i18nService: I18nService,
+    private readonly prisma: PrismaService,
+    private readonly approvals: AdminApprovalService, // ✅ double validation des recharges admin
+  ) { // ✅ injection
     const rmqUrl =
       process.env.RABBITMQ_URL || 'amqp://guest:guest@localhost:5672';
     const authQueue = process.env.AUTH_QUEUE || 'auth_queue';
@@ -1088,13 +1093,38 @@ export class ApiGatewayController {
   @Get('users/:id')
   async getUser(
     @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
   ): Promise<{ message: string; data: UserResponseDto }> {
     this.logger.log(`👤 Get user request: ${id}`);
+    // ✅ PUBLIC_LOOKUP_PROTECTION=true : réservé au propriétaire ou à un administrateur
+    const caller = this.optionalLookupCaller(authorization);
+    if (caller && !caller.isAdmin && caller.id !== id) {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
     const response = await this.sendUserMessage<{
       message: string;
       data: UserResponseDto;
     }>('get_user', { id }, 'User not found', HttpStatus.NOT_FOUND);
     return response;
+  }
+
+  /**
+   * ✅ Protection progressive des routes de consultation historiquement publiques (users/:id, wallet/transactions/:id).
+   *  PUBLIC_LOOKUP_PROTECTION=false (défaut) : comportement inchangé (compatibilité des intégrations existantes).
+   *  PUBLIC_LOOKUP_PROTECTION=true : jeton Bearer obligatoire ; un utilisateur ne voit que ses propres données.
+   *  Retourne null quand la protection est désactivée.
+   */
+  private optionalLookupCaller(authorization?: string): { id: string; isAdmin: boolean } | null {
+    if (String(process.env.PUBLIC_LOOKUP_PROTECTION ?? 'false').toLowerCase() !== 'true') return null;
+    const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null;
+    if (!token) throw new HttpException('Token manquant', HttpStatus.UNAUTHORIZED);
+    try {
+      const payload: any = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      if (!payload?.id) throw new Error('payload');
+      return { id: String(payload.id), isAdmin: payload.role === 'ADMIN' || payload.role === 'SUPER_ADMIN' };
+    } catch {
+      throw new HttpException('Token invalide', HttpStatus.UNAUTHORIZED);
+    }
   }
 
   @Get('admin/users/links')
@@ -1547,6 +1577,7 @@ export class ApiGatewayController {
   @Get('wallet/transactions/by')
   @UseGuards(JwtAuthGuard, AuthentificationGuard)
   async getTransactionsByUser(
+    @CurrentUser() currentUser: any,
     @Query('userId') userId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -1555,6 +1586,10 @@ export class ApiGatewayController {
   ) {
     if (!userId) {
       throw new HttpException('userId is required', HttpStatus.BAD_REQUEST);
+    }
+    // ✅ SÉCURITÉ : un utilisateur ne voit que SES transactions (les admins voient tout)
+    if (userId !== currentUser?.id && currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
@@ -2467,6 +2502,12 @@ export class ApiGatewayController {
       );
     }
 
+    // ✅ SÉCURITÉ : le wallet doit appartenir à l'utilisateur connecté (les admins voient tout)
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      const owned = await (this.prisma as any).wallet.findFirst({ where: { id: walletId, userId: currentUser?.id }, select: { id: true } });
+      if (!owned) throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
+
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
 
@@ -2685,7 +2726,8 @@ export class ApiGatewayController {
     @CurrentUser() currentUser: any,
     @Param('id') id: string,
   ) {
-    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+    // ✅ SÉCURITÉ : la suppression d'une trace d'audit est réservée au SUPER_ADMIN
+    if (currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     if (!id) {
@@ -2786,13 +2828,18 @@ export class ApiGatewayController {
     return response;
   }
 
+  // ✅ SÉCURITÉ : ces routes étaient publiques (aucune authentification). Réservées désormais au SUPER_ADMIN.
   @Post('topup/brute')
-  async topups(@Body() data: { accountNumber: string; amount: number; requestId?: string }) {
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async topups(@CurrentUser() currentUser: any, @Body() data: { accountNumber: string; amount: number; requestId?: string }) {
+    if (currentUser?.role !== 'SUPER_ADMIN') throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     return this.walletClient.send('topup', data);
   }
 
   @Post('cashout/brute')
-  async cashouts(@Body() data: { accountNumber: string; amount: number; pin: string }) {
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async cashouts(@CurrentUser() currentUser: any, @Body() data: { accountNumber: string; amount: number; pin: string }) {
+    if (currentUser?.role !== 'SUPER_ADMIN') throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     return this.walletClient.send('cashouts', data);
   }
 
@@ -2982,12 +3029,20 @@ export class ApiGatewayController {
   }
 
   @Get('wallet/transactions/:transactionId')
-  async getTransactionById(@Param('transactionId') transactionId: string) {
+  async getTransactionById(
+    @Param('transactionId') transactionId: string,
+    @Headers('authorization') authorization?: string,
+  ) {
     if (!transactionId) {
       throw new HttpException(
         'ID de transaction requis',
         HttpStatus.BAD_REQUEST,
       );
+    }
+    const caller = this.optionalLookupCaller(authorization);
+    if (caller && !caller.isAdmin) {
+      const own = await this.prisma.transaction.findFirst({ where: { id: transactionId, userId: caller.id }, select: { id: true } });
+      if (!own) throw new HttpException('Transaction introuvable', HttpStatus.NOT_FOUND);
     }
     return this.sendWalletMessage(
       'get_transaction_by_id',
@@ -3010,6 +3065,10 @@ export class ApiGatewayController {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
     }
     const lang = langHeader || 'fr';
+
+    // ✅ DOUBLE VALIDATION : recharge sans contrepartie (ou au-dessus du seuil) → demande en attente d'un 2e administrateur
+    const pending = await this.approvals.interceptAdminTopUp(currentUser, body, ipAddress, lang);
+    if (pending) return pending;
 
     // On passe l'adminId dans le payload
     return this.sendWalletMessage(
@@ -3879,6 +3938,9 @@ export class ApiGatewayController {
     @CurrentUser() currentUser: any,
     @Body() dto: CreateCountryDto,
   ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
     return this.sendWalletMessage(
       'create_country',
       dto,
@@ -3946,6 +4008,9 @@ export class ApiGatewayController {
     @CurrentUser() currentUser: any,
     @Body() dto: CreateNetworkDto,
   ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    }
     return this.sendWalletMessage(
       'create_network',
       dto,
@@ -5511,6 +5576,9 @@ export class ApiGatewayController {
       currency?: string;
       description?: string;
       paymentMethod?: string;
+      /** ✅ Identifiant du dépôt Mobile Money chez l'intégrateur : un même dépôt ne crédite qu'une fois */
+      externalReference?: string;
+      depositId?: string;
     },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
@@ -5559,6 +5627,7 @@ export class ApiGatewayController {
         paymentMethod: body.paymentMethod || 'MOBILE_MONEY',
         ipAddress,
         lang,
+        externalReference: body.externalReference || body.depositId || null,
       },
       this.i18nService.translate('wallet.payment_failed', lang),
       HttpStatus.BAD_REQUEST,

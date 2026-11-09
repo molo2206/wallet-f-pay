@@ -165,9 +165,9 @@ export class MailService {
       },
       currency,
       totals: {
-        credits: totals.credits.toFixed(2),
-        debits: totals.debits.toFixed(2),
-        balance: totals.balance.toFixed(2),
+        credits: totals.credits.toFixed(3),
+        debits: totals.debits.toFixed(3),
+        balance: totals.balance.toFixed(3),
       },
       transactions,
       generatedDate: new Date().toLocaleString('fr-FR'),

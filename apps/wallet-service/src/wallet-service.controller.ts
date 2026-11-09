@@ -828,6 +828,7 @@ export class WalletServiceController {
     paymentMethod?: string;
     ipAddress?: string;
     lang?: string;
+    externalReference?: string | null;
   }) {
     console.log('[WalletService] pay_account received:', data);
 
@@ -840,14 +841,17 @@ export class WalletServiceController {
         data.paymentMethod || 'MOBILE_MONEY',
         data.ipAddress,
         data.lang || 'fr',
+        data.externalReference ?? null,
       );
     } catch (error) {
       console.error('[WalletService] pay_account error:', error);
       const lang = data.lang || 'fr';
+      const inner: any = error instanceof RpcException ? error.getError() : null;
       throw new RpcException({
         status: 'error',
         message: error instanceof Error ? error.message : this.i18nService.translate('wallet.payment_failed', lang),
-        statusCode: 400,
+        // ✅ Le code d'origine (409 doublon, 404…) est conservé
+        statusCode: (inner && typeof inner === 'object' && inner.statusCode) || 400,
       });
     }
   }

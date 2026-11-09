@@ -17,6 +17,11 @@ import { MailModule } from 'apps/auth-service/src/email/email.module'; // ✅ IM
 import { ScheduleModule } from '@nestjs/schedule';
 import { MaintenanceService } from './cron/maintenance.cron';
 import { CommunicationCronService } from './cron/communication-cron.service';
+import { PayoutReconciliationService } from './cron/payout-reconciliation.cron';
+import { ControlsController } from './controls/controls.controller';
+import { LedgerService } from './controls/ledger.service';
+import { TreasuryService } from './controls/treasury.service';
+import { ProviderReconciliationService } from './controls/provider-reconciliation.service';
 import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
 @Module({
   imports: [
@@ -39,7 +44,7 @@ import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
     ]),
     I18nModule,
   ],
-  controllers: [WalletServiceController],
+  controllers: [WalletServiceController, ControlsController],
   providers: [
     WalletServiceService,
     SmsService,
@@ -50,7 +55,11 @@ import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
     PawapayService,
      PrismaService,
     MaintenanceService,
-    CommunicationCronService
+    CommunicationCronService,
+    PayoutReconciliationService, // ✅ Retraits Mobile Money en attente : confirmation ou remboursement automatique
+    LedgerService, // ✅ Grand livre en partie double (projection des transactions)
+    TreasuryService, // ✅ Couverture, floats opérateurs, arrêtés de caisse
+    ProviderReconciliationService, // ✅ Webhooks PawaPay, dépôts en attente, rapport opérateur
   ],
   exports: [WalletServiceService, BankService, EncryptionService],
 })

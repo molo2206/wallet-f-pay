@@ -9,6 +9,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Optional,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -34,6 +35,7 @@ import { BankService } from 'apps/wallet-service/src/bank/bank.service';
 import { logFailedLoginAttempt } from './utility/helpers/login-attempt.util';
 import { AccountInfo } from './dto/account.dto';
 import { OAuthAuthorizeDto, OAuthAuthorizeResponseDto, OAuthLinkUserDto, OAuthLinkUserResponseDto } from './dto/oauth';
+import { WorkSchedulesService } from './work-schedules/work-schedules.service';
 
 
 
@@ -51,6 +53,7 @@ export class AuthServiceService {
     private readonly mailService: MailService,
     private readonly i18nService: I18nService,
     private readonly bankService: BankService,
+    @Optional() private readonly workSchedules?: WorkSchedulesService,
   ) { }
 
   private normalizePhone(phone: string): string {
@@ -1237,6 +1240,11 @@ export class AuthServiceService {
         });
       }
 
+      // ✅ Programme de travail : connexion refusée hors des horaires autorisés (403 OUTSIDE_WORK_HOURS)
+      if (this.workSchedules) {
+        await this.workSchedules.assertCanLogin(user.id, lang);
+      }
+
       // ✅ Succès : réinitialiser les tentatives
       await this.prisma.user.update({
         where: { id: user.id },
@@ -1469,6 +1477,13 @@ export class AuthServiceService {
         refreshToken: result.refreshToken,
         message: result.message,
         sessionId: sessionId,
+        // ✅ Fin de l'accès autorisé (programme de travail) : null = pas de limite
+        workSchedule: this.workSchedules
+          ? await this.workSchedules
+              .evaluate(user.id)
+              .then((d) => ({ endsAt: d.endsAt, scheduleName: d.scheduleName, timezone: d.timezone }))
+              .catch(() => null)
+          : null,
         data: {
           id: user.id,
           email: user.email,

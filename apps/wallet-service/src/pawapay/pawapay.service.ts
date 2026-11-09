@@ -126,10 +126,12 @@ export class PawapayService {
       provider: string;
       phone: string;
       walletId?: string;
+      /** ✅ Identifiant fourni par l'appelant (enregistré avant l'appel) : suivi possible même si la réponse se perd */
+      depositId?: string;
     },
     signal?: AbortSignal,
   ): Promise<any> {
-    const depositId = uuidv4();
+    const depositId = data.depositId || uuidv4();
     const clientReferenceId = `INV-${Date.now()}`;
     const cleanPhone = data.phone.replace(/[^0-9+]/g, '');
 
@@ -202,7 +204,7 @@ export class PawapayService {
         statusCode: error?.response?.status || 400,
         details: {
           failureReason: failureReason,
-          depositId: errorData?.depositId,
+          depositId: errorData?.depositId || depositId,
           status: errorData?.status,
         },
       });
@@ -210,8 +212,12 @@ export class PawapayService {
   }
 
   // Dans pawapay.service.ts
-  async createPayoutSimple(data: { amount: string; currency: string; provider: string; phone: string }, signal?: AbortSignal) {
-    const payoutId = uuidv4();
+  async createPayoutSimple(
+    data: { amount: string; currency: string; provider: string; phone: string; payoutId?: string },
+    signal?: AbortSignal,
+  ) {
+    // ✅ Identifiant fourni par l'appelant (déjà enregistré en base) : une reprise ne crée jamais un 2e payout
+    const payoutId = data.payoutId || uuidv4();
     const clientReferenceId = `PAYOUT-${Date.now()}`;
     const metadata = [{ orderId: `ORD-${Date.now()}` }, { customerId: 'customer@email.com', isPII: true }];
     const body = {
@@ -229,7 +235,11 @@ export class PawapayService {
       ).then((r) => r.data);
 
       console.log('[PawaPay] Payout créé :', payout.payoutId);
-      const finalStatus = await this.pollPayoutStatus(payout.payoutId, signal);
+      // ✅ Refus immédiat (réponse 200 avec status REJECTED) : inutile d'attendre, le payout n'existe pas
+      if (payout?.status === 'REJECTED') {
+        return { payout, finalStatus: { data: { status: 'REJECTED', failureReason: payout.failureReason } } };
+      }
+      const finalStatus = await this.pollPayoutStatus(payout.payoutId || payoutId, signal);
       console.log('[PawaPay] Statut final payout :', finalStatus);
 
       return { payout, finalStatus };
@@ -298,7 +308,14 @@ export class PawapayService {
         throw new Error('AbortError');
       }
       console.log(`[PawaPay][Payout Polling] Tentative ${attempt}/${maxRetries}`);
-      const statusResponse = await this.checkPayoutStatus(payoutId, signal);
+      // ✅ Erreur réseau passagère pendant le suivi : on réessaie (le payout existe, ce n'est PAS un échec)
+      let statusResponse: any = null;
+      try {
+        statusResponse = await this.checkPayoutStatus(payoutId, signal);
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || signal?.aborted) throw new Error('AbortError');
+        console.warn(`[PawaPay][Payout Polling] Suivi indisponible (tentative ${attempt}) : ${err?.message}`);
+      }
       const status = statusResponse?.data?.status;
       console.log(`[PawaPay][Payout Polling] Statut actuel : ${status}`);
       if (finalStatuses.includes(status)) {
@@ -326,41 +343,14 @@ export class PawapayService {
     return { message: 'Webhook payout traité avec succès' };
   }
 
+  /**
+   * ⚠️ Ancienne version désactivée : elle créditait le wallet à partir du contenu du webhook, sans vérification
+   * ni protection contre les doublons. Les webhooks passent désormais par l'api-gateway
+   * (POST /webhooks/pawapay/deposits) → ProviderReconciliationService, qui relit le statut chez PawaPay.
+   */
   async handleDepositWebhook(payload: any) {
-    const { depositId, status, metadata, amount } = payload;
-    const walletIdObj = metadata?.find((m: any) => m.walletId);
-    const walletId = walletIdObj?.walletId;
-
-    if (status === 'COMPLETED' && walletId) {
-      const wallet = await this.prisma.wallet.findUnique({
-        where: { id: walletId },
-      });
-      if (!wallet) {
-        console.error(`Wallet ${walletId} not found for webhook`);
-        return { message: 'Wallet not found' };
-      }
-
-      await this.prisma.wallet.update({
-        where: { id: walletId },
-        data: { balance: { increment: amount }, updatedAt: new Date() },
-      });
-
-      await this.prisma.transaction.create({
-        data: {
-          id: uuidv4(),
-          userId: wallet.userId,
-          walletId,
-          amount,
-          type: 'DEPOSIT',
-          status: 'SUCCESS',
-          reference: `PAWAPAY_${depositId}`,
-          description: `Dépôt mobile money via PawaPay`,
-          movement: 'CREDIT',
-        },
-      });
-    }
-
-    return { message: 'Webhook traité avec succès' };
+    console.warn('[PawaPay] handleDepositWebhook obsolète ignoré :', payload?.depositId);
+    return { message: 'Webhook ignoré : utilisez POST /webhooks/pawapay/deposits' };
   }
 
   async createBulkPayout(

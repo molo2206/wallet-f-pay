@@ -25,7 +25,7 @@ import { transaction_type, user_status, wallet_currency } from '@prisma/client';
 import { SmsService } from 'apps/auth-service/src/sms/sms.service';
 import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
 import { NotificationType } from 'apps/notification-service/src/type/notification-type';
-import { I18nService } from '@app/common';
+import { I18nService, round3 } from '@app/common';
 import { BankService } from './bank/bank.service';
 import * as path from 'path';
 import * as ejs from 'ejs';
@@ -255,6 +255,78 @@ export class WalletServiceService {
     }
     return { fee: 0, debitAmount: amount, creditAmount: amount };
   }
+  // ============================================================
+  // ✅ SÉCURITÉ FINANCIÈRE : verrou de statut et débit atomique
+  // ============================================================
+  /**
+   * Verrouille une transaction dans le $transaction en cours, seulement si son statut est encore `expected`.
+   * InnoDB pose un verrou sur la ligne : une 2e validation simultanée attend, puis ne trouve plus le statut → refusée.
+   */
+  private async claimTransactionStatus(tx: any, transactionId: string, expected: string = 'PENDING'): Promise<void> {
+    const claimed = await tx.transaction.updateMany({
+      where: { id: transactionId, status: expected },
+      data: { updatedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new RpcException({
+        status: 'error',
+        statusCode: 409,
+        message: 'Cette opération a déjà été traitée (ou modifiée entre-temps) : aucune action effectuée',
+      });
+    }
+  }
+
+  /**
+   * Débit atomique : le solde n'est diminué que s'il est suffisant AU MOMENT de l'écriture
+   * (pas de lecture-puis-écriture, pas de solde négatif en cas de requêtes simultanées).
+   */
+  private async debitWalletGuarded(tx: any, walletId: string, amount: number): Promise<any> {
+    const res = await tx.wallet.updateMany({
+      // Tolérance de 0.000001 : un solde 10.3 stocké 10.2999999999 doit pouvoir payer 10.3 (bruit des flottants)
+      where: { id: walletId, balance: { gte: amount - 0.000001 } },
+      data: { balance: { decrement: amount }, updatedAt: new Date() },
+    });
+    if (res.count !== 1) {
+      throw new RpcException({
+        status: 'error',
+        statusCode: 400,
+        message: 'Solde insuffisant au moment du débit : opération annulée',
+      });
+    }
+    return tx.wallet.findUnique({ where: { id: walletId } });
+  }
+
+  /**
+   * ✅ Retrait réservé qui a échoué DÉFINITIVEMENT : PENDING → FAILED + remboursement du montant réservé.
+   *    Idempotent : si la transaction n'est plus PENDING (déjà finalisée), rien n'est remboursé deux fois.
+   */
+  async refundReservedPayout(transactionId: string, walletId: string, amount: number, description?: string): Promise<any> {
+    return this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.transaction.updateMany({
+        where: { id: transactionId, status: 'PENDING' },
+        data: { status: 'FAILED', ...(description ? { description } : {}), updatedAt: new Date() },
+      });
+      if (claimed.count === 1) {
+        await tx.wallet.update({
+          where: { id: walletId },
+          data: { balance: { increment: amount }, updatedAt: new Date() },
+        });
+      }
+      const after = await tx.transaction.findUnique({ where: { id: transactionId } });
+      // refunded = true uniquement si CET appel a effectué le remboursement
+      return after ? { ...after, refunded: claimed.count === 1 } : null;
+    });
+  }
+
+  /** ✅ Retrait réservé confirmé par PawaPay : PENDING → SUCCESS (le solde a déjà été débité à la réservation) */
+  async completeReservedPayout(transactionId: string, payoutId: string, description?: string): Promise<boolean> {
+    const res = await this.prisma.transaction.updateMany({
+      where: { id: transactionId, status: 'PENDING' },
+      data: { status: 'SUCCESS', external_reference: payoutId, ...(description ? { description } : {}), updatedAt: new Date() },
+    });
+    return res.count === 1;
+  }
+
   private async getExchangeRate(
     from: string,
     to: string
@@ -301,8 +373,13 @@ export class WalletServiceService {
       }
     }
 
-    console.warn(`[WalletService] Taux de change non trouvé pour ${from} -> ${to}, utilisation de 1`);
-    return 1;
+    // ✅ Sécurité financière : ne JAMAIS convertir avec un taux inventé (1) — l'opération est refusée
+    console.error(`[WalletService] Taux de change introuvable pour ${from} -> ${to} : opération refusée`);
+    throw new RpcException({
+      status: 'error',
+      statusCode: 400,
+      message: `Taux de change ${from} → ${to} non configuré. Contactez l'administrateur.`,
+    });
   }
 
   private async getSystemFeeWallet(currency: string, tx?: any): Promise<any> {
@@ -647,7 +724,8 @@ export class WalletServiceService {
 
     // ✅ Calculer le montant converti avec arrondi
     const rawConvertedAmount = amount * rate;
-    const convertedAmount = Math.floor(rawConvertedAmount * 100) / 100;
+    // ✅ 3 décimales (règle F-Pay), arrondi vers le bas : la plateforme ne crée jamais de fraction de montant
+    const convertedAmount = Math.floor(Number((rawConvertedAmount * 1000).toPrecision(15))) / 1000;
 
     console.log('[WalletService] Conversion calculée:', {
       fromCurrency: fromWallet.currency,
@@ -670,10 +748,7 @@ export class WalletServiceService {
     const result = await this.prisma.$transaction(
       async (tx) => {
         // Mettre à jour les soldes
-        const updatedFrom = await tx.wallet.update({
-          where: { id: fromWallet.id },
-          data: { balance: { decrement: amount }, updatedAt: new Date() },
-        });
+        const updatedFrom = await this.debitWalletGuarded(tx, fromWallet.id, amount); // ✅ débit atomique (solde vérifié à l'écriture)
         const updatedTo = await tx.wallet.update({
           where: { id: toWallet.id },
           data: { balance: { increment: convertedAmount }, updatedAt: new Date() },
@@ -683,9 +758,9 @@ export class WalletServiceService {
         const reference = await this.generateTransactionReference('', tx)
 
         // ✅ Formater les valeurs pour la traduction
-        const amountStr = amount.toFixed(2);
+        const amountStr = amount.toFixed(3);
         const rateStr = rate.toFixed(4);
-        const convertedStr = convertedAmount.toFixed(2);
+        const convertedStr = convertedAmount.toFixed(3);
         const fromCurrency = fromWallet.currency;
         const toCurrency = toWallet.currency;
 
@@ -797,8 +872,8 @@ export class WalletServiceService {
       message: this.i18nService.translate('wallet.conversion_success', lang, {
         fromCurrency: fromWallet.currency,
         toCurrency: toWallet.currency,
-        amount: amount.toFixed(2),
-        convertedAmount: convertedAmount.toFixed(2),
+        amount: amount.toFixed(3),
+        convertedAmount: convertedAmount.toFixed(3),
         rate: rate.toFixed(4),
       }),
       data: {
@@ -2126,7 +2201,7 @@ export class WalletServiceService {
     // ========== CALCUL DES FRAIS ==========
     const fees = await this.getNetworkProviderFees(provider);
     const feeAmount = (amount * fees.depositFee) / 100;
-    const netAmount = Math.round((amount - feeAmount) * 100) / 100;
+    const netAmount = round3(amount - feeAmount); // ✅ 3 décimales
 
     console.log('[WalletService] Top-up calcul:', {
       amount,
@@ -2149,6 +2224,40 @@ export class WalletServiceService {
       });
     }
 
+    // ✅ FIABILITÉ : le dépôt est ENREGISTRÉ (PENDING) avant l'appel à PawaPay, avec son depositId.
+    //    Si la réponse se perd (timeout, coupure), l'argent payé par le client n'est jamais perdu :
+    //    le webhook PawaPay ou la réconciliation automatique crédite le wallet (une seule fois).
+    const depositId = crypto.randomUUID();
+    const pendingDeposit = await this.prisma.$transaction(async (tx) =>
+      tx.transaction.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId,
+          walletId: wallet.id,
+          amount: netAmount,
+          type: 'DEPOSIT',
+          status: 'PENDING',
+          reference: await this.generateTransactionReference('', tx),
+          description: `Dépôt Mobile Money en cours de confirmation (${provider || ''} ${phone || ''})`.trim(),
+          movement: 'CREDIT',
+          paymentMethod: 'MOBILE_MONEY',
+          currency: wallet.currency,
+          external_reference: JSON.stringify({
+            kind: 'PAWAPAY_DEPOSIT',
+            depositId,
+            provider,
+            phone,
+            amount,
+            netAmount,
+            feeAmount: round3(feeAmount),
+            lang,
+            createdAt: new Date().toISOString(),
+          }),
+        },
+      }),
+    );
+    let depositOutcome: 'COMPLETED' | 'FAILED' | 'UNKNOWN' = 'UNKNOWN';
+
     const amountStr = amount.toString();
     const pawapayData = {
       amount: amountStr,
@@ -2156,6 +2265,7 @@ export class WalletServiceService {
       provider,
       phone,
       walletId: wallet.id,
+      depositId,
     };
 
     console.log('[WalletService] Appel PawaPay deposit:', pawapayData);
@@ -2165,8 +2275,13 @@ export class WalletServiceService {
       const depositStatus = pawapayResponse.finalStatus?.data?.status;
       if (depositStatus === 'COMPLETED') {
         paymentSucceeded = true;
+        depositOutcome = 'COMPLETED';
         externalReference = pawapayResponse.deposit?.depositId;
+      } else if (!['FAILED', 'REJECTED', 'CANCELED', 'CANCELLED', 'EXPIRED'].includes(String(depositStatus))) {
+        // Pas de statut final (le client n'a pas encore validé sur son téléphone, suivi interrompu) : en attente
+        depositOutcome = 'UNKNOWN';
       } else {
+        depositOutcome = 'FAILED';
         const failureObj = pawapayResponse.finalStatus?.data?.failureReason;
         const failureCode = failureObj?.failureCode;
         const failureMsg = failureObj?.failureMessage;
@@ -2193,6 +2308,25 @@ export class WalletServiceService {
       console.error('[WalletService] Erreur PawaPay:', err);
       failureReasonKey = 'wallet.deposit_technical_error';
       failureReasonParams = { error: err.message };
+      // Refus explicite de PawaPay (réponse reçue) = échec définitif ; sinon (réseau, timeout) : résultat inconnu
+      const errInfo: any = typeof err?.getError === 'function' ? err.getError() : null;
+      const httpStatus = Number(errInfo?.statusCode) || 0;
+      depositOutcome =
+        errInfo?.details?.status === 'REJECTED' || (httpStatus >= 400 && httpStatus < 500 && !!errInfo?.details?.failureReason)
+          ? 'FAILED'
+          : 'UNKNOWN';
+    }
+
+    // 3.a Résultat inconnu : le dépôt reste EN ATTENTE, il sera crédité dès confirmation de l'opérateur
+    if (!paymentSucceeded && depositOutcome === 'UNKNOWN') {
+      await this.logAudit(user.id, 'topUp_pending', { transaction: pendingDeposit, depositId }, ipAddress || null);
+      return {
+        message: `Votre dépôt de ${round3(amount).toFixed(3)} ${wallet.currency} est en cours de confirmation par l'opérateur (référence ${pendingDeposit.reference}). Votre wallet sera crédité automatiquement dès la confirmation.`,
+        data: {
+          wallet: this.toResponse(wallet),
+          transaction: pendingDeposit,
+        },
+      };
     }
 
     // 3. Gérer l'échec
@@ -2201,23 +2335,18 @@ export class WalletServiceService {
         ? this.i18nService.translate(failureReasonKey, lang, failureReasonParams)
         : this.i18nService.translate('wallet.payment_failed', lang);
       const failedTransaction = await this.prisma.$transaction(async (tx) => {
-        return await tx.transaction.create({
+        // ✅ Le dépôt enregistré passe en FAILED (une seule fois)
+        await tx.transaction.updateMany({
+          where: { id: pendingDeposit.id, status: 'PENDING' },
           data: {
-            id: crypto.randomUUID(),
-            userId,
-            walletId: wallet.id,
-            amount: netAmount,
-            type: 'DEPOSIT',
             status: 'FAILED',
-            reference: await this.generateTransactionReference('', tx),
             description: this.i18nService.translate('wallet.failed_description', lang, {
               reason: failureMessage,
             }),
-            movement: 'CREDIT',
-            paymentMethod: 'MOBILE_MONEY',
-            currency: wallet.currency,
+            updatedAt: new Date(),
           },
         });
+        return tx.transaction.findUnique({ where: { id: pendingDeposit.id } });
       });
       await this.logAudit(user.id, 'topUp_failed', { transaction: failedTransaction, error: failureMessage }, ipAddress || null);
       throw new RpcException({
@@ -2237,8 +2366,21 @@ export class WalletServiceService {
       const result = await this.prisma.$transaction(async (tx) => {
         const description = this.i18nService.translate('wallet.transaction_description_deposit', lang)
           .replace('{phone}', phone || '')
-          + ` (frais ${fees.depositFee}% : ${feeAmount.toFixed(2)} ${wallet.currency} déduits) - Net crédité: ${netAmount.toFixed(2)} ${wallet.currency}`
+          + ` (frais ${fees.depositFee}% : ${feeAmount.toFixed(3)} ${wallet.currency} déduits) - Net crédité: ${netAmount.toFixed(3)} ${wallet.currency}`
           + ' ' + this.i18nService.translate('wallet.via_pawapay', lang, { provider });
+
+        // ✅ Le dépôt enregistré passe PENDING → SUCCESS une seule fois (webhook / réconciliation concurrents)
+        const claimedDeposit = await tx.transaction.updateMany({
+          where: { id: pendingDeposit.id, status: 'PENDING' },
+          data: { status: 'SUCCESS', description, updatedAt: new Date() },
+        });
+        if (claimedDeposit.count !== 1) {
+          throw new RpcException({
+            status: 'error',
+            statusCode: 409,
+            message: 'Ce dépôt a déjà été crédité (confirmation opérateur reçue entre-temps).',
+          });
+        }
 
         // ✅ Créditer le NET
         const upd = await tx.wallet.update({
@@ -2246,21 +2388,7 @@ export class WalletServiceService {
           data: { balance: { increment: netAmount }, updatedAt: new Date() },
         });
 
-        const txRecord = await tx.transaction.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId,
-            walletId: wallet.id,
-            amount: netAmount,
-            type: 'DEPOSIT',
-            status: 'SUCCESS',
-            reference: await this.generateTransactionReference('', tx),
-            description,
-            movement: 'CREDIT',
-            paymentMethod: 'MOBILE_MONEY',
-            currency: wallet.currency,
-          },
-        });
+        const txRecord: any = await tx.transaction.findUnique({ where: { id: pendingDeposit.id } });
 
         // ============================================
         // ✅ PAIEMENT AUTOMATIQUE DES DETTES DE MAINTENANCE
@@ -2408,6 +2536,7 @@ export class WalletServiceService {
         console.log(`💰 ${debtsPaid} dette(s) payée(s) automatiquement (${totalDebtPaid} ${wallet.currency})`);
       }
     } catch (error) {
+      if (error instanceof RpcException) throw error; // ✅ 409 « déjà crédité » conservé
       throw new RpcException({
         status: 'error',
         message: error.message || this.i18nService.translate('wallet.top_up_failed', lang),
@@ -2436,14 +2565,14 @@ export class WalletServiceService {
 
     // ✅ Message avec info sur les dettes payées
     let successMessage = this.i18nService.translate('wallet.top_up_success', lang, {
-      amount: netAmount.toFixed(2),
+      amount: netAmount.toFixed(3),
       currency: wallet.currency || 'CDF',
-      balance: updatedWallet.balance.toFixed(2),
+      balance: updatedWallet.balance.toFixed(3),
       reference: transaction.reference || 'N/A',
     });
 
     if (debtsPaid > 0) {
-      successMessage += ` (${debtsPaid} dette(s) de maintenance payée(s): ${totalDebtPaid.toFixed(2)} ${wallet.currency})`;
+      successMessage += ` (${debtsPaid} dette(s) de maintenance payée(s): ${totalDebtPaid.toFixed(3)} ${wallet.currency})`;
     }
 
     return {
@@ -2675,35 +2804,100 @@ export class WalletServiceService {
 
     // ✅ Vérifier le solde : le wallet doit avoir le montant total + frais
     if (wallet.balance < totalDebit) {
-      const shortfall = (totalDebit - wallet.balance).toFixed(2);
+      const shortfall = (totalDebit - wallet.balance).toFixed(3);
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang, {
-          balance: wallet.balance.toFixed(2),
+          balance: wallet.balance.toFixed(3),
           currency: wallet.currency || 'CDF',
-          required: totalDebit.toFixed(2),
-          fee: feeAmount.toFixed(2),
+          required: totalDebit.toFixed(3),
+          fee: feeAmount.toFixed(3),
           feePercent: fees.payoutFee,
-          netAmount: netAmount.toFixed(2),
+          netAmount: netAmount.toFixed(3),
           shortfall: shortfall,
         }),
         statusCode: 400,
       });
     }
 
-    // ---------- 2. Appel PawaPay payout ----------
-    let paymentSucceeded = false;
+    // ---------- 2. RÉSERVER le montant AVANT d'appeler PawaPay ----------
+    // ✅ Sécurité financière :
+    //    - le solde est débité ATOMIQUEMENT (updateMany ... balance >= totalDebit) : deux retraits simultanés
+    //      ou une requête répétée ne peuvent jamais dépasser le solde ni payer deux fois ;
+    //    - une transaction PENDING garde l'identifiant du payout (généré ici) : un payout confirmé en retard
+    //      par PawaPay n'est jamais perdu ni compté comme échec (réconciliation automatique : payout-reconciliation.cron.ts).
+    const payoutId = crypto.randomUUID();
+    let reserved: { wallet: any; transaction: any };
+    try {
+      reserved = await this.prisma.$transaction(
+        async (tx) => {
+          const w = await this.debitWalletGuarded(tx, wallet.id, totalDebit);
+          const t = await tx.transaction.create({
+            data: {
+              id: crypto.randomUUID(),
+              userId,
+              walletId: wallet.id,
+              amount: totalDebit,
+              type: 'WITHDRAW',
+              status: 'PENDING',
+              reference: await this.generateTransactionReference('', tx),
+              description: `Retrait Mobile Money en cours vers ${phone || ''} (${provider})`,
+              movement: 'DEBIT',
+              paymentMethod: 'MOBILE_MONEY',
+              currency: wallet.currency,
+              external_reference: JSON.stringify({
+                kind: 'PAWAPAY_PAYOUT',
+                payoutId,
+                provider,
+                phone,
+                amount,
+                netAmount,
+                feeAmount,
+                totalDebit,
+                payoutFee: fees.payoutFee,
+                feeOnTop: !!feeOnTop,
+                lang,
+                createdAt: new Date().toISOString(),
+              }),
+            },
+          });
+          return { wallet: w, transaction: t };
+        },
+        { timeout: 30000, maxWait: 30000 },
+      );
+    } catch (err: any) {
+      if (err instanceof RpcException) {
+        // Solde devenu insuffisant entre la vérification et le débit (requête simultanée)
+        throw new RpcException({
+          status: 'error',
+          message: this.i18nService.translate('wallet.insufficient_wallet_balance', lang, {
+            balance: wallet.balance.toFixed(3),
+            currency: wallet.currency || 'CDF',
+            required: totalDebit.toFixed(3),
+            fee: feeAmount.toFixed(3),
+            feePercent: fees.payoutFee,
+            netAmount: netAmount.toFixed(3),
+            shortfall: '0.00',
+          }),
+          statusCode: 400,
+        });
+      }
+      throw err;
+    }
+
+    // ---------- 3. Appel PawaPay payout (identifiant fixé : pas de second payout en cas de reprise) ----------
+    let outcome: 'COMPLETED' | 'FAILED' | 'UNKNOWN' = 'UNKNOWN';
     let pawaPayErrorMessage: string | null = null;
     let pawaPayErrorCode: string | null = null;
     let pawaPayErrorDetails: any = null;
-    let externalReference: string | undefined;
+    const externalReference: string = payoutId;
 
-    const amountStr = netAmount.toString();
     const pawapayData = {
-      amount: amountStr,
+      amount: netAmount.toString(),
       currency: wallet.currency,
       provider,
       phone,
+      payoutId,
     };
 
     console.log('[WalletService] Appel PawaPay payout (net):', JSON.stringify(pawapayData, null, 2));
@@ -2711,176 +2905,124 @@ export class WalletServiceService {
     try {
       const pawapayResponse = await this.pawapayService.createPayoutSimple(pawapayData);
       console.log('[WalletService] Réponse PawaPay payout:', JSON.stringify(pawapayResponse, null, 2));
-
       const payoutStatus = pawapayResponse.finalStatus?.data?.status;
 
       if (payoutStatus === 'COMPLETED') {
-        paymentSucceeded = true;
-        externalReference = pawapayResponse.payout?.payoutId;
-      } else {
+        outcome = 'COMPLETED';
+      } else if (['FAILED', 'REJECTED', 'CANCELED', 'CANCELLED', 'EXPIRED'].includes(String(payoutStatus))) {
+        // ✅ Échec DÉFINITIF confirmé par PawaPay → remboursement
+        outcome = 'FAILED';
         const failureObj = pawapayResponse.finalStatus?.data?.failureReason;
-        const failureCode = failureObj?.failureCode;
-        const failureMsg = failureObj?.failureMessage;
-
-        pawaPayErrorCode = failureCode;
-        pawaPayErrorMessage = failureMsg || payoutStatus;
+        pawaPayErrorCode = failureObj?.failureCode || payoutStatus;
+        pawaPayErrorMessage = failureObj?.failureMessage || payoutStatus;
         pawaPayErrorDetails = failureObj;
-
-        console.log('[WalletService] PawaPay failure:', {
-          code: failureCode,
-          message: failureMsg,
-          details: failureObj,
-        });
+      } else {
+        // ✅ Statut non final (ACCEPTED, SUBMITTED, ENQUEUED, IN_RECONCILIATION…) : PAS un échec.
+        //    Le montant reste réservé ; la réconciliation automatique finalisera (succès ou remboursement).
+        outcome = 'UNKNOWN';
+        pawaPayErrorCode = payoutStatus || 'NOT_FINAL';
+        pawaPayErrorMessage = 'Statut du payout non confirmé';
       }
     } catch (err: any) {
       console.error('[WalletService] Erreur PawaPay payout - DETAIL:', err);
-
-      // ✅ Raison exacte renvoyée par PawaPay (createPayoutSimple la place dans RpcException.details)
       const rpcError: any = typeof err?.getError === 'function' ? err.getError() : null;
-      if (rpcError?.details && typeof rpcError.details === 'object') {
-        console.error('[WalletService] PawaPay refus :', JSON.stringify(rpcError.details));
-      }
-      if (rpcError?.details?.failureReason) {
-        pawaPayErrorMessage = rpcError.details.failureReason.failureMessage || rpcError.message;
-        pawaPayErrorCode = rpcError.details.failureReason.failureCode || rpcError.details.status || 'REJECTED';
-        pawaPayErrorDetails = rpcError.details;
-      } else if (err?.response?.data) {
-        pawaPayErrorMessage = err.response.data.message || err.response.data.error || err.message;
-        pawaPayErrorCode = err.response.data.code || err.response.data.status || 'UNKNOWN_ERROR';
-        pawaPayErrorDetails = err.response.data;
-      } else if (err?.message) {
-        pawaPayErrorMessage = err.message;
-        pawaPayErrorCode = err?.code || 'TECHNICAL_ERROR';
+      const details = rpcError?.details;
+      if (details?.failureReason || details?.status === 'REJECTED') {
+        // ✅ Refus explicite de PawaPay à la création : le payout n'existe pas → remboursement
+        outcome = 'FAILED';
+        pawaPayErrorMessage = details.failureReason?.failureMessage || rpcError.message;
+        pawaPayErrorCode = details.failureReason?.failureCode || details.status || 'REJECTED';
+        pawaPayErrorDetails = details;
       } else {
-        pawaPayErrorMessage = 'Unknown PawaPay error';
-        pawaPayErrorCode = 'UNKNOWN_ERROR';
+        // ✅ Erreur réseau / timeout / 5xx : le payout a PEUT-ÊTRE été créé → on ne rembourse pas à l'aveugle
+        outcome = 'UNKNOWN';
+        pawaPayErrorMessage = rpcError?.message || err?.message || 'Unknown PawaPay error';
+        pawaPayErrorCode = err?.code || 'TECHNICAL_ERROR';
+        pawaPayErrorDetails = details || null;
       }
-
-      console.error('[WalletService] PawaPay error details:', {
-        message: pawaPayErrorMessage,
-        code: pawaPayErrorCode,
-        details: pawaPayErrorDetails,
-      });
     }
 
-    // ---------- 3. Gestion de l'échec ----------
-    if (!paymentSucceeded) {
-      // ✅ La transaction échouée est créée d'abord : sa référence remplit {{reference}} du message
+    // ---------- 3.a Échec définitif : rembourser la réservation ----------
+    if (outcome === 'FAILED') {
       const technicalReason =
         `${pawaPayErrorMessage || 'Unknown error'} (${pawaPayErrorCode || 'UNKNOWN'})` +
         (pawaPayErrorDetails ? ` - Details: ${JSON.stringify(pawaPayErrorDetails)}` : '');
-      let failedTransaction;
-      try {
-        failedTransaction = await this.prisma.$transaction(async (tx) => {
-          return await tx.transaction.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId,
-              walletId: wallet.id,
-              amount: totalDebit,
-              type: 'WITHDRAW',
-              status: 'FAILED',
-              reference: await this.generateTransactionReference('', tx),
-              description: this.i18nService.translate('wallet.failed_description', lang, {
-                reason: technicalReason,
-              }),
-              movement: 'DEBIT',
-              paymentMethod: 'MOBILE_MONEY',
-              currency: wallet.currency,
-            },
-          });
-        });
-        await this.logAudit(
-          user.id,
-          'cashout_failed',
-          {
-            transaction: failedTransaction,
-            error: technicalReason,
-            pawaPay: {
-              code: pawaPayErrorCode,
-              message: pawaPayErrorMessage,
-              details: pawaPayErrorDetails,
-            },
-          },
-          ipAddress || null,
-        );
-      } catch (err) {
-        console.error('Erreur lors de la création de la transaction failed:', err);
-      }
+      const failedTransaction = await this.refundReservedPayout(
+        reserved.transaction.id,
+        wallet.id,
+        totalDebit,
+        this.i18nService.translate('wallet.failed_description', lang, { reason: technicalReason }),
+      ).catch((e) => {
+        console.error('[Cashout] Remboursement de la réservation impossible :', e);
+        return reserved.transaction;
+      });
+      await this.logAudit(
+        user.id,
+        'cashout_failed',
+        {
+          transaction: failedTransaction,
+          error: technicalReason,
+          refunded: true,
+          pawaPay: { code: pawaPayErrorCode, message: pawaPayErrorMessage, details: pawaPayErrorDetails, payoutId },
+        },
+        ipAddress || null,
+      );
 
       const failureMessage = this.i18nService.translate('wallet.payout_failed', lang, {
         reason: pawaPayErrorMessage || 'Unknown error',
         code: pawaPayErrorCode || 'UNKNOWN',
         reference: failedTransaction?.reference || 'N/A',
       });
-      console.log('[WalletService] Cashout failure message:', failureMessage, '|', technicalReason);
-
       throw new RpcException({
         status: 'error',
         message: failureMessage,
         statusCode: 400,
-        pawaPay: {
-          code: pawaPayErrorCode,
-          message: pawaPayErrorMessage,
-          details: pawaPayErrorDetails,
-        },
+        pawaPay: { code: pawaPayErrorCode, message: pawaPayErrorMessage, details: pawaPayErrorDetails },
       });
     }
 
-    // ---------- 4. Succès : débiter le wallet et créer la transaction ----------
-    let updatedWallet: any;
+    // ---------- 3.b Résultat inconnu : le retrait reste EN ATTENTE (montant réservé) ----------
+    if (outcome === 'UNKNOWN') {
+      await this.logAudit(
+        user.id,
+        'cashout_pending',
+        { transaction: reserved.transaction, payoutId, code: pawaPayErrorCode, message: pawaPayErrorMessage },
+        ipAddress || null,
+      );
+      return {
+        message: `Votre retrait de ${netAmount.toFixed(3)} ${wallet.currency} est en cours de confirmation par l'opérateur (référence ${reserved.transaction.reference}). Le montant est réservé : vous serez notifié dès la confirmation, ou remboursé automatiquement en cas d'échec.`,
+        data: {
+          wallet: this.toResponse(reserved.wallet),
+          transaction: reserved.transaction,
+        },
+      };
+    }
+
+    // ---------- 4. Succès : finaliser la transaction réservée ----------
+    let updatedWallet: any = reserved.wallet;
     let transaction: any;
 
     try {
-      const result = await this.prisma.$transaction(
-        async (tx) => {
-          const description =
-            this.i18nService.translate('wallet.transaction_description_withdraw', lang)
-              .replace('{phone}', phone || '') +
-            ` (frais PawaPay ${fees.payoutFee}%: ${feeAmount.toFixed(2)} ${wallet.currency})` +
-            ` - Net reçu: ${netAmount.toFixed(2)} ${wallet.currency}` +
-            ' ' +
-            this.i18nService.translate('wallet.via_pawapay', lang, { provider }) +
-            (externalReference ? ` Ref: ${externalReference}` : '');
-
-          // ✅ DÉBITER LE MONTANT TOTAL (montant + frais)
-          const upd = await tx.wallet.update({
-            where: { id: wallet.id },
-            data: { balance: { decrement: totalDebit }, updatedAt: new Date() },
-          });
-
-          const reference = await this.generateTransactionReference('', tx);
-          const txRecord = await tx.transaction.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId,
-              walletId: wallet.id,
-              amount: totalDebit,
-              type: 'WITHDRAW',
-              status: 'SUCCESS',
-              reference: reference,
-              description,
-              movement: 'DEBIT',
-              currency: wallet.currency,
-              external_reference: externalReference,
-              paymentMethod: 'MOBILE_MONEY',
-            },
-          });
-
-          return { wallet: upd, transaction: txRecord };
-        },
-        { timeout: 60000, maxWait: 60000 },
-      );
-
-      updatedWallet = result.wallet;
-      transaction = result.transaction;
-    } catch (error) {
-      console.error('[WalletService] Cashout transaction error:', error);
-      throw new RpcException({
-        status: 'error',
-        message: error.message || this.i18nService.translate('wallet.cashout_failed', lang),
-        statusCode: 500,
+      const description =
+        this.i18nService.translate('wallet.transaction_description_withdraw', lang)
+          .replace('{phone}', phone || '') +
+        ` (frais PawaPay ${fees.payoutFee}%: ${feeAmount.toFixed(3)} ${wallet.currency})` +
+        ` - Net reçu: ${netAmount.toFixed(3)} ${wallet.currency}` +
+        ' ' +
+        this.i18nService.translate('wallet.via_pawapay', lang, { provider }) +
+        ` Ref: ${externalReference}`;
+      // Passage PENDING → SUCCESS seulement si la réconciliation ne l'a pas déjà fait
+      await this.prisma.transaction.updateMany({
+        where: { id: reserved.transaction.id, status: 'PENDING' },
+        data: { status: 'SUCCESS', description, external_reference: externalReference, updatedAt: new Date() },
       });
+      transaction = await this.prisma.transaction.findUnique({ where: { id: reserved.transaction.id } });
+      updatedWallet = (await this.prisma.wallet.findUnique({ where: { id: wallet.id } })) || reserved.wallet;
+    } catch (error: any) {
+      // Le payout est COMPLETED et le solde déjà débité : seule l'écriture du statut a échoué.
+      // La réconciliation automatique repassera la transaction en SUCCESS (aucun remboursement).
+      console.error('[WalletService] Cashout : finalisation du statut impossible (sera réconciliée) :', error);
+      transaction = reserved.transaction;
     }
 
     // ---------- 5. Envoyer le SMS de notification ----------
@@ -2899,12 +3041,12 @@ export class WalletServiceService {
             })
           : this.i18nService.translate('wallet.cashout_sms', lang, {
           full_name: user.full_name || '',
-          amount: amount.toFixed(2),
+          amount: amount.toFixed(3),
           feePercent: fees.payoutFee,
           currency: wallet.currency || 'CDF',
           balance: updatedWallet.balance || 0,
-          netAmount: netAmount.toFixed(2),
-          fee: feeAmount.toFixed(2),
+          netAmount: netAmount.toFixed(3),
+          fee: feeAmount.toFixed(3),
           reference: transaction.reference || 'N/A',
           phone: phone || '',
         });
@@ -2949,13 +3091,13 @@ export class WalletServiceService {
             reference: transaction.reference || 'N/A',
           })
         : this.i18nService.translate('wallet.cashout_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency: wallet.currency || 'CDF',
-        balance: updatedWallet.balance.toFixed(2),
+        balance: updatedWallet.balance.toFixed(3),
         reference: transaction.reference || 'N/A',
-        fee: feeAmount.toFixed(2),
+        fee: feeAmount.toFixed(3),
         feePercent: fees.payoutFee,
-        netAmount: netAmount.toFixed(2),
+        netAmount: netAmount.toFixed(3),
         phone: phone || 'N/A',
       }),
       data: {
@@ -3173,13 +3315,13 @@ export class WalletServiceService {
     if (wallet.balance < totalDebit) {
       throw this.rpcError(
         this.i18nService.translate('wallet.insufficient_wallet_balance', lang, {
-          balance: wallet.balance.toFixed(2),
+          balance: wallet.balance.toFixed(3),
           currency: wallet.currency || 'CDF',
-          required: totalDebit.toFixed(2),
-          fee: fee.toFixed(2),
+          required: totalDebit.toFixed(3),
+          fee: fee.toFixed(3),
           feePercent: fees.payoutFee,
-          netAmount: netAmount.toFixed(2),
-          shortfall: (totalDebit - wallet.balance).toFixed(2),
+          netAmount: netAmount.toFixed(3),
+          shortfall: (totalDebit - wallet.balance).toFixed(3),
         }),
         400,
       );
@@ -3223,7 +3365,7 @@ export class WalletServiceService {
   /** Montant lisible dans un SMS : 5000 → "5 000", 4850.5 → "4 850,50" */
   private smsAmount(value: any): string {
     const n = Math.round(Number(value || 0) * 100) / 100;
-    const [int, dec] = n.toFixed(2).split('.');
+    const [int, dec] = n.toFixed(3).split('.');
     const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     return dec === '00' ? grouped : `${grouped},${dec}`;
   }
@@ -3919,10 +4061,7 @@ export class WalletServiceService {
         let updatedTo: any = null;
 
         if (!isInternational) {
-          updatedFrom = await tx.wallet.update({
-            where: { id: fromWallet.id },
-            data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
-          });
+          updatedFrom = await this.debitWalletGuarded(tx, fromWallet.id, debitAmount); // ✅ débit atomique (solde vérifié à l'écriture)
 
           updatedTo = await tx.wallet.update({
             where: { id: targetWallet.id },
@@ -4158,20 +4297,20 @@ export class WalletServiceService {
         result.isInternational ? 'wallet.transfer_international_pending' : 'wallet.transfer_success',
         lang,
         {
-          amount: result.convertedAmount.toFixed(2),
+          amount: result.convertedAmount.toFixed(3),
           currency: result.targetCurrency,
           recipient: result.toUser?.full_name || result.toUser?.phone || 'Destinataire',
-          balance: result.fromWallet.balance.toFixed(2),
+          balance: result.fromWallet.balance.toFixed(3),
           reference: result.senderTx?.reference || 'N/A',
-          rate: result.exchangeRate.toFixed(2),
-          fee: result.fee.toFixed(2),
+          rate: result.exchangeRate.toFixed(3),
+          fee: result.fee.toFixed(3),
           feePercentage: result.internationalFeePercentage,
           withdrawalFeePercentage: result.withdrawalFeePercentage,
-          withdrawalFee: result.withdrawalFee.toFixed(2),
+          withdrawalFee: result.withdrawalFee.toFixed(3),
           feeIncluded: result.feeIncluded ? 'Oui' : 'Non',
-          debitAmount: result.debitAmount.toFixed(2),
-          netAmount: result.netAmount.toFixed(2),
-          finalAmount: result.finalAmount.toFixed(2),
+          debitAmount: result.debitAmount.toFixed(3),
+          netAmount: result.netAmount.toFixed(3),
+          finalAmount: result.finalAmount.toFixed(3),
           fromCurrency: result.fromWallet.currency,
           countryCode: result.receiverCountryCode,
         }
@@ -4419,10 +4558,7 @@ export class WalletServiceService {
     const result = await this.prisma.$transaction(async (tx) => {
       // Mettre à jour les soldes
       const [updatedUser, updatedMerchant] = await Promise.all([
-        tx.wallet.update({
-          where: { id: fromWallet.id },
-          data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
-        }),
+        this.debitWalletGuarded(tx, fromWallet.id, debitAmount), // ✅ débit atomique (solde vérifié à l'écriture)
         tx.wallet.update({
           where: { id: merchantWallet.id },
           data: { balance: { increment: creditAmount }, updatedAt: new Date() },
@@ -4601,13 +4737,13 @@ export class WalletServiceService {
 
     return {
       message: this.i18nService.translate('wallet.payment_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency: result.fromWallet.currency || 'CDF',
         merchantName: result.toUser.full_name || 'Commerçant',
-        balance: result.fromWallet.balance.toFixed(2),
+        balance: result.fromWallet.balance.toFixed(3),
         reference: result.payerTx.reference || 'N/A',
-        fee: fee.toFixed(2),
-        creditAmount: creditAmount.toFixed(2),
+        fee: fee.toFixed(3),
+        creditAmount: creditAmount.toFixed(3),
       }),
       data: {
         wallet: this.toResponse(result.fromWallet),
@@ -4718,7 +4854,7 @@ export class WalletServiceService {
         });
         return {
           message: this.i18nService.translate('wallet.taxi_cashout_success', lang, {
-            amount: Number(already.amount).toFixed(2),
+            amount: Number(already.amount).toFixed(3),
             currency: already.currency || currency,
             recipient: driver.full_name || driver.phone || '',
             reference: already.reference || 'N/A',
@@ -4746,7 +4882,7 @@ export class WalletServiceService {
     }
 
     // ---------- 5. Transfert (une seule transaction) ----------
-    const description = dto.description || `Gains Favor Taxi ${amount.toFixed(2)} ${currency}`;
+    const description = dto.description || `Gains Favor Taxi ${amount.toFixed(3)} ${currency}`;
     let result: { source: any; driverWallet: any; debit: any; credit: any };
     try {
       result = await this.prisma.$transaction(
@@ -4761,8 +4897,8 @@ export class WalletServiceService {
             throw new RpcException({
               status: 'error',
               message: this.i18nService.translate('wallet.taxi_insufficient_balance', lang, {
-                balance: Number(fresh?.balance ?? 0).toFixed(2),
-                required: amount.toFixed(2),
+                balance: Number(fresh?.balance ?? 0).toFixed(3),
+                required: amount.toFixed(3),
                 currency,
               }),
               statusCode: 400,
@@ -4863,7 +4999,7 @@ export class WalletServiceService {
     // ---------- 7. Retour ----------
     return {
       message: this.i18nService.translate('wallet.taxi_cashout_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency,
         recipient: driver.full_name || driver.phone || '',
         reference: result.debit.reference || 'N/A',
@@ -4982,7 +5118,7 @@ export class WalletServiceService {
       const balance = Number(driverWallet?.balance ?? 0);
       return {
         message: this.i18nService.translate('wallet.taxi_commission_success', lang, {
-          amount: Number(credit.amount).toFixed(2),
+          amount: Number(credit.amount).toFixed(3),
           currency: credit.currency || currency,
           driver: driver.full_name || driver.phone || '',
           reference: credit.reference || 'N/A',
@@ -5004,7 +5140,7 @@ export class WalletServiceService {
     if (already) return already;
 
     // ---------- 4. Transfert (une seule transaction) ----------
-    const description = dto.description || `Commission course taxi (espèces) ${amount.toFixed(2)} ${currency}`;
+    const description = dto.description || `Commission course taxi (espèces) ${amount.toFixed(3)} ${currency}`;
     let result: { taxiWallet: any; driverWallet: any; debit: any; credit: any };
     try {
       result = await this.prisma.$transaction(
@@ -5087,7 +5223,7 @@ export class WalletServiceService {
     const balance = Number(result.driverWallet.balance);
     return {
       message: this.i18nService.translate('wallet.taxi_commission_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency,
         driver: driver.full_name || driver.phone || '',
         reference: result.credit.reference || 'N/A',
@@ -5258,10 +5394,7 @@ export class WalletServiceService {
     const result = await this.prisma.$transaction(async (tx) => {
       // Mettre à jour les soldes
       const [updatedUser, updatedMerchant] = await Promise.all([
-        tx.wallet.update({
-          where: { id: fromWallet.id },
-          data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
-        }),
+        this.debitWalletGuarded(tx, fromWallet.id, debitAmount), // ✅ débit atomique (solde vérifié à l'écriture)
         tx.wallet.update({
           where: { id: merchantWallet.id },
           data: { balance: { increment: creditAmount }, updatedAt: new Date() },
@@ -5364,13 +5497,13 @@ export class WalletServiceService {
 
     return {
       message: this.i18nService.translate('wallet.payment_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency: result.fromWallet.currency || 'CDF',
         merchant: result.toUser.full_name || 'Commerçant',
-        balance: result.fromWallet.balance.toFixed(2),
+        balance: result.fromWallet.balance.toFixed(3),
         reference: result.payerTx.reference || 'N/A',
-        fee: fee.toFixed(2),
-        creditAmount: creditAmount.toFixed(2),
+        fee: fee.toFixed(3),
+        creditAmount: creditAmount.toFixed(3),
       }),
       data: {
         wallet: this.toResponse(result.fromWallet),
@@ -8026,11 +8159,21 @@ export class WalletServiceService {
     paymentMethod: string = 'MOBILE_MONEY',
     ipAddress?: string,
     lang: string = 'fr',
+    externalReference?: string | null,
   ): Promise<ApiResponse<{
     wallet: WalletResponseDto;
     transaction: any;
     user: any;
   }>> {
+    // ✅ Référence externe (id du dépôt Mobile Money chez l'intégrateur) : un même dépôt ne crédite qu'une fois
+    const extRef = externalReference ? String(externalReference).trim().slice(0, 190) : '';
+    if (!extRef && String(process.env.PAY_ACCOUNT_REQUIRE_REFERENCE ?? 'false').toLowerCase() === 'true') {
+      throw new RpcException({
+        status: 'error',
+        message: 'La référence externe du paiement (externalReference) est obligatoire',
+        statusCode: 400,
+      });
+    }
     console.log('[WalletService] Pay account:', {
       beneficiaryId: userId,
       amount,
@@ -8127,6 +8270,23 @@ export class WalletServiceService {
           },
         });
 
+        // ✅ Anti double crédit : la ligne du wallet est verrouillée par l'UPDATE ci-dessus,
+        // une lecture verrouillante voit donc toute transaction concurrente déjà validée.
+        if (extRef) {
+          const dup: any[] = await (tx as any).$queryRawUnsafe(
+            "SELECT `id`, `reference` FROM `transaction` WHERE `walletId` = ? AND `type` = 'PAYMENT' AND `external_reference` = ? LIMIT 1 FOR UPDATE",
+            wallet.id,
+            extRef,
+          );
+          if (dup?.[0]) {
+            throw new RpcException({
+              status: 'error',
+              message: `Ce paiement (${extRef}) a déjà été crédité (transaction ${dup[0].reference}) : aucune action effectuée`,
+              statusCode: 409,
+            });
+          }
+        }
+
         // 4️⃣ CRÉER LA TRANSACTION (PAYMENT en CREDIT pour le bénéficiaire)
         const reference = await this.generateTransactionReference('', tx);
 
@@ -8143,6 +8303,7 @@ export class WalletServiceService {
             movement: 'CREDIT',  // ✅ CREDIT car le bénéficiaire reçoit
             currency: currency,
             paymentMethod: this.mapPaymentMethod(paymentMethod),
+            ...(extRef ? { external_reference: extRef } : {}),
           },
         });
 
@@ -8198,9 +8359,9 @@ export class WalletServiceService {
     // ========== RETOUR ==========
     return {
       message: this.i18nService.translate('wallet.payment_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency: result.wallet.currency || 'CDF',
-        balance: result.wallet.balance.toFixed(2),
+        balance: result.wallet.balance.toFixed(3),
         reference: result.transaction.reference || 'N/A',
       }),
       data: {
@@ -8507,6 +8668,9 @@ export class WalletServiceService {
         let updatedTransaction: any;
         let debitTransaction: any = null;
 
+        // ✅ Anti double validation (deux clics, deux admins)
+        await this.claimTransactionStatus(tx, transaction.id, 'PENDING');
+
         if (status === 'SUCCESS') {
           // ✅ 1. CRÉDITER LE WALLET DU BÉNÉFICIAIRE
           updatedBeneficiaryWallet = await tx.wallet.update({
@@ -8521,13 +8685,8 @@ export class WalletServiceService {
 
           // ✅ 2. DÉBITER LE WALLET DU PAYEUR (si trouvé)
           if (payerWallet) {
-            updatedPayerWallet = await tx.wallet.update({
-              where: { id: payerWallet.id },
-              data: {
-                balance: { decrement: transaction.amount },
-                updatedAt: new Date(),
-              },
-            });
+            // ✅ Débit atomique (solde vérifié au moment de l'écriture)
+            updatedPayerWallet = await this.debitWalletGuarded(tx, payerWallet.id, transaction.amount);
             console.log(`[validateTransaction] ❌ Payeur DÉBITÉ: -${transaction.amount} ${transaction.currency}`);
             console.log(`[validateTransaction] 📊 Nouveau solde payeur: ${updatedPayerWallet.balance}`);
 
@@ -8951,15 +9110,12 @@ export class WalletServiceService {
         let createdReceiver: any;
         let systemTransaction: any = null;
 
+        // ✅ Anti double validation (deux clics, deux admins)
+        await this.claimTransactionStatus(tx, transaction.id, 'PENDING');
+
         if (status === 'SUCCESS') {
-          // DÉBITER L'EXPÉDITEUR
-          updatedFromWallet = await tx.wallet.update({
-            where: { id: fromWallet.id },
-            data: {
-              balance: { decrement: debitAmount },
-              updatedAt: new Date(),
-            },
-          });
+          // DÉBITER L'EXPÉDITEUR (débit atomique : solde vérifié au moment de l'écriture)
+          updatedFromWallet = await this.debitWalletGuarded(tx, fromWallet.id, debitAmount);
 
           // CRÉDITER LE DESTINATAIRE
           updatedToWallet = await tx.wallet.update({
@@ -9408,15 +9564,24 @@ export class WalletServiceService {
 
     // 3. FORCER la réconciliation par l'admin
     const result = await this.prisma.$transaction(async (tx) => {
-      // Mettre à jour la transaction en SUCCESS
-      const updated = await tx.transaction.update({
-        where: { id: transaction.id },
+      // ✅ Anti double-traitement : passage conditionnel (seulement si le statut n'a pas changé entre-temps).
+      //    Deux clics / deux admins simultanés → un seul crédit.
+      const claimed = await tx.transaction.updateMany({
+        where: { id: transaction.id, status: transaction.status },
         data: {
           status: 'SUCCESS',
           description: `${transaction.description} (Réconciliée par admin ${adminId})`,
           updatedAt: new Date(),
         },
       });
+      if (claimed.count !== 1) {
+        throw new RpcException({
+          status: 'error',
+          statusCode: 409,
+          message: 'Transaction déjà réconciliée ou modifiée entre-temps : aucune opération effectuée',
+        });
+      }
+      const updated = await tx.transaction.findUnique({ where: { id: transaction.id } });
 
       // ✅ Ajuster le solde du wallet (pour les crédits)
       if (transaction.movement === 'CREDIT') {
@@ -9433,7 +9598,7 @@ export class WalletServiceService {
       await tx.audit_log.create({
         data: {
           id: crypto.randomUUID(),
-          userId: transaction.userId,
+          userId: adminId,
           action: 'RECONCILIATION_MANUAL',
           details: JSON.stringify({
             transactionId: transaction.id,
@@ -10076,9 +10241,9 @@ export class WalletServiceService {
       },
       currency,
       totals: {
-        credits: totalCredits.toFixed(2),
-        debits: totalDebits.toFixed(2),
-        balance: balance.toFixed(2),
+        credits: totalCredits.toFixed(3),
+        debits: totalDebits.toFixed(3),
+        balance: balance.toFixed(3),
       },
       transactions: formattedTransactions,
       labels: {
@@ -10309,6 +10474,10 @@ export class WalletServiceService {
     dto: AdminTopUpDto,
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
     const { adminId, walletId, amount, pin, lang = 'fr', ipAddress } = dto;
+    // ✅ Exécution après DOUBLE VALIDATION : le PIN du demandeur a été vérifié à la demande,
+    //    celui du validateur à l'approbation (voir admin_top_up_approved). Jamais transmis par le client HTTP.
+    const approval: { requestId: string; approvedBy: string } | null = (dto as any).__approval ?? null;
+    const skipPin = !!approval?.requestId;
     console.log('[WalletService] Admin Top-up:', { adminId, walletId, amount, lang });
 
     // ========== VALIDATIONS ==========
@@ -10336,7 +10505,7 @@ export class WalletServiceService {
       });
     }
 
-    if (!pin || pin.length < 4) {
+    if (!skipPin && (!pin || pin.length < 4)) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.pin_min_length', lang),
@@ -10344,7 +10513,7 @@ export class WalletServiceService {
       });
     }
 
-    if (!/^\d+$/.test(pin)) {
+    if (!skipPin && !/^\d+$/.test(pin)) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.pin_digits_only', lang),
@@ -10389,7 +10558,7 @@ export class WalletServiceService {
           });
         }
 
-        if (!admin.pin) {
+        if (!skipPin && !admin.pin) {
           throw new RpcException({
             status: 'error',
             message: 'Admin n\'a pas de PIN défini.',
@@ -10397,7 +10566,7 @@ export class WalletServiceService {
           });
         }
 
-        if (admin.pin_locked_until && admin.pin_locked_until > new Date()) {
+        if (!skipPin && admin.pin_locked_until && admin.pin_locked_until > new Date()) {
           const minutesLeft = Math.ceil(
             (admin.pin_locked_until.getTime() - Date.now()) / 60000,
           );
@@ -10408,8 +10577,8 @@ export class WalletServiceService {
           });
         }
 
-        const hashedPin = crypto.createHash('sha256').update(pin).digest('hex');
-        if (admin.pin !== hashedPin) {
+        const hashedPin = skipPin ? admin.pin : crypto.createHash('sha256').update(pin).digest('hex');
+        if (!skipPin && admin.pin !== hashedPin) {
           const newAttempts = (admin.failed_pin_attempts || 0) + 1;
           let newStatus = admin.status;
           let lockedUntil: Date | null = null;
@@ -11025,10 +11194,7 @@ export class WalletServiceService {
         }
 
         // 1️⃣ DÉBITER LE WALLET DU CLIENT
-        const updatedWallet = await tx.wallet.update({
-          where: { id: currentWallet.id },
-          data: { balance: { decrement: amount }, updatedAt: new Date() },
-        });
+        const updatedWallet = await this.debitWalletGuarded(tx, currentWallet.id, amount); // ✅ débit atomique (solde vérifié à l'écriture)
 
         // 2️⃣ DÉBITER LA CAISSE (si elle existe)
         if (branchCashWallet) {
@@ -11681,10 +11847,7 @@ export class WalletServiceService {
         let updatedTo: any = null;
 
         if (!isInternational) {
-          updatedFrom = await tx.wallet.update({
-            where: { id: fromWallet.id },
-            data: { balance: { decrement: debitAmount }, updatedAt: new Date() },
-          });
+          updatedFrom = await this.debitWalletGuarded(tx, fromWallet.id, debitAmount); // ✅ débit atomique (solde vérifié à l'écriture)
 
           updatedTo = await tx.wallet.update({
             where: { id: targetWallet.id },
@@ -12146,10 +12309,7 @@ export class WalletServiceService {
           });
         }
 
-        const updatedFrom = await tx.wallet.update({
-          where: { id: fromWallet.id },
-          data: { balance: { decrement: amount }, updatedAt: new Date() },
-        });
+        const updatedFrom = await this.debitWalletGuarded(tx, fromWallet.id, amount); // ✅ débit atomique (solde vérifié à l'écriture)
         const updatedTo = await tx.wallet.update({
           where: { id: toWallet.id },
           data: { balance: { increment: amount }, updatedAt: new Date() },
@@ -12293,10 +12453,10 @@ export class WalletServiceService {
 
     return {
       message: this.i18nService.translate('wallet.payment_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency: result.fromWallet.currency || 'CDF',
         merchant: result.toUser.full_name || 'Commerçant',  // ← merchant
-        balance: result.fromWallet.balance.toFixed(2),
+        balance: result.fromWallet.balance.toFixed(3),
         reference: result.payerTx.reference || 'N/A',
       }),
       data: {
@@ -12666,6 +12826,7 @@ export class WalletServiceService {
             balance: 0,
             isActive: true,
             isDefault: false,
+            isBranchWallet: true, // ✅ wallet de caisse identifiable (listes de caisses, couverture, arrêtés)
           },
         });
         console.log(`Wallet de caisse créé pour ${branch.name} (${currency})`);
@@ -12694,6 +12855,7 @@ export class WalletServiceService {
           balance: 0,
           isActive: true,
           isDefault: false,
+          isBranchWallet: true, // ✅ wallet de caisse identifiable
         },
       });
       console.log(`Wallet de caisse créé pour ${branch.name} (${currency})`);
@@ -14120,7 +14282,7 @@ export class WalletServiceService {
             status: 'PENDING',
             reference: reference,
             description: this.i18nService.translate('wallet.deposit_request_description', lang, {
-              amount: amount.toFixed(2),
+              amount: amount.toFixed(3),
               currency: beneficiaryWallet.currency || 'CDF',
               payerName: payer.full_name || 'Payeur',
             }),
@@ -14200,7 +14362,7 @@ export class WalletServiceService {
     // ========== RETOUR ==========
     return {
       message: this.i18nService.translate('wallet.deposit_request_success', lang, {
-        amount: amount.toFixed(2),
+        amount: amount.toFixed(3),
         currency: beneficiaryWallet.currency || 'CDF',
         reference: result.transaction.reference || 'N/A',
         payer: result.payer.full_name || 'Payeur',
@@ -14504,6 +14666,9 @@ export class WalletServiceService {
     // ========== EXÉCUTER LE TRANSFERT ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
+        // ✅ Anti double confirmation (et course avec une annulation simultanée)
+        await this.claimTransactionStatus(tx, pendingTransaction.id, 'PENDING');
+
         // 1️⃣ VÉRIFIER LE SOLDE DU PAYEUR
         const currentPayerWallet = await tx.wallet.findFirst({
           where: { id: payerWallet.id, isActive: true },
@@ -14531,7 +14696,7 @@ export class WalletServiceService {
           data: {
             status: 'SUCCESS',
             description: this.i18nService.translate('wallet.deposit_confirm_description', lang, {
-              amount: pendingTransaction.amount.toFixed(2),
+              amount: pendingTransaction.amount.toFixed(3),
               currency: pendingTransaction.currency || 'CDF',
             }),
             updatedAt: new Date(),
@@ -14556,14 +14721,8 @@ export class WalletServiceService {
           },
         });
 
-        // 4️⃣ DÉBITER LE WALLET DU PAYEUR
-        const updatedPayerWallet = await tx.wallet.update({
-          where: { id: payerWallet.id },
-          data: {
-            balance: { decrement: pendingTransaction.amount },
-            updatedAt: new Date(),
-          },
-        });
+        // 4️⃣ DÉBITER LE WALLET DU PAYEUR (débit atomique : solde vérifié au moment de l'écriture)
+        const updatedPayerWallet = await this.debitWalletGuarded(tx, payerWallet.id, pendingTransaction.amount);
 
         // 5️⃣ CRÉER UNE NOUVELLE TRANSACTION DE DÉBIT POUR LE PAYEUR
         const debitReference = await this.generateTransactionReference('', tx);
@@ -14577,7 +14736,7 @@ export class WalletServiceService {
             status: 'SUCCESS',
             reference: debitReference,
             description: this.i18nService.translate('wallet.deposit_debit_description', lang, {
-              amount: pendingTransaction.amount.toFixed(2),
+              amount: pendingTransaction.amount.toFixed(3),
               currency: pendingTransaction.currency || 'CDF',
               beneficiaryName: beneficiary.full_name || beneficiaryId,
             }),
@@ -14658,11 +14817,11 @@ export class WalletServiceService {
     // ========== RETOUR ==========
     return {
       message: this.i18nService.translate('wallet.deposit_transfer_success', lang, {
-        amount: result.creditTransaction.amount.toFixed(2),
+        amount: result.creditTransaction.amount.toFixed(3),
         currency: result.creditTransaction.currency || 'CDF',
         beneficiary: result.beneficiary.full_name || beneficiaryId,
         payer: result.payer.full_name || userId,
-        balance: result.beneficiaryWallet.balance.toFixed(2),
+        balance: result.beneficiaryWallet.balance.toFixed(3),
         reference: result.creditTransaction.reference || 'N/A',
       }),
       data: {
@@ -14721,12 +14880,14 @@ export class WalletServiceService {
     // ========== ANNULER LA TRANSACTION ==========
     const result = await this.prisma.$transaction(
       async (tx) => {
+        // ✅ Annulation seulement si la demande est encore en attente (pas après une confirmation simultanée)
+        await this.claimTransactionStatus(tx, pendingTransaction.id, 'PENDING');
         const cancelledTransaction = await tx.transaction.update({
           where: { id: pendingTransaction.id },
           data: {
             status: 'CANCELLED',
             description: this.i18nService.translate('wallet.deposit_cancelled_description', lang, {
-              amount: pendingTransaction.amount.toFixed(2),
+              amount: pendingTransaction.amount.toFixed(3),
               currency: pendingTransaction.currency || 'CDF',
             }),
             updatedAt: new Date(),

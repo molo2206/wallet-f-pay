@@ -63,7 +63,7 @@ model user {
   merchantType                                                      user_merchantType?       @default(RETAIL)
   businessCategory                                                  String?                  @db.VarChar(100)
   businessAddress                                                   String?                  @db.Text
-  maintenance_fee                                                   Float?                   @default(0) @db.Float
+  maintenance_fee                                                   Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
   last_maintenance_date                                             DateTime?                @db.DateTime(0)
   is_maintenance_exempt                                             Boolean?                 @default(false)
   loyalty_code                                                      String?                  @unique(map: "loyalty_code") @db.VarChar(20)
@@ -130,7 +130,7 @@ model account {
   account_number String           @db.VarChar(50)
   phone          String           @db.VarChar(255)
   branch         String?          @db.VarChar(255)
-  balance        Float            @default(0) @db.Float
+  balance        Float            @default(0)  // DOUBLE (anciennement FLOAT simple précision)
   currency       account_currency @default(CDF)
   createdAt      DateTime         @default(now()) @db.DateTime(0)
   updatedAt      DateTime         @default(now()) @db.DateTime(0)
@@ -249,10 +249,10 @@ model security_policies {
 model user_transaction_limit {
   id                        String    @id @db.VarChar(36)
   user_id                   String?   @db.VarChar(36)
-  daily_limit               Float?    @default(500) @db.Float
-  monthly_limit             Float?    @default(5000) @db.Float
-  yearly_limit              Float?    @default(50000) @db.Float
-  per_transaction_limit     Float?    @default(200) @db.Float
+  daily_limit               Float?    @default(500)  // DOUBLE (anciennement FLOAT simple précision)
+  monthly_limit             Float?    @default(5000)  // DOUBLE (anciennement FLOAT simple précision)
+  yearly_limit              Float?    @default(50000)  // DOUBLE (anciennement FLOAT simple précision)
+  per_transaction_limit     Float?    @default(200)  // DOUBLE (anciennement FLOAT simple précision)
   monthly_transaction_count Int?      @default(50)
   created_at                DateTime? @default(now()) @db.Timestamp(0)
   updated_at                DateTime? @default(now()) @db.Timestamp(0)
@@ -355,8 +355,8 @@ model app_settings {
   maintenance_mode     Boolean?  @default(false)
   maintenance_message  String?   @db.Text
   allow_registration   Boolean?  @default(true)
-  transfer_fee         Float?    @default(0) @db.Float
-  withdraw_fee         Float?    @default(0) @db.Float
+  transfer_fee         Float?    @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  withdraw_fee         Float?    @default(0)  // DOUBLE (anciennement FLOAT simple précision)
   facebook             String?   @db.VarChar(255)
   instagram            String?   @db.VarChar(255)
   twitter              String?   @db.VarChar(255)
@@ -393,16 +393,16 @@ model country_provider {
   createdAt                       DateTime                 @default(now()) @db.DateTime(0)
   updatedAt                       DateTime                 @default(now()) @db.DateTime(0)
   status                          country_provider_status? @default(ACTIVE)
-  transfer_percentage             Float?                   @default(0) @db.Float
-  international_transfer_fee      Float?                   @default(0) @db.Float
-  international_deposit_fee       Float?                   @default(0) @db.Float
-  international_withdrawal_fee    Float?                   @default(0) @db.Float
-  maintenance_fee                 Float?                   @default(0) @db.Float
-  deposit_fee                     Float?                   @default(0) @db.Float
-  withdrawal_fee                  Float?                   @default(0) @db.Float
-  merchant_maintenance_multiplier Float?                   @default(2) @db.Float
-  cash_percentage                 Float?                   @default(0) @db.Float
-  momo_percentage                 Float?                   @default(0) @db.Float
+  transfer_percentage             Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  international_transfer_fee      Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  international_deposit_fee       Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  international_withdrawal_fee    Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  maintenance_fee                 Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  deposit_fee                     Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  withdrawal_fee                  Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  merchant_maintenance_multiplier Float?                   @default(2)  // DOUBLE (anciennement FLOAT simple précision)
+  cash_percentage                 Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  momo_percentage                 Float?                   @default(0)  // DOUBLE (anciennement FLOAT simple précision)
   branch                          branch[]
   country_currency                country_currency[]
   fee_config                      fee_config[]
@@ -413,10 +413,10 @@ model network_provider {
   id                         String           @id @db.VarChar(36)
   name                       String           @db.VarChar(100)
   currency                   String           @db.Text
-  pourcentage_deposit        Float?           @default(0) @db.Float
-  pourcentage_payout         Float?           @default(0) @db.Float
-  pourcentage_deposit_intern Float?           @default(0) @db.Float
-  pourcentage_payout_intern  Float            @default(0) @db.Float
+  pourcentage_deposit        Float?           @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  pourcentage_payout         Float?           @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  pourcentage_deposit_intern Float?           @default(0)  // DOUBLE (anciennement FLOAT simple précision)
+  pourcentage_payout_intern  Float            @default(0)  // DOUBLE (anciennement FLOAT simple précision)
   image                      String?          @db.Text
   countryId                  String           @db.VarChar(36)
   createdAt                  DateTime         @default(now()) @db.DateTime(0)
@@ -431,7 +431,7 @@ model exchange_rate {
   id            String   @id @db.VarChar(36)
   from_currency String   @db.VarChar(10)
   to_currency   String   @db.VarChar(10)
-  rate          Float    @db.Float
+  rate          Float  // DOUBLE (anciennement FLOAT simple précision)
   updated_at    DateTime @default(now()) @db.DateTime(0)
 }
 

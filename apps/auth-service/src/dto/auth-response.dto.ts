@@ -38,6 +38,8 @@ export interface UserInfoDto {
   resources?: ResourcePermissionDto[];
   wallets?: WalletDto[];
   kyc?: KycDto;
+  /** Programme de travail : fin de l'accès autorisé (null = sans limite) */
+  workSchedule?: { endsAt: string | null; scheduleName: string | null; timezone: string | null } | null;
 }
 
 export interface SessionDto {
@@ -102,4 +104,6 @@ export interface AuthResponseDto {
   resources?: ResourcePermissionDto[];
   wallets?: WalletDto[];
   kyc?: KycDto;
+  /** Programme de travail : fin de l'accès autorisé (null = sans limite) */
+  workSchedule?: { endsAt: string | null; scheduleName: string | null; timezone: string | null } | null;
 }

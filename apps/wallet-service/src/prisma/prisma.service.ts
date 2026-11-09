@@ -9,7 +9,9 @@ export class PrismaService
 {
   constructor() {
     super({
-      log: ['query', 'info', 'warn', 'error'],
+      // ✅ Performance : journaliser chaque requête SQL ralentit fortement la production.
+      // PRISMA_LOG=query,info,warn,error pour le diagnostic ; défaut : warn,error.
+      log: (process.env.PRISMA_LOG || 'warn,error').split(',').map((l) => l.trim()).filter(Boolean) as any,
     });  }
 
   async onModuleInit() {

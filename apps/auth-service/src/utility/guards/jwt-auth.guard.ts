@@ -121,21 +121,47 @@ export class JwtAuthGuard implements CanActivate {
         if (!payload.sessionToken) {
           throw new UnauthorizedException('Token sans session');
         }
+        let response: any;
         try {
-          const response = await firstValueFrom(
+          response = await firstValueFrom(
             this.authClient
               .send('validate_session', {
                 userId: payload.id,
                 sessionToken: payload.sessionToken,
+                lang,
               })
               .pipe(timeout(5000)),
           );
-          if (!response?.valid) {
-            throw new UnauthorizedException('Session expirée ou révoquée');
-          }
         } catch (err) {
           console.error('Erreur lors de la validation de la session:', err);
           throw new UnauthorizedException('Session invalide');
+        }
+        // ✅ Fin du programme de travail : session fermée côté serveur, ancien jeton refusé
+        if (response?.reason === 'OUTSIDE_WORK_HOURS') {
+          throw new HttpException(
+            {
+              statusCode: HttpStatus.FORBIDDEN,
+              code: 'OUTSIDE_WORK_HOURS',
+              action: 'FORCE_LOGOUT',
+              message:
+                response?.message ||
+                this.i18nService.translate('work_schedule.session_closed', lang),
+              nextStartAt: response?.nextStartAt ?? null,
+            },
+            HttpStatus.FORBIDDEN,
+          );
+        }
+        // ✅ Ancien format { valid: { valid } } toléré ; seul un booléen true est accepté
+        const valid =
+          typeof response?.valid === 'object' && response?.valid !== null
+            ? response.valid.valid === true
+            : response?.valid === true;
+        if (!valid) {
+          throw new UnauthorizedException({
+            statusCode: HttpStatus.UNAUTHORIZED,
+            code: 'SESSION_REVOKED',
+            message: 'Session expirée ou révoquée',
+          });
         }
       }
 

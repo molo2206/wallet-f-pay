@@ -9,6 +9,7 @@ import { SmsModule } from './sms/sms.module';
 import { MailModule } from './email/email.module';
 import { I18nModule } from '@app/common'; // ✅ import depuis la librairie
 import { BankModule } from 'apps/wallet-service/src/bank/bank.module';
+import { WorkSchedulesModule } from './work-schedules/work-schedules.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BankModule } from 'apps/wallet-service/src/bank/bank.module';
     MailModule,
     I18nModule, // ✅ ajout
     BankModule,
+    WorkSchedulesModule, // ✅ programmes de travail + déconnexion automatique
   ],
   controllers: [AuthServiceController],
   providers: [AuthServiceService],
