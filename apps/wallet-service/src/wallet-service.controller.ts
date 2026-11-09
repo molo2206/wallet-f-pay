@@ -1,0 +1,1386 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable prettier/prettier */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+// apps/wallet-service/src/wallet-service.controller.ts
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload, RmqContext, RpcException, Ctx } from '@nestjs/microservices';
+import { WalletServiceService } from './wallet-service.service';
+import { PayDto, SendDto, SendFidelityDto, SendParrainageDto, SendSalaryDto, SendTaxiDto } from './dto/wallet-operation.dto';
+import { PawapayService } from './pawapay/pawapay.service';
+import { CreateCountryDto } from './pawapay/dto/create-country.dto';
+import { UpdateCountryDto } from './pawapay/dto/update-country.dto';
+import { CreateNetworkDto } from './pawapay/dto/create-network.dto';
+import { UpdateNetworkDto } from './pawapay/dto/update-network.dto';
+import { I18nService } from '@app/common'; // ✅ ajout
+import { AdminCashoutDto, AdminPayDto, AdminSendDto, AdminTopUpDto } from './dto/admin-wallet.dto';
+import { ConvertCurrencyDto, ExchangeRateDto } from './dto/currency-convert.dto';
+
+@Controller()
+export class WalletServiceController {
+  constructor(
+    private readonly walletService: WalletServiceService,
+    private readonly pawapayService: PawapayService,
+    private readonly i18nService: I18nService, // ✅ injection
+  ) { }
+
+  //===========================================================
+  @MessagePattern('get_pawapay_balances')
+  async getPawaPayBalances(
+    @Payload() data: {
+      country?: string;
+      provider?: string;
+    },
+    // ✅ Supprimer @Ctx() car on utilise noAck: true
+  ) {
+    console.log('[WalletService] get_pawapay_balances received:', data);
+
+    try {
+      const result = await this.walletService.getPawaPayBalances(
+        data.country,
+        data.provider,
+      );
+      return result;
+    } catch (error) {
+      console.error('[WalletService] getPawaPayBalances error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error.message || 'Erreur récupération balances',
+        statusCode: error.statusCode || 500,
+      });
+    }
+  }
+  @MessagePattern('deposit_pawapay')
+  async depositWithPawaPay(
+    @Payload() data: {
+      userId: string;
+      amount: number;
+      pin: string;
+      provider: string;
+      phone: string;
+      currency: string;  // ✅ Devise obligatoire
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] deposit_pawapay received:', data);
+
+    try {
+      return await this.walletService.depositWithPawaPay(
+        data.userId,
+        data.amount,
+        data.pin,
+        data.provider,
+        data.phone,
+        data.currency,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] deposit_pawapay error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error.message || this.i18nService.translate('wallet.top_up_failed', lang),
+        statusCode: error.statusCode || 500,
+      });
+    }
+  }
+  // ==================== MÉTHODES DE BASE ====================
+  @MessagePattern('create_wallet')
+  async createWallet(@Payload() data: { userId: string; currency?: string }) {
+    console.log('[WalletService] create_wallet received:', data);
+    try {
+      return await this.walletService.createWallet(data);
+    } catch (error) {
+      console.error('[WalletService] create_wallet error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_wallet')
+  async getWallet(@Payload() data: { userId: string; lang?: string }) {
+    console.log('[WalletService] get_wallet received:', data.userId);
+    try {
+      return await this.walletService.getUserWallets(data.userId);
+    } catch (error) {
+      console.error('[WalletService] get_wallet error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_wallet_by_id')
+  async getWalletById(@Payload() data: { walletId: string; userId?: string; lang?: string }) {
+    console.log('[WalletService] get_wallet_by_id received:', data);
+    try {
+      return await this.walletService.getWalletById(data.walletId, data.lang);
+    } catch (error) {
+      console.error('[WalletService] get_wallet_by_id error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_wallet_by_user')
+  async getWalletByUser(@Payload() data: { userId: string; lang?: string }) {
+    console.log('[WalletService] get_wallet received:', data.userId);
+    try {
+      return await this.walletService.getUserWallets(data.userId);
+    } catch (error) {
+      console.error('[WalletService] get_wallet error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_wallet_by_phone')
+  async getWalletByPhone(@Payload() data: { phone: string; lang?: string }) {
+    console.log('[WalletService] get_wallet_by_phone received:', data.phone);
+    try {
+      return await this.walletService.getWalletByPhone(data.phone);
+    } catch (error) {
+      console.error('[WalletService] get_wallet_by_phone error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_merchant_by_code')
+  async getMerchantByCode(@Payload() data: { merchantCode: string; lang?: string }) {
+    console.log('[UserService] get_merchant_by_code received:', data.merchantCode);
+    try {
+      return await this.walletService.getMerchantByCode(data.merchantCode);
+    } catch (error) {
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_transaction_by_id')
+  async getTransactionById(@Payload() data: { transactionId: string; lang?: string }) {
+    console.log('[WalletService] get_transaction_by_id received:', data.transactionId);
+    try {
+      return await this.walletService.getTransactionById(data.transactionId);
+    } catch (error) {
+      console.error('[WalletService] get_transaction_by_id error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('list_transactions')
+  async listTransactions(
+    @Payload()
+    data: {
+      userId: string;
+      page?: number;
+      limit?: number;
+      startDate?: Date;
+      endDate?: Date;
+      lang?: string;
+      adminId?: string;
+      countryCode?: string; // ✅ AJOUT
+      branchId?: string; // ✅ AJOUT
+    },
+  ) {
+    console.log('[WalletService] list_transactions received:', data);
+    try {
+      return await this.walletService.listTransactions({
+        userId: data.userId,
+        page: data.page,
+        limit: data.limit,
+        startDate: data.startDate,
+        endDate: data.endDate,
+        adminId: data.adminId,
+        countryCode: data.countryCode,
+        branchId: data.branchId,
+      });
+    } catch (error) {
+      console.error('[WalletService] list_transactions error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_transactions_by_wallet')
+  async getTransactionsByWallet(
+    @Payload()
+    data: {
+      walletId: string;
+      page?: number;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] get_transactions_by_wallet received:', data);
+    try {
+      // Convertir les dates si présentes
+      const startDate = data.startDate ? new Date(data.startDate) : undefined;
+      const endDate = data.endDate ? new Date(data.endDate) : undefined;
+
+      return await this.walletService.getTransactionsByWalletId(
+        data.walletId,
+        data.page || 1,
+        data.limit || 10,
+        startDate,
+        endDate,
+        data.lang || 'fr',
+      );
+    } catch (error) {
+      console.error('[WalletService] get_transactions_by_wallet error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('list_all_transactions')
+  async listAllTransactions(
+    @Payload()
+    data: {
+      page?: number;
+      limit?: number;
+      userId?: string;
+      type?: string;
+      status?: string;
+      startDate?: string;
+      endDate?: string;
+      search?: string;
+      lang?: string;
+      adminId?: string;      // ✅ AJOUT
+      branchId?: string;     // ✅ AJOUT
+      countryCode?: string;  // ✅ AJOUT
+    },
+  ) {
+    console.log('[WalletService] list_all_transactions received:', data);
+    try {
+      const startDate = data.startDate ? new Date(data.startDate) : undefined;
+      const endDate = data.endDate ? new Date(data.endDate) : undefined;
+
+      // ✅ Passer tous les paramètres
+      return await this.walletService.listAllTransactions({
+        page: data.page,
+        limit: data.limit,
+        userId: data.userId,
+        type: data.type,
+        status: data.status,
+        startDate: startDate,
+        endDate: endDate,
+        search: data.search,
+        adminId: data.adminId,        // ✅ AJOUT
+        branchId: data.branchId,      // ✅ AJOUT
+        countryCode: data.countryCode, // ✅ AJOUT
+      });
+    } catch (error) {
+      console.error('[WalletService] list_all_transactions error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+  @MessagePattern('list_all_transactions_unpaginated')
+  async listAllTransactionsUnpaginated(
+    @Payload()
+    data: {
+      userId?: string;
+      type?: string;
+      status?: string;
+      startDate?: Date;
+      endDate?: Date;
+      search?: string;
+      lang?: string;
+    },
+  ) {
+    try {
+      return await this.walletService.listAllTransactionsWithoutPagination(
+        data.userId,
+        data.type,
+        data.status,
+        data.startDate,
+        data.endDate,
+        data.search,
+      );
+    } catch (error) {
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error.message || this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 500,
+      });
+    }
+  }
+
+  @MessagePattern('list_all_trans')
+  async listAllTransactionsWithoutPag(
+    @Payload()
+    data: {
+      userId?: string;
+      type?: string;
+      status?: string;
+      startDate?: string;
+      endDate?: string;
+      search?: string;
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] list_all_trans received:', data);
+    try {
+      const startDate = data.startDate ? new Date(data.startDate) : undefined;
+      const endDate = data.endDate ? new Date(data.endDate) : undefined;
+      return await this.walletService.listAllTransactionsWithoutPag(
+        data.userId,
+        data.type,
+        data.status,
+        startDate,
+        endDate,
+        data.search,
+      );
+    } catch (error) {
+      console.error('[WalletService] list_all_trans error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  // ==================== OPÉRATIONS AVANCÉES (avec langue) ====================
+
+  @MessagePattern('top_up')
+  async topUp(
+    @Payload()
+    data: {
+      userId: string;
+      amount: number;
+      pin: string;
+      lang?: string;
+      ipAddress?: string;
+      walletId?: string;
+      provider?: string;
+      phone?: string;
+    },
+  ) {
+    console.log('[WalletService] top_up received:', data);
+    try {
+      return await this.walletService.topUp(
+        data.userId,
+        data.amount,
+        data.pin,
+        data.lang || 'fr',
+        data.ipAddress,
+        data.walletId,
+        data.provider,
+        data.phone,
+      );
+    } catch (error) {
+      console.error('[WalletService] top_up error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('cashout')
+  async cashout(
+    @Payload()
+    data: {
+      userId: string;
+      accountNumber?: string;     // optionnel pour MOMO
+      amount: number;
+      pin: string;
+      lang?: string;
+      ipAddress?: string;
+      walletId?: string;          // pour cibler un wallet spécifique
+      provider?: string;          // pour PawaPay (MOMO)
+      phone?: string;             // pour PawaPay
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('[WalletService] cashout received:', {
+      userId: data.userId,
+      accountNumber: data.accountNumber,
+      amount: data.amount,
+      lang,
+      walletId: data.walletId,
+      provider: data.provider,
+      phone: data.phone,
+    });
+    try {
+      return await this.walletService.cashout(
+        data.userId,
+        {
+          accountNumber: data.accountNumber,
+          amount: data.amount,
+          pin: data.pin,
+          walletId: data.walletId,
+          provider: data.provider,
+          phone: data.phone,
+        },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] cashout error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  /** ✅ Retrait partenaire (Favor Help) — étape 1 : demande + envoi de l'OTP par SMS (ou renvoi : resend = true) */
+  @MessagePattern('external_cashout_otp_request')
+  async externalCashoutOtpRequest(
+    @Payload()
+    data: {
+      userId: string;
+      amount?: number;
+      walletId?: string;
+      provider?: string;
+      phone?: string;
+      requestId?: string;
+      resend?: boolean;
+      partnerId?: string;
+      partnerName?: string | null;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    try {
+      return await this.walletService.requestExternalCashoutOtp(
+        data.userId,
+        {
+          amount: data.amount,
+          walletId: data.walletId,
+          provider: data.provider,
+          phone: data.phone,
+          requestId: data.requestId,
+          resend: data.resend,
+          partnerId: data.partnerId,
+          partnerName: data.partnerName,
+        },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  /** ✅ Retrait partenaire (Favor Help) — étape 2 : OTP saisi → retrait (sans PIN) */
+  @MessagePattern('external_cashout_otp_confirm')
+  async externalCashoutOtpConfirm(
+    @Payload() data: { userId: string; requestId: string; otpCode: string; lang?: string; ipAddress?: string },
+  ) {
+    const lang = data.lang || 'fr';
+    try {
+      return await this.walletService.confirmExternalCashoutOtp(
+        data.userId,
+        { requestId: data.requestId, otpCode: data.otpCode },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  /** ✅ Commission d'une course taxi en espèces : wallet du chauffeur (peut devenir négatif) → compte TAXI */
+  @MessagePattern('taxi_commission')
+  async taxiCommission(
+    @Payload()
+    data: {
+      taxiUserId: string;
+      driverUserId: string;
+      amount: number;
+      currency: string;
+      rideId: string;
+      description?: string;
+      paymentMethod?: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    try {
+      return await this.walletService.taxiCommission(
+        data.taxiUserId,
+        {
+          driverUserId: data.driverUserId,
+          amount: data.amount,
+          currency: data.currency,
+          rideId: data.rideId,
+          description: data.description,
+          paymentMethod: data.paymentMethod,
+        },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error: any) {
+      console.error('[WalletService] taxi_commission error:', error);
+      const inner = typeof error?.getError === 'function' ? error.getError() : null;
+      throw new RpcException({
+        status: 'error',
+        message:
+          (inner && typeof inner === 'object' && inner.message) ||
+          (error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang)),
+        statusCode: (inner && typeof inner === 'object' && inner.statusCode) || 400,
+      });
+    }
+  }
+
+  @MessagePattern('taxi_cashout')
+  async taxiCashout(
+    @Payload()
+    data: {
+      payerUserId: string;
+      driverUserId: string;
+      amount: number;
+      currency: string;
+      description?: string;
+      countryCode?: string;
+      paymentMethod?: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('[WalletService] taxi_cashout received:', {
+      payerUserId: data.payerUserId,
+      driverUserId: data.driverUserId,
+      amount: data.amount,
+      currency: data.currency,
+      paymentMethod: data.paymentMethod,
+      lang,
+    });
+
+    try {
+      return await this.walletService.taxiCashout(
+        data.payerUserId,
+        {
+          driverUserId: data.driverUserId,
+          amount: data.amount,
+          currency: data.currency,
+          description: data.description,
+          countryCode: data.countryCode,
+          paymentMethod: data.paymentMethod,
+        },
+        lang,
+        data.ipAddress,
+      );
+    } catch (error: any) {
+      console.error('[WalletService] taxi_cashout error:', error);
+      // ✅ Le code d'origine (404 introuvable, 403 bloqué…) est conservé au lieu d'un 400 pour tout
+      const inner = typeof error?.getError === 'function' ? error.getError() : null;
+      throw new RpcException({
+        status: 'error',
+        message:
+          (inner && typeof inner === 'object' && inner.message) ||
+          (error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang)),
+        statusCode: (inner && typeof inner === 'object' && inner.statusCode) || 400,
+      });
+    }
+  }
+
+  @MessagePattern('send')
+  async send(@Payload() data: SendDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send received:', {
+      from: data.fromWalletId,
+      to: data.toPhone,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
+    try {
+      return await this.walletService.send(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('send_fidelity')
+  async sendFidelity(@Payload() data: SendFidelityDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_fidelity received:', {
+      from: data.fromWalletId,
+      to: data.toPhone,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
+    try {
+      return await this.walletService.sendFidelity(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_fidelity error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+
+  @MessagePattern('send_salary')
+  async sendSalary(@Payload() data: SendSalaryDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_salary received:', {
+      from: data.fromWalletId,
+      to: data.toPhone,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
+    try {
+      return await this.walletService.sendSalary(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_salary error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('send_parrainage')
+  async sendParrainage(@Payload() data: SendParrainageDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_parrainage received:', {
+      from: data.fromWalletId,
+      to: data.toWalletId,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      paymentMethod: data.paymentMethod,
+      lang: data.lang,
+      ipAddress: ipAddress
+    });
+
+    try {
+      return await this.walletService.sendParrainage(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_parrainage error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('send_taxi')
+  async sendTaxi(@Payload() data: SendTaxiDto & { lang?: string; ipAddress?: string }) {
+    const ipAddress = data.ipAddress || '';
+    console.log('[WalletService] send_taxi received:', {
+      from: data.fromWalletId,
+      to: data.toWalletId,
+      amount: data.amount,
+      countryCode: data.countryCode,
+      description: data.description,
+      paymentMethod: data.paymentMethod,
+      lang: data.lang,
+      ipAddress: ipAddress,
+    });
+
+    try {
+      return await this.walletService.sendTaxi(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] send_taxi error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('pay')
+  async pay(@Payload() data: PayDto & { lang?: string }, ipAddress: string) {
+    console.log('[WalletService] pay received:', { ...data, lang: data.lang });
+    try {
+      return await this.walletService.pay(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] pay error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('pay_without_pin')
+  async payWithoutPin(@Payload() data: PayDto & { lang?: string, ipAddress?: string }) {
+    console.log('[WalletService] pay_without_pin received:', data);
+
+    try {
+      const result = await this.walletService.payWithoutPin(
+        data,
+        data.lang || 'fr',
+        data.ipAddress || 'unknown'
+      );
+
+      console.log('[WalletService] ✅ pay_without_pin SUCCESS');
+      console.log('[WalletService] 📤 Résultat à retourner:', JSON.stringify(result, null, 2));
+
+      // ✅ RETOURNER UN OBJET SIMPLE AVEC status
+      return {
+        status: 'success',
+        message: result.message,
+        data: result.data
+      };
+    } catch (error) {
+      console.error('[WalletService] ❌ pay_without_pin error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('pay_account')
+  async payAccount(@Payload() data: {
+    userId: string;           // BÉNÉFICIAIRE
+    amount: number;
+    currency?: string;
+    description?: string;
+    paymentMethod?: string;
+    ipAddress?: string;
+    lang?: string;
+  }) {
+    console.log('[WalletService] pay_account received:', data);
+
+    try {
+      return await this.walletService.payAccount(
+        data.userId,
+        data.amount,
+        data.currency || 'CDF',
+        data.description,
+        data.paymentMethod || 'MOBILE_MONEY',
+        data.ipAddress,
+        data.lang || 'fr',
+      );
+    } catch (error) {
+      console.error('[WalletService] pay_account error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.payment_failed', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('link_account')
+  async linkAccount(
+    @Payload() data: { accountNumber: string; requestId?: string; lang?: string },
+  ) {
+    return this.walletService.linkAccount(data.accountNumber, data.requestId);
+  }
+
+  @MessagePattern('reconcile_transaction')
+  async reconcileTransaction(
+    @Payload()
+    data: {
+      transactionId: string;
+      adminId: string;  // 👈 REQUIS
+      adminPin: string; // 👈 REQUIS
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] reconcile_transaction received:', {
+      transactionId: data.transactionId,
+      adminId: data.adminId,
+    });
+
+    try {
+      const result = await this.walletService.reconcileTransaction(
+        data.transactionId,
+        data.adminId,
+        data.adminPin,
+      );
+
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error) {
+      console.error('[WalletService] reconcile_transaction error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+  // ==================== ADMIN OPERATIONS (sans PIN) ====================
+
+  @MessagePattern('admin_top_up')
+  async adminTopUp(@Payload() data: AdminTopUpDto) {
+    return this.walletService.adminTopUp(data);
+  }
+
+  @MessagePattern('admin_cashout')
+  async adminCashout(@Payload() data: AdminCashoutDto) {
+    return this.walletService.adminCashout(data);
+  }
+
+  @MessagePattern('admin_send')
+  async adminSend(@Payload() data: AdminSendDto) {
+    return this.walletService.adminSend(data);
+  }
+
+  @MessagePattern('admin_pay')
+  async adminPay(@Payload() data: AdminPayDto) {
+    return this.walletService.adminPay(data);
+  }
+
+  @MessagePattern('transfer_cash_between_branches')
+  async transferCashBetweenBranches(
+    @Payload()
+    data: {
+      fromWalletId: string;
+      toWalletId: string;
+      amount: number;
+      adminId: string;
+      currency?: string;
+      reason?: string;
+      lang?: string;
+      ipAddress?: string;
+    }
+  ) {
+    console.log('[WalletService] transfer_cash_between_branches received:', data);
+    try {
+      return await this.walletService.transferCashBetweenBranches({
+        fromWalletId: data.fromWalletId,
+        toWalletId: data.toWalletId,
+        amount: data.amount,
+        adminId: data.adminId,
+        currency: data.currency || 'CDF',
+        reason: data.reason,
+        lang: data.lang || 'fr',
+        ipAddress: data.ipAddress,
+      });
+    } catch (error) {
+      console.error('[WalletService] transfer_cash_between_branches error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('convert_currency')
+  async convertCurrency(@Payload() data: ConvertCurrencyDto & { lang?: string }, ipAddress: string) {
+    console.log('[WalletService] convert_currency received:', data);
+    try {
+      return await this.walletService.convertCurrency(data, data.lang || 'fr', ipAddress);
+    } catch (error) {
+      console.error('[WalletService] convert_currency error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  // ==================== DOWNLOAD STATEMENT ====================
+
+  @MessagePattern('generate_statement_pdf')
+  async generateStatementPdf(
+    @Payload()
+    data: {
+      userId: string;
+      startDate?: string;
+      endDate?: string;
+      lang?: string;
+    },
+  ) {
+    let startDate: Date | undefined = undefined;
+    let endDate: Date | undefined = undefined;
+    if (data.startDate && data.startDate.trim() !== '') {
+      startDate = new Date(data.startDate);
+      if (isNaN(startDate.getTime())) startDate = undefined;
+    }
+    if (data.endDate && data.endDate.trim() !== '') {
+      endDate = new Date(data.endDate);
+      if (isNaN(endDate.getTime())) endDate = undefined;
+    }
+    return this.walletService.generateStatement(
+      data.userId,
+      startDate,
+      endDate,
+      data.lang || 'fr',
+    );
+  }
+
+  // ==================== PAWAPAY COUNTRY & NETWORK ====================
+
+  @MessagePattern('create_country')
+  async createCountry(@Payload() dto: CreateCountryDto) {
+    return this.pawapayService.createCountry(dto);
+  }
+
+  @MessagePattern('update_country')
+  async updateCountry(@Payload() data: { id: string; dto: UpdateCountryDto }) {
+    return this.pawapayService.updateCountry(data.id, data.dto);
+  }
+
+  @MessagePattern('get_country')
+  async getCountry(@Payload() data: { id: string }) {
+    return this.pawapayService.getCountry(data.id);
+  }
+
+  @MessagePattern('get_all_countries')
+  async getAllCountries(@Payload() data: { status?: string }) {
+    return this.pawapayService.getAllCountries(data?.status);
+  }
+
+  @MessagePattern('create_network')
+  async createNetwork(@Payload() dto: CreateNetworkDto) {
+    return this.pawapayService.createNetwork(dto);
+  }
+
+  @MessagePattern('update_network')
+  async updateNetwork(@Payload() data: { id: string; dto: UpdateNetworkDto }) {
+    return this.pawapayService.updateNetwork(data.id, data.dto);
+  }
+
+  @MessagePattern('get_network')
+  async getNetwork(@Payload() data: { id: string }) {
+    return this.pawapayService.getNetwork(data.id);
+  }
+
+  @MessagePattern('get_all_networks')
+  async getAllNetworks() {
+    return this.pawapayService.getAllNetworks();
+  }
+
+  @MessagePattern('get_networks_by_country')
+  async getNetworksByCountry(@Payload() data: { countryCode: string; lang?: string }) {
+    console.log('[WalletService] get_networks_by_country received:', data);
+    console.log('[WalletService] countryCode from payload:', data.countryCode);
+
+    try {
+      const result = await this.pawapayService.getNetworksByCountry(data.countryCode);
+      console.log('[WalletService] Result:', JSON.stringify(result, null, 2));
+      return result;
+    } catch (error) {
+      console.error('[WalletService] get_networks_by_country error:', error);
+      const lang = data?.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_country_by_code')
+  async getCountryByCode(@Payload() data: { code: string }) {
+    const country = await this.pawapayService['prisma'].country_provider.findFirst({
+      where: { code: data.code },
+      include: { network_provider: true },
+    });
+    if (!country) return { message: 'Country not found', data: null };
+    return { message: 'Country retrieved', data: country };
+  }
+
+  @MessagePattern('set_exchange_rate')
+  async setExchangeRate(@Payload() dto: ExchangeRateDto) {
+    return this.walletService.setExchangeRate(dto);
+  }
+
+  @MessagePattern('get_exchange_rates')
+  async getExchangeRates() {
+    return this.walletService.getExchangeRates();
+  }
+
+  @MessagePattern('list_user_wallets')
+  async listUserWallets(@Payload() data: { userId: string }) {
+    console.log('[WalletService] list_user_wallets received:', data.userId);
+    try {
+      return await this.walletService.getUserWallets(data.userId);
+    } catch (error) {
+      console.error('[WalletService] list_user_wallets error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_wallet_dashboard')
+  async getWalletDashboard(
+    @Payload()
+    data: {
+      userId: string;
+      walletId?: string;
+      startDate?: string;
+      endDate?: string;
+      lang?: string;
+    },
+  ) {
+    console.log('[WalletService] get_wallet_dashboard received:', data);
+    try {
+      return await this.walletService.getWalletDashboard(
+        data.userId,
+        data.walletId,
+        data.startDate,
+        data.endDate,
+        data.lang || 'fr',
+      );
+    } catch (error) {
+      console.error('[WalletService] get_wallet_dashboard error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  // ==================== EXCHANGE RATES ====================
+
+  @MessagePattern('get_exchange_rates_for_user')
+  async getExchangeRatesForUser(@Payload() data: { userId: string; lang?: string }) {
+    console.log('[WalletService] get_exchange_rates_for_user received:', data);
+    try {
+      return await this.walletService.getExchangeRatesForUser(data.userId, data.lang);
+    } catch (error) {
+      console.error('[WalletService] get_exchange_rates_for_user error:', error);
+      const lang = data?.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  // ==================== FRAIS DE TRANSFERT INTERNATIONAL ====================
+  @MessagePattern('calculate_international_fees')
+  async calculateInternationalFees(
+    @Payload() data: {
+      amount: number;
+      walletId: string;
+      countryCode: string;
+      paymentMethod?: 'CASH' | 'MOBILE_MONEY';
+      lang?: string;
+    },
+  ) {
+    console.log('🔍 [Wallet Controller] Data reçu:', JSON.stringify(data)); // ✅ AJOUTER LOG
+    console.log('🔍 [Wallet Controller] paymentMethod reçu:', data.paymentMethod); // ✅ AJOUTER LOG
+
+    const lang = data.lang || 'fr';
+    try {
+      return await this.walletService.calculateInternationalTransferFees(
+        data.amount,
+        data.walletId,
+        data.countryCode,
+        data.paymentMethod || 'CASH', // ✅ Passer le paymentMethod
+      );
+    } catch (error) {
+      console.error('[Wallet Controller] calculate_international_fees error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  // ==================== VALIDATION TRANSFERT INTERNATIONAL ====================
+  @MessagePattern('validate_international_transfer')
+  async validateInternationalTransfer(
+    @Payload()
+    data: {
+      transactionId: string;
+      adminId: string;
+      adminPin: string;
+      status: 'SUCCESS' | 'FAILED' | 'CANCELLED'; // ✅ AJOUT
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] validate_international_transfer received:', {
+      transactionId: data.transactionId,
+      adminId: data.adminId,
+      status: data.status,
+      lang: data.lang,
+    });
+
+    try {
+      return await this.walletService.validateInternationalTransfer(
+        data.transactionId,
+        data.adminId,
+        data.adminPin,
+        data.status, // ✅ PASSER LE STATUS
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] validate_international_transfer error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_wallet_balance_transactions')
+  async getWalletBalanceAndTransactions(
+    @Payload()
+    data: {
+      userId: string;
+      walletId?: string;  // ✅ Optionnel
+      lang?: string;
+      page?: number;
+      limit?: number;
+      startDate?: string;
+      endDate?: string;
+      type?: string;
+      status?: string;
+      movement?: string;
+      search?: string;
+    },
+  ) {
+    console.log('[WalletService] get_wallet_balance_transactions received:', data);
+
+    try {
+      const startDate = data.startDate ? new Date(data.startDate) : undefined;
+      const endDate = data.endDate ? new Date(data.endDate) : undefined;
+
+      // ✅ Ne pas passer de chaîne vide, passer undefined si walletId est vide
+      const walletId = data.walletId && data.walletId.trim() !== '' ? data.walletId : undefined;
+
+      return await this.walletService.getWalletBalanceAndTransactions(
+        data.userId,
+        walletId,  // ✅ undefined si walletId est vide
+        data.lang || 'fr',
+        data.page || 1,
+        data.limit || 10,
+        startDate,
+        endDate,
+        data.type,
+        data.status,
+        data.movement,
+        data.search,
+      );
+    } catch (error) {
+      console.error('[WalletService] get_wallet_balance_transactions error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: 400,
+      });
+    }
+  }
+
+  // ==================== REQUEST DEPOSIT ====================
+  @MessagePattern('request_deposit')
+  async requestDeposit(
+    @Payload() data: {
+      userId: string;      // BÉNÉFICIAIRE
+      payerId: string;     // PAYEUR
+      amount: number;
+      currency: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] request_deposit received:', {
+      beneficiaryId: data.userId,
+      payerId: data.payerId,
+      amount: data.amount,
+      currency: data.currency,
+    });
+
+    try {
+      // ✅ Ajout de payerId
+      return await this.walletService.requestDeposit(
+        data.userId,      // BÉNÉFICIAIRE
+        data.amount,
+        data.currency,
+        data.payerId,     // PAYEUR
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] request_deposit error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: error.statusCode || 400,
+      });
+    }
+  }
+
+  // ==================== CONFIRM DEPOSIT ====================
+  @MessagePattern('confirm_deposit')
+  async confirmDeposit(
+    @Payload() data: {
+      transactionId: string;
+      userId: string;  // Payeur (celui qui sera débité)
+      pin: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] confirm_deposit received:', {
+      transactionId: data.transactionId,
+      payerId: data.userId,
+      lang: data.lang,
+    });
+
+    try {
+      return await this.walletService.confirmDeposit(
+        data.transactionId,
+        data.userId,
+        data.pin,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] confirm_deposit error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: error.statusCode || 400,
+      });
+    }
+  }
+
+  // ==================== CANCEL DEPOSIT REQUEST ====================
+  @MessagePattern('cancel_deposit_request')
+  async cancelDepositRequest(
+    @Payload() data: {
+      transactionId: string;
+      userId: string;
+      lang?: string;
+      ipAddress?: string;
+    },
+  ) {
+    console.log('[WalletService] cancel_deposit_request received:', {
+      transactionId: data.transactionId,
+      userId: data.userId,
+    });
+
+    try {
+      return await this.walletService.cancelDepositRequest(
+        data.transactionId,
+        data.userId,
+        data.lang || 'fr',
+        data.ipAddress,
+      );
+    } catch (error) {
+      console.error('[WalletService] cancel_deposit_request error:', error);
+      const lang = data.lang || 'fr';
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
+        statusCode: error.statusCode || 400,
+      });
+    }
+  }
+
+  // ==================== HEALTH CHECK ====================
+
+  @MessagePattern('health_check')
+  async healthCheck() {
+    return this.walletService.healthCheck();
+  }
+}

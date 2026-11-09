@@ -1,0 +1,949 @@
+/* eslint-disable prettier/prettier */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+// apps/user-service/src/user-service.controller.ts
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { UserServiceService } from './user-service.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserFromAccountDto } from './dto/create-user-from-account.dto';
+import { UpdateUserSettingsDto } from './dto/user-settings.dto';
+import {
+  AssignMultipleResourcesDto,
+  AssignResourceDto,
+} from './dto/assign-resource.dto';
+import { UpdateResourceDto } from './resources/dto/update-resource.dto';
+import { CreateResourceDto } from './resources/dto/create-resource.dto';
+import { UpsertAppSettingsDto } from './dto/app-settings.dto';
+// ✅ AJOUTER LES IMPORTS DES BRANCHES
+import { CreateBranchDto, UpdateBranchDto, GetBranchesDto } from './dto/branch.dto';
+import { BackupService } from './backup/backup.service';
+
+@Controller()
+export class UserServiceController {
+  constructor(private readonly userService: UserServiceService,
+    private readonly backupService: BackupService
+  ) { }
+
+  // ==================== COMMANDES AVEC TRADUCTION ====================
+
+  @MessagePattern('create_user')
+  async createUser(@Payload() data: CreateUserDto) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par create_user :', lang);
+    data.lang = lang;
+    try {
+      return await this.userService.createUser(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error.message || 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('create_user_from_account')
+  async createUserFromAccount(@Payload() data: CreateUserFromAccountDto) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par create_user_from_account :', lang);
+    data.lang = lang;
+    try {
+      return await this.userService.createUserFromAccount(data);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_user')
+  async updateUser(@Payload() data: { id: string } & UpdateUserDto) {
+    const { id, ...updateData } = data;
+    const lang = updateData.lang || 'fr';
+    console.log('🔍 Langue reçue par update_user :', lang);
+    try {
+      return await this.userService.updateUser(id, updateData, lang);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_user_status')
+  async updateUserStatus(
+    @Payload()
+    data: {
+      id: string;
+      status: string;
+      requesterId: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par update_user_status :', lang);
+    try {
+      return await this.userService.updateuser_status(
+        data.id,
+        data.status,
+        data.requesterId,
+        lang,
+      );
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('delete_user')
+  async deleteUser(@Payload() data: { id: string; lang?: string }) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par delete_user :', lang);
+    try {
+      return await this.userService.deleteUser(data.id, lang);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('change_pin')
+  async changePin(@Payload() data: { id: string; pin: string; lang?: string }) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par change_pin :', lang);
+    try {
+      return await this.userService.changePin(data.id, data.pin, lang);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_pin')
+  async updatePin(
+    @Payload()
+    data: {
+      id: string;
+      oldPin: string;
+      newPin: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par update_pin :', lang);
+    try {
+      return await this.userService.updatePin(
+        data.id,
+        data.oldPin,
+        data.newPin,
+        lang,
+      );
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('verify_pin')
+  async verifyPin(
+    @Payload() data: { userId: string; pin: string; lang?: string },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par verify_pin :', lang);
+
+    try {
+      return await this.userService.verifyPin(data.userId, data.pin, lang);
+    } catch (error: any) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+
+      throw new RpcException({
+        status: 'error',
+        message: error?.message || 'Unknown error',
+        statusCode: error?.statusCode || 500,
+      });
+    }
+  }
+
+  // ==================== REQUÊTES GET ====================
+
+  @MessagePattern('get_user')
+  async getUser(@Payload() data: { id: string; lang?: string }) {
+    try {
+      return await this.userService.getUser(data.id, data.lang);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_user_by_email')
+  async getUserByEmail(@Payload() data: { email: string; lang?: string }) {
+    try {
+      return await this.userService.getUserByEmail(data.email, data.lang);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_user_by_phone')
+  async getUserByPhone(@Payload() data: { phone: string; lang?: string }) {
+    try {
+      return await this.userService.getUserByPhone(data.phone, data.lang);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('list_users')
+  async listUsers(
+    @Payload()
+    data: {
+      page: number;
+      limit: number;
+      role?: string;
+      status?: string;
+      lang?: string;
+    },
+  ) {
+    try {
+      return await this.userService.listUsers(data);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('list_users_links')
+  async listUsersLinks(
+    @Payload()
+    data: {
+      page: number;
+      limit: number;
+      role?: string;
+      status?: string;
+      lang?: string;
+    },
+  ) {
+    try {
+      return await this.userService.listUsersLinks(data);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_user_settings')
+  async getUserSettings(@Payload() data: { userId: string }) {
+    return this.userService.getUserSettings(data.userId);
+  }
+
+  @MessagePattern('update_user_settings')
+  async updateUserSettings(
+    @Payload() data: { userId: string; settings: UpdateUserSettingsDto },
+  ) {
+    return this.userService.updateUserSettings(data.userId, data.settings);
+  }
+
+  @MessagePattern('get_admin_dashboard')
+  async getAdminDashboard(
+    @Payload() payload: {
+      adminId: string;
+      startDate?: string;
+      endDate?: string;
+      countryCode?: string;
+      branchId?: string;
+    },
+  ) {
+    const startDate = payload.startDate
+      ? new Date(payload.startDate)
+      : undefined;
+    const endDate = payload.endDate ? new Date(payload.endDate) : undefined;
+    const countryCode = payload.countryCode;
+    const branchId = payload.branchId;
+    const adminId = payload.adminId;
+
+    if (!adminId) {
+      throw new RpcException({
+        status: 'error',
+        message: 'Admin ID is required',
+        statusCode: 400,
+      });
+    }
+
+    return this.userService.getAdminDashboard(
+      adminId,
+      { startDate, endDate, countryCode, branchId }
+    );
+  }
+
+  // ==================== GESTION DES RESSOURCES ====================
+
+  @MessagePattern('create_resource')
+  async createResource(@Payload() data: CreateResourceDto) {
+    try {
+      return await this.userService.createResource(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_resource')
+  async updateResource(@Payload() data: { id: string } & UpdateResourceDto) {
+    const { id, ...rest } = data;
+    try {
+      return await this.userService.updateResource(id, rest);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_all_resources')
+  async getAllResources(@Payload() data: { page?: number; limit?: number }) {
+    const page = data?.page || 1;
+    const limit = data?.limit || 10;
+    try {
+      return await this.userService.getAllResources(page, limit);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_one_resource')
+  async getOneResource(@Payload() data: { id: string }) {
+    try {
+      return await this.userService.getOneResource(data.id);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 404,
+      });
+    }
+  }
+
+  // ==================== ASSIGNATION RESSOURCES ====================
+
+  @MessagePattern('assign_resource_to_user')
+  async assignMultipleResourcesToUser(
+    @Payload() data: AssignMultipleResourcesDto,
+  ) {
+    try {
+      return await this.userService.assignMultipleResourcesToUser(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_user_resources')
+  async getUserResources(@Payload() data: { userId: string }) {
+    try {
+      return await this.userService.getUserResources(data.userId);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('revoke_resource')
+  async revokeResource(
+    @Payload() data: { userId: string; resourceId: string },
+  ) {
+    try {
+      return await this.userService.revokeResource(
+        data.userId,
+        data.resourceId,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('upsert_app_settings')
+  async upsertAppSettings(@Payload() data: UpsertAppSettingsDto) {
+    try {
+      return await this.userService.upsertAppSettings(data);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error.message,
+        statusCode: 500,
+      });
+    }
+  }
+
+  @MessagePattern('get_app_settings')
+  async getAppSettings() {
+    try {
+      return await this.userService.getAppSettings();
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error.message,
+        statusCode: 500,
+      });
+    }
+  }
+
+  // ==================== KYC MANAGEMENT ====================
+
+  @MessagePattern('submit_kyc')
+  async submitKyc(
+    @Payload()
+    data: {
+      userId: string;
+      documentType: string;
+      documentNumber: string;
+      documentFrontUrl: string;
+      documentBackUrl?: string;
+      profileImage?: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par submit_kyc :', lang);
+    console.log('🔍 documentFrontUrl reçu:', data.documentFrontUrl);
+    console.log('🔍 documentBackUrl reçu:', data.documentBackUrl);
+    console.log('🔍 profileImage reçu:', data.profileImage);
+
+    try {
+      return await this.userService.submitKyc(
+        data.userId,
+        {
+          documentType: data.documentType,
+          documentNumber: data.documentNumber,
+          documentFront: data.documentFrontUrl,
+          documentBack: data.documentBackUrl,
+          profileImage: data.profileImage,
+        },
+        lang,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_kyc_status')
+  async getKycStatus(@Payload() data: { userId: string; lang?: string }) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par get_kyc_status :', lang);
+    try {
+      return await this.userService.getKycStatus(data.userId, lang);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_all_kyc_submissions')
+  async getAllKycSubmissions(
+    @Payload()
+    data: {
+      page?: number;
+      limit?: number;
+      status?: string;
+      documentType?: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par get_all_kyc_submissions :', lang);
+    try {
+      return await this.userService.getAllKycSubmissions({
+        page: data.page || 1,
+        limit: data.limit || 10,
+        status: data.status,
+        documentType: data.documentType,
+        lang,
+      });
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_kyc_submission_by_id')
+  async getKycSubmissionById(
+    @Payload() data: { id: string; lang?: string },
+  ): Promise<{ message: string; data: any }> {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Récupération KYC par ID:', { id: data.id, lang });
+
+    try {
+      return await this.userService.getKycSubmissionById(data.id, lang);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('verify_kyc')
+  async verifyKyc(
+    @Payload()
+    data: {
+      kycId: string;
+      status: 'VERIFIED' | 'REJECTED';
+      adminNotes?: string;
+      rejectionReason?: string;
+      adminId: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 Langue reçue par verify_kyc :', lang);
+    try {
+      return await this.userService.verifyKyc(
+        data.kycId,
+        {
+          status: data.status,
+          adminNotes: data.adminNotes,
+          rejectionReason: data.rejectionReason,
+        },
+        data.adminId,
+        lang,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('upload_file')
+  async uploadFile(
+    @Payload() data: {
+      userId: string;
+      file: Express.Multer.File;
+      folder: string;
+      lang?: string;
+    },
+  ) {
+    const lang = data.lang || 'fr';
+    console.log('🔍 upload_file - folder:', data.folder);
+
+    try {
+      return await this.userService.uploadFileOnly(
+        data.userId,
+        data.file,
+        data.folder,
+        lang,
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+  // ==================== API KEY MANAGEMENT ====================
+
+  @MessagePattern('create_api_key')
+  async createApiKey(@Payload() data: {
+    name: string;
+    userId: string;
+    permissions: string[];
+    expiresInDays?: number
+  }) {
+    try {
+      return await this.userService.createApiKey(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('list_api_keys')
+  async listApiKeys(@Payload() data: {
+    userId: string;
+    page?: number;
+    limit?: number
+  }) {
+    try {
+      return await this.userService.listApiKeys(
+        data.userId,
+        data.page || 1,
+        data.limit || 10
+      );
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_api_key')
+  async updateApiKey(@Payload() data: {
+    id: string;
+    userId: string;
+    name?: string;
+    permissions?: string[];
+    isActive?: boolean;
+    expiresInDays?: number;
+  }) {
+    try {
+      return await this.userService.updateApiKey(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('delete_api_key')
+  async deleteApiKey(@Payload() data: {
+    id: string;
+    userId: string
+  }) {
+    try {
+      return await this.userService.deleteApiKey(data.id);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('revoke_api_key')
+  async revokeApiKey(@Payload() data: {
+    id: string;
+    userId: string
+  }) {
+    try {
+      return await this.userService.revokeApiKey(data.id, data.userId);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('reactivate_api_key')
+  async reactivateApiKey(@Payload() data: {
+    id: string;
+    userId: string
+  }) {
+    try {
+      return await this.userService.reactivateApiKey(data.id, data.userId);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+
+  // ==================== BRANCH MANAGEMENT ====================
+
+  @MessagePattern('create_branch')
+  async createBranch(@Payload() data: CreateBranchDto) {
+    try {
+      return await this.userService.createBranch(data);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('update_branch')
+  async updateBranch(@Payload() data: { id: string } & UpdateBranchDto) {
+    const { id, ...updateData } = data;
+    try {
+      return await this.userService.updateBranch(id, updateData);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('delete_branch')
+  async deleteBranch(@Payload() data: {
+    id: string;
+    permanent?: boolean;
+  }) {
+    try {
+      return await this.userService.deleteBranch(data.id, data.permanent || false);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_branch')
+  async getBranch(@Payload() data: { id: string }) {
+    try {
+      return await this.userService.getBranch(data.id);
+    } catch (error) {
+      if (error instanceof RpcException) throw error;
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 404,
+      });
+    }
+  }
+
+  @MessagePattern('get_all_branches')
+  async getAllBranches(@Payload() data: GetBranchesDto) {
+    try {
+      return await this.userService.getAllBranches(data);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('get_branches_by_country')
+  async getBranchesByCountry(@Payload() data: { countryCode: string }) {
+    try {
+      return await this.userService.getBranchesByCountry(data.countryCode);
+    } catch (error) {
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  // ================================================================
+  // BACKUP MANAGEMENT
+  // ================================================================
+
+  @MessagePattern('backup_create')
+  async createBackup(@Payload() data: { compressed?: boolean }) {
+    console.log('[WalletService] backup_create received:', data);
+    try {
+      if (data?.compressed) {
+        return await this.backupService.createCompressedBackup();
+      }
+      return await this.backupService.createBackup();
+    } catch (error) {
+      console.error('[WalletService] backup_create error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_list')
+  async getBackupsList() {
+    console.log('[WalletService] backup_list received');
+    try {
+      return await this.backupService.getBackupsList();
+    } catch (error) {
+      console.error('[WalletService] backup_list error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_restore')
+  async restoreBackup(@Payload() data: { fileName: string }) {
+    console.log('[WalletService] backup_restore received:', data.fileName);
+    try {
+      return await this.backupService.restoreBackup(data.fileName);
+    } catch (error) {
+      console.error('[WalletService] backup_restore error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_delete')
+  async deleteBackup(@Payload() data: { fileName: string }) {
+    console.log('[WalletService] backup_delete received:', data.fileName);
+    try {
+      return await this.backupService.deleteBackup(data.fileName);
+    } catch (error) {
+      console.error('[WalletService] backup_delete error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_download')
+  async downloadBackup(@Payload() data: { fileName: string }) {
+    console.log('[WalletService] backup_download received:', data.fileName);
+    try {
+      return await this.backupService.downloadBackup(data.fileName);
+    } catch (error) {
+      console.error('[WalletService] backup_download error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_restore_upload')
+  async restoreFromUpload(@Payload() data: { file: Express.Multer.File }) {
+    console.log('[WalletService] backup_restore_upload received');
+    try {
+      return await this.backupService.restoreFromUpload(data.file);
+    } catch (error) {
+      console.error('[WalletService] backup_restore_upload error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  @MessagePattern('backup_auto')
+  async triggerAutoBackup() {
+    console.log('[WalletService] backup_auto received');
+    try {
+      return await this.backupService.autoBackup();
+    } catch (error) {
+      console.error('[WalletService] backup_auto error:', error);
+      throw new RpcException({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 400,
+      });
+    }
+  }
+
+  //============================Api-key==========================
+
+  @MessagePattern('health_check')
+  async healthCheck() {
+    return { status: 'ok', service: 'user-service' };
+  }
+}

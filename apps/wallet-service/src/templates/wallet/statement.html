@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AccesPay - Relevé de Compte</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: #e5e7eb;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+
+      .print-container {
+        background-color: white;
+        max-width: 1200px;
+        width: 100%;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      /* En-tête */
+      .header {
+        border-bottom: 3px solid #233fc0;
+        padding-bottom: 20px;
+        margin-bottom: 25px;
+      }
+
+      .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+
+      .logo-section {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 10px;
+      }
+
+      .logo-placeholder {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .logo-placeholder img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+      }
+
+      .company-name {
+        font-size: 26px;
+        font-weight: bold;
+        color: #1f2937;
+        margin: 0;
+      }
+
+      .company-address {
+        font-size: 12px;
+        color: #6b7280;
+      }
+
+      .contact-info {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 8px;
+      }
+
+      .contact-info p {
+        margin: 2px 0;
+      }
+
+      .title-section {
+        text-align: right;
+      }
+
+      .title-box {
+        background-color: #eff6ff;
+        padding: 10px 20px;
+      }
+
+      .title-box h2 {
+        font-size: 18px;
+        font-weight: bold;
+        color: #233fc0;
+        margin: 0;
+      }
+
+      .title-box p {
+        font-size: 10px;
+        color: #6b7280;
+        margin-top: 5px;
+      }
+
+      /* Section Client et Totaux */
+      .info-section {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 25px;
+        padding: 15px;
+      }
+
+      .client-info {
+        flex: 1;
+      }
+
+      .client-info h3 {
+        font-size: 12px;
+        font-weight: bold;
+        color: #233fc0;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .client-details {
+        font-size: 10px;
+        color: #374151;
+        line-height: 1.6;
+      }
+
+      .client-details p {
+        margin: 3px 0;
+      }
+
+      .client-details .label {
+        font-weight: 600;
+        color: #6b7280;
+        min-width: 80px;
+        display: inline-block;
+      }
+
+      .totals-info {
+        min-width: 280px;
+        padding-left: 20px;
+      }
+
+      .totals-info h3 {
+        font-size: 12px;
+        font-weight: bold;
+        color: #233fc0;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .totals-table {
+        width: 100%;
+        font-size: 11px;
+      }
+
+      .totals-table tr td {
+        padding: 5px 0;
+      }
+
+      .totals-table tr td:first-child {
+        font-weight: 600;
+        color: #6b7280;
+      }
+
+      .totals-table tr td:last-child {
+        text-align: right;
+        font-weight: 700;
+      }
+
+      .totals-table .credit-row td:last-child {
+        color: #16a34a;
+      }
+
+      .totals-table .debit-row td:last-child {
+        color: #dc2626;
+      }
+
+      .totals-table .balance-row td:last-child {
+        color: #233fc0;
+        font-size: 13px;
+      }
+
+      .totals-table .separator td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 0;
+        height: 1px;
+      }
+
+      /* Tableau */
+      .transactions-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+
+      .transactions-table th {
+        padding: 10px 6px;
+        text-align: left;
+        color: white;
+        font-size: 10px;
+        font-weight: 600;
+        border: 1px solid white;
+        border-top: none;
+      }
+
+      .transactions-table th:first-child {
+        border-left: none;
+      }
+
+      .transactions-table th:last-child {
+        border-right: none;
+      }
+
+      .transactions-table th.text-right,
+      .transactions-table td.text-right {
+        text-align: right;
+      }
+
+      .transactions-table td {
+        padding: 8px 6px;
+        font-size: 9px;
+        border: 1px solid white;
+        vertical-align: top;
+      }
+
+      .description-text {
+        font-weight: 600;
+        margin-bottom: 3px;
+        font-size: 9px;
+      }
+
+      .user-name {
+        font-size: 8px;
+        color: #6b7280;
+      }
+
+      .reference-text {
+        font-family: monospace;
+        font-size: 9px;
+      }
+
+      .credit-amount {
+        color: #16a34a;
+        font-weight: 600;
+      }
+
+      .debit-amount {
+        color: #dc2626;
+        font-weight: 600;
+      }
+
+      .balance-amount {
+        font-weight: 600;
+      }
+
+      /* Pied de page */
+      .footer {
+        border-top: 1px solid #e5e7eb;
+        padding-top: 16px;
+        margin-top: 16px;
+        text-align: center;
+        font-size: 9px;
+        color: #9ca3af;
+      }
+
+      .footer p {
+        margin: 0 0 4px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="print-container">
+      <!-- En-tête -->
+      <div class="header">
+        <div class="header-content">
+          <div>
+            <div class="logo-section">
+              <div class="logo-placeholder">
+                <img src="./icon.png" />
+              </div>
+              <div>
+                <h1 class="company-name">ACCESPAY</h1>
+                <p class="company-address">123 Avenue de la paix, Goma, RDC</p>
+              </div>
+            </div>
+            <div class="contact-info">
+              <p>Tél: +243 123 456 789</p>
+              <p>Email: contact@accespay.com</p>
+              <p>Web: www.accespay.com</p>
+            </div>
+          </div>
+          <div class="title-section">
+            <div class="title-box">
+              <h2>RELEVÉ DE COMPTE</h2>
+              <p>01 Décembre 2024 - 31 Décembre 2024</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section Client et Totaux -->
+      <div class="info-section">
+        <div class="client-info">
+          <h3>INFORMATIONS CLIENT</h3>
+          <div class="client-details">
+            <p>
+              <span class="label">Nom complet :</span> Jean Mukendi Wa Kazadi
+            </p>
+            <p><span class="label">N° Compte :</span> 00123456789</p>
+            <p><span class="label">Téléphone :</span> +243 812 345 678</p>
+            <p><span class="label">Email :</span> jean.mukendi@email.com</p>
+            <p>
+              <span class="label">Adresse :</span> 45 Av. des Lauriers, Goma
+            </p>
+          </div>
+        </div>
+        <div class="totals-info">
+          <h3>RÉCAPITULATIF</h3>
+          <table class="totals-table">
+            <tr class="credit-row">
+              <td>Total Crédits (Entrées) :</td>
+              <td>725 000 CDF</td>
+            </tr>
+            <tr class="debit-row">
+              <td>Total Débits (Sorties) :</td>
+              <td>305 000 CDF</td>
+            </tr>
+            <tr class="separator">
+              <td colspan="2"></td>
+            </tr>
+            <tr class="balance-row">
+              <td>Solde final :</td>
+              <td>420 000 CDF</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tableau des transactions -->
+      <table class="transactions-table">
+        <thead>
+          <tr style="background-color: #233fc0">
+            <th>Détails de la transaction</th>
+            <th>Référence de paiement</th>
+            <th>Date</th>
+            <th class="text-right">Crédit (Entrée)</th>
+            <th class="text-right">Débit (Sortie)</th>
+            <th class="text-right">Solde</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Transaction 1 - Dépôt -->
+          <tr style="background-color: #ffffff">
+            <td>
+              <div class="description-text">Dépôt</div>
+              <div class="user-name">Dépôt espèce agence Goma</div>
+            </td>
+            <td><span class="reference-text">TRX-20241201-001...</span></td>
+            <td>01/12/2024</td>
+            <td class="text-right credit-amount">150 000 CDF</td>
+            <td class="text-right debit-amount">-</td>
+            <td class="text-right balance-amount">150 000 CDF</td>
+          </tr>
+          <!-- Transaction 2 - Paiement -->
+          <tr style="background-color: #e7e7e7">
+            <td>
+              <div class="description-text">Paiement</div>
+              <div class="user-name">Paiement Marché Central</div>
+            </td>
+            <td><span class="reference-text">TRX-20241202-002...</span></td>
+            <td>02/12/2024</td>
+            <td class="text-right credit-amount">-</td>
+            <td class="text-right debit-amount">45 000 CDF</td>
+            <td class="text-right balance-amount">105 000 CDF</td>
+          </tr>
+          <!-- Transaction 3 - Transfert reçu -->
+          <tr style="background-color: #ffffff">
+            <td>
+              <div class="description-text">Transfert reçu</div>
+              <div class="user-name">De: Paul Bisimwa</div>
+            </td>
+            <td><span class="reference-text">TRX-20241203-003...</span></td>
+            <td>03/12/2024</td>
+            <td class="text-right credit-amount">75 000 CDF</td>
+            <td class="text-right debit-amount">-</td>
+            <td class="text-right balance-amount">180 000 CDF</td>
+          </tr>
+          <!-- Transaction 4 - Retrait -->
+          <tr style="background-color: #e7e7e7">
+            <td>
+              <div class="description-text">Retrait</div>
+              <div class="user-name">Retrait distributeur Goma</div>
+            </td>
+            <td><span class="reference-text">TRX-20241204-004...</span></td>
+            <td>04/12/2024</td>
+            <td class="text-right credit-amount">-</td>
+            <td class="text-right debit-amount">120 000 CDF</td>
+            <td class="text-right balance-amount">60 000 CDF</td>
+          </tr>
+          <!-- Transaction 5 - Dépôt -->
+          <tr style="background-color: #ffffff">
+            <td>
+              <div class="description-text">Dépôt</div>
+              <div class="user-name">Virement reçu de Robert Lumbala</div>
+            </td>
+            <td><span class="reference-text">TRX-20241205-005...</span></td>
+            <td>05/12/2024</td>
+            <td class="text-right credit-amount">200 000 CDF</td>
+            <td class="text-right debit-amount">-</td>
+            <td class="text-right balance-amount">260 000 CDF</td>
+          </tr>
+          <!-- Transaction 6 - Paiement -->
+          <tr style="background-color: #e7e7e7">
+            <td>
+              <div class="description-text">Paiement</div>
+              <div class="user-name">Achat Supermarket</div>
+            </td>
+            <td><span class="reference-text">TRX-20241206-006...</span></td>
+            <td>06/12/2024</td>
+            <td class="text-right credit-amount">-</td>
+            <td class="text-right debit-amount">90 000 CDF</td>
+            <td class="text-right balance-amount">170 000 CDF</td>
+          </tr>
+          <!-- Transaction 7 - Transfert reçu -->
+          <tr style="background-color: #ffffff">
+            <td>
+              <div class="description-text">Transfert reçu</div>
+              <div class="user-name">De: David Kabila</div>
+            </td>
+            <td><span class="reference-text">TRX-20241207-007...</span></td>
+            <td>07/12/2024</td>
+            <td class="text-right credit-amount">300 000 CDF</td>
+            <td class="text-right debit-amount">-</td>
+            <td class="text-right balance-amount">470 000 CDF</td>
+          </tr>
+          <!-- Transaction 8 - Retrait -->
+          <tr style="background-color: #e7e7e7">
+            <td>
+              <div class="description-text">Retrait</div>
+              <div class="user-name">Retrait agence Goma</div>
+            </td>
+            <td><span class="reference-text">TRX-20241208-008...</span></td>
+            <td>08/12/2024</td>
+            <td class="text-right credit-amount">-</td>
+            <td class="text-right debit-amount">50 000 CDF</td>
+            <td class="text-right balance-amount">420 000 CDF</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="background-color: #f3f4f6">
+            <td
+              colspan="3"
+              style="
+                padding: 8px 6px;
+                text-align: right;
+                font-weight: bold;
+                font-size: 9px;
+                border: 1px solid white;
+              "
+            >
+              TOTAUX :
+            </td>
+            <td
+              style="
+                padding: 8px 6px;
+                text-align: right;
+                color: #16a34a;
+                font-weight: bold;
+                font-size: 9px;
+                border: 1px solid white;
+              "
+            >
+              725 000 CDF
+            </td>
+            <td
+              style="
+                padding: 8px 6px;
+                text-align: right;
+                color: #dc2626;
+                font-weight: bold;
+                font-size: 9px;
+                border: 1px solid white;
+              "
+            >
+              305 000 CDF
+            </td>
+            <td
+              style="
+                padding: 8px 6px;
+                text-align: right;
+                color: #233fc0;
+                font-weight: bold;
+                font-size: 9px;
+                border: 1px solid white;
+              "
+            >
+              420 000 CDF
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <!-- Pied de page -->
+      <div class="footer">
+        <p>
+          Ce document est un relevé de compte officiel des transactions AccesPay
+        </p>
+        <p>
+          En cas d'erreur, veuillez contacter votre agence dans les 30 jours
+          suivant la date d'édition
+        </p>
+        <p>Relevé généré le 27/04/2026 à 14:30</p>
+      </div>
+    </div>
+  </body>
+</html>
