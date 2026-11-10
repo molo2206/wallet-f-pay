@@ -28,7 +28,7 @@ import { AuthResponseDto } from './dto/auth-response.dto';
 import { SmsService } from './sms/sms.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { MailService } from './email/email.service';
-import { I18nService } from '@app/common';
+import { I18nService, requiredAccountCurrencies } from '@app/common';
 import { RpcException } from '@nestjs/microservices';
 import * as crypto from 'crypto';
 import { BankService } from 'apps/wallet-service/src/bank/bank.service';
@@ -313,6 +313,9 @@ export class AuthServiceService {
         console.log('Aucun countryCode fourni, création d\'un wallet par défaut en CDF');
         currenciesToCreate.push('CDF');
       }
+
+      // ✅ Chaque compte fonctionne dans toutes les devises (ACCOUNT_CURRENCIES, défaut CDF,USD) + celles du pays
+      currenciesToCreate = requiredAccountCurrencies(currenciesToCreate);
 
       for (const currency of currenciesToCreate) {
         try {
@@ -1327,6 +1330,27 @@ export class AuthServiceService {
       }
 
       // ✅ Récupérer les wallets
+      // ✅ Chaque compte fonctionne dans toutes les devises : wallets manquants créés à la connexion (clients et marchands)
+      if (user.role === 'USER' || user.role === 'MERCHANT') {
+        try {
+          const have = new Set((await this.prisma.wallet.findMany({ where: { userId: user.id }, select: { currency: true } })).map((w) => String(w.currency)));
+          for (const cur of requiredAccountCurrencies([])) {
+            if (have.has(cur)) continue;
+            await this.prisma.wallet.create({
+              data: {
+                id: crypto.randomUUID(),
+                userId: user.id,
+                currency: cur as wallet_currency,
+                balance: 0,
+                isActive: true,
+                cashCode: `CASH${Math.floor(10000000 + Math.random() * 90000000)}`,
+              },
+            });
+          }
+        } catch (err: any) {
+          console.error('[Login] Création des wallets manquants impossible :', err?.message);
+        }
+      }
       const wallets = await this.prisma.wallet.findMany({
         where: { userId: user.id, isActive: true },
         orderBy: { createdAt: 'asc' },

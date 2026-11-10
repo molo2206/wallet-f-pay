@@ -1167,6 +1167,29 @@ export class ApiGatewayController {
     };
   }
 
+  // ==================== DEVISES DE CHAQUE COMPTE ====================
+  /**
+   * ✅ Crée les wallets manquants pour que chaque compte (clients, marchands, caisses, wallet des frais)
+   *    fonctionne dans toutes les devises (ACCOUNT_CURRENCIES, défaut CDF,USD, + devises du pays).
+   *    Corps : { dryRun?: true (compter sans créer), userId?: (un seul compte), includeAdmins?: true }
+   *    Réservé au SUPER_ADMIN. Aucun wallet existant n'est modifié.
+   */
+  @Post('admin/wallets/ensure-currencies')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async ensureAccountCurrencies(
+    @CurrentUser() currentUser: any,
+    @Body() body: { dryRun?: boolean; userId?: string; includeAdmins?: boolean },
+  ) {
+    if (currentUser?.role !== 'SUPER_ADMIN') throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    return this.sendUserMessage<any>(
+      'wallets.ensure_account_currencies',
+      { adminId: currentUser.id, dryRun: body?.dryRun === true, userId: body?.userId || undefined, includeAdmins: body?.includeAdmins === true },
+      'Échec de la création des wallets',
+      HttpStatus.BAD_REQUEST,
+      600000,
+    );
+  }
+
   // ==================== CODES MARCHANDS ====================
   /**
    * ✅ Attribue un code marchand à tous les MARCHANDS qui n'en ont pas.

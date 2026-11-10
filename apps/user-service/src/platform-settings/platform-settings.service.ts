@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { requiredAccountCurrencies } from '@app/common';
 
 /**
  * ✅ PARAMÈTRES DE LA PLATEFORME, POLITIQUES DE SÉCURITÉ, PLAFONDS PAR UTILISATEUR
@@ -239,5 +240,106 @@ export class PlatformSettingsService {
       return this.prisma.user_transaction_limit.update({ where: { id: existing.id }, data: { ...data, updated_at: new Date() } });
     }
     return this.prisma.user_transaction_limit.create({ data: { id: crypto.randomUUID(), user_id: userId, ...data } });
+  }
+
+  // ============================================================
+  // DEVISES DE CHAQUE COMPTE (rattrapage des comptes existants)
+  // ============================================================
+  /**
+   * Crée les wallets manquants pour que chaque compte fonctionne dans toutes les devises
+   * (ACCOUNT_CURRENCIES + devises de son pays) : clients, marchands, caisses d'agence, wallet des frais.
+   * Les administrateurs sans caisse sont ignorés sauf includeAdmins. Aucun wallet existant n'est modifié.
+   * dryRun = true : compte seulement ce qui serait créé.
+   */
+  async ensureAccountCurrencies(params: { adminId: string; dryRun?: boolean; includeAdmins?: boolean; userId?: string; batch?: number }) {
+    const db = this.db;
+    const batch = Math.min(5000, Math.max(100, Number(params.batch) || 2000));
+    // Devises par pays (opérateurs Mobile Money + devise par défaut)
+    const countryRows: any[] = await db.$queryRawUnsafe(
+      'SELECT c.`countryCode`, c.`default_currency`, n.`currency` AS networkCurrencies FROM `country_provider` c LEFT JOIN `network_provider` n ON n.`countryId` = c.`id`',
+    );
+    const byCountry = new Map<string, Set<string>>();
+    for (const r of countryRows) {
+      const k = String(r.countryCode || '').toUpperCase();
+      if (!k) continue;
+      const set = byCountry.get(k) ?? new Set<string>();
+      if (r.default_currency) set.add(String(r.default_currency).toUpperCase());
+      for (const c of String(r.networkCurrencies || '').split(',')) if (c.trim()) set.add(c.trim().toUpperCase());
+      byCountry.set(k, set);
+    }
+
+    const stats = { checkedAccounts: 0, accountsUpdated: 0, walletsCreated: 0, byCurrency: {} as Record<string, number>, skippedAdmins: 0 };
+    let lastId = '';
+    for (let guard = 0; guard < 1000; guard++) {
+      const users: any[] = await db.$queryRawUnsafe(
+        'SELECT u.`id`, u.`email`, u.`role`, u.`branchId`, u.`countryCode`, ' +
+          '(SELECT GROUP_CONCAT(w.`currency`) FROM `wallet` w WHERE w.`userId` = u.`id`) AS currencies, ' +
+          '(SELECT COUNT(*) FROM `wallet` w WHERE w.`userId` = u.`id` AND w.`isDefault` = 1) AS hasDefault ' +
+          'FROM `user` u WHERE (u.`deleted` = 0 OR u.`deleted` IS NULL) AND u.`id` > ?' +
+          (params.userId ? ' AND u.`id` = ?' : '') +
+          ' ORDER BY u.`id` LIMIT ' +
+          batch,
+        lastId,
+        ...(params.userId ? [params.userId] : []),
+      );
+      if (!users.length) break;
+      for (const u of users) {
+        lastId = u.id;
+        stats.checkedAccounts++;
+        const email = String(u.email || '').toLowerCase();
+        const isSystem = u.id === 'system-fee-account' || email === 'system@fpay.com';
+        const isBranchCash = email.startsWith('caisse.') && !!u.branchId;
+        const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(String(u.role)) && !isBranchCash && !isSystem;
+        if (isAdmin && !params.includeAdmins) {
+          stats.skippedAdmins++;
+          continue;
+        }
+        const have = new Set(String(u.currencies || '').split(',').filter(Boolean).map((c) => c.toUpperCase()));
+        const wanted = requiredAccountCurrencies([...(byCountry.get(String(u.countryCode || '').toUpperCase()) ?? [])]);
+        const missing = wanted.filter((c) => !have.has(c));
+        if (!missing.length) continue;
+        stats.accountsUpdated++;
+        for (const cur of missing) {
+          stats.walletsCreated++;
+          stats.byCurrency[cur] = (stats.byCurrency[cur] || 0) + 1;
+          if (params.dryRun) continue;
+          const cashCode = isBranchCash ? `CASH-${String(u.branchId).slice(0, 8)}-${cur}-${Date.now()}` : `CASH${Math.floor(10000000 + Math.random() * 90000000)}`;
+          // Sans doublon même en cas d'appel simultané : n'insère que si la devise manque toujours
+          await db.$executeRawUnsafe(
+            'INSERT INTO `wallet` (`id`, `userId`, `balance`, `currency`, `isActive`, `createdAt`, `updatedAt`, `isDefault`, `cashCode`, `branchId`, `isBranchWallet`) ' +
+              'SELECT ?, ?, 0, ?, 1, NOW(), NOW(), ?, ?, ?, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM `wallet` WHERE `userId` = ? AND `currency` = ?)',
+            crypto.randomUUID(),
+            u.id,
+            cur,
+            !isBranchCash && !isSystem && Number(u.hasDefault) === 0 && have.size === 0 && cur === wanted[0] ? 1 : 0,
+            cashCode,
+            isBranchCash ? u.branchId : null,
+            isBranchCash ? 1 : 0,
+            u.id,
+            cur,
+          );
+          have.add(cur);
+        }
+      }
+      if (users.length < batch || params.userId) break;
+    }
+    if (!params.dryRun) {
+      await db
+        .$executeRawUnsafe(
+          'INSERT INTO `audit_log` (`id`, `userId`, `action`, `details`, `ipAddress`, `createdAt`) VALUES (?, ?, ?, ?, ?, NOW())',
+          crypto.randomUUID(),
+          params.adminId,
+          'ACCOUNT_CURRENCIES_ENSURED',
+          JSON.stringify(stats),
+          null,
+        )
+        .catch(() => undefined);
+    }
+    return {
+      message: params.dryRun
+        ? `${stats.walletsCreated} wallet(s) seraient créés pour ${stats.accountsUpdated} compte(s)`
+        : `${stats.walletsCreated} wallet(s) créés : ${stats.accountsUpdated} compte(s) fonctionnent maintenant dans toutes les devises`,
+      data: { ...stats, dryRun: !!params.dryRun },
+    };
   }
 }

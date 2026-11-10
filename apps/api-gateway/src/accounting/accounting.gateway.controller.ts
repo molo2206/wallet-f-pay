@@ -20,8 +20,9 @@ function toCsv(headers: string[], rows: any[][]): string {
 
 /**
  * ✅ COMPTABILITÉ SYSCOHADA (OHADA) — SUPER_ADMIN, ou ADMIN avec la ressource ACCOUNTING
- *  Filtres communs : from, to (AAAA-MM-JJ) ou period=today|month|year (mois en cours par défaut),
- *  currency (devise d'affichage, devise comptable par défaut), branchId (ce que gagne une agence).
+ *  COMPTABILITÉ SÉPARÉE PAR DEVISE : chaque état est fourni devise par devise, sans aucune conversion.
+ *  Filtres communs : from, to (AAAA-MM-JJ) ou period=today|month|year|all (mois en cours par défaut),
+ *  currency (une seule devise, ex. USD ; sinon toutes les devises séparément), branchId (ce que gagne une agence).
  *  Exports : ?format=csv sur la balance, le grand livre et le journal.
  */
 @Controller('admin/accounting')
@@ -62,17 +63,23 @@ export class AccountingGatewayController {
     const r: any = await rpcSend(this.wallet, 'accounting.trial_balance', q, 60000);
     if (q.format !== 'csv') return r;
     const d = r.data;
+    const rows: any[][] = [];
+    for (const b of d.books) {
+      for (const a of b.accounts) {
+        rows.push([b.currency, a.account, a.label, a.opening.debit, a.opening.credit, a.movements.debit, a.movements.credit, a.closing.debit, a.closing.credit]);
+      }
+    }
     return this.csv(
       res,
-      `balance_${d.period.from}_${d.period.to}.csv`,
+      `balance_${q.currency || 'toutes_devises'}_${d.period.from}_${d.period.to}.csv`,
       toCsv(
-        ['Compte', 'Libellé', 'Solde ouverture débit', 'Solde ouverture crédit', 'Mouvements débit', 'Mouvements crédit', 'Solde clôture débit', 'Solde clôture crédit'],
-        d.accounts.map((a: any) => [a.account, a.label, a.opening.debit, a.opening.credit, a.movements.debit, a.movements.credit, a.closing.debit, a.closing.credit]),
+        ['Devise', 'Compte', 'Libellé', 'Solde ouverture débit', 'Solde ouverture crédit', 'Mouvements débit', 'Mouvements crédit', 'Solde clôture débit', 'Solde clôture crédit'],
+        rows,
       ),
     );
   }
 
-  /** ?account=7061 (ou 706* pour tous les sous-comptes) */
+  /** ?account=7061 (ou 706* pour tous les sous-comptes) &currency=USD (obligatoire : un grand livre par devise) */
   @Get('general-ledger')
   async generalLedger(@CurrentUser() user: any, @Query() q: any, @Res({ passthrough: true }) res: any) {
     await assertAdminResource(this.prisma, user, RESOURCE, false);
@@ -81,15 +88,15 @@ export class AccountingGatewayController {
     const d = r.data;
     return this.csv(
       res,
-      `grand_livre_${q.account}_${d.period.from}_${d.period.to}.csv`,
+      `grand_livre_${q.account}_${d.currency}_${d.period.from}_${d.period.to}.csv`,
       toCsv(
-        ['Date', 'Journal', 'Référence', 'Libellé', 'Compte', 'Débit', 'Crédit', 'Solde', 'Devise origine', 'Débit origine', 'Crédit origine'],
-        d.lines.map((l: any) => [l.date, l.journal, l.reference, l.label, l.account, l.debit, l.credit, l.balance, l.original.currency, l.original.debit, l.original.credit]),
+        ['Date', 'Journal', 'Référence', 'Libellé', 'Compte', `Débit (${d.currency})`, `Crédit (${d.currency})`, `Solde (${d.currency})`],
+        d.lines.map((l: any) => [l.date, l.journal, l.reference, l.label, l.account, l.debit, l.credit, l.balance]),
       ),
     );
   }
 
-  /** ?journal=MM|CA|VI|PR|CH|BQ|OD &source=AUTO|MANUAL|REVERSAL &search= */
+  /** ?currency=USD &journal=MM|CA|VI|PR|CH|BQ|OD &source=AUTO|MANUAL|REVERSAL &search= */
   @Get('journal')
   async journal(@CurrentUser() user: any, @Query() q: any, @Res({ passthrough: true }) res: any) {
     await assertAdminResource(this.prisma, user, RESOURCE, false);
@@ -116,7 +123,7 @@ export class AccountingGatewayController {
 
   /**
    * Écriture manuelle équilibrée :
-   * { date: '2026-11-30', journal: 'OD', label: 'Facture PawaPay novembre', currency: 'USD', reference?,
+   * { date: '2026-11-30', journal: 'OD', label: 'Facture PawaPay novembre', currency: 'USD' (obligatoire), reference?,
    *   lines: [{ account: '6318', debit: 120 }, { account: '5311', credit: 120 }] }
    */
   @Post('entries')

@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { RpcException } from '@nestjs/microservices';
 import * as crypto from 'crypto';
-import { ExchangeRateRow, convertWithRates, round3 } from '@app/common';
+import { round3 } from '@app/common';
 import { isValidTimezone, localParts } from 'apps/auth-service/src/work-schedules/work-schedule.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -40,10 +40,11 @@ const REVENUE_GROUPS: Record<string, string> = {
 /**
  * ✅ COMPTABILITÉ SYSCOHADA (OHADA)
  *
- *  Écritures automatiques : chaque transaction réussie est passée au journal (toutes les 5 min + reprise complète la nuit),
- *  avec les montants dans la devise d'origine ET dans la devise comptable (ACCOUNTING_CURRENCY, CDF par défaut,
- *  au taux de la table exchange_rate au moment de la passation). Une transaction annulée ou corrigée produit une
- *  écriture d'extourne : le journal n'est jamais modifié.
+ *  COMPTABILITÉ SÉPARÉE PAR DEVISE : chaque devise (CDF, USD, EUR, KES…) a ses propres soldes, son résultat et
+ *  ses états. Aucun montant n'est converti ni additionné entre devises.
+ *  Écritures automatiques : chaque transaction réussie est passée au journal (toutes les 5 min + reprise complète la nuit)
+ *  dans la devise de l'opération. Une transaction annulée ou corrigée produit une écriture d'extourne :
+ *  le journal n'est jamais modifié.
  *  Écritures manuelles (journal OD) : charges réelles (facture PawaPay, loyer, salaires, SMS…), équilibrées, périodes clôturées protégées.
  *  États : ce que F-Pay gagne (produits − charges), compte de résultat, balance, grand livre, journal, bilan simplifié.
  */
@@ -52,7 +53,6 @@ export class AccountingService {
   private readonly logger = new Logger(AccountingService.name);
   private running = false;
   private missingLogged = false;
-  private ratesCache: { rows: ExchangeRateRow[]; at: number } | null = null;
   private tzCache: { tz: string; at: number } | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
@@ -61,23 +61,12 @@ export class AccountingService {
     return this.prisma as any;
   }
 
-  get currency(): string {
-    return String(process.env.ACCOUNTING_CURRENCY || 'CDF').toUpperCase();
-  }
-
   private fail(statusCode: number, message: string): never {
     throw new RpcException({ status: 'error', statusCode, message });
   }
 
   private isMissing(e: any) {
     return /doesn't exist|1146|ER_NO_SUCH_TABLE/i.test(String(e?.message || ''));
-  }
-
-  private async rates(): Promise<ExchangeRateRow[]> {
-    if (this.ratesCache && Date.now() - this.ratesCache.at < 5 * 60 * 1000) return this.ratesCache.rows;
-    const rows: ExchangeRateRow[] = await this.db.$queryRawUnsafe('SELECT `from_currency`, `to_currency`, `rate` FROM `exchange_rate`');
-    this.ratesCache = { rows, at: Date.now() };
-    return rows;
   }
 
   private async timezone(): Promise<string> {
@@ -206,12 +195,9 @@ export class AccountingService {
     // Annulation : le coût estimé est aussi extourné (entryLines inverse déjà toutes les lignes)
     const version = (Number(t.stVersion) || 0) + (lines.length ? 1 : 0);
 
-    // Conversion en devise comptable
-    const rate = convertWithRates(1, currency, this.currency, await this.rates());
-    if (lines.length && rate === null) {
-      this.logger.warn(`Comptabilité : taux ${currency} → ${this.currency} absent, transaction ${t.reference} reportée`);
-      return 'skipped';
-    }
+    // ✅ Comptabilité tenue PAR DEVISE : aucune conversion. (Les colonnes *_ref, conservées pour compatibilité,
+    //    reçoivent les mêmes montants que la devise d'origine et rate_to_ref = 1.)
+    const rate = 1;
 
     const entryDate = await this.localDate(new Date(version <= 1 ? t.createdAt : t.updatedAt));
     try {
@@ -266,8 +252,8 @@ export class AccountingService {
             l.account,
             l.debit,
             l.credit,
-            round3(l.debit * rate!),
-            round3(l.credit * rate!),
+            l.debit,
+            l.credit,
             currency,
             entryDate,
             t.branchId ?? null,
@@ -283,7 +269,7 @@ export class AccountingService {
   }
 
   // ============================================================
-  // FILTRES COMMUNS
+  // FILTRES COMMUNS — COMPTABILITÉ SÉPARÉE PAR DEVISE (aucune conversion)
   // ============================================================
   private async period(q: any): Promise<{ from: string; to: string }> {
     const today = await this.localDate(new Date());
@@ -292,280 +278,309 @@ export class AccountingService {
     if (!from) {
       if (q?.period === 'today') from = to;
       else if (q?.period === 'year') from = `${to.slice(0, 4)}-01-01`;
+      else if (q?.period === 'all') from = '2000-01-01';
       else from = `${to.slice(0, 7)}-01`; // mois en cours par défaut
     }
     if (from > to) this.fail(400, 'La date de début doit précéder la date de fin');
     return { from, to };
   }
 
-  /** Montant en devise d'affichage (devise comptable par défaut) */
-  private async display(q: any): Promise<{ code: string; factor: number }> {
-    const code = String(q?.currency || this.currency).toUpperCase();
-    if (code === this.currency) return { code, factor: 1 };
-    const f = convertWithRates(1, this.currency, code, await this.rates());
-    if (f === null) this.fail(400, `Taux ${this.currency} → ${code} non configuré`);
-    return { code, factor: f! };
+  /** Devises à présenter : celle demandée (?currency=USD) ou toutes celles qui ont des écritures */
+  private async currencies(q: any, to?: string): Promise<string[]> {
+    if (q?.currency) {
+      const c = String(q.currency).toUpperCase();
+      if (!/^[A-Z]{3}$/.test(c)) this.fail(400, 'Devise invalide (ex. CDF, USD)');
+      return [c];
+    }
+    const rows: any[] = await this.db.$queryRawUnsafe(
+      `SELECT DISTINCT \`currency\` FROM \`accounting_lines\`${to ? ' WHERE `entry_date` <= ?' : ''} ORDER BY \`currency\``,
+      ...(to ? [to] : []),
+    );
+    return rows.map((r) => r.currency);
+  }
+
+  private branchFilter(q: any): { sql: string; params: any[] } {
+    return q?.branchId ? { sql: ' AND l.`branch_id` = ?', params: [String(q.branchId)] } : { sql: '', params: [] };
   }
 
   // ============================================================
-  // CE QUE F-PAY GAGNE
+  // CE QUE F-PAY GAGNE — par devise
   // ============================================================
   async earnings(q: any) {
     const { from, to } = await this.period(q);
-    const disp = await this.display(q);
-    const params: any[] = [from, to];
-    let branch = '';
-    if (q?.branchId) {
-      branch = ' AND l.`branch_id` = ?';
-      params.push(String(q.branchId));
-    }
+    const br = this.branchFilter(q);
+    const curFilter = q?.currency ? ' AND l.`currency` = ?' : '';
+    const curParams = q?.currency ? [String(q.currency).toUpperCase()] : [];
     const rows: any[] = await this.db.$queryRawUnsafe(
-      'SELECT l.`account_code` AS account, l.`currency`, SUM(l.`credit` - l.`debit`) AS net, SUM(l.`credit_ref` - l.`debit_ref`) AS netRef, COUNT(DISTINCT l.`entry_id`) AS entries ' +
+      'SELECT l.`currency`, l.`account_code` AS account, SUM(l.`credit` - l.`debit`) AS net, COUNT(DISTINCT l.`entry_id`) AS operations ' +
         "FROM `accounting_lines` l WHERE l.`entry_date` BETWEEN ? AND ? AND (l.`account_code` LIKE '7%' OR l.`account_code` LIKE '6%')" +
-        branch +
-        ' GROUP BY l.`account_code`, l.`currency`',
-      ...params,
+        br.sql +
+        curFilter +
+        ' GROUP BY l.`currency`, l.`account_code`',
+      from,
+      to,
+      ...br.params,
+      ...curParams,
     );
-    const groupBy = q?.groupBy === 'day' ? '%Y-%m-%d' : '%Y-%m';
+    const fmt = q?.groupBy === 'day' ? '%Y-%m-%d' : '%Y-%m';
     const series: any[] = await this.db.$queryRawUnsafe(
-      `SELECT DATE_FORMAT(l.\`entry_date\`, '${groupBy}') AS bucket, ` +
-        "SUM(CASE WHEN l.`account_code` LIKE '7%' THEN l.`credit_ref` - l.`debit_ref` ELSE 0 END) AS revenue, " +
-        "SUM(CASE WHEN l.`account_code` LIKE '6%' THEN l.`debit_ref` - l.`credit_ref` ELSE 0 END) AS expenses " +
+      `SELECT l.\`currency\`, DATE_FORMAT(l.\`entry_date\`, '${fmt}') AS bucket, ` +
+        "SUM(CASE WHEN l.`account_code` LIKE '7%' THEN l.`credit` - l.`debit` ELSE 0 END) AS revenue, " +
+        "SUM(CASE WHEN l.`account_code` LIKE '6%' THEN l.`debit` - l.`credit` ELSE 0 END) AS expenses " +
         'FROM `accounting_lines` l WHERE l.`entry_date` BETWEEN ? AND ?' +
-        branch +
-        ' GROUP BY bucket ORDER BY bucket',
-      ...params,
+        br.sql +
+        curFilter +
+        ' GROUP BY l.`currency`, bucket ORDER BY l.`currency`, bucket',
+      from,
+      to,
+      ...br.params,
+      ...curParams,
     );
-
-    const revenue: Record<string, any> = {};
-    const expenses: Record<string, any> = {};
-    let totalRevenue = 0;
-    let totalExpenses = 0;
+    const labels = await this.labels();
+    const books: Record<string, any> = {};
+    const book = (c: string) =>
+      (books[c] ??= { currency: c, revenue: [] as any[], expenses: [] as any[], totalRevenue: 0, totalExpenses: 0, series: [] as any[] });
     for (const r of rows) {
+      const b = book(r.currency);
       const isRev = String(r.account).startsWith('7');
-      const target = isRev ? revenue : expenses;
-      const valueRef = isRev ? Number(r.netRef) : -Number(r.netRef);
-      const value = isRev ? Number(r.net) : -Number(r.net);
-      const g = (target[r.account] ??= {
-        account: r.account,
-        label: REVENUE_GROUPS[r.account] || ACCOUNT_LABEL[r.account] || r.account,
-        total: 0,
-        byCurrency: {} as Record<string, number>,
-      });
-      g.total += valueRef * disp.factor;
-      g.byCurrency[r.currency] = round3((g.byCurrency[r.currency] || 0) + value);
-      if (isRev) totalRevenue += valueRef * disp.factor;
-      else totalExpenses += valueRef * disp.factor;
+      const amount = round3(isRev ? Number(r.net) : -Number(r.net));
+      const item = { account: r.account, label: REVENUE_GROUPS[r.account] || labels[r.account] || r.account, amount, operations: Number(r.operations) || 0 };
+      if (isRev) {
+        b.revenue.push(item);
+        b.totalRevenue += amount;
+      } else {
+        b.expenses.push(item);
+        b.totalExpenses += amount;
+      }
     }
-    const fx: any[] = await this.db.$queryRawUnsafe(
-      "SELECT SUM(l.`debit_ref` - l.`credit_ref`) AS v FROM `accounting_lines` l WHERE l.`account_code` = '5852' AND l.`entry_date` BETWEEN ? AND ?" + branch,
-      ...params,
-    );
-    const fxResult = round3(-Number(fx?.[0]?.v || 0) * disp.factor); // compensation créditrice = gain
-    const fin = (o: Record<string, any>) =>
-      Object.values(o)
-        .map((g: any) => ({ ...g, total: round3(g.total) }))
-        .sort((a: any, b: any) => b.total - a.total);
-    const revenueList = fin(revenue);
-    const net = round3(totalRevenue - totalExpenses);
+    for (const s of series) {
+      book(s.currency).series.push({
+        period: s.bucket,
+        revenue: round3(s.revenue),
+        expenses: round3(s.expenses),
+        net: round3(Number(s.revenue) - Number(s.expenses)),
+      });
+    }
+    const result = Object.values(books)
+      .map((b: any) => {
+        const net = round3(b.totalRevenue - b.totalExpenses);
+        b.revenue.sort((x: any, y: any) => y.amount - x.amount);
+        b.expenses.sort((x: any, y: any) => y.amount - x.amount);
+        return {
+          currency: b.currency,
+          revenue: round3(b.totalRevenue),
+          expenses: round3(b.totalExpenses),
+          netResult: net,
+          margin: b.totalRevenue > 0 ? Math.round((net / b.totalRevenue) * 10000) / 100 : null,
+          revenueBySource: b.revenue,
+          expensesByNature: b.expenses,
+          topSource: b.revenue[0] ?? null,
+          series: b.series,
+        };
+      })
+      .sort((x, y) => x.currency.localeCompare(y.currency));
     return {
-      message: 'Ce que F-Pay gagne',
+      message: 'Ce que F-Pay gagne (par devise, sans conversion)',
       data: {
         period: { from, to },
-        currency: disp.code,
-        accountingCurrency: this.currency,
-        summary: {
-          revenue: round3(totalRevenue),
-          expenses: round3(totalExpenses),
-          netResult: net,
-          margin: totalRevenue > 0 ? Math.round((net / totalRevenue) * 10000) / 100 : null,
-          fxDifference: fxResult,
-          netResultWithFx: round3(net + fxResult),
-        },
-        revenue: revenueList,
-        expenses: fin(expenses),
-        topSource: revenueList[0] ?? null,
-        series: series.map((s) => ({
-          period: s.bucket,
-          revenue: round3(Number(s.revenue) * disp.factor),
-          expenses: round3(Number(s.expenses) * disp.factor),
-          net: round3((Number(s.revenue) - Number(s.expenses)) * disp.factor),
-        })),
+        branchId: q?.branchId ?? null,
+        currencies: result,
         lastPosting: await this.meta('last_incremental_run').catch(() => null),
         notes: [
+          'Chaque devise est présentée séparément : les montants ne sont jamais convertis ni additionnés entre devises.',
           'Produits = frais encaissés dans le wallet des frais + frais déduits des dépôts/retraits Mobile Money + frais des paiements internationaux.',
-          "Charges = commissions opérateur estimées (si un taux est configuré) + écritures manuelles (factures PawaPay, loyers, salaires…).",
-          `Montants convertis en ${disp.code} au taux du jour de chaque opération.`,
+          'Charges = commissions opérateur estimées (si un taux est configuré) + écritures manuelles (factures PawaPay, loyers, salaires…).',
         ],
       },
     };
   }
 
   // ============================================================
-  // ÉTATS SYSCOHADA
+  // ÉTATS SYSCOHADA — un jeu d'états par devise
   // ============================================================
-  /** Balance générale : mouvements de la période et solde cumulé à la date de fin, par compte */
+  /** Balance générale par devise : ouverture, mouvements de la période, solde de clôture */
   async trialBalance(q: any) {
     const { from, to } = await this.period(q);
-    const disp = await this.display(q);
-    const rows: any[] = await this.db.$queryRawUnsafe(
-      'SELECT l.`account_code` AS account, ' +
-        'SUM(CASE WHEN l.`entry_date` < ? THEN l.`debit_ref` ELSE 0 END) AS openD, SUM(CASE WHEN l.`entry_date` < ? THEN l.`credit_ref` ELSE 0 END) AS openC, ' +
-        'SUM(CASE WHEN l.`entry_date` >= ? THEN l.`debit_ref` ELSE 0 END) AS movD, SUM(CASE WHEN l.`entry_date` >= ? THEN l.`credit_ref` ELSE 0 END) AS movC ' +
-        'FROM `accounting_lines` l WHERE l.`entry_date` <= ? GROUP BY l.`account_code` ORDER BY l.`account_code`',
-      from,
-      from,
-      from,
-      from,
-      to,
-    );
     const labels = await this.labels();
-    let tD = 0;
-    let tC = 0;
-    const accounts = rows.map((r) => {
-      const f = disp.factor;
-      const openD = Number(r.openD) * f;
-      const openC = Number(r.openC) * f;
-      const movD = Number(r.movD) * f;
-      const movC = Number(r.movC) * f;
-      const bal = openD + movD - openC - movC;
-      tD += movD;
-      tC += movC;
-      return {
-        account: r.account,
-        label: labels[r.account] || r.account,
-        class: String(r.account)[0],
-        opening: { debit: round3(Math.max(0, openD - openC)), credit: round3(Math.max(0, openC - openD)) },
-        movements: { debit: round3(movD), credit: round3(movC) },
-        closing: { debit: round3(Math.max(0, bal)), credit: round3(Math.max(0, -bal)) },
-      };
-    });
-    return {
-      message: 'Balance générale',
-      data: { period: { from, to }, currency: disp.code, accounts, totals: { debit: round3(tD), credit: round3(tC), balanced: Math.abs(round3(tD - tC)) < 0.01 } },
-    };
+    const books: any[] = [];
+    for (const cur of await this.currencies(q, to)) {
+      const rows: any[] = await this.db.$queryRawUnsafe(
+        'SELECT l.`account_code` AS account, ' +
+          'SUM(CASE WHEN l.`entry_date` < ? THEN l.`debit` ELSE 0 END) AS openD, SUM(CASE WHEN l.`entry_date` < ? THEN l.`credit` ELSE 0 END) AS openC, ' +
+          'SUM(CASE WHEN l.`entry_date` >= ? THEN l.`debit` ELSE 0 END) AS movD, SUM(CASE WHEN l.`entry_date` >= ? THEN l.`credit` ELSE 0 END) AS movC ' +
+          'FROM `accounting_lines` l WHERE l.`currency` = ? AND l.`entry_date` <= ? GROUP BY l.`account_code` ORDER BY l.`account_code`',
+        from,
+        from,
+        from,
+        from,
+        cur,
+        to,
+      );
+      let tD = 0;
+      let tC = 0;
+      const accounts = rows.map((r) => {
+        const openD = Number(r.openD);
+        const openC = Number(r.openC);
+        const movD = Number(r.movD);
+        const movC = Number(r.movC);
+        const bal = openD + movD - openC - movC;
+        tD += movD;
+        tC += movC;
+        return {
+          account: r.account,
+          label: labels[r.account] || r.account,
+          class: String(r.account)[0],
+          opening: { debit: round3(Math.max(0, openD - openC)), credit: round3(Math.max(0, openC - openD)) },
+          movements: { debit: round3(movD), credit: round3(movC) },
+          closing: { debit: round3(Math.max(0, bal)), credit: round3(Math.max(0, -bal)) },
+        };
+      });
+      books.push({ currency: cur, accounts, totals: { debit: round3(tD), credit: round3(tC), balanced: Math.abs(round3(tD - tC)) < 0.01 } });
+    }
+    return { message: 'Balance générale (par devise)', data: { period: { from, to }, books } };
   }
 
-  /** Compte de résultat (présentation SYSCOHADA simplifiée) */
+  /** Compte de résultat par devise (présentation SYSCOHADA simplifiée) */
   async incomeStatement(q: any) {
     const { from, to } = await this.period(q);
-    const disp = await this.display(q);
-    const rows: any[] = await this.db.$queryRawUnsafe(
-      "SELECT l.`account_code` AS account, SUM(l.`credit_ref` - l.`debit_ref`) AS net FROM `accounting_lines` l WHERE l.`entry_date` BETWEEN ? AND ? AND (l.`account_code` LIKE '6%' OR l.`account_code` LIKE '7%') GROUP BY l.`account_code` ORDER BY l.`account_code`",
-      from,
-      to,
-    );
     const labels = await this.labels();
-    const f = disp.factor;
-    const line = (r: any, sign: number) => ({ account: r.account, label: labels[r.account] || r.account, amount: round3(Number(r.net) * f * sign) });
-    const isFin = (a: string) => a.startsWith('77') || a.startsWith('67');
-    const prodExpl = rows.filter((r) => r.account.startsWith('7') && !isFin(r.account)).map((r) => line(r, 1));
-    const chExpl = rows.filter((r) => r.account.startsWith('6') && !isFin(r.account) && !r.account.startsWith('69')).map((r) => line(r, -1));
-    const prodFin = rows.filter((r) => r.account.startsWith('77')).map((r) => line(r, 1));
-    const chFin = rows.filter((r) => r.account.startsWith('67')).map((r) => line(r, -1));
-    const impots = rows.filter((r) => r.account.startsWith('89') || r.account.startsWith('69')).map((r) => line(r, -1));
-    const sum = (a: any[]) => round3(a.reduce((s, x) => s + x.amount, 0));
-    const fx: any[] = await this.db.$queryRawUnsafe(
-      "SELECT SUM(l.`credit_ref` - l.`debit_ref`) AS v FROM `accounting_lines` l WHERE l.`account_code` = '5852' AND l.`entry_date` BETWEEN ? AND ?",
-      from,
-      to,
-    );
-    const fxUnposted = round3(Number(fx?.[0]?.v || 0) * f);
-    const re = sum(prodExpl) - sum(chExpl);
-    const rf = sum(prodFin) - sum(chFin);
-    return {
-      message: 'Compte de résultat',
-      data: {
-        period: { from, to },
-        currency: disp.code,
+    const books: any[] = [];
+    for (const cur of await this.currencies(q, to)) {
+      const rows: any[] = await this.db.$queryRawUnsafe(
+        "SELECT l.`account_code` AS account, SUM(l.`credit` - l.`debit`) AS net FROM `accounting_lines` l WHERE l.`currency` = ? AND l.`entry_date` BETWEEN ? AND ? AND (l.`account_code` LIKE '6%' OR l.`account_code` LIKE '7%') GROUP BY l.`account_code` ORDER BY l.`account_code`",
+        cur,
+        from,
+        to,
+      );
+      const line = (r: any, sign: number) => ({ account: r.account, label: labels[r.account] || r.account, amount: round3(Number(r.net) * sign) });
+      const isFin = (a: string) => a.startsWith('77') || a.startsWith('67');
+      const prodExpl = rows.filter((r) => r.account.startsWith('7') && !isFin(r.account)).map((r) => line(r, 1));
+      const chExpl = rows.filter((r) => r.account.startsWith('6') && !isFin(r.account) && !r.account.startsWith('69')).map((r) => line(r, -1));
+      const prodFin = rows.filter((r) => r.account.startsWith('77')).map((r) => line(r, 1));
+      const chFin = rows.filter((r) => r.account.startsWith('67')).map((r) => line(r, -1));
+      const impots = rows.filter((r) => r.account.startsWith('69') || r.account.startsWith('89')).map((r) => line(r, -1));
+      const sum = (a: any[]) => round3(a.reduce((s, x) => s + x.amount, 0));
+      const re = sum(prodExpl) - sum(chExpl);
+      const rf = sum(prodFin) - sum(chFin);
+      books.push({
+        currency: cur,
         exploitation: { produits: prodExpl, totalProduits: sum(prodExpl), charges: chExpl, totalCharges: sum(chExpl), resultat: round3(re) },
-        financier: { produits: prodFin, charges: chFin, resultat: round3(rf), ecartsDeConversionNonPasses: fxUnposted },
+        financier: { produits: prodFin, charges: chFin, resultat: round3(rf) },
         impots: { lignes: impots, total: sum(impots) },
         resultatNet: round3(re + rf - sum(impots)),
-        note:
-          fxUnposted !== 0
-            ? "Le compte 5852 (conversions de devises) présente un solde : passez une écriture OD vers 776 (gain) ou 676 (perte) lors de la clôture."
-            : null,
+      });
+    }
+    return { message: 'Compte de résultat (par devise)', data: { period: { from, to }, books } };
+  }
+
+  /** Bilan simplifié par devise à une date */
+  async balanceSheet(q: any) {
+    const { to } = await this.period(q);
+    const labels = await this.labels();
+    const books: any[] = [];
+    for (const cur of await this.currencies(q, to)) {
+      const rows: any[] = await this.db.$queryRawUnsafe(
+        'SELECT l.`account_code` AS account, SUM(l.`debit` - l.`credit`) AS bal FROM `accounting_lines` l WHERE l.`currency` = ? AND l.`entry_date` <= ? GROUP BY l.`account_code`',
+        cur,
+        to,
+      );
+      const actif: any[] = [];
+      const passif: any[] = [];
+      let resultat = 0;
+      for (const r of rows) {
+        const bal = Number(r.bal);
+        const t = accountType(r.account);
+        if (t === 'REVENUE' || t === 'EXPENSE') {
+          resultat += -bal;
+          continue;
+        }
+        if (Math.abs(bal) < 0.0005) continue;
+        const item = { account: r.account, label: labels[r.account] || r.account };
+        if (t === 'ASSET') actif.push({ ...item, amount: round3(bal) });
+        else passif.push({ ...item, amount: round3(-bal) });
+      }
+      passif.push({ account: resultat >= 0 ? '131' : '139', label: resultat >= 0 ? 'Résultat net : bénéfice (non affecté)' : 'Résultat net : perte (non affectée)', amount: round3(resultat) });
+      const totalActif = round3(actif.reduce((s, x) => s + x.amount, 0));
+      const totalPassif = round3(passif.reduce((s, x) => s + x.amount, 0));
+      books.push({ currency: cur, actif, passif, totalActif, totalPassif, equilibre: Math.abs(round3(totalActif - totalPassif)) < 0.01 });
+    }
+    return {
+      message: 'Bilan simplifié (par devise)',
+      data: {
+        date: to,
+        books,
+        note: 'Le compte 5852 de chaque devise montre la position de change : montants convertis vers / depuis cette devise par les clients.',
       },
     };
   }
 
-  /** Bilan simplifié à une date */
-  async balanceSheet(q: any) {
-    const { to } = await this.period(q);
-    const disp = await this.display(q);
-    const rows: any[] = await this.db.$queryRawUnsafe(
-      'SELECT l.`account_code` AS account, SUM(l.`debit_ref` - l.`credit_ref`) AS bal FROM `accounting_lines` l WHERE l.`entry_date` <= ? GROUP BY l.`account_code`',
-      to,
-    );
-    const labels = await this.labels();
-    const f = disp.factor;
-    const actif: any[] = [];
-    const passif: any[] = [];
-    let resultat = 0;
-    for (const r of rows) {
-      const bal = Number(r.bal) * f;
-      const t = accountType(r.account);
-      if (t === 'REVENUE' || t === 'EXPENSE') {
-        resultat += -bal; // produits créditeurs − charges débitrices
-        continue;
-      }
-      const item = { account: r.account, label: labels[r.account] || r.account };
-      if (t === 'ASSET') actif.push({ ...item, amount: round3(bal) });
-      else passif.push({ ...item, amount: round3(-bal) });
-    }
-    passif.push({ account: resultat >= 0 ? '131' : '139', label: resultat >= 0 ? 'Résultat net : bénéfice (non affecté)' : 'Résultat net : perte (non affectée)', amount: round3(resultat) });
-    const totalActif = round3(actif.reduce((s, x) => s + x.amount, 0));
-    const totalPassif = round3(passif.reduce((s, x) => s + x.amount, 0));
-    return {
-      message: 'Bilan simplifié',
-      data: { date: to, currency: disp.code, actif, passif, totalActif, totalPassif, equilibre: Math.abs(round3(totalActif - totalPassif)) < 0.01 },
-    };
-  }
-
-  /** Grand livre d'un compte */
+  /** Grand livre d'un compte dans une devise (?account=4191&currency=USD ; account=706* pour les sous-comptes) */
   async generalLedger(q: any) {
     if (!q?.account) this.fail(400, 'Indiquez le compte (account)');
+    if (!q?.currency) this.fail(400, 'Indiquez la devise (currency) : chaque devise a son propre grand livre');
+    const cur = String(q.currency).toUpperCase();
     const { from, to } = await this.period(q);
     const page = Math.max(1, Number(q.page) || 1);
     const limit = Math.min(500, Math.max(1, Number(q.limit) || 100));
     const like = String(q.account).endsWith('*') ? String(q.account).slice(0, -1) + '%' : String(q.account);
     const op = like.includes('%') ? 'LIKE' : '=';
     const open: any[] = await this.db.$queryRawUnsafe(
-      `SELECT SUM(\`debit_ref\` - \`credit_ref\`) AS v FROM \`accounting_lines\` WHERE \`account_code\` ${op} ? AND \`entry_date\` < ?`,
+      `SELECT SUM(\`debit\` - \`credit\`) AS v FROM \`accounting_lines\` WHERE \`account_code\` ${op} ? AND \`currency\` = ? AND \`entry_date\` < ?`,
       like,
+      cur,
       from,
     );
+    // Solde avant la page demandée (pagination exacte du solde progressif)
+    const before: any[] =
+      page > 1
+        ? await this.db.$queryRawUnsafe(
+            `SELECT SUM(x.d - x.c) AS v FROM (SELECT l.\`debit\` AS d, l.\`credit\` AS c FROM \`accounting_lines\` l INNER JOIN \`accounting_entries\` e ON e.\`id\` = l.\`entry_id\` ` +
+              `WHERE l.\`account_code\` ${op} ? AND l.\`currency\` = ? AND l.\`entry_date\` BETWEEN ? AND ? ORDER BY l.\`entry_date\`, e.\`created_at\`, l.\`line\` LIMIT ${(page - 1) * limit}) x`,
+            like,
+            cur,
+            from,
+            to,
+          )
+        : [{ v: 0 }];
     const total = Number(
-      (await this.db.$queryRawUnsafe(`SELECT COUNT(*) AS n FROM \`accounting_lines\` WHERE \`account_code\` ${op} ? AND \`entry_date\` BETWEEN ? AND ?`, like, from, to))?.[0]?.n ?? 0,
+      (
+        await this.db.$queryRawUnsafe(
+          `SELECT COUNT(*) AS n FROM \`accounting_lines\` WHERE \`account_code\` ${op} ? AND \`currency\` = ? AND \`entry_date\` BETWEEN ? AND ?`,
+          like,
+          cur,
+          from,
+          to,
+        )
+      )?.[0]?.n ?? 0,
     );
     const rows: any[] = await this.db.$queryRawUnsafe(
       'SELECT l.*, e.`journal`, e.`reference`, e.`label` AS entryLabel, e.`source` FROM `accounting_lines` l INNER JOIN `accounting_entries` e ON e.`id` = l.`entry_id` ' +
-        `WHERE l.\`account_code\` ${op} ? AND l.\`entry_date\` BETWEEN ? AND ? ORDER BY l.\`entry_date\`, e.\`created_at\`, l.\`line\` LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
+        `WHERE l.\`account_code\` ${op} ? AND l.\`currency\` = ? AND l.\`entry_date\` BETWEEN ? AND ? ORDER BY l.\`entry_date\`, e.\`created_at\`, l.\`line\` LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
       like,
+      cur,
       from,
       to,
     );
-    let running = Number(open?.[0]?.v || 0);
+    const opening = Number(open?.[0]?.v || 0);
+    let running = opening + Number(before?.[0]?.v || 0);
     return {
       message: 'Grand livre',
       data: {
         account: q.account,
         label: (await this.labels())[String(q.account)] ?? null,
+        currency: cur,
         period: { from, to },
-        currency: this.currency,
-        opening: round3(running),
+        opening: round3(opening),
         lines: rows.map((r) => {
-          running += Number(r.debit_ref) - Number(r.credit_ref);
+          running += Number(r.debit) - Number(r.credit);
           return {
             date: r.entry_date,
             journal: r.journal,
             reference: r.reference,
             label: r.label || r.entryLabel,
             account: r.account_code,
-            debit: round3(r.debit_ref),
-            credit: round3(r.credit_ref),
-            original: { currency: r.currency, debit: round3(r.debit), credit: round3(r.credit) },
+            debit: round3(r.debit),
+            credit: round3(r.credit),
             balance: round3(running),
             source: r.source,
           };
@@ -578,13 +593,17 @@ export class AccountingService {
     };
   }
 
-  /** Journal (écritures avec leurs lignes) */
+  /** Journal (écritures avec leurs lignes) — ?currency=USD pour une seule devise */
   async journal(q: any) {
     const { from, to } = await this.period(q);
     const page = Math.max(1, Number(q.page) || 1);
     const limit = Math.min(200, Math.max(1, Number(q.limit) || 50));
     const parts = ['e.`entry_date` BETWEEN ? AND ?'];
     const params: any[] = [from, to];
+    if (q.currency) {
+      parts.push('e.`currency` = ?');
+      params.push(String(q.currency).toUpperCase());
+    }
     if (q.journal) {
       parts.push('e.`journal` = ?');
       params.push(String(q.journal).toUpperCase());
@@ -621,7 +640,6 @@ export class AccountingService {
           label: e.label,
           source: e.source,
           currency: e.currency,
-          rateToAccountingCurrency: Number(e.rate_to_ref),
           transactionId: e.transaction_id,
           reversedBy: e.reversed_by,
           createdBy: e.createdByName || e.created_by,
@@ -650,7 +668,7 @@ export class AccountingService {
   async accounts() {
     const rows: any[] = await this.db.$queryRawUnsafe('SELECT * FROM `accounting_accounts` ORDER BY `code`').catch(() => []);
     const list = rows.length ? rows.map((r) => ({ code: r.code, label: r.label, type: r.type, isSystem: !!Number(r.is_system), isActive: !!Number(r.is_active) })) : SYSCOHADA_ACCOUNTS.map((a) => ({ ...a, isSystem: true, isActive: true }));
-    return { message: 'Plan comptable SYSCOHADA', data: { accounts: list, journals: JOURNALS, accountingCurrency: this.currency } };
+    return { message: 'Plan comptable SYSCOHADA', data: { accounts: list, journals: JOURNALS, keptByCurrency: true } };
   }
 
   async createAccount(dto: any, adminId: string) {
@@ -684,9 +702,9 @@ export class AccountingService {
     await this.assertOpen(date);
     const label = String(dto?.label || '').trim();
     if (!label) this.fail(400, 'Libellé obligatoire');
-    const currency = String(dto?.currency || this.currency).toUpperCase();
-    const rate = convertWithRates(1, currency, this.currency, await this.rates());
-    if (rate === null) this.fail(400, `Taux ${currency} → ${this.currency} non configuré`);
+    const currency = String(dto?.currency || '').toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) this.fail(400, 'Devise obligatoire (ex. CDF, USD) : chaque devise a sa propre comptabilité');
+    const rate = 1;
     const known = new Set((await this.accounts()).data.accounts.filter((a: any) => a.isActive).map((a: any) => a.code));
     const err = validateManualLines(dto?.lines, known);
     if (err) this.fail(400, err);
@@ -719,8 +737,8 @@ export class AccountingService {
           String(l.account),
           d,
           c,
-          round3(d * rate!),
-          round3(c * rate!),
+          d,
+          c,
           currency,
           date,
           dto?.branchId ?? null,

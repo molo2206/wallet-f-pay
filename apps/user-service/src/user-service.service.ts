@@ -17,6 +17,7 @@ import { user_merchantType, user_passwordStatus, user_role, user_status, wallet_
 import { MailService } from 'apps/auth-service/src/email/email.service';
 import { CreateUserFromAccountDto } from './dto/create-user-from-account.dto';
 import { I18nService } from '../../../libs/common/src/i18n/i18n.service';
+import { requiredAccountCurrencies } from '@app/common';
 import { UpdateUserSettingsDto } from './dto/user-settings.dto';
 import { CreateResourceDto } from './resources/dto/create-resource.dto';
 import { UpdateResourceDto } from './resources/dto/update-resource.dto';
@@ -211,6 +212,9 @@ export class UserServiceService {
       console.log('Aucun countryCode fourni, création d\'un wallet par défaut en CDF');
       currenciesToCreate.push('CDF');
     }
+
+    // ✅ Chaque compte fonctionne dans toutes les devises (ACCOUNT_CURRENCIES, défaut CDF,USD) + celles du pays
+    currenciesToCreate = requiredAccountCurrencies(currenciesToCreate);
 
     for (const currency of currenciesToCreate) {
       try {
@@ -4324,7 +4328,7 @@ export class UserServiceService {
     });
 
     // 6️⃣ RÉCUPÉRER LES DEVISES DU PAYS
-    const currenciesToCreate: string[] = [];
+    let currenciesToCreate: string[] = [];
 
     // A. Devises depuis country_currency
     if (country.country_currency && country.country_currency.length > 0) {
@@ -4359,6 +4363,8 @@ export class UserServiceService {
       currenciesToCreate.push('CDF');
     }
 
+    // ✅ Les caisses d'agence acceptent toutes les devises obligatoires (CDF, USD…)
+    currenciesToCreate = requiredAccountCurrencies(currenciesToCreate);
     console.log(`📊 Devises à créer pour l'agence ${branch.name}:`, currenciesToCreate);
 
     // 7️⃣ CRÉER LES WALLETS POUR CHAQUE DEVISE
@@ -4631,6 +4637,8 @@ export class UserServiceService {
         currenciesToCreate.push('CDF');
       }
 
+      // ✅ Les caisses d'agence acceptent toutes les devises obligatoires (CDF, USD…)
+      currenciesToCreate = requiredAccountCurrencies(currenciesToCreate);
       console.log(`📊 Devises pour l'agence ${branch.name}:`, currenciesToCreate);
 
       // 4d. Récupérer les wallets existants du compte caisse

@@ -38,6 +38,11 @@ export class PlatformSettingsController {
     return this.settings.updateUserLimit(data?.userId, data?.dto);
   }
 
+  @MessagePattern('wallets.ensure_account_currencies')
+  ensureAccountCurrencies(@Payload() data: { adminId: string; dryRun?: boolean; includeAdmins?: boolean; userId?: string }) {
+    return this.settings.ensureAccountCurrencies(data || ({} as any));
+  }
+
   @MessagePattern('settings_ping')
   ping() {
     return { message: 'pong' };
