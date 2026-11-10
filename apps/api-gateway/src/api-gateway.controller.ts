@@ -3960,41 +3960,22 @@ export class ApiGatewayController {
   @Get('admin/settings/app')
   async getAppSettings() {
     try {
-      // ✅ Utiliser userClient au lieu de settingsClient
-      const result = await firstValueFrom(
-        this.userClient.send('get_app_settings', {}).pipe(
-          timeout(30000)
-        ),
-      );
-      return result;
-    } catch (err) {
-      this.logger.error(`RPC error: ${err.message}`);
-
-      // Timeout
-      if (err.name === 'TimeoutError' || err.message?.includes('Timeout')) {
-        throw new HttpException(
-          'Service temporarily unavailable, please try again',
-          HttpStatus.SERVICE_UNAVAILABLE,
-        );
+      // ✅ Lecture via user-service (10 s max)
+      return await firstValueFrom(this.userClient.send('get_app_settings', {}).pipe(timeout(10000)));
+    } catch (err: any) {
+      this.logger.warn(`get_app_settings indisponible (${err?.message}) : lecture directe en base`);
+    }
+    // ✅ Secours : si user-service est lent ou redémarre, on lit directement la table (plus de 503)
+    try {
+      const settings = await (this.prisma as any).app_settings.findFirst();
+      if (!settings) {
+        return { success: false, message: 'Aucun paramètre de l\'application n\'est encore enregistré', data: null, error: 'SETTINGS_NOT_FOUND' };
       }
-
-      // Erreur du microservice
-      if (err.response) {
-        const errorResponse = err.response;
-        if (typeof errorResponse === 'object') {
-          throw new HttpException(
-            errorResponse.message || 'Service error',
-            errorResponse.statusCode || HttpStatus.INTERNAL_SERVER_ERROR,
-          );
-        }
-        throw new HttpException(
-          typeof errorResponse === 'string' ? errorResponse : 'Service error',
-          HttpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-
+      return { success: true, message: 'Paramètres de l\'application récupérés', data: settings };
+    } catch (e: any) {
+      this.logger.error(`Lecture app_settings impossible : ${e?.message}`);
       throw new HttpException(
-        'Service error: ' + (err.message || 'Unknown error'),
+        { statusCode: 500, code: 'SETTINGS_UNAVAILABLE', message: 'Impossible de lire les paramètres de l\'application pour le moment. Réessayez dans quelques instants.' },
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

@@ -104,7 +104,8 @@ export function normalizeIp(ip?: string | null): string {
  */
 export function blockingDecision(w: MaintenanceWindow, r: Requester): { blocked: true; modules: string[] } | null {
   const path = String(r.path || '').split('?')[0];
-  if (ALWAYS_ALLOWED.test(path)) return null;
+  // Le front peut passer par un préfixe /api (proxy nginx / Next) : on l'ignore pour les routes toujours permises
+  if (ALWAYS_ALLOWED.test(path) || ALWAYS_ALLOWED.test(path.replace(/^\/api(?=\/)/, ''))) return null;
   if (isExempt(w, r)) return null;
   const method = String(r.method || 'GET').toUpperCase();
   const write = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
