@@ -5952,26 +5952,37 @@ export class ApiGatewayController {
         // On continue même si l'enregistrement échoue
       }
 
-      // ✅ Lier les comptes dans Favor Help
+      // ✅ Informer Favor Help (rappel « meilleur effort »).
+      //    Le token est déjà enregistré côté F-Pay (oauthaccesstoken) et Favor Help sauvegarde
+      //    la liaison de son côté : un échec de ce rappel (URL mal configurée, autre base) NE DOIT PAS
+      //    faire échouer la liaison. On journalise et on renvoie quand même un succès.
       const favorHelpUrl = process.env.FAVOR_HELP_API_URL || 'https://api.favorhelp.com/api/v1';
+      let linkData: any = {};
+      let favorHelpNotified = false;
 
-      const linkUserResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemUserId: system_user_id,
-          fpayUserId: fpayUserId,
-          accessToken: access_token,
-          refreshToken: refresh_token || null,
-        }),
-      });
+      try {
+        const linkUserResponse = await fetch(`${favorHelpUrl}/fpay/link-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemUserId: system_user_id,
+            fpayUserId: fpayUserId,
+            accessToken: access_token,
+            refreshToken: refresh_token || null,
+          }),
+        });
 
-      if (!linkUserResponse.ok) {
-        const errorData = await linkUserResponse.json();
-        throw new Error(errorData.message || 'Erreur lors de la liaison');
+        if (linkUserResponse.ok) {
+          linkData = await linkUserResponse.json().catch(() => ({}));
+          favorHelpNotified = true;
+          console.log(`[LinkUser] ✅ Favor Help notifié (${favorHelpUrl})`);
+        } else {
+          const errorData = await linkUserResponse.json().catch(() => ({}));
+          console.warn(`[LinkUser] ⚠️ Rappel Favor Help ${favorHelpUrl} a répondu ${linkUserResponse.status} (${errorData?.message || 'sans message'}). Liaison F-Pay maintenue.`);
+        }
+      } catch (cbErr) {
+        console.warn(`[LinkUser] ⚠️ Rappel Favor Help injoignable (${favorHelpUrl}) : ${(cbErr as any)?.message}. Liaison F-Pay maintenue.`);
       }
-
-      const linkData = await linkUserResponse.json();
 
       return res.status(200).json({
         success: true,
@@ -5980,6 +5991,7 @@ export class ApiGatewayController {
           systemUserId: system_user_id,
           fpayUserId: fpayUserId,
           isLinked: true,
+          favorHelpNotified,
           ...linkData,
         }
       });
