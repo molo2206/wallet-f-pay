@@ -18,7 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./apps/FPAY/test/jest-e2e.json",
-    "test:fiabilite": "jest libs/common/src/money apps/auth-service/src/work-schedules apps/api-gateway/src/inrceptor apps/api-gateway/src/controls apps/wallet-service/src/controls"
+    "test:fiabilite": "jest libs/common/src/money apps/auth-service/src/work-schedules apps/api-gateway/src/inrceptor apps/api-gateway/src/controls apps/wallet-service/src/controls apps/api-gateway/src/maintenance"
   },
   "dependencies": {
     "@nestjs-modules/mailer": "^2.3.4",
