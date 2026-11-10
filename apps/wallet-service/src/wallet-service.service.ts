@@ -437,6 +437,170 @@ export class WalletServiceService {
     };
   }
 
+  /**
+   * ✅ Retrait en espèces au guichet en attente de confirmation du client (code OTP reçu par SMS).
+   *    Aucun argent n'est encore sorti du wallet.
+   *     - Valider : nécessite le code OTP du client (sécurité : le client confirme qu'il retire bien cet argent)
+   *     - Rejeter / annuler : clôture simple, aucun mouvement d'argent
+   */
+  private async resolveCounterWithdrawal(
+    transaction: any,
+    status: 'SUCCESS' | 'FAILED' | 'CANCELLED',
+    admin: any,
+    adminPin: string,
+    clientOtpCode: string | null | undefined,
+    ipAddress: string | undefined,
+    lang: string,
+  ): Promise<any> {
+    if (status !== 'SUCCESS') {
+      const res = await this.rejectPendingOnly(transaction, status, admin, ipAddress, 'retrait au guichet non confirmé par le client');
+      return {
+        ...res,
+        message: `Retrait au guichet ${status === 'CANCELLED' ? 'annulé' : 'rejeté'} (réf. ${transaction.reference}) : aucun argent n'a été débité du wallet du client et le code envoyé au client n'est plus valable.`,
+      };
+    }
+    const otp = String(clientOtpCode ?? '').trim();
+    if (!otp) {
+      throw new RpcException({
+        status: 'error',
+        statusCode: 422,
+        code: 'CLIENT_OTP_REQUIRED',
+        message:
+          `Ce retrait en espèces (réf. ${transaction.reference}, ${Number(transaction.amount).toFixed(3)} ${transaction.currency}) doit être confirmé par le client : ` +
+          "saisissez le code reçu par SMS par le client, puis validez. Sans ce code, vous pouvez seulement l'annuler.",
+      });
+    }
+    // Même traitement que l'écran « Retrait » (étape 2 : code du client) ; PIN de l'administrateur déjà vérifié
+    return this.adminCashout({
+      adminId: admin.id,
+      walletId: transaction.walletId,
+      amount: Number(transaction.amount),
+      otpCode: otp,
+      pin: adminPin,
+      lang,
+      ipAddress,
+      paymentMethod: transaction.paymentMethod || 'CASH',
+    } as any);
+  }
+
+  /** Rejet / annulation d'une opération en attente qui n'a encore déplacé aucun argent (transfert non validé…) */
+  private async rejectPendingOnly(
+    transaction: any,
+    status: 'SUCCESS' | 'FAILED' | 'CANCELLED',
+    admin: any,
+    ipAddress: string | undefined,
+    reason: string,
+  ): Promise<any> {
+    const finalStatus = status === 'CANCELLED' ? 'CANCELLED' : 'FAILED';
+    const verb = finalStatus === 'CANCELLED' ? 'annulée' : 'rejetée';
+    const n = await this.prisma.transaction.updateMany({
+      where: { id: transaction.id, status: 'PENDING' },
+      data: {
+        status: finalStatus,
+        description: `${transaction.description || ''} — ${verb} par ${admin.full_name || 'un administrateur'}`.slice(0, 1000),
+        updatedAt: new Date(),
+      },
+    });
+    if (n.count !== 1) {
+      throw new RpcException({ status: 'error', statusCode: 409, message: 'Cette opération vient déjà d\'être traitée par quelqu\'un d\'autre. Actualisez la liste.' });
+    }
+    await this.logAudit(admin.id, 'ADMIN_REJECT_PENDING', { transactionId: transaction.id, reference: transaction.reference, status: finalStatus, reason }, ipAddress || null);
+    const fresh = await this.prisma.transaction.findUnique({ where: { id: transaction.id } });
+    return {
+      message: `Opération ${verb} (réf. ${transaction.reference}). Aucun montant n'a été débité ni crédité.`,
+      data: { transaction: fresh, fromWallet: transaction.wallet ? this.toResponse(transaction.wallet) : undefined },
+    };
+  }
+
+  /**
+   * Opération en attente SANS détails enregistrés :
+   *  - dette de maintenance : SUCCESS = encaisser la dette (débit du wallet si le solde suffit), FAILED / CANCELLED = annuler la dette ;
+   *  - autre opération : rejet possible (aucun mouvement d'argent), validation impossible (informations manquantes).
+   */
+  private async resolvePendingWithoutDetails(
+    transaction: any,
+    status: 'SUCCESS' | 'FAILED' | 'CANCELLED',
+    admin: any,
+    ipAddress: string | undefined,
+  ): Promise<any> {
+    const prefixes = ['Dette de maintenance', 'Maintenance Debt', 'Deni la matengenezo', 'Deuda mantenimiento', 'دين الصيانة'];
+    const isDebt = transaction.type === 'WITHDRAW' && prefixes.some((p) => String(transaction.description || '').startsWith(p));
+    const amount = Number(transaction.amount);
+    const cur = transaction.currency || transaction.wallet?.currency || '';
+
+    if (isDebt) {
+      if (status === 'SUCCESS') {
+        const paid = await this.prisma.$transaction(async (tx) => {
+          const claim = await tx.transaction.updateMany({
+            where: { id: transaction.id, status: 'PENDING' },
+            data: {
+              status: 'SUCCESS',
+              description: `${transaction.description} (encaissée par ${admin.full_name || 'un administrateur'} le ${new Date().toLocaleDateString('fr-FR')})`.slice(0, 1000),
+              updatedAt: new Date(),
+            },
+          });
+          if (claim.count !== 1) return 'DONE';
+          const debit = await tx.wallet.updateMany({
+            where: { id: transaction.walletId, balance: { gte: amount - 0.000001 } },
+            data: { balance: { decrement: amount }, updatedAt: new Date() },
+          });
+          if (debit.count !== 1) throw new RpcException({ status: 'error', statusCode: 400, message: 'INSUFFICIENT' });
+          const remaining = await tx.transaction.count({
+            where: { userId: transaction.userId, type: 'WITHDRAW', status: 'PENDING', OR: prefixes.map((p) => ({ description: { startsWith: p } })) },
+          });
+          if (remaining === 0) {
+            await tx.user.updateMany({
+              where: { id: transaction.userId, status: 'BLOCKED', OR: [{ locked_by_admin: false }, { locked_by_admin: null }] },
+              data: { status: 'ACTIVE', updatedAt: new Date() },
+            });
+          }
+          return 'PAID';
+        }).catch((e: any) => {
+          const inner: any = typeof e?.getError === 'function' ? e.getError() : null;
+          if (inner?.message === 'INSUFFICIENT') return 'INSUFFICIENT';
+          throw e;
+        });
+        if (paid === 'DONE') {
+          throw new RpcException({ status: 'error', statusCode: 409, message: 'Cette dette vient déjà d\'être traitée. Actualisez la liste.' });
+        }
+        if (paid === 'INSUFFICIENT') {
+          throw new RpcException({
+            status: 'error',
+            statusCode: 400,
+            message:
+              `Impossible d'encaisser cette dette de maintenance (${amount.toFixed(3)} ${cur}) : le solde du client est insuffisant. ` +
+              "Elle sera prélevée automatiquement à son prochain dépôt, ou vous pouvez l'annuler.",
+          });
+        }
+        await this.logAudit(admin.id, 'ADMIN_COLLECT_MAINTENANCE_DEBT', { transactionId: transaction.id, amount, currency: cur }, ipAddress || null);
+        const fresh = await this.prisma.transaction.findUnique({ where: { id: transaction.id } });
+        const wallet = await this.prisma.wallet.findUnique({ where: { id: transaction.walletId } });
+        return {
+          message: `Dette de maintenance encaissée : ${amount.toFixed(3)} ${cur} prélevés sur le wallet du client (réf. ${transaction.reference}).`,
+          data: { transaction: fresh, fromWallet: wallet ? this.toResponse(wallet) : undefined },
+        };
+      }
+      const res = await this.rejectPendingOnly(transaction, 'CANCELLED', admin, ipAddress, 'dette de maintenance annulée');
+      return {
+        ...res,
+        message:
+          `Dette de maintenance annulée (réf. ${transaction.reference}) : le client ne la paiera pas. ` +
+          "Remarque : les frais correspondants avaient déjà été comptés dans le wallet des frais au moment de la création de la dette.",
+      };
+    }
+
+    if (status !== 'SUCCESS') {
+      return this.rejectPendingOnly(transaction, status, admin, ipAddress, 'opération sans détails enregistrés');
+    }
+    throw new RpcException({
+      status: 'error',
+      statusCode: 422,
+      message:
+        `Cette opération (réf. ${transaction.reference}) ne peut pas être validée : les informations nécessaires (destinataire, montant à créditer…) ` +
+        "n'ont pas été enregistrées avec elle. Vous pouvez la REJETER sans risque (aucun montant n'est déplacé), puis refaire l'opération si besoin.",
+    });
+  }
+
   async completeReservedPayout(transactionId: string, payoutId: string, description?: string): Promise<boolean> {
     const res = await this.prisma.transaction.updateMany({
       where: { id: transactionId, status: 'PENDING' },
@@ -8501,13 +8665,14 @@ export class WalletServiceService {
     status: 'SUCCESS' | 'FAILED' | 'CANCELLED',
     lang: string = 'fr',
     ipAddress?: string,
+    clientOtpCode?: string | null,
   ): Promise<ApiResponse<{
     transaction: any;
     fromWallet?: WalletResponseDto;
     toWallet?: WalletResponseDto;
     debitTransaction?: any;
   }>> {
-    console.log('[WalletService] Validate transaction:', { transactionId, adminId, status, lang });
+    console.log('[WalletService] Validate transaction:', { transactionId, adminId, status, lang, hasClientOtp: !!clientOtpCode });
 
     // ============================================================
     // 1️⃣ VÉRIFIER L'ADMIN
@@ -8529,7 +8694,7 @@ export class WalletServiceService {
     if (!admin) {
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('admin.not_found', lang),
+        message: "Action refusée : votre compte n'est pas un compte administrateur actif.",
         statusCode: 404,
       });
     }
@@ -8539,7 +8704,7 @@ export class WalletServiceService {
     if (!admin.branchId && !isSuperAdmin) {
       throw new RpcException({
         status: 'error',
-        message: 'L\'admin n\'est pas associé à une agence',
+        message: "Action refusée : votre compte administrateur n'est rattaché à aucune agence. Demandez à un super administrateur de vous associer à une agence.",
         statusCode: 400,
       });
     }
@@ -8550,7 +8715,7 @@ export class WalletServiceService {
     if (!admin.pin) {
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('admin.no_pin_set', lang),
+        message: "Action refusée : vous n'avez pas encore de code PIN. Définissez votre PIN dans votre profil, puis réessayez.",
         statusCode: 400,
       });
     }
@@ -8561,7 +8726,7 @@ export class WalletServiceService {
       );
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('admin.pin_locked', lang).replace('{minutes}', minutesLeft.toString()),
+        message: `Action refusée : votre PIN est bloqué après plusieurs erreurs. Réessayez dans ${minutesLeft} minute(s).`,
         statusCode: 403,
       });
     }
@@ -8583,9 +8748,10 @@ export class WalletServiceService {
           pin_locked_until: lockedUntil
         },
       });
+      const left = Math.max(0, 10 - newAttempts);
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('admin.pin_incorrect', lang),
+        message: `Code PIN incorrect : l'opération n'a pas été traitée.${left > 0 ? ` Il vous reste ${left} essai(s) avant le blocage du PIN.` : ' Votre PIN est maintenant bloqué pour 30 minutes.'}`,
         statusCode: 401,
       });
     }
@@ -8617,59 +8783,38 @@ export class WalletServiceService {
     });
 
     if (!transaction) {
+      // ✅ Message clair : déjà traitée, ou introuvable
+      const existing = await this.prisma.transaction.findUnique({
+        where: { id: transactionId },
+        select: { status: true, reference: true, updatedAt: true },
+      });
+      const labels: Record<string, string> = { SUCCESS: 'validée', FAILED: 'rejetée', CANCELLED: 'annulée' };
       throw new RpcException({
         status: 'error',
-        message: this.i18nService.translate('wallet.transaction_not_found', lang),
-        statusCode: 404,
+        message: existing
+          ? `Cette opération (réf. ${existing.reference}) a déjà été ${labels[existing.status] ?? 'traitée'} le ${new Date(existing.updatedAt).toLocaleString('fr-FR', { timeZone: 'Africa/Lubumbashi' })}. Actualisez la liste : il n'y a plus rien à faire.`
+          : "Opération introuvable : elle a peut-être été supprimée. Actualisez la liste des opérations en attente.",
+        statusCode: existing ? 409 : 404,
       });
     }
 
     // ============================================================
     // 4️⃣ EXTRAIRE external_reference
     // ============================================================
-    let externalData: any;
-    try {
-      if (!transaction.external_reference) {
-        console.log('[validateTransaction] ⚠️ external_reference est null');
-        throw new RpcException({
-          status: 'error',
-          message: 'Données de la transaction manquantes',
-          statusCode: 400,
-        });
+    // ✅ Lecture tolérante des détails de l'opération : une opération sans détails (ancienne opération,
+    //    dette de maintenance…) n'est plus refusée avec un message incompréhensible.
+    let externalData: any = null;
+    const rawRef: any = transaction.external_reference;
+    if (rawRef && typeof rawRef === 'object') externalData = rawRef;
+    else if (rawRef) {
+      try {
+        externalData = JSON.parse(String(rawRef));
+      } catch {
+        externalData = null;
       }
-
-      if (typeof transaction.external_reference === 'string') {
-        externalData = JSON.parse(transaction.external_reference);
-      } else if (typeof transaction.external_reference === 'object') {
-        externalData = transaction.external_reference;
-      } else {
-        throw new RpcException({
-          status: 'error',
-          message: 'Format de external_reference invalide',
-          statusCode: 400,
-        });
-      }
-
-      console.log('[validateTransaction] 📦 external_reference parsée:', {
-        type: externalData.type,
-        status: externalData.status,
-        userId: externalData.userId,
-        amount: externalData.amount,
-        currency: externalData.currency,
-        receiverUserId: externalData.receiverUserId,
-        receiverWalletId: externalData.receiverWalletId,
-        isInternational: externalData.isInternational,
-        transferType: externalData.transferType,
-        source: externalData.source,
-      });
-
-    } catch (e) {
-      console.error('[validateTransaction] ❌ Erreur parsing external_reference:', e);
-      throw new RpcException({
-        status: 'error',
-        message: 'Données de la transaction corrompues',
-        statusCode: 400,
-      });
+    }
+    if (!externalData || typeof externalData !== 'object') {
+      return this.resolvePendingWithoutDetails(transaction, status, admin, ipAddress);
     }
 
     // ✅ Opération Mobile Money en attente (retrait réservé / dépôt en cours) : ce n'est pas un transfert,
@@ -8680,6 +8825,22 @@ export class WalletServiceService {
 
     const transactionType = externalData.type || transaction.type;
     const transactionMovement = externalData.movement || transaction.movement;
+
+    // ✅ Retrait en espèces au guichet en attente du code OTP du client : il a son propre circuit
+    //    (l'argent n'est débité qu'à la confirmation par le client).
+    if (transactionType === 'WITHDRAW' && externalData.otpCode !== undefined) {
+      return this.resolveCounterWithdrawal(transaction, status, admin, adminPin, clientOtpCode, ipAddress, lang) as any;
+    }
+
+    // ✅ Une sortie d'argent SANS destinataire enregistré n'est pas un transfert vers un wallet :
+    //    elle n'est plus envoyée dans le circuit « transfert » (qui cherchait un wallet destinataire).
+    if (
+      ['WITHDRAW', 'WITHDRAWAL'].includes(String(transactionType)) &&
+      !externalData.receiverWalletId &&
+      !externalData.receiverUserId
+    ) {
+      return this.resolvePendingWithoutDetails(transaction, status, admin, ipAddress);
+    }
 
     console.log(`[validateTransaction] 📊 Type: ${transactionType}, Movement: ${transactionMovement}`);
 
@@ -9027,10 +9188,16 @@ export class WalletServiceService {
       const receiverData = externalData;
 
       if (!receiverData.receiverWalletId && !receiverData.receiverUserId) {
+        // Rejet / annulation : aucun argent n'a encore bougé pour un transfert en attente → simple clôture
+        if (status !== 'SUCCESS') {
+          return this.rejectPendingOnly(transaction, status, admin, ipAddress, 'destinataire non renseigné');
+        }
         throw new RpcException({
           status: 'error',
-          message: 'Données du destinataire manquantes pour ce transfert',
-          statusCode: 400,
+          message:
+            `Impossible de valider ce transfert (réf. ${transaction.reference}) : le destinataire n'a pas été enregistré avec l'opération. ` +
+            "Vous pouvez le REJETER (aucun montant n'a encore été débité), puis demander au client de refaire l'envoi.",
+          statusCode: 422,
         });
       }
 
@@ -9056,10 +9223,15 @@ export class WalletServiceService {
       });
 
       if (!toWallet) {
+        if (status !== 'SUCCESS') {
+          return this.rejectPendingOnly(transaction, status, admin, ipAddress, 'wallet du destinataire introuvable ou désactivé');
+        }
         throw new RpcException({
           status: 'error',
-          message: `Wallet du destinataire non trouvé (ID: ${receiverData.receiverWalletId})`,
-          statusCode: 404,
+          message:
+            `Impossible de valider ce transfert (réf. ${transaction.reference}) : le wallet du destinataire n'existe plus ou a été désactivé. ` +
+            "Rejetez l'opération (aucun montant n'a encore été débité) ou réactivez le wallet du destinataire.",
+          statusCode: 422,
         });
       }
 
@@ -9080,7 +9252,9 @@ export class WalletServiceService {
         if (currentBalance < transaction.amount) {
           throw new RpcException({
             status: 'error',
-            message: `Solde insuffisant. Disponible: ${currentBalance} ${transaction.currency}, Demandé: ${transaction.amount} ${transaction.currency}`,
+            message:
+              `Validation impossible : le client n'a plus assez d'argent sur son wallet (disponible ${Number(currentBalance).toFixed(3)} ${transaction.currency}, ` +
+              `nécessaire ${Number(transaction.amount).toFixed(3)} ${transaction.currency}). Vous pouvez rejeter l'opération ou attendre que le client recharge.`,
             statusCode: 400,
           });
         }
@@ -9587,10 +9761,15 @@ export class WalletServiceService {
       reference: transaction.reference,
     });
 
+    if (status !== 'SUCCESS') {
+      return this.rejectPendingOnly(transaction, status, admin, ipAddress, `type d'opération ${transactionType} / ${transactionMovement}`);
+    }
     throw new RpcException({
       status: 'error',
-      message: `Type de transaction non pris en charge: ${transactionType} / ${transactionMovement}. Référence: ${transaction.reference}`,
-      statusCode: 400,
+      message:
+        `Cette opération (réf. ${transaction.reference}, ${transactionType} / ${transactionMovement}) ne peut pas être validée depuis cet écran. ` +
+        "Vous pouvez la rejeter ; contactez le support technique si elle doit être validée.",
+      statusCode: 422,
     });
   }
 

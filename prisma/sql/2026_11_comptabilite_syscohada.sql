@@ -99,6 +99,9 @@ CREATE TABLE IF NOT EXISTS `accounting_lines` (
   KEY `idx_accounting_lines_branch` (`branch_id`, `entry_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Index pour les états par devise
+ALTER TABLE `accounting_lines` ADD INDEX `idx_accounting_lines_currency` (`currency`, `account_code`, `entry_date`);
+
 -- 3) Suivi de la passation automatique
 CREATE TABLE IF NOT EXISTS `accounting_tx_state` (
   `transaction_id` varchar(36) NOT NULL,

@@ -9941,6 +9941,9 @@ export class ApiGatewayController {
       transactionId: string;
       pin: string;
       status: 'SUCCESS' | 'FAILED' | 'CANCELLED'; // ✅ AJOUT
+      /** ✅ Code reçu par SMS par le client : obligatoire pour valider un retrait en espèces au guichet */
+      clientOtpCode?: string;
+      otpCode?: string;
     },
     @Ip() ipAddress: string,
     @Headers('lang') langHeader?: string,
@@ -9954,30 +9957,21 @@ export class ApiGatewayController {
 
     // ✅ Validations
     if (!body.transactionId) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.transaction_id_required', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException("Aucune opération sélectionnée : choisissez l'opération à valider ou à rejeter.", HttpStatus.BAD_REQUEST);
     }
 
     if (!body.pin || body.pin.length < 4) {
-      throw new HttpException(
-        this.i18nService.translate('admin.pin_required', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('Saisissez votre code PIN (au moins 4 chiffres) pour confirmer cette action.', HttpStatus.BAD_REQUEST);
     }
 
     if (!/^\d+$/.test(body.pin)) {
-      throw new HttpException(
-        this.i18nService.translate('wallet.pin_digits_only', lang),
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException('Le code PIN ne doit contenir que des chiffres.', HttpStatus.BAD_REQUEST);
     }
 
     // ✅ Vérifier que le status est valide
     if (!body.status || !['SUCCESS', 'FAILED', 'CANCELLED'].includes(body.status)) {
       throw new HttpException(
-        'Le statut doit être SUCCESS, FAILED ou CANCELLED',
+        "Action inconnue : choisissez « Valider » (SUCCESS), « Rejeter » (FAILED) ou « Annuler » (CANCELLED).",
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -9998,6 +9992,7 @@ export class ApiGatewayController {
         status: body.status, // ✅ PASSER LE STATUS
         lang,
         ipAddress,
+        clientOtpCode: body.clientOtpCode || body.otpCode || null,
       },
       this.i18nService.translate('wallet.transfer_validation_failed', lang),
       HttpStatus.BAD_REQUEST,

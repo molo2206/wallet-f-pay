@@ -1193,6 +1193,7 @@ export class WalletServiceController {
       status: 'SUCCESS' | 'FAILED' | 'CANCELLED'; // ✅ AJOUT
       lang?: string;
       ipAddress?: string;
+      clientOtpCode?: string | null; // ✅ code reçu par SMS par le client (retrait au guichet)
     },
   ) {
     console.log('[WalletService] validate_international_transfer received:', {
@@ -1210,14 +1211,17 @@ export class WalletServiceController {
         data.status, // ✅ PASSER LE STATUS
         data.lang || 'fr',
         data.ipAddress,
+        data.clientOtpCode ?? null,
       );
     } catch (error) {
       console.error('[WalletService] validate_international_transfer error:', error);
-      const lang = data.lang || 'fr';
+      // ✅ Les refus métier gardent leur message clair et leur code (409 déjà traitée, 422 non validable…)
+      if (error instanceof RpcException) throw error;
       throw new RpcException({
         status: 'error',
-        message: error instanceof Error ? error.message : this.i18nService.translate('wallet.unknown_error', lang),
-        statusCode: 400,
+        message:
+          "Erreur technique pendant le traitement de l'opération : rien n'a été modifié. Réessayez dans un instant ; si le problème continue, contactez le support technique.",
+        statusCode: 500,
       });
     }
   }
