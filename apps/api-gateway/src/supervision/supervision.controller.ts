@@ -138,7 +138,7 @@ export class SupervisionController {
     const alerts: any[] = [];
     const stuckTotal = pendingRows.reduce((a, p) => a + p.stuck, 0);
     if (stuckTotal) alerts.push({ level: 'warning', code: 'STUCK_PENDING', count: stuckTotal, message: `${stuckTotal} opération(s) en attente depuis plus de ${stuckMinutes} min` });
-    if (this.n(p0.n)) alerts.push({ level: 'info', code: 'PAYOUTS_TO_CONFIRM', count: this.n(p0.n), message: `${this.n(p0.n)} retrait(s) Mobile Money en cours de confirmation (réconciliation automatique toutes les 2 min)` });
+    if (this.n(p0.n)) alerts.push({ level: 'info', code: 'PAYOUTS_TO_CONFIRM', count: this.n(p0.n), message: `${this.n(p0.n)} retrait(s) Mobile Money en attente de validation manuelle` });
     const approvalsPending = this.n(
       (await this.db.$queryRawUnsafe("SELECT COUNT(*) AS n FROM `admin_operation_requests` WHERE `status` = 'PENDING' AND `expires_at` > UTC_TIMESTAMP()").catch(() => [{ n: 0 }]))?.[0]?.n,
     );
@@ -232,7 +232,7 @@ export class SupervisionController {
         provider: isPayout ? { kind: ext.kind, payoutId: ext.payoutId ?? null, depositId: ext.depositId ?? null, provider: ext.provider, phone: ext.phone } : null,
         // Action conseillée pour l'interface d'administration
         suggestedAction: isPayout
-          ? 'AUTO_RECONCILIATION'
+          ? 'MANUAL_VALIDATION'
           : r.type === 'DEPOSIT'
             ? 'CONFIRM_OR_CANCEL_DEPOSIT'
             : r.type === 'TRANSFER'

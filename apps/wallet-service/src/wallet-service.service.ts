@@ -319,6 +319,124 @@ export class WalletServiceService {
   }
 
   /** ✅ Retrait réservé confirmé par PawaPay : PENDING → SUCCESS (le solde a déjà été débité à la réservation) */
+  /**
+   * ✅ Validation MANUELLE par un administrateur d'une opération Mobile Money en attente
+   *    (retrait réservé ou dépôt en cours). Aucune vérification automatique auprès de l'opérateur :
+   *    l'administrateur décide après avoir contrôlé l'opération (tableau de bord PawaPay, relevé, client).
+   *      - SUCCESS            → retrait confirmé (le montant était déjà débité) / dépôt crédité au client
+   *      - FAILED / CANCELLED → retrait remboursé au client / dépôt clôturé sans crédit
+   *    Chaque décision est unique (la transaction doit être encore EN ATTENTE), notifiée au client et tracée.
+   */
+  private async resolveProviderPendingTransaction(
+    transaction: any,
+    meta: any,
+    requested: 'SUCCESS' | 'FAILED' | 'CANCELLED',
+    admin: any,
+    ipAddress: string | undefined,
+    lang: string,
+  ): Promise<any> {
+    const isPayout = meta.kind === 'PAWAPAY_PAYOUT';
+    const providerId: string = (isPayout ? meta.payoutId : meta.depositId) || '';
+    const label = isPayout ? 'retrait' : 'dépôt';
+    const amount = Number(transaction.amount);
+    const shown = Number(isPayout ? meta.netAmount ?? amount : amount);
+    const byAdmin = `validé par ${admin.full_name || 'un administrateur'}`;
+    let outcome: 'SUCCESS' | 'FAILED' | 'ALREADY_DONE' = 'ALREADY_DONE';
+
+    if (isPayout) {
+      if (requested === 'SUCCESS') {
+        const ok = await this.completeReservedPayout(
+          transaction.id,
+          providerId || transaction.reference,
+          `Retrait Mobile Money vers ${meta.phone || ''} (${meta.provider || ''}) confirmé (${byAdmin}) — Net reçu: ${shown.toFixed(3)} ${transaction.currency}${providerId ? ` Ref: ${providerId}` : ''}`,
+        );
+        outcome = ok ? 'SUCCESS' : 'ALREADY_DONE';
+      } else {
+        const after = await this.refundReservedPayout(
+          transaction.id,
+          transaction.walletId,
+          amount,
+          `Retrait Mobile Money ${requested === 'CANCELLED' ? 'annulé' : 'échoué'} (${byAdmin}) — ${amount.toFixed(3)} ${transaction.currency} remboursés`,
+        );
+        outcome = after?.refunded ? 'FAILED' : 'ALREADY_DONE';
+      }
+    } else if (requested === 'SUCCESS') {
+      const credited = await this.prisma.$transaction(async (tx) => {
+        const claim = await tx.transaction.updateMany({
+          where: { id: transaction.id, status: 'PENDING' },
+          data: {
+            status: 'SUCCESS',
+            description: `Dépôt Mobile Money ${meta.provider || ''} ${meta.phone || ''} confirmé (${byAdmin}) — Net crédité: ${amount.toFixed(3)} ${transaction.currency}${providerId ? ` Ref: ${providerId}` : ''}`,
+            updatedAt: new Date(),
+          },
+        });
+        if (claim.count !== 1) return false;
+        await tx.wallet.update({ where: { id: transaction.walletId }, data: { balance: { increment: amount }, updatedAt: new Date() } });
+        return true;
+      });
+      outcome = credited ? 'SUCCESS' : 'ALREADY_DONE';
+    } else {
+      const n = await this.prisma.transaction.updateMany({
+        where: { id: transaction.id, status: 'PENDING' },
+        data: {
+          status: requested === 'CANCELLED' ? 'CANCELLED' : 'FAILED',
+          description: `Dépôt Mobile Money ${requested === 'CANCELLED' ? 'annulé' : 'non abouti'} (${byAdmin}) — aucun crédit`,
+          updatedAt: new Date(),
+        },
+      });
+      outcome = n.count === 1 ? 'FAILED' : 'ALREADY_DONE';
+    }
+
+    await this.logAudit(
+      admin.id,
+      'ADMIN_RESOLVE_PROVIDER_PENDING',
+      { transactionId: transaction.id, reference: transaction.reference, kind: meta.kind, providerId, decision: requested, outcome },
+      ipAddress || null,
+    );
+
+    if (outcome === 'ALREADY_DONE') {
+      throw new RpcException({ status: 'error', statusCode: 409, message: `Ce ${label} a déjà été traité : aucune action effectuée.` });
+    }
+
+    // Notification du client
+    try {
+      const type = isPayout
+        ? outcome === 'SUCCESS'
+          ? NotificationType.WITHDRAWAL_CONFIRMED
+          : NotificationType.CASHOUT_FAILED
+        : outcome === 'SUCCESS'
+          ? NotificationType.TOP_UP_SUCCESS
+          : NotificationType.DEPOSIT_REJECTED;
+      await this.notificationHelper.notify(
+        transaction.userId,
+        type,
+        { amount: shown.toFixed(3), currency: transaction.currency, reference: transaction.reference },
+        'transaction',
+        transaction.id,
+        meta.lang || lang,
+      );
+    } catch (err) {
+      console.error('[Notifications] validation manuelle Mobile Money :', err);
+    }
+
+    const fresh = await this.prisma.transaction.findUnique({ where: { id: transaction.id } });
+    const wallet = await this.prisma.wallet.findUnique({ where: { id: transaction.walletId } });
+    const message = isPayout
+      ? outcome === 'SUCCESS'
+        ? `Retrait de ${shown.toFixed(3)} ${transaction.currency} validé (montant déjà débité). Référence : ${transaction.reference}`
+        : `Retrait ${requested === 'CANCELLED' ? 'annulé' : 'rejeté'} : ${amount.toFixed(3)} ${transaction.currency} remboursés au client. Référence : ${transaction.reference}`
+      : outcome === 'SUCCESS'
+        ? `Dépôt validé : ${amount.toFixed(3)} ${transaction.currency} crédités au client. Référence : ${transaction.reference}`
+        : `Dépôt ${requested === 'CANCELLED' ? 'annulé' : 'rejeté'} : aucun crédit. Référence : ${transaction.reference}`;
+    return {
+      message,
+      data: {
+        transaction: fresh,
+        fromWallet: wallet ? this.toResponse(wallet) : undefined,
+      },
+    };
+  }
+
   async completeReservedPayout(transactionId: string, payoutId: string, description?: string): Promise<boolean> {
     const res = await this.prisma.transaction.updateMany({
       where: { id: transactionId, status: 'PENDING' },
@@ -2226,7 +2344,7 @@ export class WalletServiceService {
 
     // ✅ FIABILITÉ : le dépôt est ENREGISTRÉ (PENDING) avant l'appel à PawaPay, avec son depositId.
     //    Si la réponse se perd (timeout, coupure), l'argent payé par le client n'est jamais perdu :
-    //    le webhook PawaPay ou la réconciliation automatique crédite le wallet (une seule fois).
+    //    le dépôt reste EN ATTENTE et un administrateur le valide manuellement (crédit unique).
     const depositId = crypto.randomUUID();
     const pendingDeposit = await this.prisma.$transaction(async (tx) =>
       tx.transaction.create({
@@ -2321,7 +2439,7 @@ export class WalletServiceService {
     if (!paymentSucceeded && depositOutcome === 'UNKNOWN') {
       await this.logAudit(user.id, 'topUp_pending', { transaction: pendingDeposit, depositId }, ipAddress || null);
       return {
-        message: `Votre dépôt de ${round3(amount).toFixed(3)} ${wallet.currency} est en cours de confirmation par l'opérateur (référence ${pendingDeposit.reference}). Votre wallet sera crédité automatiquement dès la confirmation.`,
+        message: `Votre dépôt de ${round3(amount).toFixed(3)} ${wallet.currency} est en cours de confirmation par l'opérateur (référence ${pendingDeposit.reference}). Il sera crédité sur votre wallet après validation par notre équipe.`,
         data: {
           wallet: this.toResponse(wallet),
           transaction: pendingDeposit,
@@ -2825,7 +2943,7 @@ export class WalletServiceService {
     //    - le solde est débité ATOMIQUEMENT (updateMany ... balance >= totalDebit) : deux retraits simultanés
     //      ou une requête répétée ne peuvent jamais dépasser le solde ni payer deux fois ;
     //    - une transaction PENDING garde l'identifiant du payout (généré ici) : un payout confirmé en retard
-    //      par PawaPay n'est jamais perdu ni compté comme échec (réconciliation automatique : payout-reconciliation.cron.ts).
+    //      par PawaPay n'est jamais perdu ni compté comme échec : il reste EN ATTENTE jusqu'à la validation manuelle d'un administrateur.
     const payoutId = crypto.randomUUID();
     let reserved: { wallet: any; transaction: any };
     try {
@@ -2918,7 +3036,7 @@ export class WalletServiceService {
         pawaPayErrorDetails = failureObj;
       } else {
         // ✅ Statut non final (ACCEPTED, SUBMITTED, ENQUEUED, IN_RECONCILIATION…) : PAS un échec.
-        //    Le montant reste réservé ; la réconciliation automatique finalisera (succès ou remboursement).
+        //    Le montant reste réservé ; un administrateur validera ou annulera l'opération manuellement.
         outcome = 'UNKNOWN';
         pawaPayErrorCode = payoutStatus || 'NOT_FINAL';
         pawaPayErrorMessage = 'Statut du payout non confirmé';
@@ -2990,7 +3108,7 @@ export class WalletServiceService {
         ipAddress || null,
       );
       return {
-        message: `Votre retrait de ${netAmount.toFixed(3)} ${wallet.currency} est en cours de confirmation par l'opérateur (référence ${reserved.transaction.reference}). Le montant est réservé : vous serez notifié dès la confirmation, ou remboursé automatiquement en cas d'échec.`,
+        message: `Votre retrait de ${netAmount.toFixed(3)} ${wallet.currency} est en cours de confirmation par l'opérateur (référence ${reserved.transaction.reference}). Le montant est réservé : votre retrait sera validé par notre équipe, ou remboursé s'il n'aboutit pas. Vous serez notifié.`,
         data: {
           wallet: this.toResponse(reserved.wallet),
           transaction: reserved.transaction,
@@ -3020,8 +3138,8 @@ export class WalletServiceService {
       updatedWallet = (await this.prisma.wallet.findUnique({ where: { id: wallet.id } })) || reserved.wallet;
     } catch (error: any) {
       // Le payout est COMPLETED et le solde déjà débité : seule l'écriture du statut a échoué.
-      // La réconciliation automatique repassera la transaction en SUCCESS (aucun remboursement).
-      console.error('[WalletService] Cashout : finalisation du statut impossible (sera réconciliée) :', error);
+      // Elle reste EN ATTENTE : un administrateur la validera manuellement (aucun remboursement automatique).
+      console.error('[WalletService] Cashout : finalisation du statut impossible (à valider manuellement) :', error);
       transaction = reserved.transaction;
     }
 
@@ -8552,6 +8670,12 @@ export class WalletServiceService {
         message: 'Données de la transaction corrompues',
         statusCode: 400,
       });
+    }
+
+    // ✅ Opération Mobile Money en attente (retrait réservé / dépôt en cours) : ce n'est pas un transfert,
+    //    elle a son propre traitement de validation manuelle (confirmation, ou remboursement / clôture).
+    if (externalData?.kind === 'PAWAPAY_PAYOUT' || externalData?.kind === 'PAWAPAY_DEPOSIT') {
+      return this.resolveProviderPendingTransaction(transaction, externalData, status, admin, ipAddress, lang);
     }
 
     const transactionType = externalData.type || transaction.type;

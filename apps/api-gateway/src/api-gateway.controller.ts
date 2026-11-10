@@ -1135,6 +1135,8 @@ export class ApiGatewayController {
     @Query('limit') limit?: string,
     @Query('role') role?: string,
     @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('q') q?: string,
   ) {
     if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') {
       throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
@@ -1148,7 +1150,7 @@ export class ApiGatewayController {
       limit: number;
     }>(
       'list_users_links',
-      { page: pageNum, limit: limitNum, role, status },
+      { page: pageNum, limit: limitNum, role, status, search: (search ?? q ?? '').trim() || undefined },
       'Échec de la récupération des utilisateurs',
       HttpStatus.BAD_REQUEST,
     );
@@ -1161,6 +1163,60 @@ export class ApiGatewayController {
         limit: response.limit,
       },
     };
+  }
+
+  // ==================== CODES MARCHANDS ====================
+  /**
+   * ✅ Attribue un code marchand à tous les MARCHANDS qui n'en ont pas.
+   *    Corps : { dryRun?: true (liste sans modifier), notify?: true (SMS au marchand), limit?: 1000 }
+   *    Réservé au SUPER_ADMIN. Un code existant n'est jamais remplacé.
+   */
+  @Post('admin/merchants/merchant-codes/generate-missing')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async generateMissingMerchantCodes(
+    @CurrentUser() currentUser: any,
+    @Body() body: { dryRun?: boolean; notify?: boolean; limit?: number },
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'SUPER_ADMIN') throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    return this.sendUserMessage<any>(
+      'merchant_codes.generate_missing',
+      { adminId: currentUser.id, dryRun: body?.dryRun === true, notify: body?.notify === true, limit: body?.limit, lang: langHeader || 'fr' },
+      'Échec de la génération des codes marchands',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  /**
+   * ✅ Attribue un code marchand à un utilisateur.
+   *    Corps : { makeMerchant?: true (passe le compte en MARCHAND), regenerate?: true (remplace le code), notify?: true (SMS) }
+   */
+  @Post('admin/users/:userId/merchant-code')
+  @UseGuards(JwtAuthGuard, AuthentificationGuard)
+  async assignMerchantCode(
+    @CurrentUser() currentUser: any,
+    @Param('userId') userId: string,
+    @Body() body: { makeMerchant?: boolean; regenerate?: boolean; notify?: boolean },
+    @Headers('lang') langHeader?: string,
+  ) {
+    if (currentUser?.role !== 'ADMIN' && currentUser?.role !== 'SUPER_ADMIN') throw new HttpException('Accès interdit', HttpStatus.FORBIDDEN);
+    // Remplacer un code existant change le moyen de paiement du marchand : réservé au SUPER_ADMIN
+    if (body?.regenerate === true && currentUser.role !== 'SUPER_ADMIN') {
+      throw new HttpException('Seul un super administrateur peut remplacer un code marchand existant', HttpStatus.FORBIDDEN);
+    }
+    return this.sendUserMessage<any>(
+      'merchant_codes.assign',
+      {
+        userId,
+        adminId: currentUser.id,
+        makeMerchant: body?.makeMerchant === true,
+        regenerate: body?.regenerate === true,
+        notify: body?.notify === true,
+        lang: langHeader || 'fr',
+      },
+      'Échec de l’attribution du code marchand',
+      HttpStatus.BAD_REQUEST,
+    );
   }
 
   @Get('users/email/:email')
@@ -1353,6 +1409,9 @@ export class ApiGatewayController {
     @Query('limit') limit?: string,
     @Query('role') role?: string,
     @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('q') q?: string,
+    @Query('kycStatus') kycStatus?: string,
   ): Promise<{
     message: string;
     data: {
@@ -1374,6 +1433,9 @@ export class ApiGatewayController {
       limit: limit ? parseInt(limit, 10) : 10,
       role,
       status,
+      // ✅ Recherche : nom, téléphone, e-mail, numéro de compte, code marchand, nom commercial
+      search: (search ?? q ?? '').trim() || undefined,
+      kycStatus: kycStatus || undefined,
     };
     const response = await this.sendUserMessage<{
       users: UserResponseDto[];

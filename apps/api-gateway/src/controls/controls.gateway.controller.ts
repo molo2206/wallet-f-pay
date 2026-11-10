@@ -1,5 +1,5 @@
 // apps/api-gateway/src/controls/controls.gateway.controller.ts
-import { Body, Controller, Get, Headers, HttpCode, HttpException, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuthentificationGuard } from 'apps/auth-service/src/utility/guards/authentification.guard';
 import { JwtAuthGuard } from 'apps/auth-service/src/utility/guards/jwt-auth.guard';
@@ -14,10 +14,9 @@ import { LimitsInterceptor } from './limits.interceptor';
  *  Double validation        /admin/approvals…                  SUPER_ADMIN, ou ADMIN avec la ressource APPROVALS
  *  Grand livre              /admin/ledger/…                    SUPER_ADMIN, ou ADMIN avec la ressource TREASURY
  *  Trésorerie / couverture  /admin/treasury/…                  idem
- *  Réconciliation PawaPay   /admin/providers/pawapay/…         idem
+ *  Rapport PawaPay          /admin/providers/pawapay/…         idem (consultation seule, aucune validation automatique)
  *  Arrêtés de caisse        /admin/cash-closings…              ADMIN de l'agence (soumission) ; validation SUPER_ADMIN / TREASURY
  *  Plafonds de l'utilisateur GET /wallet/me/limits                tout utilisateur connecté
- *  Webhooks PawaPay         POST /webhooks/pawapay/{deposits|payouts|refunds}  (public, statut relu chez PawaPay)
  */
 @Controller()
 export class ControlsGatewayController {
@@ -171,13 +170,6 @@ export class ControlsGatewayController {
     return rpcSend(this.wallet, 'pawapay_reconciliation_report', q, 300000);
   }
 
-  @Post('admin/providers/pawapay/reconcile-deposits')
-  @UseGuards(JwtAuthGuard, AuthentificationGuard)
-  async reconcileDeposits(@CurrentUser() user: any) {
-    await assertAdminResource(this.prisma, user, 'TREASURY', true);
-    return rpcSend(this.wallet, 'pawapay_reconcile_deposits_now', {}, 300000);
-  }
-
   // =================== Arrêtés de caisse ===================
   private async closingBranch(user: any, requested?: string): Promise<string> {
     if (user?.role === 'SUPER_ADMIN') {
@@ -233,21 +225,5 @@ export class ControlsGatewayController {
   async myLimits(@CurrentUser() user: any) {
     const r = await this.limits.evaluate(user.id, {}, { summary: true }).catch(() => null);
     return { message: 'Vos plafonds', data: r ? { limits: r.limits, usage: (r as any).usage ?? null, mode: (r as any).mode ?? null } : null };
-  }
-
-  // =================== Webhooks PawaPay (publics) ===================
-  /**
-   * PawaPay appelle ces URL quand une opération devient finale. On ne lit QUE l'identifiant :
-   * le statut est relu auprès de l'API PawaPay avant toute action. Réponse 200 immédiate.
-   */
-  @Post('webhooks/pawapay/:kind')
-  @HttpCode(200)
-  async pawapayWebhook(@Param('kind') kind: string, @Body() body: any) {
-    const k = kind === 'deposits' ? 'deposit' : kind === 'payouts' ? 'payout' : null;
-    const id = k === 'deposit' ? body?.depositId : k === 'payout' ? body?.payoutId : null;
-    if (!k || !id) return { received: true };
-    // Traitement en arrière-plan : PawaPay n'attend pas notre relecture de statut
-    void rpcSend(this.wallet, 'pawapay_callback', { kind: k, id: String(id) }, 60000).catch(() => undefined);
-    return { received: true };
   }
 }

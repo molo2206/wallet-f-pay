@@ -345,12 +345,11 @@ export class PawapayService {
 
   /**
    * ⚠️ Ancienne version désactivée : elle créditait le wallet à partir du contenu du webhook, sans vérification
-   * ni protection contre les doublons. Les webhooks passent désormais par l'api-gateway
-   * (POST /webhooks/pawapay/deposits) → ProviderReconciliationService, qui relit le statut chez PawaPay.
+   * ni protection contre les doublons. Les opérations en attente sont validées MANUELLEMENT par un administrateur.
    */
   async handleDepositWebhook(payload: any) {
     console.warn('[PawaPay] handleDepositWebhook obsolète ignoré :', payload?.depositId);
-    return { message: 'Webhook ignoré : utilisez POST /webhooks/pawapay/deposits' };
+    return { message: 'Webhook ignoré : validation manuelle par un administrateur' };
   }
 
   async createBulkPayout(

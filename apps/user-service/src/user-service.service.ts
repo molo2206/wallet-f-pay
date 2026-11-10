@@ -1533,11 +1533,41 @@ export class UserServiceService {
   }
 
   // ========================= LIST USERS =========================
+  // ========================= RECHERCHE UTILISATEURS =========================
+  /**
+   * ✅ Critères de recherche : nom, téléphone (avec ou sans +, espaces, tirets), e-mail, numéro de compte,
+   *    code marchand, nom commercial. Plusieurs mots = tous doivent correspondre (ex. « jean 0997 »).
+   */
+  private userSearchWhere(search?: string): any[] {
+    const words = String(search ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 5);
+    return words.map((w) => {
+      const or: any[] = [
+        { full_name: { contains: w } },
+        { email: { contains: w } },
+        { account_number: { contains: w } },
+        { merchantCode: { contains: w } },
+        { businessName: { contains: w } },
+        { phone: { contains: w } },
+      ];
+      const digits = w.replace(/[^0-9]/g, '');
+      if (digits.length >= 3 && digits !== w) or.push({ phone: { contains: digits } });
+      // Numéro local 0997… ↔ international 243997…
+      if (digits.length >= 6 && digits.startsWith('0')) or.push({ phone: { contains: digits.slice(1) } });
+      return { OR: or };
+    });
+  }
+
   async listUsers(params: {
     page: number;
     limit: number;
     role?: string;
     status?: string;
+    search?: string;
+    kycStatus?: string;
     lang?: string;
   }) {
     const lang = params.lang || 'fr';
@@ -1545,6 +1575,9 @@ export class UserServiceService {
     const { page = 1, limit = 10, role, status } = params;
     const skip = (page - 1) * limit;
     const where: any = { deleted: false };
+    const searchAnd = this.userSearchWhere(params.search);
+    if (searchAnd.length) where.AND = searchAnd;
+    if (params.kycStatus) where.kycStatus = params.kycStatus;
 
     // Si aucun rôle n'est spécifié, on limite aux ADMIN et SUPER_ADMIN
     if (!role) {
@@ -1572,12 +1605,133 @@ export class UserServiceService {
     };
   }
 
+  // ========================= CODES MARCHANDS =========================
+  /** Code marchand à 6 chiffres non utilisé (vérifié contre la base et les codes déjà réservés) */
+  private async newMerchantCode(reserved: Set<string> = new Set()): Promise<string> {
+    for (let i = 0; i < 50; i++) {
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      if (reserved.has(code)) continue;
+      const existing = await this.prisma.user.findFirst({ where: { merchantCode: code }, select: { id: true } });
+      if (!existing) {
+        reserved.add(code);
+        return code;
+      }
+    }
+    throw new RpcException({ status: 'error', statusCode: 500, message: 'Impossible de générer un code marchand unique, réessayez' });
+  }
+
+  private async smsMerchantCode(user: { phone: string | null; countryCode?: string | null }, code: string, lang: string) {
+    if (!user.phone) return false;
+    try {
+      const cleanPhone = user.phone.replace(/[^0-9+]/g, '');
+      await this.smsService.sendSms(cleanPhone, this.i18nService.translate('merchant_code_sms', lang, { merchantCode: code }), user.countryCode || undefined);
+      return true;
+    } catch (err: any) {
+      console.error('[merchantCode] SMS non envoyé :', err?.message);
+      return false;
+    }
+  }
+
+  /**
+   * ✅ Donne un code marchand à tous les MARCHANDS qui n'en ont pas.
+   *    dryRun = true : liste seulement les comptes concernés, sans rien modifier.
+   *    Un code existant n'est JAMAIS remplacé (les clients s'en servent pour payer).
+   */
+  async generateMissingMerchantCodes(params: { adminId: string; dryRun?: boolean; notify?: boolean; limit?: number; lang?: string }) {
+    const lang = params.lang || 'fr';
+    const limit = Math.min(5000, Math.max(1, Number(params.limit) || 1000));
+    const where: any = {
+      role: user_role.MERCHANT,
+      deleted: false,
+      OR: [{ merchantCode: null }, { merchantCode: '' }],
+    };
+    const total = await this.prisma.user.count({ where });
+    const users = await this.prisma.user.findMany({
+      where,
+      take: limit,
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, full_name: true, businessName: true, phone: true, countryCode: true },
+    });
+    if (params.dryRun) {
+      return {
+        message: `${total} marchand(s) sans code marchand`,
+        data: { dryRun: true, total, users: users.map((u) => ({ id: u.id, name: u.businessName || u.full_name, phone: u.phone })) },
+      };
+    }
+    const reserved = new Set<string>();
+    const assigned: any[] = [];
+    let smsSent = 0;
+    for (const u of users) {
+      const code = await this.newMerchantCode(reserved);
+      // Conditionnel : n'écrit que si le compte n'a toujours pas de code (aucun écrasement en cas d'appel simultané)
+      const res = await this.prisma.user.updateMany({
+        where: { id: u.id, OR: [{ merchantCode: null }, { merchantCode: '' }] },
+        data: { merchantCode: code, updatedAt: new Date() },
+      });
+      if (res.count !== 1) continue;
+      assigned.push({ id: u.id, name: u.businessName || u.full_name, phone: u.phone, merchantCode: code });
+      if (params.notify && (await this.smsMerchantCode(u, code, lang))) smsSent++;
+    }
+    await this.logAudit(params.adminId, 'MERCHANT_CODES_GENERATED', { count: assigned.length, users: assigned.map((a) => ({ id: a.id, merchantCode: a.merchantCode })) }, null);
+    return {
+      message: `${assigned.length} code(s) marchand(s) attribué(s)${params.notify ? `, ${smsSent} SMS envoyé(s)` : ''}${total > users.length ? ` — ${total - users.length} restant(s) : relancez l'opération` : ''}`,
+      data: { assigned, remaining: Math.max(0, total - assigned.length) },
+    };
+  }
+
+  /**
+   * ✅ Donne un code marchand à UN utilisateur.
+   *    Le compte doit être MARCHAND (makeMerchant = true le passe en MARCHAND, comme la modification d'utilisateur).
+   *    regenerate = true remplace un code existant (l'ancien code ne fonctionnera plus pour payer).
+   */
+  async assignMerchantCode(params: { userId: string; adminId: string; makeMerchant?: boolean; regenerate?: boolean; notify?: boolean; lang?: string }) {
+    const lang = params.lang || 'fr';
+    const user = await this.prisma.user.findFirst({
+      where: { id: params.userId, deleted: false },
+      select: { id: true, role: true, merchantCode: true, full_name: true, businessName: true, phone: true, countryCode: true },
+    });
+    if (!user) throw new RpcException({ status: 'error', statusCode: 404, message: this.i18nService.translate('user_not_found', lang) });
+    if (user.role !== user_role.MERCHANT && !params.makeMerchant) {
+      throw new RpcException({
+        status: 'error',
+        statusCode: 400,
+        code: 'NOT_A_MERCHANT',
+        message: "Ce compte n'est pas un compte marchand. Passez « makeMerchant: true » pour le transformer en marchand et lui attribuer un code.",
+      });
+    }
+    if (user.merchantCode && !params.regenerate) {
+      throw new RpcException({
+        status: 'error',
+        statusCode: 409,
+        code: 'MERCHANT_CODE_EXISTS',
+        message: `Ce marchand a déjà le code ${user.merchantCode}. Passez « regenerate: true » pour le remplacer (l'ancien code ne fonctionnera plus).`,
+      });
+    }
+    const code = await this.newMerchantCode();
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { merchantCode: code, ...(user.role !== user_role.MERCHANT ? { role: user_role.MERCHANT } : {}), updatedAt: new Date() },
+    });
+    const smsSent = params.notify ? await this.smsMerchantCode(user, code, lang) : false;
+    await this.logAudit(
+      params.adminId,
+      'MERCHANT_CODE_ASSIGNED',
+      { userId: user.id, previousCode: user.merchantCode ?? null, merchantCode: code, roleChanged: user.role !== user_role.MERCHANT },
+      null,
+    );
+    return {
+      message: `Code marchand ${code} attribué à ${user.businessName || user.full_name || 'ce compte'}${smsSent ? ' (SMS envoyé)' : ''}`,
+      data: { userId: user.id, merchantCode: code, previousCode: user.merchantCode ?? null, role: user_role.MERCHANT, smsSent },
+    };
+  }
+
   // ========================= LIST USERS WITH ACCOUNT =========================
   async listUsersLinks(params: {
     page: number;
     limit: number;
     role?: string;
     status?: string;
+    search?: string;
     lang?: string;
   }) {
     const lang = params.lang || 'fr';
@@ -1587,6 +1741,8 @@ export class UserServiceService {
     const where: any = { deleted: false, account_number: { not: null } };
     if (role) where.role = role;
     if (status) where.status = status;
+    const searchAnd = this.userSearchWhere(params.search);
+    if (searchAnd.length) where.AND = searchAnd;
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({

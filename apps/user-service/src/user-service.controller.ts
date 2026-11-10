@@ -236,6 +236,8 @@ export class UserServiceController {
       limit: number;
       role?: string;
       status?: string;
+      search?: string;
+      kycStatus?: string;
       lang?: string;
     },
   ) {
@@ -250,6 +252,19 @@ export class UserServiceController {
     }
   }
 
+  // ✅ Codes marchands
+  @MessagePattern('merchant_codes.generate_missing')
+  generateMissingMerchantCodes(@Payload() data: { adminId: string; dryRun?: boolean; notify?: boolean; limit?: number; lang?: string }) {
+    return this.userService.generateMissingMerchantCodes(data);
+  }
+
+  @MessagePattern('merchant_codes.assign')
+  assignMerchantCode(
+    @Payload() data: { userId: string; adminId: string; makeMerchant?: boolean; regenerate?: boolean; notify?: boolean; lang?: string },
+  ) {
+    return this.userService.assignMerchantCode(data);
+  }
+
   @MessagePattern('list_users_links')
   async listUsersLinks(
     @Payload()
@@ -258,6 +273,7 @@ export class UserServiceController {
       limit: number;
       role?: string;
       status?: string;
+      search?: string;
       lang?: string;
     },
   ) {

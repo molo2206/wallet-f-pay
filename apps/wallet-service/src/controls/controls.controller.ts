@@ -101,18 +101,9 @@ export class ControlsController {
   }
 
   // ---------- PawaPay ----------
-  @MessagePattern('pawapay_callback')
-  callback(@Payload() data: { kind: string; id: string }) {
-    return this.provider.handleCallback(data);
-  }
-
   @MessagePattern('pawapay_reconciliation_report')
   report(@Payload() q: any) {
     return this.provider.report(q || {});
   }
 
-  @MessagePattern('pawapay_reconcile_deposits_now')
-  async reconcileNow() {
-    return { message: 'Réconciliation des dépôts effectuée', data: await this.provider.reconcilePendingDeposits() };
-  }
 }
