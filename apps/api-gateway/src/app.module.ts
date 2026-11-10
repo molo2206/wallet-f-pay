@@ -16,6 +16,7 @@ import { ControlsGatewayController } from './controls/controls.gateway.controlle
 import { AdminApprovalService } from './controls/admin-approval.service';
 import { LimitsInterceptor } from './controls/limits.interceptor';
 import { MaintenanceController } from './maintenance/maintenance.controller';
+import { AccountingGatewayController } from './accounting/accounting.gateway.controller';
 import { MaintenanceService } from './maintenance/maintenance.service';
 import { MaintenanceInterceptor } from './maintenance/maintenance.interceptor';
 
@@ -26,7 +27,7 @@ import { MaintenanceInterceptor } from './maintenance/maintenance.interceptor';
     }),
     I18nModule, // ← indispensable pour que JwtAuthGuard puisse injecter I18nService
   ],
-  controllers: [ApiGatewayController, WorkSchedulesGatewayController, SupervisionController, ControlsGatewayController, MaintenanceController],
+  controllers: [ApiGatewayController, WorkSchedulesGatewayController, SupervisionController, ControlsGatewayController, MaintenanceController, AccountingGatewayController],
   providers: [
     PrismaService,
     ConfigService,

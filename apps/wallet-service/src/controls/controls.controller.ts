@@ -5,6 +5,7 @@ import { LedgerService } from './ledger.service';
 import { TreasuryService } from './treasury.service';
 import { ProviderReconciliationService } from './provider-reconciliation.service';
 import { WalletServiceService } from '../wallet-service.service';
+import { AccountingService } from './accounting/accounting.service';
 
 /** Messages RabbitMQ (wallet_queue) des contrôles financiers — appelés par l'api-gateway */
 @Controller()
@@ -14,6 +15,7 @@ export class ControlsController {
     private readonly treasury: TreasuryService,
     private readonly provider: ProviderReconciliationService,
     private readonly wallet: WalletServiceService,
+    private readonly accounting: AccountingService,
   ) {}
 
   // ---------- Double validation : exécution d'une recharge admin approuvée ----------
@@ -106,4 +108,81 @@ export class ControlsController {
     return this.provider.report(q || {});
   }
 
+
+  // ---------- Comptabilité SYSCOHADA ----------
+  @MessagePattern('accounting.earnings')
+  earnings(@Payload() q: any) {
+    return this.accounting.earnings(q || {});
+  }
+
+  @MessagePattern('accounting.income_statement')
+  incomeStatement(@Payload() q: any) {
+    return this.accounting.incomeStatement(q || {});
+  }
+
+  @MessagePattern('accounting.trial_balance')
+  accountingTrialBalance(@Payload() q: any) {
+    return this.accounting.trialBalance(q || {});
+  }
+
+  @MessagePattern('accounting.balance_sheet')
+  balanceSheet(@Payload() q: any) {
+    return this.accounting.balanceSheet(q || {});
+  }
+
+  @MessagePattern('accounting.general_ledger')
+  generalLedger(@Payload() q: any) {
+    return this.accounting.generalLedger(q || {});
+  }
+
+  @MessagePattern('accounting.journal')
+  journal(@Payload() q: any) {
+    return this.accounting.journal(q || {});
+  }
+
+  @MessagePattern('accounting.accounts')
+  accountsList() {
+    return this.accounting.accounts();
+  }
+
+  @MessagePattern('accounting.accounts.create')
+  createAccount(@Payload() data: { dto: any; adminId: string }) {
+    return this.accounting.createAccount(data.dto, data.adminId);
+  }
+
+  @MessagePattern('accounting.entries.create')
+  createEntry(@Payload() data: { dto: any; adminId: string }) {
+    return this.accounting.createManualEntry(data.dto, data.adminId);
+  }
+
+  @MessagePattern('accounting.entries.reverse')
+  reverseEntry(@Payload() data: { id: string; adminId: string; reason?: string }) {
+    return this.accounting.reverseEntry(data.id, data.adminId, data.reason);
+  }
+
+  @MessagePattern('accounting.provider_costs')
+  providerCosts() {
+    return this.accounting.providerCosts();
+  }
+
+  @MessagePattern('accounting.provider_costs.set')
+  setProviderCost(@Payload() data: { dto: any; adminId: string }) {
+    return this.accounting.setProviderCost(data.dto, data.adminId);
+  }
+
+  @MessagePattern('accounting.periods')
+  periods() {
+    return this.accounting.periods();
+  }
+
+  @MessagePattern('accounting.periods.close')
+  closePeriod(@Payload() data: { period: string; adminId: string; reopen?: boolean }) {
+    return this.accounting.closePeriod(data.period, data.adminId, data.reopen === true);
+  }
+
+  @MessagePattern('accounting.run')
+  async runAccounting(@Payload() q: any) {
+    const full = q?.mode === 'full';
+    return { message: 'Passation des écritures effectuée', data: await this.accounting.project(full ? 'full' : 'incremental', full ? 2000 : 200) };
+  }
 }

@@ -10,6 +10,8 @@ import { MailModule } from 'apps/auth-service/src/email/email.module';
 import { I18nModule } from '../../../libs/common/src/i18n/i18n.module';
 import { NotificationHelper } from 'apps/notification-service/src/helpers/NotificationHelper';
 import { BackupService } from './backup/backup.service';
+import { PlatformSettingsController } from './platform-settings/platform-settings.controller';
+import { PlatformSettingsService } from './platform-settings/platform-settings.service';
 
 @Module({
   imports: [
@@ -33,13 +35,14 @@ import { BackupService } from './backup/backup.service';
       },
     ]),
   ],
-  controllers: [UserServiceController],
+  controllers: [UserServiceController, PlatformSettingsController],
   providers: [
     UserServiceService,
     PrismaService,
     SmsService,
     NotificationHelper,
     BackupService,
+    PlatformSettingsService, // ✅ paramètres plateforme, politiques de sécurité, plafonds (ex-settings-service)
     ConfigService, // ✅ AJOUTER ConfigService dans les providers
   ],
   exports: [UserServiceService, PrismaService],

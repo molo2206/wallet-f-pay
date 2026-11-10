@@ -305,8 +305,10 @@ export class ApiGatewayController {
     this.logger.debug(`Settings RPC → ${pattern}`, data);
 
     try {
+      // ✅ Le settings-service n'est ni compilé ni démarré (absent de nest-cli.json / PM2) : ces messages
+      //    sont servis par le user-service. ping → settings_ping (évite tout conflit de nom).
       const result = await firstValueFrom(
-        this.settingsClient.send(pattern, data).pipe(
+        this.userClient.send(pattern === 'ping' ? 'settings_ping' : pattern, data).pipe(
           timeout(timeoutMs),
           catchError((error) => {
             this.handleRpcError(error, defaultMessage, defaultStatus);

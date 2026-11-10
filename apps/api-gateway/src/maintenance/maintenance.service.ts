@@ -172,8 +172,11 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
     // Ancien interrupteur (paramètres de l'application) → maintenance complète
     if (!list.some((w) => isActive(w))) {
       try {
-        const s: any[] = await this.db.$queryRawUnsafe('SELECT `maintenance_mode`, `maintenance_message` FROM `app_settings` LIMIT 1');
-        if (s?.[0] && Number(s[0].maintenance_mode) === 1) {
+        // Interrupteurs des paramètres : app_settings (application) et general_settings (plateforme)
+        const a: any[] = await this.db.$queryRawUnsafe('SELECT `maintenance_mode`, `maintenance_message` FROM `app_settings` LIMIT 1').catch(() => []);
+        const g: any[] = await this.db.$queryRawUnsafe('SELECT `maintenance_mode`, `maintenance_message` FROM `general_settings` LIMIT 1').catch(() => []);
+        const s = [a?.[0], g?.[0]].filter((x) => x && Number(x.maintenance_mode) === 1);
+        if (s.length) {
           list.unshift({
             id: 'legacy',
             title: 'Maintenance',
@@ -481,6 +484,7 @@ export class MaintenanceService implements OnModuleInit, OnModuleDestroy {
   async end(id: string, admin: any, reason?: string, cancel = false) {
     if (id === 'legacy') {
       await this.db.$executeRawUnsafe('UPDATE `app_settings` SET `maintenance_mode` = 0, `updatedAt` = UTC_TIMESTAMP()').catch(() => undefined);
+      await this.db.$executeRawUnsafe('UPDATE `general_settings` SET `maintenance_mode` = 0, `updated_at` = UTC_TIMESTAMP()').catch(() => undefined);
       this.invalidate();
       await this.audit(admin.id, 'MAINTENANCE_LEGACY_OFF', {});
       return { message: 'Maintenance (ancien interrupteur) désactivée', data: null };

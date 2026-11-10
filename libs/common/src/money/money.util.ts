@@ -98,3 +98,22 @@ export function roundMoneyFields<T = any>(input: T, withFormatted = false, depth
   }
   return out;
 }
+
+export type ExchangeRateRow = { from_currency: string; to_currency: string; rate: number };
+
+/** Conversion avec les taux de la table exchange_rate : direct, via USD, inverse (null si aucun taux) */
+export function convertWithRates(amount: number, from: string, to: string, rates: ExchangeRateRow[]): number | null {
+  const f = String(from || '').toUpperCase();
+  const t = String(to || '').toUpperCase();
+  if (!f || f === t) return amount;
+  const map = new Map<string, number>();
+  for (const r of rates) map.set(`${String(r.from_currency).toUpperCase()}-${String(r.to_currency).toUpperCase()}`, Number(r.rate));
+  if (map.has(`${f}-${t}`)) return amount * map.get(`${f}-${t}`)!;
+  if (map.has(`${f}-USD`) && map.has(`USD-${t}`)) return amount * map.get(`${f}-USD`)! * map.get(`USD-${t}`)!;
+  const inv = map.get(`${t}-${f}`);
+  if (inv && inv > 0) return amount / inv;
+  const fu = map.get(`${f}-USD`) ?? (map.get(`USD-${f}`) ? 1 / map.get(`USD-${f}`)! : undefined);
+  const ut = map.get(`USD-${t}`) ?? (map.get(`${t}-USD`) ? 1 / map.get(`${t}-USD`)! : undefined);
+  if (fu !== undefined && ut !== undefined && Number.isFinite(fu) && Number.isFinite(ut)) return amount * fu * ut;
+  return null;
+}

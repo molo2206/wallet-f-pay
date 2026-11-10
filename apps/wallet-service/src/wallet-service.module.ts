@@ -21,6 +21,7 @@ import { ControlsController } from './controls/controls.controller';
 import { LedgerService } from './controls/ledger.service';
 import { TreasuryService } from './controls/treasury.service';
 import { ProviderReconciliationService } from './controls/provider-reconciliation.service';
+import { AccountingService } from './controls/accounting/accounting.service';
 import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
     LedgerService, // ✅ Grand livre en partie double (projection des transactions)
     TreasuryService, // ✅ Couverture, floats opérateurs, arrêtés de caisse
     ProviderReconciliationService, // ✅ Rapport de comparaison avec PawaPay (consultation seule)
+    AccountingService, // ✅ Comptabilité SYSCOHADA (écritures automatiques, états, écritures manuelles)
   ],
   exports: [WalletServiceService, BankService, EncryptionService],
 })

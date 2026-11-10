@@ -9,7 +9,8 @@ export type WalletKind = 'CUSTOMER' | 'BRANCH_CASH' | 'SYSTEM_FEES';
 
 /** Classification SQL d'un wallet (w = wallet, u = user) */
 export const WALLET_KIND_SQL =
-  "CASE WHEN w.`userId` = 'system-fee-account' THEN 'SYSTEM_FEES' " +
+  // Wallets des frais : utilisateur system@fpay.com (frais réellement encaissés) ou ancien compte system-fee-account
+  "CASE WHEN w.`userId` = 'system-fee-account' OR u.`email` = 'system@fpay.com' THEN 'SYSTEM_FEES' " +
   "WHEN w.`isBranchWallet` = 1 OR (u.`email` LIKE 'caisse.%' AND u.`branchId` IS NOT NULL AND u.`branchId` = w.`branchId`) THEN 'BRANCH_CASH' " +
   "ELSE 'CUSTOMER' END";
 
