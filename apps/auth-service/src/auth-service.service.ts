@@ -1022,19 +1022,14 @@ export class AuthServiceService {
       }
 
       // ✅ Récupérer l'utilisateur avec toutes les variantes possibles
-      // ✅ Plusieurs comptes peuvent partager l'e-mail ou le téléphone (ancien compte supprimé, doublon) :
-      //    on écarte les supprimés et on garde celui dont le mot de passe correspond.
-      const cleanId = String(identifier || '').trim();
-      const candidates = await this.prisma.user.findMany({
-        take: 5,
-        orderBy: { updatedAt: 'desc' },
+      const user = await this.prisma.user.findFirst({
         where: {
           OR: [
             { phone: normalizedIdentifier },
             { phone: identifier },
             { phone: normalizedIdentifier.replace(/^\+/, '') },
-            { email: cleanId.toLowerCase() },
-            { email: cleanId },
+            { email: identifier.toLowerCase() },
+            { email: identifier },
           ],
         },
         select: {
@@ -1064,17 +1059,6 @@ export class AuthServiceService {
           locked_by_admin: true,
         },
       });
-      const alive = candidates.filter((c: any) => c.deleted !== true);
-      const pool = alive.length ? alive : candidates;
-      let user: (typeof candidates)[number] | null = pool[0] ?? null;
-      if (pool.length > 1 && dto.password) {
-        for (const c of pool) {
-          if (c.password && (await bcrypt.compare(dto.password, c.password))) {
-            user = c;
-            break;
-          }
-        }
-      }
 
       if (!user) {
         await logFailedLoginAttempt(
