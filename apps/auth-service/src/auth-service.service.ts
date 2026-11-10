@@ -1022,14 +1022,19 @@ export class AuthServiceService {
       }
 
       // ✅ Récupérer l'utilisateur avec toutes les variantes possibles
-      const user = await this.prisma.user.findFirst({
+      // ✅ Plusieurs comptes peuvent partager l'e-mail ou le téléphone (ancien compte supprimé, doublon) :
+      //    on écarte les supprimés et on garde celui dont le mot de passe correspond.
+      const cleanId = String(identifier || '').trim();
+      const candidates = await this.prisma.user.findMany({
+        take: 5,
+        orderBy: { updatedAt: 'desc' },
         where: {
           OR: [
             { phone: normalizedIdentifier },
             { phone: identifier },
             { phone: normalizedIdentifier.replace(/^\+/, '') },
-            { email: identifier.toLowerCase() },
-            { email: identifier },
+            { email: cleanId.toLowerCase() },
+            { email: cleanId },
           ],
         },
         select: {
@@ -1059,6 +1064,17 @@ export class AuthServiceService {
           locked_by_admin: true,
         },
       });
+      const alive = candidates.filter((c: any) => c.deleted !== true);
+      const pool = alive.length ? alive : candidates;
+      let user: (typeof candidates)[number] | null = pool[0] ?? null;
+      if (pool.length > 1 && dto.password) {
+        for (const c of pool) {
+          if (c.password && (await bcrypt.compare(dto.password, c.password))) {
+            user = c;
+            break;
+          }
+        }
+      }
 
       if (!user) {
         await logFailedLoginAttempt(
@@ -1696,24 +1712,75 @@ export class AuthServiceService {
     }
   }
 
+  /**
+   * ✅ Retrouve le code de réinitialisation et son compte.
+   *  - avec identifiant (e-mail ou téléphone, format libre) : code lié à CE compte ;
+   *  - sans identifiant : accepté seulement si un seul code actif correspond.
+   */
+  private async findResetOtp(identifier: string | null | undefined, code: string, lang: string) {
+    const en = String(lang || 'fr').startsWith('en');
+    const cleanCode = String(code ?? '').trim();
+    if (!cleanCode) {
+      throw new BadRequestException(en ? 'Enter the code received by SMS or e-mail.' : 'Saisissez le code reçu par SMS ou par e-mail.');
+    }
+    const invalid = () =>
+      new BadRequestException(
+        en ? 'This code is incorrect or has expired. Request a new code.' : 'Ce code est incorrect ou a expiré. Demandez un nouveau code.',
+      );
+    const now = new Date();
+    const cleanIdentifier = String(identifier ?? '').trim();
+
+    if (cleanIdentifier) {
+      const isEmail = cleanIdentifier.includes('@');
+      const phones = isEmail ? [] : Array.from(new Set([cleanIdentifier, this.normalizePhone(cleanIdentifier)].filter(Boolean)));
+      const candidates = await this.prisma.user.findMany({
+        where: {
+          AND: [
+            isEmail ? { OR: [{ email: cleanIdentifier.toLowerCase() }, { email: cleanIdentifier }] } : { phone: { in: phones } },
+            { OR: [{ deleted: false }, { deleted: null }] },
+          ],
+        },
+        take: 5,
+      });
+      if (!candidates.length) {
+        throw new BadRequestException(en ? 'No account matches this e-mail or phone number.' : 'Aucun compte ne correspond à cet e-mail ou à ce numéro.');
+      }
+      const otpEntry = await this.prisma.otp.findFirst({
+        where: {
+          otpCode: cleanCode,
+          isUsed: false,
+          expiresAt: { gt: now },
+          OR: [{ userId: { in: candidates.map((c) => c.id) } }, { email: cleanIdentifier }, { email: cleanIdentifier.toLowerCase() }],
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!otpEntry) throw invalid();
+      // ✅ Le compte réinitialisé est CELUI qui a reçu le code (important s'il existe des doublons)
+      const user = candidates.find((c) => c.id === otpEntry.userId) ?? candidates[0];
+      return { user, otpEntry };
+    }
+
+    // Sans identifiant (ancien écran admin) : un seul code actif doit correspondre
+    const entries = await this.prisma.otp.findMany({
+      where: { otpCode: cleanCode, isUsed: false, expiresAt: { gt: now }, NOT: { userId: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+    });
+    if (entries.length === 0) throw invalid();
+    if (entries.length > 1) {
+      throw new BadRequestException(en ? 'Enter the email or phone number of the account.' : "Indiquez l'e-mail ou le numéro de téléphone du compte.");
+    }
+    const user = await this.prisma.user.findFirst({ where: { id: String(entries[0].userId) } });
+    if (!user) throw invalid();
+    return { user, otpEntry: entries[0] };
+  }
+
   async verifyOtp(
-    email: string,
+    identifier: string,
     code: string,
     lang: string = 'fr',
   ): Promise<{ message: string }> {
-    const otpEntry = await this.prisma.otp.findFirst({
-      where: {
-        email: email,
-        otpCode: code,
-        isUsed: false,
-        expiresAt: { gt: new Date() },
-      },
-    });
-    if (!otpEntry) {
-      throw new BadRequestException(
-        this.i18nService.translate('otp_invalid', lang),
-      );
-    }
+    await this.findResetOtp(identifier, code, lang);
     return {
       message: this.i18nService.translate('otp_validated', lang),
     };
@@ -1730,7 +1797,8 @@ export class AuthServiceService {
     let user;
     if (isEmail) {
       user = await this.prisma.user.findFirst({
-        where: { email: cleanIdentifier.toLowerCase() },
+        where: { email: cleanIdentifier.toLowerCase(), OR: [{ deleted: false }, { deleted: null }] },
+        orderBy: { updatedAt: 'desc' },
       });
       if (!user)
         throw new BadRequestException(
@@ -1743,7 +1811,8 @@ export class AuthServiceService {
     } else {
       const normalizedPhone = this.normalizePhone(cleanIdentifier);
       user = await this.prisma.user.findFirst({
-        where: { phone: normalizedPhone },
+        where: { phone: normalizedPhone, OR: [{ deleted: false }, { deleted: null }] },
+        orderBy: { updatedAt: 'desc' },
       });
       if (!user)
         throw new BadRequestException(
@@ -1821,17 +1890,6 @@ export class AuthServiceService {
     lang?: string;
   }): Promise<{ message: string }> {
     const { identifier, code, password, lang = 'fr' } = resetPasswordDto;
-    const cleanIdentifier = String(identifier ?? '').trim();
-    if (!cleanIdentifier) {
-      throw new BadRequestException(
-        lang.startsWith('en') ? 'Enter the email or phone number of the account.' : "Indiquez l'e-mail ou le numéro de téléphone du compte.",
-      );
-    }
-    if (!code || String(code).trim() === '') {
-      throw new BadRequestException(
-        lang.startsWith('en') ? 'Enter the code received by SMS or e-mail.' : 'Saisissez le code reçu par SMS ou par e-mail.',
-      );
-    }
 
     if (!password || password.trim().length < 8) {
       throw new BadRequestException(
@@ -1839,33 +1897,7 @@ export class AuthServiceService {
       );
     }
 
-    const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          { phone: cleanIdentifier },
-          { email: cleanIdentifier.toLowerCase() },
-        ],
-      },
-    });
-    if (!user)
-      throw new BadRequestException(
-        this.i18nService.translate('user_not_found', lang),
-      );
-
-    // ✅ Le code doit appartenir à CE compte (avant : n'importe quel code valide acceptait la réinitialisation)
-    const otpEntry = await this.prisma.otp.findFirst({
-      where: {
-        userId: user.id,
-        otpCode: String(code).trim(),
-        isUsed: false,
-        expiresAt: { gt: new Date() },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!otpEntry)
-      throw new BadRequestException(
-        this.i18nService.translate('otp_invalid', lang),
-      );
+    const { user, otpEntry } = await this.findResetOtp(identifier, code, lang);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     await this.prisma.user.update({

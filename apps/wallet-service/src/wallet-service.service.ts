@@ -5907,11 +5907,8 @@ export class WalletServiceService {
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
     const { fromWalletId, toPhone, amount, description, countryCode } = dto;
     const toUserId = (dto as any).toUserId ? String((dto as any).toUserId) : null;
-    // ✅ Comptes FIDÉLITÉ (FPAY_OVERDRAFT_PAYER_IDS) : le paiement passe TOUJOURS, même à 0 ou en négatif
-    const overdraftPayers = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '')
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean);
+    // ✅ Compte FIDÉLITÉ : identifié par le drapeau isFidelity que la passerelle positionne
+    //    (clé API nommée « FAVOR-FIDELITE… »). Son paiement passe TOUJOURS, même solde à 0 ou négatif.
     console.log('[WalletService] Send Fidelity request:', { fromWalletId, toPhone, amount, lang, countryCode });
 
     // ========== VALIDATIONS ==========
@@ -6027,7 +6024,7 @@ export class WalletServiceService {
           });
         }
 
-        const isFidelityAccount = overdraftPayers.includes(fromUser.id);
+        const isFidelityAccount = (dto as any).isFidelity === true;
         // Le compte fidélité n'est jamais bloqué par un solde négatif ; seul un blocage volontaire d'un admin l'arrête
         const fromLock = await tx.user.findUnique({ where: { id: fromUser.id }, select: { locked_by_admin: true } });
         if (fromUser.status === user_status.BLOCKED && (!isFidelityAccount || fromLock?.locked_by_admin)) {

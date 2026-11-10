@@ -107,6 +107,7 @@ export class ApiKeyGuard implements CanActivate {
                     role: true,
                     status: true,
                     locked_by_admin: true,
+                    is_maintenance_exempt: true,
                     merchantCode: true,
                     merchantType: true,
                     businessName: true,
@@ -129,16 +130,18 @@ export class ApiKeyGuard implements CanActivate {
             if (!user) {
                 throw new UnauthorizedException('User not found');
             }
-            // ✅ Compte bloqué : sa clé API ne fonctionne plus
-            // ✅ Compte fidélité (FPAY_OVERDRAFT_PAYER_IDS) : jamais bloqué par un solde négatif ;
-            //    seul un blocage volontaire d'un administrateur (locked_by_admin) coupe sa clé API
-            const fidelityIds = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
-            if (user.status === 'BLOCKED' && (!fidelityIds.includes(user.id) || (user as any).locked_by_admin)) {
+            // ✅ Compte bloqué : sa clé API ne fonctionne plus.
+            // ✅ Compte exempté (is_maintenance_exempt = true, ex. le compte fidélité) : jamais bloqué par un solde
+            //    négatif ; seul un blocage volontaire d'un administrateur (locked_by_admin) coupe sa clé API.
+            if (user.status === 'BLOCKED' && (!(user as any).is_maintenance_exempt || (user as any).locked_by_admin)) {
                 throw new ForbiddenException('Account blocked');
             }
 
             // ✅ Ajouter l'utilisateur complet à la requête
             request.user = user;
+            // ✅ Exposer le nom/permissions de la clé aux handlers (ex. reconnaître le compte FIDÉLITÉ par le nom de la clé)
+            request.apiKeyPayload = jwtPayload;
+            request.apiKeyName = jwtPayload?.name || null;
 
             // ✅ Vérifier les permissions (avant la correction, ce refus était avalé et la requête acceptée)
             //    API_KEY_PERMISSIONS_MODE=enforce : refus 403 ; warn (défaut, transition) : accepté mais journalisé.
@@ -190,6 +193,7 @@ export class ApiKeyGuard implements CanActivate {
                             role: true,
                             status: true,
                             locked_by_admin: true,
+                            is_maintenance_exempt: true,
                             merchantCode: true,
                             merchantType: true,
                             businessName: true,
@@ -237,11 +241,11 @@ export class ApiKeyGuard implements CanActivate {
             }
 
             // ✅ Correction: Vérifier que keyRecord.user existe avant de l'utiliser
-            const fidelityIdsKey = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
+
             if (
                 keyRecord.user &&
                 keyRecord.user.status === 'BLOCKED' &&
-                (!fidelityIdsKey.includes(keyRecord.user.id) || (keyRecord.user as any).locked_by_admin)
+                (!(keyRecord.user as any).is_maintenance_exempt || (keyRecord.user as any).locked_by_admin)
             ) {
                 throw new ForbiddenException('Account blocked');
             }

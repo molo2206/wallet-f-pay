@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsBoolean,
   Min,
 } from 'class-validator';
 
@@ -153,6 +154,12 @@ export class SendFidelityDto {
   @IsOptional()
   @IsString()
   toUserId?: string;
+
+  /** ✅ Marqué par la passerelle quand le payeur est le compte FIDÉLITÉ : autorise le solde négatif,
+   *  crédite toujours le client immédiatement (jamais « international »), sans frais ni KYC. */
+  @IsOptional()
+  @IsBoolean()
+  isFidelity?: boolean;
 
   @IsNumber()
   @Min(0.01)

@@ -896,15 +896,17 @@ export class ApiGatewayController {
 
   @Post('auth/verify-otp')
   async verifyOtp(
-    @Body() body: { identifier: string; code: string },
+    @Body() body: any,
     @Headers('lang') langHeader?: string,
   ): Promise<{ message: string }> {
-    this.logger.log('Verify OTP request:', body.identifier);
     const allowedLangs = ['fr', 'en', 'sw', 'ar', 'es'];
     const lang = allowedLangs.includes(langHeader || '') ? langHeader : 'fr';
+    const identifier = String(body?.identifier ?? body?.email ?? body?.phone ?? body?.username ?? '').trim();
+    const code = String(body?.code ?? body?.otp ?? body?.otpCode ?? '').trim();
+    this.logger.log(`Verify OTP request: ${identifier || '(sans identifiant)'} — champs reçus : ${Object.keys(body || {}).join(', ')}`);
     return this.sendAuthMessage<{ message: string }>(
       'verify_otp',
-      { identifier: body.identifier, code: body.code, lang },
+      { identifier, code, lang },
       'Vérification OTP échouée',
       HttpStatus.BAD_REQUEST,
     );
@@ -941,12 +943,8 @@ export class ApiGatewayController {
     const identifier = String(body?.identifier ?? body?.email ?? body?.phone ?? body?.username ?? '').trim();
     const code = String(body?.code ?? body?.otp ?? body?.otpCode ?? '').trim();
     const password = body?.password || body?.newPassword || body?.newPswd;
-    if (!identifier) {
-      throw new HttpException(
-        en ? 'Enter the email or phone number of the account.' : "Indiquez l'e-mail ou le numéro de téléphone du compte.",
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    // L'identifiant est conseillé mais pas obligatoire : sans lui, le code seul doit désigner un compte unique
+    this.logger.log(`Reset password request: ${identifier || '(sans identifiant)'} — champs reçus : ${Object.keys(body || {}).join(', ')}`);
     if (!code) {
       throw new HttpException(
         en ? 'Enter the code received by SMS or e-mail.' : 'Saisissez le code reçu par SMS ou par e-mail.',
@@ -4819,94 +4817,65 @@ export class ApiGatewayController {
       );
     }
 
-    // ✅ 5. Récupérer les wallets du PAYEUR (company)
-    const payerWallets = await this.prisma.wallet.findMany({
-      where: {
-        userId: apiKeyUser.id,
-        isActive: true,
-      },
-    });
-
-    if (!payerWallets || payerWallets.length === 0) {
+    // ✅ 5. PAYEUR = titulaire de la clé API. On décode la clé pour récupérer SON numéro,
+    //    puis on prend SON portefeuille dans la devise envoyée. Ce portefeuille est débité
+    //    (il peut devenir négatif : pas de blocage sur le solde pour cette route).
+    const keyPayload: any = (req as any).apiKeyPayload || null;
+    const payerPhone = String(keyPayload?.phone || apiKeyUser.phone || '').trim();
+    if (!payerPhone) {
       throw new HttpException(
-        `No active wallet found for payer ${apiKeyUser.id}`,
+        "Impossible de lire le numéro du titulaire de la clé API",
         HttpStatus.BAD_REQUEST,
       );
     }
 
-    // ✅ 6. Chercher le wallet du payeur dans la devise demandée
-    let payerWallet = payerWallets.find(w => w.currency === targetCurrency);
+    // Portefeuilles du payeur, retrouvés par SON numéro (décodé depuis la clé)
+    const payer = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: apiKeyUser.id },
+          { phone: payerPhone },
+          { phone: payerPhone.replace(/^\+/, '') },
+          { phone: `+${payerPhone.replace(/^\+/, '')}` },
+        ],
+        deleted: false,
+      },
+      include: { wallets: { where: { isActive: true }, orderBy: { createdAt: 'asc' } } },
+    });
 
-    // ✅ Compte FIDÉLITÉ : le paiement passe TOUJOURS, même avec un solde à 0 ou négatif
-    //    (le wallet est débité et peut devenir négatif). Comptes concernés : FPAY_OVERDRAFT_PAYER_IDS (.env).
-    const overdraftPayers = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const allowOverdraft = overdraftPayers.includes(apiKeyUser.id);
-    if (allowOverdraft) {
-      payerWallet = payerWallet ?? payerWallets[0];
-      console.log(`[ExternalSend] 🎁 Compte autorisé en négatif (${apiKeyUser.id}) : wallet ${payerWallet.currency}, solde ${payerWallet.balance}`);
+    const payerWallets = payer?.wallets || [];
+    if (!payer || payerWallets.length === 0) {
+      throw new HttpException(
+        `Aucun portefeuille actif pour le titulaire de la clé (${payerPhone})`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    // ✅ 7. Si pas assez de solde ou pas de wallet dans cette devise, chercher un autre wallet avec assez de solde
-    if (allowOverdraft) {
-      // pas de contrôle de solde : le wallet sera débité même s'il devient négatif
-      payerWallet = payerWallet ?? payerWallets[0];
-    } else if (payerWallet) {
-      if (payerWallet.balance < body.amount) {
-        console.log(`[ExternalSend] Solde insuffisant en ${targetCurrency} (${payerWallet.balance}), recherche d'un autre wallet...`);
-
-        // Chercher un autre wallet avec assez de solde
-        const otherWallet = payerWallets.find(w =>
-          w.currency !== targetCurrency &&
-          w.balance >= body.amount
-        );
-
-        if (otherWallet) {
-          payerWallet = otherWallet;
-          console.log(`[ExternalSend] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
-        } else {
-          // Aucun wallet avec assez de solde
-          throw new HttpException(
-            `Insufficient balance: ${payerWallet.balance} ${payerWallet.currency}. You have ${payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ')}`,
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
-    } else {
-      // ✅ 8. Si pas de wallet dans la devise demandée, prendre le premier avec assez de solde
-      console.log(`[ExternalSend] Aucun wallet en ${targetCurrency}, recherche d'un autre wallet...`);
-
-      const availableWallet = payerWallets.find(w => w.balance >= body.amount);
-
-      if (availableWallet) {
-        payerWallet = availableWallet;
-        console.log(`[ExternalSend] Wallet trouvé en ${payerWallet.currency} avec ${payerWallet.balance} ${payerWallet.currency}`);
-      } else {
-        // Aucun wallet avec assez de solde
-        const balances = payerWallets.map(w => `${w.balance} ${w.currency}`).join(', ');
-        throw new HttpException(
-          `Insufficient balance in any wallet. Available balances: ${balances}`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+    // ✅ 6. Portefeuille du payeur dans la DEVISE envoyée (sinon le premier portefeuille actif)
+    let payerWallet = payerWallets.find((w) => w.currency === targetCurrency) || payerWallets[0];
+    if (payerWallet.currency !== targetCurrency) {
+      console.warn(`[ExternalSend] Aucun portefeuille en ${targetCurrency} pour ${payerPhone}, utilisation de ${payerWallet.currency}`);
     }
 
-    console.log('[ExternalSend] Wallet du payeur sélectionné:', {
+    console.log('[ExternalSend] Payeur (décodé depuis la clé):', {
+      payerId: payer.id,
+      payerPhone,
       walletId: payerWallet.id,
       currency: payerWallet.currency,
       balance: payerWallet.balance,
     });
 
-    // ✅ 9. Préparer les données pour le service wallet
+    // ✅ 7. Préparer les données pour le service wallet
+    //    isFidelity: true -> le portefeuille du payeur est débité même à 0 ou en négatif,
+    //    le client est crédité immédiatement (2 transactions), sans frais ni KYC.
     const sendPayload: any = {
       fromWalletId: payerWallet.id,
       toPhone: recipient.phone,
-      toUserId: recipient.id, // ✅ crédit sur CE compte exactement (pas sur un autre compte au même téléphone)
+      toUserId: recipient.id,
       amount: body.amount,
       description: body.description || `Envoi de fidélité vers ${recipient.full_name || recipient.phone}`,
       countryCode: body.countryCode,
+      isFidelity: true,
       lang,
       ipAddress,
     };

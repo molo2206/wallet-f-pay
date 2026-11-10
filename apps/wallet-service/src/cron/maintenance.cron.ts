@@ -662,18 +662,16 @@ export class MaintenanceService {
             });
             this.logger.log('Countries with maintenance fees:', JSON.stringify(countriesWithFees, null, 2));
 
-            // ✅ EXCLURE L'UTILISATEUR SYSTÈME (system@fpay.com)
+            // ✅ EXCLURE L'UTILISATEUR SYSTÈME (system@fpay.com).
+            //    Les comptes exemptés (is_maintenance_exempt = true, ex. le compte fidélité) sont déjà écartés
+            //    par le filtre ci-dessous : aucune liste d'identifiants ni de clés à maintenir.
             const users = await this.prisma.user.findMany({
                 where: {
                     status: 'ACTIVE',
                     is_maintenance_exempt: false,
                     deleted: false,
-                    // ✅ Système et comptes fidélité (peuvent être en négatif) : jamais de frais ni de blocage
                     id: {
-                        notIn: [
-                            systemUserId,
-                            ...String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '').split(',').map((x) => x.trim()).filter(Boolean),
-                        ].filter(Boolean) as string[],
+                        notIn: [systemUserId].filter(Boolean) as string[],
                     },
                 },
                 include: {

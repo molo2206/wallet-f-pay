@@ -76,13 +76,14 @@ export class AuthServiceController {
 
   @MessagePattern('verify_otp')
   async verifyOtp(
-    @Payload() data: { identifier: string; code: string },
+    @Payload() data: { identifier: string; code: string; lang?: string },
   ): Promise<{ message: string }> {
-    console.log('[AuthService] Verify OTP request:', data.identifier);
+    console.log('[AuthService] Verify OTP request:', data?.identifier ?? '(sans identifiant)');
     try {
       const result = await this.authService.verifyOtp(
-        data.identifier,
-        data.code,
+        data?.identifier,
+        data?.code,
+        data?.lang || 'fr',
       );
       return result;
     } catch (error) {
