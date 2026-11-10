@@ -1821,7 +1821,17 @@ export class AuthServiceService {
     lang?: string;
   }): Promise<{ message: string }> {
     const { identifier, code, password, lang = 'fr' } = resetPasswordDto;
-    const cleanIdentifier = identifier.trim();
+    const cleanIdentifier = String(identifier ?? '').trim();
+    if (!cleanIdentifier) {
+      throw new BadRequestException(
+        lang.startsWith('en') ? 'Enter the email or phone number of the account.' : "Indiquez l'e-mail ou le numéro de téléphone du compte.",
+      );
+    }
+    if (!code || String(code).trim() === '') {
+      throw new BadRequestException(
+        lang.startsWith('en') ? 'Enter the code received by SMS or e-mail.' : 'Saisissez le code reçu par SMS ou par e-mail.',
+      );
+    }
 
     if (!password || password.trim().length < 8) {
       throw new BadRequestException(
@@ -1846,7 +1856,7 @@ export class AuthServiceService {
     const otpEntry = await this.prisma.otp.findFirst({
       where: {
         userId: user.id,
-        otpCode: code.toString(),
+        otpCode: String(code).trim(),
         isUsed: false,
         expiresAt: { gt: new Date() },
       },
@@ -2340,5 +2350,26 @@ export class AuthServiceService {
       },
       message,
     };
+  }
+
+  /**
+   * ✅ Infos utilisateur pour JwtAuthGuard (branchId + agence). Ne renvoie jamais le mot de passe ni les secrets.
+   */
+  async getUserById(userId: string) {
+    if (!userId) return null;
+    return this.prisma.user.findFirst({
+      where: { id: String(userId), OR: [{ deleted: false }, { deleted: null }] },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        full_name: true,
+        role: true,
+        status: true,
+        account_number: true,
+        branchId: true,
+        branch: true,
+      },
+    });
   }
 }

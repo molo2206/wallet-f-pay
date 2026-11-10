@@ -130,10 +130,8 @@ export class AuthServiceController {
       lang?: string;
     },
   ): Promise<{ message: string }> {
-    console.log(
-      '📝 [AuthService] Reset password request received:',
-      JSON.stringify(data),
-    );
+    // ✅ Ne jamais écrire le mot de passe ni le code dans les logs
+    console.log('📝 [AuthService] Reset password request received for:', data?.identifier ?? '(vide)');
     try {
       const result = await this.authService.resetPassword({
         identifier: data.identifier,
@@ -374,5 +372,15 @@ export class AuthServiceController {
   @MessagePattern('health_check')
   async healthCheck() {
     return { status: 'ok', service: 'auth-service' };
+  }
+
+  // ✅ Utilisé par JwtAuthGuard (avant : "no matching message handler" à chaque requête)
+  @MessagePattern('get_user_by_id')
+  async getUserById(@Payload() data: { userId: string }) {
+    try {
+      return await this.authService.getUserById(data?.userId);
+    } catch {
+      return null;
+    }
   }
 }

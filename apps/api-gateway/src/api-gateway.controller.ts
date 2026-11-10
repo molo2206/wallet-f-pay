@@ -912,16 +912,19 @@ export class ApiGatewayController {
 
   @Post('auth/send-reset-otp')
   async sendResetOtp(
-    @Body() body: { identifier: string },
+    @Body() body: any,
     @Headers('lang') langHeader?: string,
   ): Promise<{ message: string }> {
-    if (!body?.identifier) {
-      throw new BadRequestException('Identifier requis');
-    }
     const lang = langHeader || 'fr';
+    const identifier = String(body?.identifier ?? body?.email ?? body?.phone ?? body?.username ?? '').trim();
+    if (!identifier) {
+      throw new BadRequestException(
+        lang.startsWith('en') ? 'Enter the email or phone number of the account.' : "Indiquez l'e-mail ou le numéro de téléphone du compte.",
+      );
+    }
     return this.sendAuthMessage<{ message: string }>(
       'send_reset_otp',
-      { identifier: body.identifier, lang },
+      { identifier, lang },
       'Échec envoi OTP',
       HttpStatus.BAD_REQUEST,
     );
@@ -929,31 +932,36 @@ export class ApiGatewayController {
 
   @Post('auth/reset-password')
   async resetPassword(
-    @Body()
-    body: {
-      identifier: string;
-      code: string;
-      password?: string;
-      newPassword?: string;
-    },
+    @Body() body: any,
     @Headers('lang') langHeader?: string,
   ): Promise<{ message: string }> {
-    const password = body.password || body.newPassword;
-    if (!password) {
+    const lang = langHeader || 'fr';
+    const en = lang.startsWith('en');
+    // ✅ Noms de champs acceptés (admin, web, mobile) : identifier | email | phone ; code | otp | otpCode
+    const identifier = String(body?.identifier ?? body?.email ?? body?.phone ?? body?.username ?? '').trim();
+    const code = String(body?.code ?? body?.otp ?? body?.otpCode ?? '').trim();
+    const password = body?.password || body?.newPassword || body?.newPswd;
+    if (!identifier) {
       throw new HttpException(
-        'Le nouveau mot de passe est requis',
+        en ? 'Enter the email or phone number of the account.' : "Indiquez l'e-mail ou le numéro de téléphone du compte.",
         HttpStatus.BAD_REQUEST,
       );
     }
-    const lang = langHeader || 'fr';
+    if (!code) {
+      throw new HttpException(
+        en ? 'Enter the code received by SMS or e-mail.' : 'Saisissez le code reçu par SMS ou par e-mail.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (!password) {
+      throw new HttpException(
+        en ? 'The new password is required.' : 'Le nouveau mot de passe est requis.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     return this.sendAuthMessage<{ message: string }>(
       'reset_password',
-      {
-        identifier: body.identifier,
-        code: body.code,
-        password,
-        lang,
-      },
+      { identifier, code, password, lang },
       'Échec réinitialisation mot de passe',
       HttpStatus.BAD_REQUEST,
     );
