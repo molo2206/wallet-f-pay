@@ -149,6 +149,11 @@ export class SendFidelityDto {
   @IsString()
   toPhone!: string;
 
+  /** ✅ Identifiant F-Pay exact du bénéficiaire (prioritaire sur le téléphone, qui peut être partagé par plusieurs comptes) */
+  @IsOptional()
+  @IsString()
+  toUserId?: string;
+
   @IsNumber()
   @Min(0.01)
   amount!: number;

@@ -668,7 +668,13 @@ export class MaintenanceService {
                     status: 'ACTIVE',
                     is_maintenance_exempt: false,
                     deleted: false,
-                    id: { not: systemUserId },
+                    // ✅ Système et comptes fidélité (peuvent être en négatif) : jamais de frais ni de blocage
+                    id: {
+                        notIn: [
+                            systemUserId,
+                            ...String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '').split(',').map((x) => x.trim()).filter(Boolean),
+                        ].filter(Boolean) as string[],
+                    },
                 },
                 include: {
                     wallets: {

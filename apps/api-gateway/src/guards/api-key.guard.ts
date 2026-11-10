@@ -106,6 +106,7 @@ export class ApiKeyGuard implements CanActivate {
                     email: true,
                     role: true,
                     status: true,
+                    locked_by_admin: true,
                     merchantCode: true,
                     merchantType: true,
                     businessName: true,
@@ -129,7 +130,10 @@ export class ApiKeyGuard implements CanActivate {
                 throw new UnauthorizedException('User not found');
             }
             // ✅ Compte bloqué : sa clé API ne fonctionne plus
-            if (user.status === 'BLOCKED') {
+            // ✅ Compte fidélité (FPAY_OVERDRAFT_PAYER_IDS) : jamais bloqué par un solde négatif ;
+            //    seul un blocage volontaire d'un administrateur (locked_by_admin) coupe sa clé API
+            const fidelityIds = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
+            if (user.status === 'BLOCKED' && (!fidelityIds.includes(user.id) || (user as any).locked_by_admin)) {
                 throw new ForbiddenException('Account blocked');
             }
 
@@ -185,6 +189,7 @@ export class ApiKeyGuard implements CanActivate {
                             email: true,
                             role: true,
                             status: true,
+                            locked_by_admin: true,
                             merchantCode: true,
                             merchantType: true,
                             businessName: true,
@@ -232,7 +237,12 @@ export class ApiKeyGuard implements CanActivate {
             }
 
             // ✅ Correction: Vérifier que keyRecord.user existe avant de l'utiliser
-            if (keyRecord.user && keyRecord.user.status === 'BLOCKED') {
+            const fidelityIdsKey = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '').split(',').map((x) => x.trim()).filter(Boolean);
+            if (
+                keyRecord.user &&
+                keyRecord.user.status === 'BLOCKED' &&
+                (!fidelityIdsKey.includes(keyRecord.user.id) || (keyRecord.user as any).locked_by_admin)
+            ) {
                 throw new ForbiddenException('Account blocked');
             }
             if (keyRecord.user) {

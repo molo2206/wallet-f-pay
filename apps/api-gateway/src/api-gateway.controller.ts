@@ -4781,10 +4781,10 @@ export class ApiGatewayController {
     }
 
     // ✅ 2. Récupérer le DESTINATAIRE (client) par son userId
+    // ✅ Un client bloqué (ex. dette de maintenance) peut quand même RECEVOIR sa fidélité
     const recipient = await this.prisma.user.findFirst({
       where: {
         id: body.userId,
-        status: 'ACTIVE',
         deleted: false,
       },
       include: {
@@ -4796,7 +4796,7 @@ export class ApiGatewayController {
 
     if (!recipient) {
       throw new HttpException(
-        `Recipient with id ${body.userId} not found`,
+        `Bénéficiaire introuvable dans F-Pay (userId ${body.userId}) : vérifiez que le client a bien un compte F-Pay lié.`,
         HttpStatus.NOT_FOUND,
       );
     }
@@ -4914,6 +4914,7 @@ export class ApiGatewayController {
     const sendPayload: any = {
       fromWalletId: payerWallet.id,
       toPhone: recipient.phone,
+      toUserId: recipient.id, // ✅ crédit sur CE compte exactement (pas sur un autre compte au même téléphone)
       amount: body.amount,
       description: body.description || `Envoi de fidélité vers ${recipient.full_name || recipient.phone}`,
       countryCode: body.countryCode,

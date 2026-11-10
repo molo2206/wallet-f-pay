@@ -5906,6 +5906,12 @@ export class WalletServiceService {
     ipAddress: string = 'system',
   ): Promise<ApiResponse<{ wallet: WalletResponseDto; transaction: any }>> {
     const { fromWalletId, toPhone, amount, description, countryCode } = dto;
+    const toUserId = (dto as any).toUserId ? String((dto as any).toUserId) : null;
+    // ✅ Comptes FIDÉLITÉ (FPAY_OVERDRAFT_PAYER_IDS) : le paiement passe TOUJOURS, même à 0 ou en négatif
+    const overdraftPayers = String(process.env.FPAY_OVERDRAFT_PAYER_IDS || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
     console.log('[WalletService] Send Fidelity request:', { fromWalletId, toPhone, amount, lang, countryCode });
 
     // ========== VALIDATIONS ==========
@@ -5925,7 +5931,7 @@ export class WalletServiceService {
       });
     }
 
-    if (!toPhone || toPhone.trim() === '') {
+    if (!toUserId && (!toPhone || toPhone.trim() === '')) {
       throw new RpcException({
         status: 'error',
         message: this.i18nService.translate('wallet.phone_required', lang),
@@ -5933,18 +5939,21 @@ export class WalletServiceService {
       });
     }
 
-    const cleanToPhone = toPhone.replace(/[^0-9+]/g, '');
+    const cleanToPhone = String(toPhone || '').replace(/[^0-9+]/g, '');
     console.log('[WalletService] Clean phone:', cleanToPhone);
 
     const result = await this.prisma.$transaction(
       async (tx) => {
         // 1. Vérifier que le destinataire existe
+        // ✅ Bénéficiaire par identifiant exact (FavorHelp l'envoie) ; le téléphone ne sert que de secours
         const toUser = await tx.user.findFirst({
-          where: {
-            phone: {
-              in: [cleanToPhone, toPhone, `+${cleanToPhone.replace(/^\+/, '')}`]
-            }
-          },
+          where: toUserId
+            ? { id: toUserId, deleted: false }
+            : {
+                phone: {
+                  in: [cleanToPhone, toPhone, `+${cleanToPhone.replace(/^\+/, '')}`]
+                }
+              },
           select: {
             id: true,
             full_name: true,
@@ -6018,7 +6027,10 @@ export class WalletServiceService {
           });
         }
 
-        if (fromUser.status === user_status.BLOCKED) {
+        const isFidelityAccount = overdraftPayers.includes(fromUser.id);
+        // Le compte fidélité n'est jamais bloqué par un solde négatif ; seul un blocage volontaire d'un admin l'arrête
+        const fromLock = await tx.user.findUnique({ where: { id: fromUser.id }, select: { locked_by_admin: true } });
+        if (fromUser.status === user_status.BLOCKED && (!isFidelityAccount || fromLock?.locked_by_admin)) {
           throw new RpcException({
             status: 'error',
             message: this.i18nService.translate('account_blocked_admin', lang),
@@ -6043,7 +6055,8 @@ export class WalletServiceService {
           console.log('[WalletService] 📌 CountryCode fourni:', countryCode);
         }
 
-        const isInternational = senderCountryCode !== receiverCountryCode;
+        // ✅ Fidélité : toujours un crédit immédiat (pas de mise en attente « international », pas de KYC, pas de frais)
+        const isInternational = isFidelityAccount ? false : senderCountryCode !== receiverCountryCode;
 
         console.log('[WalletService] Transfer type:', {
           senderCountry: senderCountryCode,

@@ -682,6 +682,7 @@ export class WalletServiceController {
       return await this.walletService.sendFidelity(data, data.lang || 'fr', ipAddress);
     } catch (error) {
       console.error('[WalletService] send_fidelity error:', error);
+      if (error instanceof RpcException) throw error; // ✅ message et code d'origine conservés
       const lang = data.lang || 'fr';
       throw new RpcException({
         status: 'error',
