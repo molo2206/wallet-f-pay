@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+      
+      body {
+        margin: 0;
+        padding: 30px 0;
+        font-family: 'Poppins', 'Helvetica Neue', sans-serif;
+        color: #1e2a3e;
+        background-color: #f4f7fc;
+      }
+      
+      .container {
+        margin: 0 auto;
+        width: 100%;
+        max-width: 580px;
+        background-color: #ffffff;
+        border-radius: 20px;
+        box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        border: 2px solid #FEA812;
+      }
+      
+      .header {
+        text-align: center;
+        padding: 35px 20px 20px;
+        background: linear-gradient(135deg, #0002DF 0%, #0005B0 100%);
+      }
+      
+      .logo {
+        max-width: 140px;
+        margin-bottom: 15px;
+      }
+      
+      .header-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: #FEA812;
+        margin: 0;
+        letter-spacing: -0.3px;
+      }
+      
+      .content {
+        padding: 35px 30px 25px;
+        background-color: #ffffff;
+      }
+      
+      .content strong {
+        color: #0002DF;
+      }
+      
+      .otp-box {
+        background: linear-gradient(135deg, #FDB51F 0%, #FEA812 100%);
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        margin: 25px 0;
+        border: 2px solid #0002DF;
+      }
+      
+      .otp-code {
+        font-size: 36px;
+        font-weight: 700;
+        letter-spacing: 8px;
+        color: #0002DF;
+        background-color: #ffffff;
+        display: inline-block;
+        padding: 12px 24px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        font-family: monospace;
+        border: 2px solid #0002DF;
+      }
+      
+      .footer {
+        text-align: center;
+        padding: 20px 20px 25px;
+        background-color: #f8fafd;
+        border-top: 2px solid #FEA812;
+        font-size: 12px;
+        color: #5a6874;
+      }
+      
+      .footer a {
+        color: #0002DF !important;
+        font-weight: 600;
+      }
+      
+      .email-info {
+        text-align: center;
+        font-size: 12px;
+        color: #5a6874;
+        margin-top: 20px;
+        background-color: #f8fafd;
+        padding: 10px;
+      }
+      
+      .email-info a {
+        color: #FF0000;
+        text-decoration: none;
+        font-weight: 500;
+      }
+      
+      .email-info a:hover {
+        text-decoration: underline;
+      }
+      
+      hr {
+        border: none;
+        border-top: 2px solid #FEA812;
+        margin: 0;
+      }
+      
+      .content p a {
+        color: #0002DF;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      
+      .content p a:hover {
+        text-decoration: underline;
+      }
+      
+      .warning-text {
+        color: #FF0000;
+        font-weight: 600;
+      }
+      
+      .copyright {
+        color: #0005B0;
+        font-weight: 500;
+      }
+      
+      .expiry-info {
+        background-color: #FDB51F;
+        padding: 10px 16px;
+        border-radius: 8px;
+        border-left: 4px solid #0002DF;
+        font-size: 14px;
+        color: #1e2a3e;
+        margin-top: 5px;
+      }
+      
+      .expiry-info strong {
+        color: #0002DF;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <img
+          src="https://api-prod.favorhelp.com/uploads/fpay/logo.png"
+          alt="Fpay"
+          class="logo"
+        />
+        <h1 class="header-title">{{ title }}</h1>
+      </div>
+      <div class="content">
+        <strong style="font-size: 18px; color: #0002DF;">{{ greeting }}</strong>
+        <p style="margin-top: 12px; line-height: 1.5">{{ message }}</p>
+        
+        <div class="otp-box">
+          <div class="otp-code">{{ otpCode }}</div>
+        </div>
+        
+        <div class="expiry-info">
+          <strong>⏱ {{ expiry }}</strong>
+        </div>
+        
+        <p style="font-size: 14px; color: #4b5563; margin-top: 10px;">
+          <span class="warning-text">{{ ignore }}</span>
+        </p>
+        
+        <p style="margin-top: 20px; font-size: 14px">
+          {{ thanks }}<br />
+          <strong style="color: #0002DF;">{{ team }}</strong>
+        </p>
+      </div>
+      <hr />
+      <div class="footer">
+        {{ footer }}<br />
+        <a href="https://fpay.app" style="color: #0002DF;">accespay.com</a>
+      </div>
+    </div>
+    <div class="email-info">
+      {{ sent_to }} <a href="mailto:{{ email }}">{{ email }}</a>
+    </div>
+    <div class="email-info copyright">{{ copyright }}</div>
+  </body>
+</html>

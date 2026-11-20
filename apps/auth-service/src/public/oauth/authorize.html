@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion F-Pay</title>
+    <style>
+        /* ============ RESET ============ */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* ============ CONTAINER ============ */
+        .oauth-container {
+            width: 100%;
+            max-width: 480px;
+        }
+
+        .oauth-card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ============ LOGO ============ */
+        .oauth-logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .oauth-logo .logo-icon {
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+
+        .oauth-logo h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a1a2e;
+            letter-spacing: -0.5px;
+        }
+
+        .oauth-logo .subtitle {
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        /* ============ HEADER ============ */
+        .oauth-header {
+            margin-bottom: 28px;
+        }
+
+        .oauth-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 6px;
+        }
+
+        .oauth-header p {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* ============ MESSAGES ============ */
+        .message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .message.show {
+            display: flex;
+        }
+
+        .message.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .message.success {
+            background: #f0fdf4;
+            color: #059669;
+            border: 1px solid #bbf7d0;
+        }
+
+        .message.info {
+            background: #eff6ff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+        }
+
+        .message .message-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        /* ============ FORMULAIRES ============ */
+        .oauth-form {
+            margin-top: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1a1a2e;
+            margin-bottom: 6px;
+        }
+
+        .form-group .input-wrapper {
+            position: relative;
+        }
+
+        .form-group .input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 18px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px 12px 44px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #fafafa;
+            color: #1a1a2e;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: #9ca3af;
+        }
+
+        .form-group input.password-input {
+            padding-right: 44px;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+
+        .toggle-password:hover {
+            color: #6b7280;
+        }
+
+        /* ============ BOUTONS ============ */
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 52px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .btn.loading .spinner {
+            display: inline-block;
+        }
+
+        .btn.loading .btn-text {
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ============ LIENS ============ */
+        .oauth-links {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .oauth-links a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .oauth-links a:hover {
+            text-decoration: underline;
+        }
+
+        .oauth-links .divider {
+            color: #e5e7eb;
+            margin: 0 8px;
+        }
+
+        /* ============ FOOTER ============ */
+        .oauth-footer {
+            text-align: center;
+            margin-top: 24px;
+            color: #9ca3af;
+            font-size: 13px;
+        }
+
+        .oauth-footer a {
+            color: #6b7280;
+            text-decoration: none;
+        }
+
+        .oauth-footer a:hover {
+            color: #1a1a2e;
+        }
+
+        /* ============ SUCCESS PAGE ============ */
+        .success-page {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .success-page .success-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .success-page h2 {
+            color: #1a1a2e;
+            margin-bottom: 8px;
+        }
+
+        .success-page p {
+            color: #6b7280;
+            margin-bottom: 24px;
+        }
+
+        /* ============ DARK MODE ============ */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            }
+
+            .oauth-card {
+                background: #1e293b;
+            }
+
+            .oauth-logo h1 {
+                color: #f1f5f9;
+            }
+
+            .oauth-header h2 {
+                color: #f1f5f9;
+            }
+
+            .oauth-header p {
+                color: #94a3b8;
+            }
+
+            .form-group label {
+                color: #f1f5f9;
+            }
+
+            .form-group input {
+                background: #0f172a;
+                border-color: #334155;
+                color: #f1f5f9;
+            }
+
+            .form-group input:focus {
+                background: #1e293b;
+                border-color: #667eea;
+            }
+
+            .oauth-links {
+                color: #94a3b8;
+            }
+
+            .oauth-links a {
+                color: #94a3b8;
+            }
+
+            .oauth-footer {
+                color: #64748b;
+            }
+
+            .message.error {
+                background: #451a1a;
+                color: #fca5a5;
+                border-color: #7f1d1d;
+            }
+
+            .message.success {
+                background: #064e3b;
+                color: #6ee7b7;
+                border-color: #065f46;
+            }
+
+            .message.info {
+                background: #1e3a5f;
+                color: #93c5fd;
+                border-color: #1e40af;
+            }
+
+            .success-page h2 {
+                color: #f1f5f9;
+            }
+
+            .success-page p {
+                color: #94a3b8;
+            }
+        }
+
+        /* ============ RESPONSIVE ============ */
+        @media (max-width: 520px) {
+            .oauth-card {
+                padding: 32px 20px;
+            }
+
+            .oauth-logo h1 {
+                font-size: 20px;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                font-size: 15px;
+                padding: 12px;
+                min-height: 48px;
+            }
+
+            .form-group input {
+                font-size: 14px;
+                padding: 10px 14px 10px 40px;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .oauth-card {
+                padding: 24px 16px;
+            }
+
+            .oauth-logo .logo-icon {
+                width: 56px;
+                height: 56px;
+                font-size: 24px;
+            }
+
+            .oauth-logo h1 {
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="oauth-container">
+        <div class="oauth-card" id="app">
+
+            <!-- ===== LOGO ===== -->
+            <div class="oauth-logo">
+                <div class="logo-icon">F</div>
+                <h1>F-Pay</h1>
+                <div class="subtitle">Solutions de paiement sécurisées</div>
+            </div>
+
+            <!-- ===== ÉTAT : CONNEXION ===== -->
+            <div id="loginState">
+                <div class="oauth-header">
+                    <h2>🔐 Connexion à F-Pay</h2>
+                    <p>Connectez-vous pour continuer</p>
+                </div>
+
+                <!-- Message -->
+                <div class="message" id="message">
+                    <span class="message-icon">ℹ️</span>
+                    <span id="messageText">Message d'information</span>
+                </div>
+
+                <!-- Formulaire de connexion -->
+                <form id="loginForm" class="oauth-form">
+                    <div class="form-group">
+                        <label for="phone">📱 Numéro de téléphone</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">📞</span>
+                            <input type="tel" id="phone" placeholder="+243 999 999 999" required
+                                autocomplete="username">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">🔑 Mot de passe</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🔒</span>
+                            <input type="password" id="password" class="password-input" placeholder="Votre mot de passe"
+                                required autocomplete="current-password">
+                            <button type="button" class="toggle-password" onclick="togglePassword()">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Boutons -->
+                    <div class="btn-group">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            <span class="spinner"></span>
+                            <span class="btn-text">Se connecter</span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Liens -->
+                <div class="oauth-links">
+                    <a href="#">Mot de passe oublié ?</a>
+                    <span class="divider">|</span>
+                    <a href="#">Créer un compte</a>
+                </div>
+            </div>
+
+            <!-- ===== ÉTAT : SUCCÈS ===== -->
+            <div id="successState" style="display: none;">
+                <div class="success-page">
+                    <div class="success-icon">✅</div>
+                    <h2>Connexion réussie !</h2>
+                    <p>Vous êtes maintenant connecté.</p>
+                    <div class="btn-group" style="margin-top: 20px;">
+                        <button class="btn btn-success" onclick="handleRedirectNow()">
+                            🚀 Continuer
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== FOOTER ===== -->
+            <div class="oauth-footer">
+                <span>🔒 Connexion sécurisée • </span>
+                <a href="#">Conditions d'utilisation</a>
+                <span> • </span>
+                <a href="#">Politique de confidentialité</a>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  RÉCUPÉRATION DES PARAMÈTRES
+        // ============================================================
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const AUTHORIZATION_CODE = urlParams.get('code') || '';
+        const CLIENT_ID = urlParams.get('client_id') || 'web-client';
+        const REDIRECT_URI = urlParams.get('redirect_uri') || 'https://fpay.com/callback';
+        const ACCESS_TOKEN = urlParams.get('access_token') || '';
+        const REFRESH_TOKEN = urlParams.get('refresh_token') || '';
+        const USER_ID = urlParams.get('user_id') || '';
+
+        // Configuration API
+        const API_BASE = window.location.origin;
+
+        let isSubmitting = false;
+
+        // ============================================================
+        //  INITIALISATION
+        // ============================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Si on a déjà un token, passer à l'étape succès
+            if (ACCESS_TOKEN && USER_ID) {
+                showSuccess();
+            }
+
+            // Auto-focus
+            setTimeout(() => {
+                document.getElementById('phone').focus();
+            }, 300);
+        });
+
+        // ============================================================
+        //  FONCTIONS UI
+        // ============================================================
+
+        function showMessage(type, text) {
+            const messageEl = document.getElementById('message');
+            const textEl = document.getElementById('messageText');
+            const iconEl = messageEl.querySelector('.message-icon');
+
+            const icons = {
+                error: '❌',
+                success: '✅',
+                info: 'ℹ️',
+            };
+
+            // Réinitialiser
+            messageEl.className = 'message';
+            messageEl.classList.add('show', type);
+            iconEl.textContent = icons[type] || 'ℹ️';
+            textEl.textContent = text;
+
+            // Auto-hide après 5 secondes (sauf pour les erreurs)
+            if (type !== 'error') {
+                clearTimeout(window.messageTimeout);
+                window.messageTimeout = setTimeout(() => {
+                    messageEl.classList.remove('show');
+                }, 5000);
+            }
+        }
+
+        function setLoading(isLoading) {
+            const btn = document.getElementById('submitBtn');
+            if (isLoading) {
+                btn.classList.add('loading');
+                btn.disabled = true;
+                isSubmitting = true;
+            } else {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                isSubmitting = false;
+            }
+        }
+
+        function togglePassword() {
+            const pwdInput = document.getElementById('password');
+            const icon = document.querySelector('.toggle-password');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                icon.textContent = '🙈';
+            } else {
+                pwdInput.type = 'password';
+                icon.textContent = '👁️';
+            }
+        }
+
+        function showSuccess() {
+            document.getElementById('loginState').style.display = 'none';
+            document.getElementById('successState').style.display = 'block';
+
+            // Rediriger automatiquement après 3 secondes
+            setTimeout(() => {
+                handleRedirectNow();
+            }, 3000);
+        }
+
+        // ============================================================
+        //  FONCTIONS PRINCIPALES
+        // ============================================================
+
+        // Gestion du formulaire de connexion
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            if (isSubmitting) return;
+
+            const phone = document.getElementById('phone').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            // Validation
+            if (!phone) {
+                showMessage('error', 'Veuillez entrer votre numéro de téléphone.');
+                return;
+            }
+
+            if (!password) {
+                showMessage('error', 'Veuillez entrer votre mot de passe.');
+                return;
+            }
+
+            setLoading(true);
+            showMessage('info', 'Connexion en cours...');
+
+            try {
+                // ✅ Appel direct à /auth/link-user
+                const response = await fetch(`${API_BASE}/auth/link-user`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        phone: phone,
+                        password: password,
+                        clientId: CLIENT_ID,
+                        redirectUri: REDIRECT_URI,
+                        lang: 'fr',
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Erreur de connexion');
+                }
+
+                console.log('[OAuth] Connexion réussie:', data);
+
+                // ✅ Rediriger vers l'URL de succès
+                if (data.oauthRedirectUrl) {
+                    showMessage('success', 'Connexion réussie ! Redirection...');
+                    setTimeout(() => {
+                        window.location.href = data.oauthRedirectUrl;
+                    }, 1500);
+                } else {
+                    // Si pas d'URL, afficher la page de succès
+                    showSuccess();
+                    setLoading(false);
+                    showMessage('success', 'Connexion réussie !');
+                }
+
+            } catch (error) {
+                console.error('[OAuth] Error:', error);
+                showMessage('error', error.message || 'Une erreur est survenue lors de la connexion.');
+                setLoading(false);
+            }
+        });
+
+        // ============================================================
+        //  REDIRECTION
+        // ============================================================
+
+        function handleRedirectNow() {
+            // ✅ Rediriger avec les tokens vers l'application
+            const redirectUrl = new URL(REDIRECT_URI);
+            redirectUrl.searchParams.set('code', AUTHORIZATION_CODE);
+            redirectUrl.searchParams.set('access_token', ACCESS_TOKEN);
+            redirectUrl.searchParams.set('refresh_token', REFRESH_TOKEN);
+            redirectUrl.searchParams.set('user_id', USER_ID);
+
+            console.log('[OAuth] Redirection vers:', redirectUrl.toString());
+            window.location.href = redirectUrl.toString();
+        }
+
+        // ============================================================
+        //  GESTION DES ÉVÉNEMENTS CLAVIER
+        // ============================================================
+
+        // Enter pour soumettre le formulaire
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                const activeElement = document.activeElement;
+                if (activeElement && activeElement.tagName === 'INPUT') {
+                    const form = activeElement.closest('form');
+                    if (form && form.id === 'loginForm') {
+                        event.preventDefault();
+                        form.dispatchEvent(new Event('submit'));
+                    }
+                }
+            }
+        });
+
+        // Formatage automatique du téléphone
+        document.getElementById('phone').addEventListener('input', function (e) {
+            // Garder seulement les chiffres et le +
+            let value = this.value;
+            if (value.startsWith('+')) {
+                value = '+' + value.replace(/[^0-9]/g, '');
+            } else {
+                value = value.replace(/[^0-9]/g, '');
+            }
+            this.value = value;
+        });
+
+        // ============================================================
+        //  LOGGING
+        // ============================================================
+
+        console.log('[OAuth] Page chargée avec:', {
+            code: AUTHORIZATION_CODE ? '✅ Présent' : '❌ Absent',
+            clientId: CLIENT_ID,
+            redirectUri: REDIRECT_URI,
+            accessToken: ACCESS_TOKEN ? '✅ Présent' : '❌ Absent',
+            refreshToken: REFRESH_TOKEN ? '✅ Présent' : '❌ Absent',
+            userId: USER_ID ? '✅ Présent' : '❌ Absent',
+        });
+    </script>
+
+</body>
+
+</html>
