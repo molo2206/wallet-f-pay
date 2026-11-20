@@ -53,6 +53,12 @@ export class AuthServiceController {
     }
   }
 
+  // ✅ Rafraîchissement de session : refresh token → nouvel access token (court) + nouveau refresh token
+  @MessagePattern('refresh_token')
+  async refreshToken(@Payload() data: { refreshToken: string }) {
+    return this.authService.refreshSession(data);
+  }
+
   @MessagePattern('register_user')
   async register(
     @Payload() data: RegisterUserDto & { ipAddress?: string; lang?: string },

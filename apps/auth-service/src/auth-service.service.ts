@@ -2286,6 +2286,42 @@ export class AuthServiceService {
     }
   }
 
+  /**
+   * ✅ Rafraîchit la session : échange un refresh token valide contre un nouvel
+   * access token (court) + un nouveau refresh token (rotation). L'admin web peut
+   * ainsi rester connecté ; sur mobile l'access token expire après 1h et l'app
+   * appelle cet endpoint pour le renouveler.
+   */
+  async refreshSession(data: { refreshToken?: string }): Promise<AuthResponseDto> {
+    const token = data?.refreshToken;
+    if (!token) {
+      throw new RpcException({ status: 'error', statusCode: 400, message: 'refreshToken requis' });
+    }
+    let decoded: any;
+    try {
+      decoded = this.jwtService.verify(token, { secret: process.env.JWT_SECRET || 'secret' });
+    } catch {
+      throw new RpcException({ status: 'error', statusCode: 401, message: 'Refresh token invalide ou expiré' });
+    }
+    // Empêche d'utiliser un access token comme refresh token
+    if (decoded?.tokenType === 'access') {
+      throw new RpcException({ status: 'error', statusCode: 401, message: 'Token invalide : fournissez le refresh token' });
+    }
+    if (!decoded?.id) {
+      throw new RpcException({ status: 'error', statusCode: 401, message: 'Refresh token invalide' });
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: decoded.id } });
+    if (!user || (user as any).deleted) {
+      throw new RpcException({ status: 'error', statusCode: 401, message: 'Utilisateur introuvable' });
+    }
+    if (user.status === 'BLOCKED') {
+      throw new RpcException({ status: 'error', statusCode: 403, message: 'Compte bloqué' });
+    }
+    // Conserver la session existante si présente, sinon en ouvrir une nouvelle
+    const sessionToken = decoded.sessionToken || crypto.randomUUID();
+    return this.generateJwt(user as any, sessionToken, 'Token rafraîchi');
+  }
+
   private generateJwt(
     user: {
       id: string;
@@ -2330,14 +2366,18 @@ export class AuthServiceService {
       locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET || 'secret',
-      expiresIn: '30d',
-    });
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET || 'secret',
-      expiresIn: '30d',
-    });
+    // ✅ Access token court (par défaut 1h) + refresh token long (par défaut 30j).
+    //    Le claim tokenType distingue les deux (empêche d'utiliser un access token comme refresh).
+    //    Surchargeable via ACCESS_TOKEN_TTL / REFRESH_TOKEN_TTL.
+    const jwtSecret = process.env.JWT_SECRET || 'secret';
+    const accessToken = this.jwtService.sign(
+      { ...payload, tokenType: 'access' },
+      { secret: jwtSecret, expiresIn: process.env.ACCESS_TOKEN_TTL || '1h' },
+    );
+    const refreshToken = this.jwtService.sign(
+      { ...payload, tokenType: 'refresh' },
+      { secret: jwtSecret, expiresIn: process.env.REFRESH_TOKEN_TTL || '30d' },
+    );
 
     return {
       accessToken,

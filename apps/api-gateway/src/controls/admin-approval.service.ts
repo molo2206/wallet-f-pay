@@ -110,10 +110,15 @@ export class AdminApprovalService {
       return null;
     }
     if (!wallet) return null;
+    // ✅ La contrepartie cash n'est plus l'agence du client, mais l'agence qui reçoit le cash :
+    //    branchId du formulaire (prioritaire) → sinon agence de l'agent connecté.
+    //    Si l'une des deux existe, il y a bien une caisse en contrepartie (pas de création de monnaie).
+    const counterpartBranchId =
+      (typeof body?.branchId === 'string' && body.branchId.trim()) || currentUser?.branchId || null;
     const reason = approvalReason({
       mode: process.env.ADMIN_APPROVAL_MODE ?? 'no_counterpart',
       role: String(currentUser?.role),
-      walletBranchId: wallet.branchId ?? null,
+      walletBranchId: counterpartBranchId,
       currency: wallet.currency,
       amount,
       thresholds: parseThresholds(process.env.ADMIN_APPROVAL_THRESHOLDS),
