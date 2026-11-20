@@ -240,6 +240,7 @@ export class AccountingService {
           version,
           currency,
           rate,
+          t.branchId ?? null, // ✅ 11e paramètre manquant (branch_id) — cause du « 11 parameters but 10 supplied »
         );
         let i = 0;
         for (const l of lines) {
