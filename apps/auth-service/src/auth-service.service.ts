@@ -2372,11 +2372,11 @@ export class AuthServiceService {
     const jwtSecret = process.env.JWT_SECRET || 'secret';
     const accessToken = this.jwtService.sign(
       { ...payload, tokenType: 'access' },
-      { secret: jwtSecret, expiresIn: process.env.ACCESS_TOKEN_TTL || '1h' },
+      { secret: jwtSecret, expiresIn: (process.env.ACCESS_TOKEN_TTL || '1h') as any },
     );
     const refreshToken = this.jwtService.sign(
       { ...payload, tokenType: 'refresh' },
-      { secret: jwtSecret, expiresIn: process.env.REFRESH_TOKEN_TTL || '30d' },
+      { secret: jwtSecret, expiresIn: (process.env.REFRESH_TOKEN_TTL || '30d') as any },
     );
 
     return {
