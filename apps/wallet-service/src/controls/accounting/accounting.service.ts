@@ -1,6 +1,5 @@
 // apps/wallet-service/src/controls/accounting/accounting.service.ts
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
 import { RpcException } from '@nestjs/microservices';
 import * as crypto from 'crypto';
 import { round3 } from '@app/common';
@@ -96,14 +95,15 @@ export class AccountingService {
   }
 
   // ============================================================
-  // ÉCRITURES AUTOMATIQUES
+  // ÉCRITURES AUTOMATIQUES — déclenchées DIRECTEMENT après chaque opération
+  // (via AccountingPostInterceptor), plus aucun job planifié.
   // ============================================================
-  @Cron('45 */5 * * * *')
-  async incremental() {
+  /** Passe immédiatement au journal les transactions non encore comptabilisées (idempotent). */
+  async postNow() {
     await this.project('incremental');
   }
 
-  @Cron('0 45 2 * * *')
+  /** Reprise complète (rattrapage de l'historique) — appelée manuellement via accounting.run?mode=full. */
   async nightly() {
     await this.project('full', 2000);
   }

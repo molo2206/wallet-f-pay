@@ -1,6 +1,8 @@
 // apps/wallet-service/src/wallet-service.module.ts
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { AccountingPostInterceptor } from './controls/accounting/accounting-post.interceptor';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { WalletServiceController } from './wallet-service.controller';
@@ -60,6 +62,8 @@ import { PrismaService } from 'apps/user-service/src/prisma/prisma.service';
     TreasuryService, // ✅ Couverture, floats opérateurs, arrêtés de caisse
     ProviderReconciliationService, // ✅ Rapport de comparaison avec PawaPay (consultation seule)
     AccountingService, // ✅ Comptabilité SYSCOHADA (écritures automatiques, états, écritures manuelles)
+    // ✅ Passation DIRECTE des écritures après chaque opération (plus de cron)
+    { provide: APP_INTERCEPTOR, useClass: AccountingPostInterceptor },
   ],
   exports: [WalletServiceService, BankService, EncryptionService],
 })
