@@ -127,6 +127,39 @@ export class AuthServiceService {
     await this.logAudit(userId, action, details, ipAddress);
   }
 
+  /**
+   * ✅ Applique la POLITIQUE DE SÉCURITÉ des mots de passe (table security_policies,
+   *    configurée par l'admin) : longueur minimale + complexité. Si aucune politique
+   *    n'est enregistrée, on retombe sur la règle historique (8 caractères minimum).
+   */
+  private async validatePasswordPolicy(password: string, lang: string = 'fr'): Promise<void> {
+    const pwd = String(password || '');
+    let p: any = null;
+    try {
+      p = await this.prisma.security_policies.findFirst({ orderBy: { created_at: 'asc' } });
+    } catch {
+      p = null;
+    }
+    const minLen = Number(p?.password_min_length ?? 8);
+    const reqUpper = !!p?.password_require_uppercase;
+    const reqLower = !!p?.password_require_lowercase;
+    const reqNum = !!p?.password_require_numbers;
+    const reqSpecial = !!p?.password_require_special;
+
+    const errors: string[] = [];
+    if (pwd.length < minLen) errors.push(`au moins ${minLen} caractères`);
+    if (reqUpper && !/[A-Z]/.test(pwd)) errors.push('une majuscule');
+    if (reqLower && !/[a-z]/.test(pwd)) errors.push('une minuscule');
+    if (reqNum && !/[0-9]/.test(pwd)) errors.push('un chiffre');
+    if (reqSpecial && !/[^A-Za-z0-9]/.test(pwd)) errors.push('un caractère spécial');
+
+    if (errors.length) {
+      throw new BadRequestException(
+        `Mot de passe non conforme à la politique de sécurité : il faut ${errors.join(', ')}.`,
+      );
+    }
+  }
+
   async register(data: RegisterUserDto, ipAddress?: string) {
     const phone = this.normalizePhone(data.phone);
     const lang = data.lang || 'fr';
@@ -138,12 +171,13 @@ export class AuthServiceService {
       hasPassword: !!data.password,
     });
 
-    // ✅ Vérifier que le mot de passe est fourni
-    if (!data.password || data.password.trim().length < 8) {
+    // ✅ Vérifier que le mot de passe est fourni + conforme à la politique de sécurité
+    if (!data.password) {
       throw new BadRequestException(
         this.i18nService.translate('password_too_short', lang),
       );
     }
+    await this.validatePasswordPolicy(data.password, lang);
 
     const key = `${data.account_number}-${phone}`;
     if (registerLocks.get(key)) {
@@ -426,6 +460,7 @@ export class AuthServiceService {
         user,
         sessionToken,
         this.i18nService.translate('register_success', lang),
+        data.platform, // ✅ durée du token selon le client (mobile = 1h, admin/web = long)
       );
 
       // ✅ Récupérer les wallets
@@ -1485,6 +1520,7 @@ export class AuthServiceService {
         user,
         sessionToken,
         this.i18nService.translate('login_success', lang),
+        dto.platform, // ✅ durée du token selon le client (mobile = 1h, admin/web = long)
       );
 
       // ✅ Audit log
@@ -1875,11 +1911,12 @@ export class AuthServiceService {
   }): Promise<{ message: string }> {
     const { identifier, code, password, lang = 'fr' } = resetPasswordDto;
 
-    if (!password || password.trim().length < 8) {
+    if (!password) {
       throw new BadRequestException(
         this.i18nService.translate('password_too_short', lang),
       );
     }
+    await this.validatePasswordPolicy(password, lang);
 
     const { user, otpEntry } = await this.findResetOtp(identifier, code, lang);
 
@@ -1917,6 +1954,7 @@ export class AuthServiceService {
         this.i18nService.translate('new_password_required', lang),
       );
     }
+    await this.validatePasswordPolicy(newPassword, lang);
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user)
@@ -2348,6 +2386,7 @@ export class AuthServiceService {
     },
     sessionToken: string,
     message?: string,
+    platform?: string,
   ): AuthResponseDto {
     const payload = {
       id: user.id,
@@ -2366,13 +2405,20 @@ export class AuthServiceService {
       locked_by_admin: user.locked_by_admin ?? false, // ✅ AJOUTER
     };
 
-    // ✅ Access token court (par défaut 1h) + refresh token long (par défaut 30j).
-    //    Le claim tokenType distingue les deux (empêche d'utiliser un access token comme refresh).
-    //    Surchargeable via ACCESS_TOKEN_TTL / REFRESH_TOKEN_TTL.
+    // ✅ Durée de l'access token selon le client :
+    //    - MOBILE (android/ios) → court (par défaut 1h), surchargeable via ACCESS_TOKEN_TTL_MOBILE.
+    //    - ADMIN / WEB (back-office) → long (par défaut 30j), surchargeable via ACCESS_TOKEN_TTL_ADMIN
+    //      (ou l'ancienne variable ACCESS_TOKEN_TTL). L'admin reste donc connecté tant qu'il est actif,
+    //      la révocation restant assurée par la vérification de session à chaque requête.
+    //    Le claim tokenType distingue access/refresh. Refresh token long (par défaut 30j).
     const jwtSecret = process.env.JWT_SECRET || 'secret';
+    const isMobile = ['android', 'ios', 'mobile'].includes(String(platform || '').toLowerCase());
+    const accessTtl = isMobile
+      ? process.env.ACCESS_TOKEN_TTL_MOBILE || '1h'
+      : process.env.ACCESS_TOKEN_TTL_ADMIN || process.env.ACCESS_TOKEN_TTL || '30d';
     const accessToken = this.jwtService.sign(
       { ...payload, tokenType: 'access' },
-      { secret: jwtSecret, expiresIn: (process.env.ACCESS_TOKEN_TTL || '1h') as any },
+      { secret: jwtSecret, expiresIn: accessTtl as any },
     );
     const refreshToken = this.jwtService.sign(
       { ...payload, tokenType: 'refresh' },

@@ -1222,6 +1222,31 @@ export class MaintenanceService {
             };
         }
 
+        // ✅ SUSPENSION : si aucun mouvement financier depuis 2 périodes (cycles) consécutives,
+        //    on ne facture pas la maintenance. La facturation reprend dès qu'un mouvement a lieu
+        //    (dette prioritairement recouvrée à la prochaine entrée de fonds).
+        if (await this.isMaintenanceSuspended(user)) {
+            this.logger.log(`User ${user.id}: maintenance SUSPENDUE (aucun mouvement depuis 2 périodes)`);
+            return {
+                userId: user.id,
+                name: user.full_name,
+                role: user.role,
+                country: user.countryCode || 'CD',
+                success: true,
+                collected: false,
+                amount: 0,
+                reason: 'Maintenance suspendue : aucun mouvement financier depuis 2 périodes',
+                isDebt: false,
+                debtAmount: 0,
+                monthsInDebt: 0,
+                isBlocked: false,
+                isMaintenanceDay: false,
+                daysUntilNextMaintenance: 0,
+                nextMaintenanceDate: new Date(),
+                feeBreakdown: { countryFee: 0, multiplier: 0, calculatedFee: 0, finalFee: 0 },
+            };
+        }
+
         const isMerchant = user.role === 'MERCHANT';
         const country = await this.getUserCountry(user);
 
@@ -1552,36 +1577,38 @@ export class MaintenanceService {
         lang: string,
         feeResult: any,
     ): Promise<any> {
-        const collectedAmount = currentBalance > 0 ? currentBalance : 0;
-        const debtAmount = feeInWalletCurrency - (currentBalance > 0 ? currentBalance : 0);
+        const r3 = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
 
-        // Récupérer le nombre de mois en dette
-        const monthsInDebt = await this.getMonthsInDebt(user.id, lang);
-        const newMonthsInDebt = monthsInDebt + 1;
+        // ✅ On ne prélève QUE le disponible : le solde ne devient JAMAIS négatif.
+        const available = currentBalance > 0 ? currentBalance : 0;
+        const collectedAmount = r3(Math.min(available, feeInWalletCurrency));
+        const debtAmount = r3(feeInWalletCurrency - collectedAmount);
+        const newBalance = r3(currentBalance - collectedAmount); // >= 0 si currentBalance >= 0
 
-        this.logger.log(`User ${user.id}: Debt calculation - Balance: ${currentBalance}, Fee: ${feeInWalletCurrency}, Collected: ${collectedAmount}, Debt: ${debtAmount}, Months in debt: ${newMonthsInDebt}`);
+        this.logger.log(
+            `User ${user.id}: solde insuffisant → prélèvement ${collectedAmount} ${selectedWallet.currency}, ` +
+            `dette ${debtAmount} ${selectedWallet.currency} (solde final ${newBalance}, jamais négatif)`,
+        );
 
         try {
             const systemUser = await this.getSystemUser();
             const systemWallet = await this.getSystemWalletUSD();
-
-            let userTransaction: any = null;
-            let debtTransaction: any = null;
-            let statusUpdate: any = null;
+            // Part réellement collectée, convertie en USD (crédit système limité au collecté)
+            const collectedFeeUSD =
+                feeInWalletCurrency > 0 ? r3(finalFeeUSD * (collectedAmount / feeInWalletCurrency)) : 0;
 
             const result = await this.prisma.$transaction(async (tx) => {
-                const newBalance = currentBalance - feeInWalletCurrency;
+                let userTransaction: any = null;
+                let systemTransaction: any = null;
+                let debtId: string | null = null;
 
-                // ✅ 1. Mettre à jour le wallet
+                // 1. Débiter UNIQUEMENT le montant disponible (jamais de solde négatif)
                 const updatedWallet = await tx.wallet.update({
                     where: { id: selectedWallet.id },
-                    data: {
-                        balance: newBalance,
-                        updatedAt: new Date(),
-                    },
+                    data: { balance: newBalance, updatedAt: new Date() },
                 });
 
-                // ✅ 2. Transaction de collection (si montant > 0)
+                // 2. Transaction de collecte + crédit système (seulement si on a pu prélever quelque chose)
                 if (collectedAmount > 0) {
                     userTransaction = await tx.transaction.create({
                         data: {
@@ -1596,173 +1623,94 @@ export class MaintenanceService {
                                 country: country.name || user.countryCode || 'CD',
                                 role: isMerchant ? 'Marchand' : 'Utilisateur',
                                 amount: collectedAmount,
-                                currency: selectedWallet.currency
+                                currency: selectedWallet.currency,
                             }),
                             movement: 'DEBIT',
                             currency: selectedWallet.currency,
                             paymentMethod: 'INTERNAL',
                         },
                     });
+
+                    if (collectedFeeUSD > 0) {
+                        await tx.wallet.update({
+                            where: { id: systemWallet.id },
+                            data: { balance: { increment: collectedFeeUSD }, updatedAt: new Date() },
+                        });
+                        systemTransaction = await tx.transaction.create({
+                            data: {
+                                id: crypto.randomUUID(),
+                                userId: systemUser.id,
+                                walletId: systemWallet.id,
+                                amount: collectedFeeUSD,
+                                type: 'DEPOSIT',
+                                status: 'SUCCESS',
+                                reference: await this.generateMaintenanceReference(tx),
+                                description: `Frais de maintenance (partiel) de ${user.full_name || user.id} : ${collectedAmount} ${selectedWallet.currency}`,
+                                movement: 'CREDIT',
+                                currency: 'USD',
+                                paymentMethod: 'INTERNAL',
+                            },
+                        });
+                    }
                 }
 
-                // ✅ 3. Transaction de dette (si montant > 0)
+                // 3. Enregistrer la PART IMPAYÉE comme dette distincte (jamais via un solde négatif)
                 if (debtAmount > 0) {
-                    debtTransaction = await tx.transaction.create({
-                        data: {
-                            id: crypto.randomUUID(),
-                            userId: user.id,
-                            walletId: selectedWallet.id,
-                            amount: debtAmount,
-                            type: 'WITHDRAW',
-                            status: 'PENDING',
-                            reference: await this.generateMaintenanceReference(tx),
-                            description: this.t('wallet.maintenance.transaction_description_debt', lang, {
-                                amount: debtAmount,
-                                currency: selectedWallet.currency,
-                                country: country.name || user.countryCode || 'CD',
-                                month: newMonthsInDebt
-                            }),
-                            movement: 'DEBIT',
-                            currency: selectedWallet.currency,
-                            paymentMethod: 'INTERNAL',
-                        },
-                    });
+                    debtId = crypto.randomUUID();
+                    const ref = await this.generateMaintenanceReference(tx);
+                    await tx.$executeRawUnsafe(
+                        'INSERT INTO `maintenance_debts` (`id`, `user_id`, `wallet_id`, `currency`, `amount_due`, `amount_recovered`, `status`, `reference`, `created_at`) ' +
+                            "VALUES (?, ?, ?, ?, ?, 0, 'PENDING', ?, UTC_TIMESTAMP())",
+                        debtId,
+                        user.id,
+                        selectedWallet.id,
+                        selectedWallet.currency,
+                        debtAmount,
+                        ref,
+                    );
                 }
 
-                // ✅ 4. 🔒 BLOCAGE PERMANENT DU COMPTE SI 5 MOIS DE DETTE
-                let isBlocked = false;
-                if (newMonthsInDebt >= 5) {
-                    statusUpdate = await tx.user.update({
-                        where: { id: user.id },
-                        data: {
-                            status: user_status.BLOCKED,
-                            locked_until: null,
-                            updatedAt: new Date(),
-                        },
-                    });
-                    isBlocked = true;
-
-                    this.logger.warn(`🔒 User ${user.id} BLOCKED permanently due to ${newMonthsInDebt} months of unpaid fees`);
-
-                    await tx.audit_log.create({
-                        data: {
-                            id: crypto.randomUUID(),
-                            userId: user.id,
-                            action: 'ACCOUNT_BLOCKED_AUTO_MAINTENANCE',
-                            details: JSON.stringify({
-                                reason: '5 mois de frais de maintenance impayés',
-                                monthsInDebt: newMonthsInDebt,
-                                totalDebt: debtAmount,
-                                currency: selectedWallet.currency,
-                                date: new Date(),
-                                isPermanent: true,
-                            }),
-                            createdAt: new Date(),
-                        },
-                    });
-                }
-
-                // ✅ 5. Créditer le wallet système
-                await tx.wallet.update({
-                    where: { id: systemWallet.id },
-                    data: {
-                        balance: { increment: finalFeeUSD },
-                        updatedAt: new Date(),
-                    },
-                });
-
-                // ✅ 6. Transaction système
-                const debtInfo = debtAmount > 0 ? ` (dette: ${debtAmount} ${selectedWallet.currency}, ${newMonthsInDebt} mois)` : '';
-                const systemTransaction = await tx.transaction.create({
-                    data: {
-                        id: crypto.randomUUID(),
-                        userId: systemUser.id,
-                        walletId: systemWallet.id,
-                        amount: finalFeeUSD,
-                        type: 'DEPOSIT',
-                        status: 'SUCCESS',
-                        reference: await this.generateMaintenanceReference(tx),
-                        description: this.t('wallet.maintenance.transaction_description_debt_system', lang, {
-                            user: user.full_name || user.id,
-                            amount: feeInWalletCurrency,
-                            fromCurrency: selectedWallet.currency,
-                            systemAmount: finalFeeUSD,
-                            country: country.name || user.countryCode || 'CD',
-                            debtInfo: debtInfo
-                        }),
-                        movement: 'CREDIT',
-                        currency: 'USD',
-                        paymentMethod: 'INTERNAL',
-                    },
-                });
-
-                // ✅ 7. Mettre à jour la date de dernière maintenance
+                // 4. Date de dernière maintenance
                 await tx.user.update({
                     where: { id: user.id },
-                    data: {
-                        last_maintenance_date: new Date(),
-                    },
+                    data: { last_maintenance_date: new Date() },
                 });
 
-                // ✅ 8. Audit log
+                // 5. Audit
                 await tx.audit_log.create({
                     data: {
                         id: crypto.randomUUID(),
                         userId: user.id,
-                        action: debtAmount > 0 ? 'MAINTENANCE_FEE_WITH_DEBT' : 'MAINTENANCE_FEE',
+                        action: debtAmount > 0 ? 'MAINTENANCE_FEE_PARTIAL_DEBT' : 'MAINTENANCE_FEE',
                         details: JSON.stringify({
-                            collectedAmount: collectedAmount,
-                            debtAmount: debtAmount,
-                            totalAmount: feeInWalletCurrency,
+                            collectedAmount,
+                            debtAmount,
+                            totalFee: feeInWalletCurrency,
                             currency: selectedWallet.currency,
-                            systemAmount: finalFeeUSD,
-                            systemCurrency: 'USD',
+                            collectedFeeUSD,
                             walletId: selectedWallet.id,
-                            systemWalletId: systemWallet.id,
-                            role: user.role,
-                            country: country.name || user.countryCode || 'CD',
-                            isMerchant,
-                            conversionRate,
-                            originalCurrency,
-                            selectionReason: selectionReason,
-                            hasDebt: debtAmount > 0,
-                            walletBalance: currentBalance,
-                            newBalance: currentBalance - feeInWalletCurrency,
-                            monthsInDebt: newMonthsInDebt,
-                            isBlocked: isBlocked,
-                            feeBreakdown: {
-                                countryFee: feeResult.countryFee,
-                                multiplier: feeResult.multiplier,
-                                calculatedFee: feeResult.calculatedFee,
-                                finalFee: feeResult.finalFee,
-                            },
-                            isMaintenanceDay: feeResult.isMaintenanceDay,
-                            nextMaintenanceDate: feeResult.nextMaintenanceDate,
+                            walletBalanceBefore: currentBalance,
+                            walletBalanceAfter: newBalance,
+                            debtId,
+                            neverNegative: true,
                         }),
                         createdAt: new Date(),
                     },
                 });
 
-                return {
-                    updatedWallet,
-                    userTransaction,
-                    debtTransaction,
-                    systemWallet,
-                    systemTransaction,
-                    collectedAmount,
-                    debtAmount,
-                    statusUpdate,
-                    newMonthsInDebt,
-                    isBlocked,
-                };
+                return { updatedWallet, userTransaction, systemTransaction, debtId };
             }, { timeout: 30000 });
 
-            // ✅ Envoyer notification spéciale si bloqué
-            if (result.isBlocked) {
-                await this.sendBlockNotification(user, debtAmount, selectedWallet.currency, lang, result.newMonthsInDebt);
-            } else {
-                await this.sendMaintenanceNotifications(user, feeInWalletCurrency, selectedWallet.currency, lang, debtAmount > 0, debtAmount, result.newMonthsInDebt, false);
-            }
+            await this.sendMaintenanceNotifications(
+                user,
+                feeInWalletCurrency,
+                selectedWallet.currency,
+                lang,
+                debtAmount > 0,
+                debtAmount,
+                0,
+                false,
+            );
 
             return {
                 userId: user.id,
@@ -1770,21 +1718,21 @@ export class MaintenanceService {
                 role: user.role,
                 country: country.name || user.countryCode || 'CD',
                 success: true,
-                collected: true,
+                collected: collectedAmount > 0,
                 amount: collectedAmount,
                 currency: selectedWallet.currency,
                 walletId: selectedWallet.id,
                 newBalance: result.updatedWallet.balance,
                 transactionId: result.userTransaction?.id ?? null,
-                debtTransactionId: result.debtTransaction?.id ?? null,
-                systemTransactionId: result.systemTransaction.id,
-                selectedWalletReason: debtAmount > 0
-                    ? `Dette créée: ${debtAmount} ${selectedWallet.currency} (solde: ${currentBalance}, prélevé: ${collectedAmount}) - ${result.newMonthsInDebt}/5 mois`
-                    : `Prélèvement complet de ${feeInWalletCurrency} ${selectedWallet.currency}`,
+                systemTransactionId: result.systemTransaction?.id ?? null,
+                debtId: result.debtId,
                 isDebt: debtAmount > 0,
-                debtAmount: debtAmount,
-                monthsInDebt: result.newMonthsInDebt,
-                isBlocked: result.isBlocked,
+                debtAmount,
+                isBlocked: false,
+                selectedWalletReason:
+                    debtAmount > 0
+                        ? `Dette enregistrée: ${debtAmount} ${selectedWallet.currency} (prélevé: ${collectedAmount}, solde final: ${result.updatedWallet.balance} — jamais négatif)`
+                        : `Prélèvement complet`,
                 isMaintenanceDay: feeResult.isMaintenanceDay,
                 daysUntilNextMaintenance: feeResult.daysUntilNextMaintenance,
                 nextMaintenanceDate: feeResult.nextMaintenanceDate,
@@ -1805,10 +1753,9 @@ export class MaintenanceService {
                 success: false,
                 collected: false,
                 amount: 0,
-                error: error.message || 'Debt transaction failed',
+                error: error.message || 'Debt maintenance failed',
                 isDebt: false,
                 debtAmount: 0,
-                monthsInDebt: 0,
                 isBlocked: false,
                 isMaintenanceDay: feeResult.isMaintenanceDay,
                 daysUntilNextMaintenance: feeResult.daysUntilNextMaintenance,
@@ -1839,6 +1786,140 @@ export class MaintenanceService {
         }
 
         return ref;
+    }
+
+    /**
+     * ✅ Recouvrement prioritaire des dettes de maintenance d'un utilisateur, à appeler
+     *    APRÈS chaque entrée de fonds (recharge cash ou virtuelle). Ne crée JAMAIS de solde
+     *    négatif : on recouvre uniquement sur les fonds disponibles ; recouvrement partiel possible.
+     *    Le montant recouvré est crédité au compte système (USD). Priorité aux dettes les plus anciennes.
+     */
+    async recoverMaintenanceDebts(userId: string, lang: string = 'fr'): Promise<{ recoveredUSD: number; remaining: number }> {
+        const r3 = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
+        try {
+            const debts: any[] = await this.prisma.$queryRawUnsafe(
+                "SELECT * FROM `maintenance_debts` WHERE `user_id` = ? AND `status` IN ('PENDING','PARTIAL') ORDER BY `created_at` ASC",
+                userId,
+            );
+            if (!debts || !debts.length) return { recoveredUSD: 0, remaining: 0 };
+
+            const systemUser = await this.getSystemUser();
+            const systemWallet = await this.getSystemWalletUSD();
+            let recoveredUSD = 0;
+            let remaining = 0;
+
+            for (const debt of debts) {
+                const due = r3(Number(debt.amount_due) - Number(debt.amount_recovered));
+                if (due <= 0) continue;
+
+                // Portefeuille de l'utilisateur dans la devise de la dette, avec du solde disponible
+                const wallet = await this.prisma.wallet.findFirst({
+                    where: { userId, currency: debt.currency, isActive: true, balance: { gt: 0 } },
+                    orderBy: { balance: 'desc' },
+                });
+                if (!wallet || wallet.balance <= 0) { remaining += due; continue; }
+
+                const take = r3(Math.min(due, wallet.balance)); // jamais plus que le disponible
+                if (take <= 0) { remaining += due; continue; }
+
+                const rate = await this.getExchangeRate(debt.currency, 'USD').catch(() => 1);
+                const takeUSD = r3(take * (rate || 1));
+
+                await this.prisma.$transaction(async (tx) => {
+                    // 1. Débiter le wallet (jamais négatif : take <= solde)
+                    await tx.wallet.update({
+                        where: { id: wallet.id },
+                        data: { balance: { decrement: take }, updatedAt: new Date() },
+                    });
+                    // 2. Transaction de recouvrement (utilisateur)
+                    await tx.transaction.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            userId,
+                            walletId: wallet.id,
+                            amount: take,
+                            type: 'WITHDRAW',
+                            status: 'SUCCESS',
+                            reference: await this.generateMaintenanceReference(tx),
+                            description: `Recouvrement dette de maintenance : ${take} ${debt.currency}`,
+                            movement: 'DEBIT',
+                            currency: debt.currency,
+                            paymentMethod: 'INTERNAL',
+                        },
+                    });
+                    // 3. Créditer le compte système (USD)
+                    if (takeUSD > 0) {
+                        await tx.wallet.update({
+                            where: { id: systemWallet.id },
+                            data: { balance: { increment: takeUSD }, updatedAt: new Date() },
+                        });
+                        await tx.transaction.create({
+                            data: {
+                                id: crypto.randomUUID(),
+                                userId: systemUser.id,
+                                walletId: systemWallet.id,
+                                amount: takeUSD,
+                                type: 'DEPOSIT',
+                                status: 'SUCCESS',
+                                reference: await this.generateMaintenanceReference(tx),
+                                description: `Recouvrement dette maintenance de ${userId} : ${take} ${debt.currency}`,
+                                movement: 'CREDIT',
+                                currency: 'USD',
+                                paymentMethod: 'INTERNAL',
+                            },
+                        });
+                    }
+                    // 4. Mettre à jour la dette (RECOVERED si soldée, sinon PARTIAL)
+                    const newRecovered = r3(Number(debt.amount_recovered) + take);
+                    const fullyPaid = newRecovered >= r3(Number(debt.amount_due)) - 0.0005;
+                    await tx.$executeRawUnsafe(
+                        "UPDATE `maintenance_debts` SET `amount_recovered` = ?, `status` = ?, `recovered_at` = ?, `updated_at` = UTC_TIMESTAMP() WHERE `id` = ?",
+                        newRecovered,
+                        fullyPaid ? 'RECOVERED' : 'PARTIAL',
+                        fullyPaid ? new Date() : null,
+                        debt.id,
+                    );
+                }, { timeout: 30000 });
+
+                recoveredUSD += takeUSD;
+                if (take < due) remaining += r3(due - take);
+            }
+
+            if (recoveredUSD > 0) {
+                this.logger.log(`💰 Dettes de maintenance recouvrées pour ${userId} : ${r3(recoveredUSD)} USD (reste dû ~${r3(remaining)})`);
+            }
+            return { recoveredUSD: r3(recoveredUSD), remaining: r3(remaining) };
+        } catch (e: any) {
+            this.logger.error(`Erreur recouvrement dettes de maintenance pour ${userId} : ${e?.message}`);
+            return { recoveredUSD: 0, remaining: 0 };
+        }
+    }
+
+    /**
+     * ✅ Vrai si l'utilisateur n'a eu AUCUN mouvement financier depuis 2 périodes (cycles mensuels)
+     *    consécutives → la facturation de maintenance est suspendue tant qu'aucun mouvement ne reprend.
+     *    « Mouvement financier » = transaction SUCCESS non interne (recharge, retrait, mobile money,
+     *    cash, transfert…), les frais de maintenance (paymentMethod INTERNAL) étant exclus.
+     */
+    private async isMaintenanceSuspended(user: any): Promise<boolean> {
+        const cycleDays = Number(process.env.MAINTENANCE_CYCLE_DAYS || 30);
+        const threshold = new Date(Date.now() - 2 * cycleDays * 24 * 60 * 60 * 1000);
+        try {
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                'SELECT MAX(t.`createdAt`) AS last FROM `transaction` t ' +
+                    'INNER JOIN `wallet` w ON w.`id` = t.`walletId` ' +
+                    "WHERE w.`userId` = ? AND t.`status` = 'SUCCESS' AND (t.`paymentMethod` IS NULL OR t.`paymentMethod` <> 'INTERNAL')",
+                user.id,
+            );
+            const last = rows?.[0]?.last ? new Date(rows[0].last) : null;
+            if (last) return last < threshold; // dernier mouvement plus vieux que 2 périodes → suspendu
+            // Jamais de mouvement : suspendu seulement si le compte existe depuis plus de 2 périodes
+            const created = user?.createdAt ? new Date(user.createdAt) : null;
+            return created ? created < threshold : false;
+        } catch (e: any) {
+            this.logger.warn(`isMaintenanceSuspended: lecture impossible (${e?.message}) → on ne suspend pas`);
+            return false;
+        }
     }
 
     // ✅ Méthode utilitaire pour récupérer les dettes de maintenance

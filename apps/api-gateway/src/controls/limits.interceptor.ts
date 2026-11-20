@@ -36,8 +36,10 @@ export class LimitsInterceptor implements NestInterceptor {
   }
 
   private get mode(): 'off' | 'monitor' | 'enforce' {
-    const m = String(process.env.LIMITS_MODE ?? 'monitor').toLowerCase();
-    return m === 'enforce' ? 'enforce' : m === 'off' ? 'off' : 'monitor';
+    // ✅ Par défaut on APPLIQUE les plafonds (403 si dépassement). Mettre LIMITS_MODE=monitor
+    //    pour seulement journaliser, ou LIMITS_MODE=off pour désactiver.
+    const m = String(process.env.LIMITS_MODE ?? 'enforce').toLowerCase();
+    return m === 'monitor' ? 'monitor' : m === 'off' ? 'off' : 'enforce';
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -153,7 +155,7 @@ export class LimitsInterceptor implements NestInterceptor {
 
     const users: any[] = await this.db.$queryRawUnsafe('SELECT `kycStatus` FROM `user` WHERE `id` = ? LIMIT 1', userId);
     let override: Partial<Limits> | null = null;
-    if (String(process.env.LIMITS_USE_USER_OVERRIDES ?? 'false').toLowerCase() === 'true') {
+    if (String(process.env.LIMITS_USE_USER_OVERRIDES ?? 'true').toLowerCase() === 'true') {
       const o: any[] = await this.db
         .$queryRawUnsafe(
           'SELECT `per_transaction_limit`, `daily_limit`, `monthly_limit`, `yearly_limit`, `monthly_transaction_count` FROM `user_transaction_limit` WHERE `user_id` = ? LIMIT 1',

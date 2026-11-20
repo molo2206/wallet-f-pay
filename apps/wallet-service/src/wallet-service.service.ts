@@ -10,6 +10,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // apps/wallet-service/src/wallet-service.service.ts
 import { Injectable } from '@nestjs/common';
+import { MaintenanceService } from './cron/maintenance.cron';
 import { RpcException } from '@nestjs/microservices';
 import * as crypto from 'crypto';
 import { PrismaService } from './prisma/prisma.service';
@@ -79,6 +80,7 @@ export class WalletServiceService {
     private readonly bankService: BankService,
     private readonly pawapayService: PawapayService,
     private readonly mailService: MailService,
+    private readonly maintenanceService: MaintenanceService,
   ) { }
 
   private async generateTransactionReference(
@@ -375,6 +377,14 @@ export class WalletServiceService {
         return true;
       });
       outcome = credited ? 'SUCCESS' : 'ALREADY_DONE';
+      // ✅ Entrée de fonds (recharge virtuelle) → recouvrement prioritaire des dettes de maintenance
+      if (credited) {
+        try {
+          await this.maintenanceService.recoverMaintenanceDebts(transaction.userId, lang);
+        } catch (e) {
+          console.error('[Maintenance] recouvrement après dépôt mobile money échoué:', e);
+        }
+      }
     } else {
       const n = await this.prisma.transaction.updateMany({
         where: { id: transaction.id, status: 'PENDING' },
@@ -11053,6 +11063,16 @@ export class WalletServiceService {
       );
     } catch (err) {
       console.error('[Notifications] adminTopUp error:', err);
+    }
+
+    // ✅ Recouvrement PRIORITAIRE des dettes de maintenance après l'entrée de fonds
+    //    (recharge cash). Ne bloque jamais la recharge ; ne crée jamais de solde négatif.
+    try {
+      if (result.user?.id) {
+        await this.maintenanceService.recoverMaintenanceDebts(result.user.id, lang);
+      }
+    } catch (e) {
+      console.error('[Maintenance] recouvrement après adminTopUp échoué:', e);
     }
 
     return {
