@@ -74,6 +74,14 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Payload JWT invalide');
       }
 
+      // 🔒 Sécurité : un refresh token (valable 30 j) ne doit JAMAIS servir de jeton d'accès.
+      //    Seul /auth/refresh-token l'accepte, via le message RPC refresh_token (hors de cette garde).
+      //    On ne rejette que le claim explicite 'refresh' : les anciens jetons d'accès sans
+      //    claim tokenType restent valides.
+      if (payload.tokenType === 'refresh') {
+        throw new UnauthorizedException('Token invalide');
+      }
+
       // Récupérer le statut uniquement si ce n'est pas logout
       let currentStatus: string = 'ACTIVE';
       if (!isLogoutRoute) {
