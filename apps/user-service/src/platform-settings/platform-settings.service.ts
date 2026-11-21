@@ -208,9 +208,13 @@ export class PlatformSettingsService {
     const user = await this.prisma.user.findFirst({ where: { id: userId }, select: { id: true } });
     if (!user) this.fail(404, 'Utilisateur introuvable');
     const row = await this.prisma.user_transaction_limit.findFirst({ where: { user_id: userId } });
+    // Devise de référence des plafonds : les montants s'appliquent dans cette devise,
+    // agrégés sur TOUS les wallets de l'utilisateur (conversion via exchange_rate).
+    const reference_currency = String(process.env.LIMITS_REFERENCE_CURRENCY || 'USD').toUpperCase();
+    const scope = 'ALL_WALLETS'; // les plafonds cumulent les débits de tous les portefeuilles de l'utilisateur
     // Pas de création automatique : l'absence de ligne = plafonds du niveau KYC
-    return (
-      row ?? {
+    return {
+      ...(row ?? {
         id: null,
         user_id: userId,
         daily_limit: null,
@@ -219,8 +223,10 @@ export class PlatformSettingsService {
         per_transaction_limit: null,
         monthly_transaction_count: null,
         isDefault: true,
-      }
-    );
+      }),
+      reference_currency,
+      scope,
+    };
   }
 
   async updateUserLimit(userId: string, dto: any) {
@@ -235,11 +241,12 @@ export class PlatformSettingsService {
       per_transaction_limit: this.num(d.per_transaction_limit, 0, 'Plafond par opération'),
       monthly_transaction_count: this.int(d.monthly_transaction_count, 0, 1000000, "Nombre d'opérations par mois"),
     });
+    const reference_currency = String(process.env.LIMITS_REFERENCE_CURRENCY || 'USD').toUpperCase();
     const existing = await this.prisma.user_transaction_limit.findFirst({ where: { user_id: userId } });
-    if (existing) {
-      return this.prisma.user_transaction_limit.update({ where: { id: existing.id }, data: { ...data, updated_at: new Date() } });
-    }
-    return this.prisma.user_transaction_limit.create({ data: { id: crypto.randomUUID(), user_id: userId, ...data } });
+    const saved = existing
+      ? await this.prisma.user_transaction_limit.update({ where: { id: existing.id }, data: { ...data, updated_at: new Date() } })
+      : await this.prisma.user_transaction_limit.create({ data: { id: crypto.randomUUID(), user_id: userId, ...data } });
+    return { ...saved, reference_currency, scope: 'ALL_WALLETS' };
   }
 
   // ============================================================

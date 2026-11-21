@@ -454,6 +454,8 @@ export class AuthServiceService {
           created_at: new Date(),
         },
       });
+      // ✅ Applique max_concurrent_sessions (security_policies)
+      await this.enforceMaxConcurrentSessions(user.id).catch(() => undefined);
       const sessionId = createdSession.id;
 
       const result = this.generateJwt(
@@ -971,6 +973,8 @@ export class AuthServiceService {
         created_at: new Date(),
       },
     });
+    // ✅ Applique max_concurrent_sessions (security_policies)
+    await this.enforceMaxConcurrentSessions(user.id).catch(() => undefined);
 
     // ✅ 13. Récupérer les sessions
     const sessions = await this.prisma.sessions.findMany({
@@ -1475,6 +1479,8 @@ export class AuthServiceService {
           created_at: new Date(),
         },
       });
+      // ✅ Applique max_concurrent_sessions (security_policies)
+      await this.enforceMaxConcurrentSessions(user.id).catch(() => undefined);
       const sessionId = createdSession.id;
 
       // ✅ Enregistrer le token FCM
@@ -1588,6 +1594,40 @@ export class AuthServiceService {
     }
   }
 
+  /** ✅ Politique de sécurité enregistrée (security_policies), ou null si absente. */
+  private async getSecurityPolicy(): Promise<any | null> {
+    try {
+      return await this.prisma.security_policies.findFirst({ orderBy: { created_at: 'asc' } });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * ✅ Applique `max_concurrent_sessions` (security_policies) : ne conserve que les N sessions
+   *    valides les plus récentes d'un utilisateur ; les plus anciennes sont invalidées.
+   */
+  private async enforceMaxConcurrentSessions(userId: string): Promise<void> {
+    try {
+      const policy = await this.getSecurityPolicy();
+      const max = Number(policy?.max_concurrent_sessions ?? 0);
+      if (!max || max <= 0) return; // 0/absent → pas de limite
+      const sessions = await this.prisma.sessions.findMany({
+        where: { user_id: userId, is_valid: true, expires_at: { gt: new Date() } },
+        orderBy: { last_activity: 'desc' },
+        select: { id: true },
+      });
+      if (sessions.length <= max) return;
+      const toInvalidate = sessions.slice(max).map((s) => s.id); // au-delà des N plus récentes
+      await this.prisma.sessions.updateMany({
+        where: { id: { in: toInvalidate } },
+        data: { is_valid: false },
+      });
+    } catch {
+      /* ne jamais bloquer la connexion sur cette règle */
+    }
+  }
+
   async validateSession(
     userId: string,
     sessionToken: string,
@@ -1601,6 +1641,21 @@ export class AuthServiceService {
       },
     });
     if (!session) return { valid: false };
+
+    // ✅ Timeout d'INACTIVITÉ (security_policies.session_timeout_minutes) : si la dernière activité
+    //    est trop ancienne, la session est fermée et le jeton refusé.
+    const policy = await this.getSecurityPolicy();
+    const timeoutMin = Number(policy?.session_timeout_minutes ?? 0);
+    if (timeoutMin > 0 && session.last_activity) {
+      const idleMs = Date.now() - new Date(session.last_activity).getTime();
+      if (idleMs > timeoutMin * 60 * 1000) {
+        await this.prisma.sessions
+          .update({ where: { id: session.id }, data: { is_valid: false } })
+          .catch(() => undefined);
+        return { valid: false };
+      }
+    }
+
     await this.prisma.sessions.update({
       where: { id: session.id },
       data: { last_activity: new Date() },
@@ -2269,6 +2324,8 @@ export class AuthServiceService {
           created_at: new Date(),
         },
       });
+      // ✅ Applique max_concurrent_sessions (security_policies)
+      await this.enforceMaxConcurrentSessions(user.id).catch(() => undefined);
     }
 
     // 3. Utiliser generateJwt existant
